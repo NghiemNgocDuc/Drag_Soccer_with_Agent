@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Online — Drag Soccer</title>
+<style>
+:root{
+  --glass-bg:rgba(255,255,255,.62);
+  --glass-border:rgba(180,205,255,.5);
+  --glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);
+  --blur:18px;
+  --accent-a:#3b82f6;
+  --accent-b:#ef4444;
+  --text:#1e2d4f;
+  --muted:#6b7fa3;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;
+  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
+  font-family:'Inter',system-ui,sans-serif;
+  color:var(--text);
+}
+.glass{
+  background:var(--glass-bg);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-shadow);
+  backdrop-filter:blur(var(--blur));
+  -webkit-backdrop-filter:blur(var(--blur));
+  border-radius:18px;
+}
+nav{
+  display:flex;align-items:center;gap:12px;padding:10px 24px;
+  background:rgba(255,255,255,.78);
+  border-bottom:1px solid rgba(180,205,255,.4);
+  position:sticky;top:0;z-index:100;
+}
+.nav-brand{font-weight:700;font-size:1rem;color:var(--text)}
+.nav-links{display:flex;gap:4px;margin-left:auto}
+.nav-link{
+  padding:6px 14px;border-radius:8px;font-size:.82rem;font-weight:500;
+  color:var(--muted);text-decoration:none;transition:all .15s;
+}
+.nav-link:hover,.nav-link.active{background:rgba(59,130,246,.1);color:var(--accent-a)}
+.nav-user{font-size:.82rem;color:var(--muted);padding:6px 0 6px 12px;border-left:1px solid rgba(180,205,255,.4)}
+main{max-width:1000px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:16px}
+
+/* Lobby */
+.lobby-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:640px){.lobby-grid{grid-template-columns:1fr}}
+.lobby-card{padding:24px}
+.lobby-card h2{font-size:1rem;font-weight:700;margin-bottom:16px;color:var(--text)}
+.share-link-box{
+  display:flex;align-items:center;gap:8px;margin-top:12px;
+  background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.2);
+  border-radius:10px;padding:10px 14px;
+}
+.share-link-box input{
+  flex:1;border:none;background:transparent;font-size:.82rem;
+  color:var(--text);outline:none;font-family:monospace;
+}
+.invites-panel{padding:20px}
+.invites-panel h2{font-size:1rem;font-weight:700;margin-bottom:14px;color:var(--text)}
+.invite-item{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 14px;border-radius:10px;background:rgba(59,130,246,.06);
+  border:1px solid rgba(59,130,246,.15);margin-bottom:8px;
+}
+.invite-from{font-size:.84rem;font-weight:600;color:var(--text)}
+.invite-actions{display:flex;gap:8px}
+.no-invites{font-size:.8rem;color:var(--muted);text-align:center;padding:12px 0}
+
+/* Search */
+.search-wrap{position:relative}
+.search-results{
+  position:absolute;top:100%;left:0;right:0;z-index:50;
+  background:rgba(255,255,255,.98);border:1px solid rgba(180,205,255,.5);
+  border-radius:10px;box-shadow:0 8px 24px rgba(80,120,200,.12);
+  margin-top:4px;max-height:200px;overflow-y:auto;
+}
+.search-result-item{
+  padding:10px 14px;cursor:pointer;font-size:.84rem;
+  border-bottom:1px solid rgba(180,205,255,.2);
+  display:flex;justify-content:space-between;align-items:center;
+}
+.search-result-item:last-child{border-bottom:none}
+.search-result-item:hover{background:rgba(59,130,246,.07)}
+
+/* Waiting */
+.waiting-panel{display:none;padding:32px;text-align:center}
+.waiting-panel.visible{display:flex;flex-direction:column;align-items:center;gap:16px}
+
+/* HUD */
+.hud{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;
+}
+.team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:110px}
+.team-name{font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.team-score{font-size:2.4rem;font-weight:800;line-height:1}
+.team-a .team-score{color:var(--accent-a)}
+.team-b .team-score{color:var(--accent-b)}
+.hud-mid{display:flex;flex-direction:column;align-items:center;gap:6px}
+.kick-counter{font-size:.72rem;color:var(--muted);font-weight:500}
+.turn-badge{padding:4px 14px;border-radius:20px;font-size:.78rem;font-weight:600}
+.turn-badge.turn-a{background:rgba(59,130,246,.15);color:var(--accent-a)}
+.turn-badge.turn-b{background:rgba(239,68,68,.15);color:var(--accent-b)}
+.winner-banner{
+  display:none;padding:8px 20px;border-radius:12px;font-size:.9rem;font-weight:700;
+  background:rgba(16,185,129,.15);color:#059669;text-align:center;
+}
+
+/* Canvas */
+.canvas-wrap{
+  border-radius:16px;overflow:hidden;
+  box-shadow:0 8px 32px rgba(80,120,200,.15);
+  position:relative;cursor:default;
+}
+#game-canvas{display:block;width:100%;touch-action:none}
+.canvas-overlay{
+  display:none;position:absolute;inset:0;
+  background:rgba(255,255,255,.7);
+  backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:600;color:var(--text);
+}
+.canvas-overlay.visible{display:flex}
+.spinner{
+  width:32px;height:32px;border:3px solid rgba(59,130,246,.2);
+  border-top-color:var(--accent-a);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Controls */
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px}
+.btn{
+  padding:7px 18px;border-radius:10px;border:none;cursor:pointer;
+  font-size:.82rem;font-weight:600;transition:all .15s;outline:none;
+}
+.btn-primary{background:rgba(59,130,246,.12);color:var(--accent-a);border:1px solid rgba(59,130,246,.25)}
+.btn-primary:hover{background:rgba(59,130,246,.22)}
+.btn-danger{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:rgba(239,68,68,.2)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid rgba(180,205,255,.5)}
+.btn-ghost:hover{background:rgba(180,205,255,.2)}
+.btn-success{background:rgba(16,185,129,.12);color:#059669;border:1px solid rgba(16,185,129,.25)}
+.btn-success:hover{background:rgba(16,185,129,.22)}
+input[type=text],input[type=search]{
+  padding:8px 14px;border-radius:10px;border:1px solid rgba(180,205,255,.5);
+  background:rgba(255,255,255,.7);color:var(--text);font-size:.84rem;
+  outline:none;width:100%;
+}
+input[type=text]:focus,input[type=search]:focus{border-color:rgba(59,130,246,.4)}
+
+/* Log */
+.log-panel{padding:12px 18px;max-height:120px;overflow-y:auto}
+.log-panel p{font-size:.76rem;color:var(--muted);margin:2px 0}
+.log-panel .log-goal{color:#059669;font-weight:600}
+
+/* Hint */
+.hint{
+  text-align:center;font-size:.78rem;color:var(--muted);padding:8px 16px;
+  background:rgba(59,130,246,.06);border-radius:10px;
+}
+
+/* Sections */
+#lobby-section{display:flex;flex-direction:column;gap:16px}
+#game-section{display:none;flex-direction:column;gap:16px}
+#waiting-section{display:none;flex-direction:column;align-items:center;gap:16px;padding:40px 20px;text-align:center}
+
+/* Friends panel */
+.friends-panel{padding:20px}
+.friends-panel h2{font-size:1rem;font-weight:700;margin-bottom:14px;color:var(--text)}
+.friends-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:600px){.friends-grid{grid-template-columns:1fr}}
+.friend-item{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:9px 13px;border-radius:10px;
+  background:rgba(59,130,246,.05);border:1px solid rgba(59,130,246,.12);margin-bottom:7px;
+}
+.friend-item:last-child{margin-bottom:0}
+.friend-name{font-size:.84rem;font-weight:600;color:var(--text)}
+.friend-req-item{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  padding:9px 13px;border-radius:10px;
+  background:rgba(251,191,36,.07);border:1px solid rgba(251,191,36,.25);margin-bottom:7px;
+}
+.friend-req-from{font-size:.84rem;font-weight:600;color:#92400e}
+.no-friends{font-size:.8rem;color:var(--muted);text-align:center;padding:10px 0}
+.friends-add-row{display:flex;gap:8px;margin-bottom:14px}
+.friends-add-row input{flex:1}
+.friend-status{font-size:.76rem;margin-top:6px}
+</style>
+</head>
+<body>
+<nav>
+  <span class="nav-brand">Drag Soccer</span>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Play</a>
+    <a href="/online" class="nav-link active">Online</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/profile" class="nav-link">Profile</a>
+  </div>
+  <span class="nav-user">{{ username }}</span>
+  <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+</nav>
+
+<main>
+
+  <!-- LOBBY SECTION -->
+  <div id="lobby-section">
+    <div class="lobby-grid">
+
+      <!-- Create Game card -->
+      <div class="glass lobby-card">
+        <h2>Create a Game</h2>
+        <p style="font-size:.82rem;color:var(--muted);margin-bottom:16px">
+          Start a new room and share the link with a friend.
+        </p>
+        <button class="btn btn-primary" onclick="createGame()">Create Game</button>
+        <div id="share-box" class="share-link-box" style="display:none">
+          <input type="text" id="share-link-input" readonly>
+          <button class="btn btn-ghost" style="padding:5px 12px;white-space:nowrap"
+                  onclick="copyLink()">Copy</button>
+        </div>
+        <div id="create-status" style="font-size:.78rem;color:var(--muted);margin-top:8px"></div>
+      </div>
+
+      <!-- Invite a Player card -->
+      <div class="glass lobby-card">
+        <h2>Invite a Player</h2>
+        <p style="font-size:.82rem;color:var(--muted);margin-bottom:14px">
+          Search by username and send a game invite.
+        </p>
+        <div class="search-wrap">
+          <input type="search" id="player-search" placeholder="Search username…"
+                 oninput="searchPlayers(this.value)" autocomplete="off">
+          <div class="search-results" id="search-results" style="display:none"></div>
+        </div>
+        <div id="invite-status" style="font-size:.78rem;color:var(--muted);margin-top:8px"></div>
+      </div>
+    </div>
+
+    <!-- Pending Invites -->
+    <div class="glass invites-panel">
+      <h2>Pending Invites</h2>
+      <div id="invites-list"><p class="no-invites">No pending invites</p></div>
+    </div>
+
+    <!-- Friends -->
+    <div class="glass friends-panel">
+      <h2>Friends</h2>
+      <div class="friends-add-row">
+        <input type="text" id="friend-search-input" placeholder="Add friend by username…"
+               onkeydown="if(event.key==='Enter')sendFriendRequest()">
+        <button class="btn btn-primary" style="white-space:nowrap" onclick="sendFriendRequest()">Add Friend</button>
+      </div>
+      <div id="friend-add-status" class="friend-status"></div>
+      <div class="friends-grid">
+        <div>
+          <div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">My Friends</div>
+          <div id="friends-list"><p class="no-friends">No friends yet</p></div>
+        </div>
+        <div>
+          <div style="font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#92400e;margin-bottom:8px">Friend Requests</div>
+          <div id="friend-requests-list"><p class="no-friends" style="color:var(--muted)">No requests</p></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WAITING SECTION -->
+  <div id="waiting-section">
+    <div class="glass" style="padding:40px 32px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px">
+      <div class="spinner" style="width:40px;height:40px"></div>
+      <div style="font-size:1.05rem;font-weight:600;color:var(--text)">Waiting for opponent to join…</div>
+      <div id="waiting-link-box" class="share-link-box" style="max-width:440px;width:100%">
+        <input type="text" id="waiting-link-input" readonly>
+        <button class="btn btn-ghost" style="padding:5px 12px;white-space:nowrap"
+                onclick="copyWaitingLink()">Copy</button>
+      </div>
+      <button class="btn btn-ghost" onclick="backToLobby()">Back to Lobby</button>
+    </div>
+  </div>
+
+  <!-- GAME SECTION -->
+  <div id="game-section">
+
+    <!-- HUD -->
+    <div class="glass hud">
+      <div class="team team-a">
+        <div class="team-name" id="name-a">Player A</div>
+        <div class="team-score" id="score-a">0</div>
+      </div>
+      <div class="hud-mid">
+        <div class="turn-badge turn-a" id="turn-badge">Waiting…</div>
+        <div class="kick-counter" id="kick-counter">Kick 0 / 12</div>
+        <div class="winner-banner" id="winner-banner"></div>
+      </div>
+      <div class="team team-b">
+        <div class="team-name" id="name-b">Player B</div>
+        <div class="team-score" id="score-b">0</div>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="canvas-wrap">
+      <canvas id="game-canvas" width="800" height="500"></canvas>
+      <div class="canvas-overlay" id="canvas-overlay">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+          <div class="spinner" id="overlay-spinner"></div>
+          <span id="overlay-text">Waiting for opponent…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="hint" id="hint-text">Waiting for game to start…</div>
+
+    <!-- Controls -->
+    <div class="glass controls">
+      <button class="btn btn-ghost" onclick="backToLobby()">Leave Game</button>
+      <div style="margin-left:auto;font-size:.78rem;color:var(--muted)" id="room-id-label"></div>
+    </div>
+
+    <!-- Move Log -->
+    <div class="glass log-panel" id="log-panel"></div>
+  </div>
+
+</main>
+
+<script>
+// ── Jinja2 variables ──────────────────────────────────────────────────────────
+const ME_USERNAME = {{ username | tojson }};
+const AUTO_JOIN   = {{ (auto_join_room | default(None)) | tojson }};
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const W = 800, H = 500;
+const PLAYER_R = 20, BALL_R = 12;
+const GOAL_Y1 = 185, GOAL_Y2 = 315, GOAL_DEPTH = 20;
+const TEAM_A_COLOR = '#3b82f6';
+const TEAM_B_COLOR = '#ef4444';
+const BALL_COLOR   = '#facc15';
+const MAX_DRAG = 110;
+const PLAYER_TRAVEL = 3.0;
+const HOME_A = [{x:150,y:165},{x:150,y:250},{x:150,y:335}];
+const HOME_B = [{x:650,y:165},{x:650,y:250},{x:650,y:335}];
+
+// ── Online state ─────────────────────────────────────────────────────────────
+let roomId      = null;
+let mySide      = null;   // 'a' or 'b'
+let pollTimer   = null;
+let lastSeenKick = -1;
+let waitPollTimer = null;
+
+// ── Game state ───────────────────────────────────────────────────────────────
+let gameState   = null;
+let isAnimating = false;
+let animSpeed   = 1.0;
+
+let dragPlayer  = null;
+let dragX       = 0, dragY = 0;
+let aiDragPreview = null;
+let animBall    = null;
+
+const canvas = document.getElementById('game-canvas');
+const ctx    = canvas.getContext('2d');
+
+function cssToCv(e) {
+  const r  = canvas.getBoundingClientRect();
+  const sx = W / r.width;
+  const sy = H / r.height;
+  const x  = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+  const y  = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+  return { x: x * sx, y: y * sy };
+}
+
+// ── Drawing ──────────────────────────────────────────────────────────────────
+function drawField() {
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0,   '#27a85f');
+  grad.addColorStop(0.5, '#2d8a50');
+  grad.addColorStop(1,   '#27a85f');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = 'rgba(0,0,0,.04)';
+  for (let x = 0; x < W; x += 80) ctx.fillRect(x, 0, 40, H);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.65)';
+  ctx.lineWidth   = 2;
+
+  ctx.strokeRect(20, 20, W-40, H-40);
+
+  ctx.beginPath(); ctx.moveTo(W/2, 20); ctx.lineTo(W/2, H-20); ctx.stroke();
+
+  ctx.beginPath(); ctx.arc(W/2, H/2, 60, 0, Math.PI*2); ctx.stroke();
+
+  ctx.fillStyle = 'rgba(255,255,255,.65)';
+  ctx.beginPath(); ctx.arc(W/2, H/2, 4, 0, Math.PI*2); ctx.fill();
+
+  ctx.strokeRect(20, (H-180)/2, 100, 180);
+  ctx.strokeRect(W-120, (H-180)/2, 100, 180);
+
+  ctx.fillStyle = 'rgba(255,255,255,.18)';
+  ctx.fillRect(0, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
+  ctx.strokeRect(0, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
+  ctx.fillRect(W-GOAL_DEPTH, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
+  ctx.strokeRect(W-GOAL_DEPTH, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
+
+  ctx.restore();
+}
+
+function lighten(hex) {
+  const r = parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.min(255,r+60)},${Math.min(255,g+60)},${Math.min(255,b+60)})`;
+}
+
+function drawPlayer(x, y, team, label, highlight) {
+  const col = team === 'a' ? TEAM_A_COLOR : TEAM_B_COLOR;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.25)';
+  ctx.shadowBlur  = 8;
+  ctx.shadowOffsetY = 3;
+
+  if (highlight) {
+    ctx.beginPath();
+    ctx.arc(x, y, PLAYER_R + 7, 0, Math.PI*2);
+    ctx.fillStyle = col + '55';
+    ctx.fill();
+  }
+
+  ctx.beginPath();
+  ctx.arc(x, y, PLAYER_R, 0, Math.PI*2);
+  const g2 = ctx.createRadialGradient(x-4, y-5, 2, x, y, PLAYER_R);
+  g2.addColorStop(0, lighten(col));
+  g2.addColorStop(1, col);
+  ctx.fillStyle = g2;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.6)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 12px Inter,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowBlur = 0;
+  ctx.fillText(label, x, y);
+  ctx.restore();
+}
+
+function drawBall(x, y) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.3)';
+  ctx.shadowBlur  = 10;
+  ctx.shadowOffsetY = 4;
+  const g = ctx.createRadialGradient(x-3, y-4, 1, x, y, BALL_R);
+  g.addColorStop(0, '#fff');
+  g.addColorStop(0.4, BALL_COLOR);
+  g.addColorStop(1, '#d97706');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y, BALL_R, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function calcPull(home) {
+  const ddx = dragX - home.x, ddy = dragY - home.y;
+  const dist = Math.sqrt(ddx*ddx + ddy*ddy);
+  const capped = Math.min(MAX_DRAG, dist);
+  const ratio  = dist > 0 ? capped / dist : 0;
+  const pullX  = home.x + ddx * ratio;
+  const pullY  = home.y + ddy * ratio;
+  return {
+    pullX, pullY,
+    power:     capped / MAX_DRAG * 100,
+    kickAngle: Math.atan2(home.y - pullY, home.x - pullX),
+  };
+}
+
+function drawDragVisuals(hx, hy, pullX, pullY, power, kickAngle) {
+  ctx.save();
+  ctx.lineCap = 'round';
+
+  const perp = kickAngle + Math.PI / 2;
+  const spread = 11;
+  ctx.strokeStyle = 'rgba(251,146,60,.92)';
+  ctx.lineWidth   = 3;
+  ctx.setLineDash([]);
+  for (const sign of [1, -1]) {
+    const bx = hx + Math.cos(perp) * spread * sign;
+    const by = hy + Math.sin(perp) * spread * sign;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(pullX, pullY); ctx.stroke();
+  }
+
+  const arrowLen = 46 + power * 0.72;
+  const ax = hx + Math.cos(kickAngle) * arrowLen;
+  const ay = hy + Math.sin(kickAngle) * arrowLen;
+  ctx.strokeStyle = 'rgba(255,255,255,.88)';
+  ctx.lineWidth   = 2.5;
+  ctx.setLineDash([10, 5]);
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ax, ay); ctx.stroke();
+
+  ctx.setLineDash([]);
+  const hl = 15, ha = 0.42;
+  ctx.fillStyle = 'rgba(255,255,255,.95)';
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax - hl*Math.cos(kickAngle-ha), ay - hl*Math.sin(kickAngle-ha));
+  ctx.lineTo(ax - hl*Math.cos(kickAngle+ha), ay - hl*Math.sin(kickAngle+ha));
+  ctx.closePath(); ctx.fill();
+
+  const bw = 54, bh = 8, bx2 = pullX - bw/2, by2 = pullY - 20;
+  ctx.fillStyle = 'rgba(0,0,0,.45)';
+  ctx.beginPath(); ctx.roundRect(bx2, by2, bw, bh, 4); ctx.fill();
+  const col = power > 70 ? '#ef4444' : power > 40 ? '#f59e0b' : '#22c55e';
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.roundRect(bx2, by2, bw * power/100, bh, 4); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(bx2, by2, bw, bh, 4); ctx.stroke();
+
+  ctx.restore();
+}
+
+function render(ballOverride) {
+  if (!gameState) return;
+  ctx.clearRect(0, 0, W, H);
+  drawField();
+
+  const ball = ballOverride || animBall || gameState.ball;
+  const over = gameState.game_over;
+
+  // Can the local player drag? Only if it's their turn and not animating
+  const myTurn = !over && !isAnimating && (
+    (mySide === 'a' && gameState.is_player_a) ||
+    (mySide === 'b' && !gameState.is_player_a)
+  );
+
+  let pull = null;
+  if (dragPlayer !== null) {
+    const myPlayers = mySide === 'a' ? gameState.players_a : gameState.players_b;
+    const home = myPlayers[dragPlayer];
+    pull = { hx: home.x, hy: home.y, ...calcPull(home) };
+  }
+
+  const aiB = aiDragPreview && aiDragPreview.team === 'b' ? aiDragPreview.playerIdx : -1;
+  gameState.players_b.forEach((p, i) => drawPlayer(p.x, p.y, 'b', i+1, i === aiB));
+
+  const canHlA = myTurn && mySide === 'a';
+  const aiA = aiDragPreview && aiDragPreview.team === 'a' ? aiDragPreview.playerIdx : -1;
+  gameState.players_a.forEach((p, i) => {
+    const hl = (canHlA && dragPlayer === null) || i === dragPlayer || i === aiA;
+    drawPlayer(p.x, p.y, 'a', i+1, hl);
+  });
+
+  drawBall(ball.x, ball.y);
+
+  if (pull !== null) {
+    drawDragVisuals(pull.hx, pull.hy, pull.pullX, pull.pullY, pull.power, pull.kickAngle);
+  }
+  if (aiDragPreview !== null) {
+    const d = aiDragPreview;
+    drawDragVisuals(d.hx, d.hy, d.pullX, d.pullY, d.power, d.kickAngle);
+  }
+}
+
+// ── HUD ───────────────────────────────────────────────────────────────────────
+function updateHUD(st, na, nb) {
+  document.getElementById('score-a').textContent = st.score_a;
+  document.getElementById('score-b').textContent = st.score_b;
+  document.getElementById('kick-counter').textContent = `Kick ${st.kick_count} / ${st.max_kicks}`;
+  if (na) document.getElementById('name-a').textContent = na;
+  if (nb) document.getElementById('name-b').textContent = nb;
+
+  const tb   = document.getElementById('turn-badge');
+  const hint = document.getElementById('hint-text');
+  const wb   = document.getElementById('winner-banner');
+  const over = st.game_over;
+
+  if (over) {
+    wb.style.display = 'block';
+    const w = st.winner;
+    if (w === 'A') {
+      wb.textContent = mySide === 'a' ? 'You win!' : (na || 'Team A') + ' wins!';
+      wb.style.color = mySide === 'a' ? '#059669' : '#ef4444';
+    } else if (w === 'B') {
+      wb.textContent = mySide === 'b' ? 'You win!' : (nb || 'Team B') + ' wins!';
+      wb.style.color = mySide === 'b' ? '#059669' : '#ef4444';
+    } else {
+      wb.textContent = "It's a draw!";
+      wb.style.color = '#6b7fa3';
+    }
+    tb.style.display = 'none';
+    hint.textContent = 'Game over';
+    stopPolling();
+  } else {
+    wb.style.display = 'none';
+    tb.style.display = '';
+    const isA = st.is_player_a;
+    const myTurn = (mySide === 'a' && isA) || (mySide === 'b' && !isA);
+    tb.textContent = myTurn ? 'Your turn' : "Opponent's turn";
+    tb.className   = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+    hint.textContent = myTurn
+      ? `Drag a ${mySide === 'a' ? 'blue' : 'red'} player backward then release to kick`
+      : "Waiting for opponent's move…";
+  }
+}
+
+function logMove(text, isGoal) {
+  const panel = document.getElementById('log-panel');
+  const p = document.createElement('p');
+  if (isGoal) p.className = 'log-goal';
+  p.textContent = text;
+  panel.prepend(p);
+  while (panel.children.length > 20) panel.lastChild.remove();
+}
+
+// ── Animation ─────────────────────────────────────────────────────────────────
+function animateTrajectory(trajectory, onDone) {
+  if (!trajectory || trajectory.length === 0) { animBall = null; onDone(); return; }
+  let i = 0;
+  const msPerFrame = Math.max(8, 24 / animSpeed);
+  function step() {
+    if (i >= trajectory.length) { animBall = null; onDone(); return; }
+    const pt = trajectory[i++];
+    animBall = { x: pt.x, y: pt.y };
+    render();
+    setTimeout(step, msPerFrame);
+  }
+  step();
+}
+
+function animatePlayerMove(playerIdx, team, fromPos, toPos, onDone) {
+  const players = team === 'a' ? gameState.players_a : gameState.players_b;
+  const p = players[playerIdx];
+  p.x = fromPos.x; p.y = fromPos.y;
+  const STEPS = 16;
+  let t = 0;
+  function tick() {
+    t++;
+    const ease = 1 - Math.pow(1 - t / STEPS, 2);
+    p.x = fromPos.x + (toPos.x - fromPos.x) * ease;
+    p.y = fromPos.y + (toPos.y - fromPos.y) * ease;
+    render();
+    if (t < STEPS) setTimeout(tick, 12 / animSpeed);
+    else { p.x = toPos.x; p.y = toPos.y; onDone(); }
+  }
+  tick();
+}
+
+function showAIDragPreview(playerIdx, team, angleDeg, power, onDone) {
+  const players = team === 'a' ? gameState.players_a : gameState.players_b;
+  const p = players[playerIdx];
+  const hx = p.x, hy = p.y;
+  const pullRad = (angleDeg + 180) * Math.PI / 180;
+  const pullDist = (power / 100) * MAX_DRAG;
+  const targetPX = hx + Math.cos(pullRad) * pullDist;
+  const targetPY = hy + Math.sin(pullRad) * pullDist;
+  const kickRad  = angleDeg * Math.PI / 180;
+  aiDragPreview = { team, playerIdx, hx, hy, pullX: hx, pullY: hy, power: 0, kickAngle: kickRad };
+  const PULL_STEPS = 22;
+  let t = 0;
+  function pullTick() {
+    t++;
+    const frac = t / PULL_STEPS;
+    aiDragPreview.pullX  = hx + (targetPX - hx) * frac;
+    aiDragPreview.pullY  = hy + (targetPY - hy) * frac;
+    aiDragPreview.power  = power * frac;
+    render();
+    if (t < PULL_STEPS) setTimeout(pullTick, 18 / animSpeed);
+    else setTimeout(releaseTick, 160 / animSpeed);
+  }
+  function releaseTick() {
+    aiDragPreview = null;
+    render();
+    onDone();
+  }
+  pullTick();
+}
+
+function kickEndpoint(from, angleDeg, power) {
+  const rad = angleDeg * Math.PI / 180;
+  const travel = power * PLAYER_TRAVEL;
+  return {
+    x: Math.max(PLAYER_R, Math.min(W - PLAYER_R, from.x + Math.cos(rad) * travel)),
+    y: Math.max(PLAYER_R, Math.min(H - PLAYER_R, from.y + Math.sin(rad) * travel)),
+  };
+}
+
+function animateKickoff(onDone) {
+  const fromA = gameState.players_a.map(p => ({x: p.x, y: p.y}));
+  const fromB = gameState.players_b.map(p => ({x: p.x, y: p.y}));
+  const STEPS = 22;
+  let t = 0;
+  function tick() {
+    t++;
+    const ease = 1 - Math.pow(1 - t / STEPS, 2);
+    gameState.players_a.forEach((p, i) => {
+      p.x = fromA[i].x + (HOME_A[i].x - fromA[i].x) * ease;
+      p.y = fromA[i].y + (HOME_A[i].y - fromA[i].y) * ease;
+    });
+    gameState.players_b.forEach((p, i) => {
+      p.x = fromB[i].x + (HOME_B[i].x - fromB[i].x) * ease;
+      p.y = fromB[i].y + (HOME_B[i].y - fromB[i].y) * ease;
+    });
+    render();
+    if (t < STEPS) setTimeout(tick, 12 / animSpeed);
+    else {
+      gameState.players_a.forEach((p, i) => { p.x = HOME_A[i].x; p.y = HOME_A[i].y; });
+      gameState.players_b.forEach((p, i) => { p.x = HOME_B[i].x; p.y = HOME_B[i].y; });
+      onDone();
+    }
+  }
+  tick();
+}
+
+function syncBall(trajectory, scored) {
+  if (!trajectory || trajectory.length === 0) return;
+  const last = trajectory[trajectory.length - 1];
+  gameState.ball = scored ? { x: 400, y: 250 } : { x: last.x, y: last.y };
+}
+
+// ── Animate an opponent's last_move from poll data ────────────────────────────
+async function animateOpponentMove(mr, opponentSide) {
+  isAnimating = true;
+  const players = opponentSide === 'a' ? gameState.players_a : gameState.players_b;
+  const fromPos = { x: players[mr.player_idx].x, y: players[mr.player_idx].y };
+  const kickEnd = mr.kick_endpoint || kickEndpoint(fromPos, mr.angle, mr.power);
+
+  await new Promise(r => showAIDragPreview(mr.player_idx, opponentSide, mr.angle, mr.power, r));
+  await new Promise(r => animatePlayerMove(mr.player_idx, opponentSide, fromPos, kickEnd, r));
+  if (mr.push_result) {
+    const pr = mr.push_result;
+    await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
+  }
+  await new Promise(r => animateTrajectory(mr.trajectory, r));
+  syncBall(mr.trajectory, mr.scored);
+  logMove(mr.desc, !!mr.scored);
+  if (mr.scored) {
+    await new Promise(r => setTimeout(r, 400 / animSpeed));
+    await new Promise(r => animateKickoff(r));
+  }
+  isAnimating = false;
+}
+
+// ── Submit own kick ───────────────────────────────────────────────────────────
+async function submitKick(playerIdx, angleDeg, power) {
+  if (isAnimating) return;
+  isAnimating = true;
+
+  const myPlayers = mySide === 'a' ? gameState.players_a : gameState.players_b;
+  const fromPos = { x: myPlayers[playerIdx].x, y: myPlayers[playerIdx].y };
+
+  const resp = await fetch(`/online/${roomId}/move`, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ player_idx: playerIdx, angle: angleDeg, power }),
+  });
+  const data = await resp.json();
+
+  if (!resp.ok) {
+    isAnimating = false;
+    console.warn('Move error:', data.error);
+    return;
+  }
+
+  const mr = data.move_result;
+  const kickEnd = mr.kick_endpoint || kickEndpoint(fromPos, angleDeg, power);
+
+  await new Promise(r => animatePlayerMove(playerIdx, mySide, fromPos, kickEnd, r));
+  if (mr.push_result) {
+    const pr = mr.push_result;
+    await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
+  }
+  await new Promise(r => animateTrajectory(mr.trajectory, r));
+  syncBall(mr.trajectory, mr.scored);
+  logMove(mr.desc, !!mr.scored);
+  if (mr.scored) {
+    await new Promise(r => setTimeout(r, 400 / animSpeed));
+    await new Promise(r => animateKickoff(r));
+  }
+
+  // Sync game state from server response
+  gameState = data.game;
+  lastSeenKick = gameState.kick_count;
+  isAnimating = false;
+  render();
+  updateHUD(gameState);
+}
+
+// ── Polling ───────────────────────────────────────────────────────────────────
+let _pollBusy = false;
+
+async function pollRoomState() {
+  if (!roomId || _pollBusy) return;
+  _pollBusy = true;
+  try {
+    const resp = await fetch(`/online/${roomId}/state?since_kick=${lastSeenKick}`);
+    if (!resp.ok) { _pollBusy = false; return; }
+    const data = await resp.json();
+
+    // Update names if available
+    const na = data.name_a || null;
+    const nb = data.name_b || null;
+
+    if (data.game) {
+      const newKick = data.game.kick_count;
+      const hasNewMove = data.last_move && newKick > lastSeenKick;
+
+      if (hasNewMove && data.last_move.mover !== mySide && !isAnimating) {
+        // Sync positions first, then animate
+        gameState = data.game;
+        // Revert positions to what they were before opponent's move so animation plays correctly
+        // Actually we just animate from current known state positions
+        await animateOpponentMove(data.last_move, data.last_move.mover);
+        lastSeenKick = newKick;
+      } else if (!isAnimating) {
+        gameState = data.game;
+      }
+      render();
+      updateHUD(data.game, na, nb);
+    }
+  } catch(e) {
+    // ignore transient errors
+  }
+  _pollBusy = false;
+}
+
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(pollRoomState, 800);
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+// ── Room management ───────────────────────────────────────────────────────────
+function showLobby() {
+  document.getElementById('lobby-section').style.display = '';
+  document.getElementById('waiting-section').style.display = 'none';
+  document.getElementById('game-section').style.display = 'none';
+  stopPolling();
+}
+
+function showWaiting(rid) {
+  document.getElementById('lobby-section').style.display = 'none';
+  document.getElementById('waiting-section').style.display = '';
+  document.getElementById('game-section').style.display = 'none';
+  const link = location.origin + '/join/' + rid;
+  document.getElementById('waiting-link-input').value = link;
+  // Poll until opponent joins
+  waitPollTimer = setInterval(async () => {
+    try {
+      const resp = await fetch(`/online/${rid}/state?since_kick=-1`);
+      const data = await resp.json();
+      if (data.status === 'active') {
+        clearInterval(waitPollTimer);
+        startGame(rid, 'a', data);
+      }
+    } catch(e) {}
+  }, 1500);
+}
+
+function startGame(rid, side, initialData) {
+  roomId  = rid;
+  mySide  = side;
+  lastSeenKick = -1;
+
+  document.getElementById('lobby-section').style.display = 'none';
+  document.getElementById('waiting-section').style.display = 'none';
+  document.getElementById('game-section').style.display = 'flex';
+
+  document.getElementById('room-id-label').textContent = 'Room: ' + rid;
+
+  if (initialData && initialData.game) {
+    gameState = initialData.game;
+    lastSeenKick = gameState.kick_count;
+    render();
+    updateHUD(gameState, initialData.name_a, initialData.name_b);
+  }
+
+  document.getElementById('canvas-overlay').classList.remove('visible');
+  startPolling();
+}
+
+async function createGame() {
+  const resp = await fetch('/online/create', { method: 'POST' });
+  const data = await resp.json();
+  if (data.error) { alert(data.error); return; }
+  const rid = data.room_id;
+  roomId = rid;
+  mySide = 'a';
+
+  // Show share link in lobby too
+  const link = location.origin + '/join/' + rid;
+  document.getElementById('share-link-input').value = link;
+  document.getElementById('share-box').style.display = 'flex';
+  document.getElementById('create-status').textContent = 'Room created! Share the link, then wait…';
+
+  showWaiting(rid);
+}
+
+async function joinRoom(rid) {
+  const resp = await fetch(`/online/${rid}/join`, { method: 'POST' });
+  const data = await resp.json();
+  if (data.error) {
+    showLobby();
+    alert(data.error);
+    return;
+  }
+  const side = data.my_side;
+  if (data.status === 'active') {
+    // Fetch full state
+    const stateResp = await fetch(`/online/${rid}/state?since_kick=-1`);
+    const stateData = await stateResp.json();
+    startGame(rid, side, stateData);
+  } else {
+    // Still waiting (we are player_a re-joining or status is waiting)
+    mySide = side;
+    showWaiting(rid);
+  }
+}
+
+function backToLobby() {
+  stopPolling();
+  if (waitPollTimer) { clearInterval(waitPollTimer); waitPollTimer = null; }
+  roomId = null;
+  mySide = null;
+  gameState = null;
+  lastSeenKick = -1;
+  dragPlayer = null;
+  document.getElementById('log-panel').innerHTML = '';
+  showLobby();
+}
+
+function copyLink() {
+  const inp = document.getElementById('share-link-input');
+  inp.select(); document.execCommand('copy');
+}
+
+function copyWaitingLink() {
+  const inp = document.getElementById('waiting-link-input');
+  inp.select(); document.execCommand('copy');
+}
+
+// ── Friend system ─────────────────────────────────────────────────────────────
+
+async function loadFriends() {
+  try {
+    const data = await fetch('/api/friends').then(r => r.json());
+    renderFriendsList(data.friends || []);
+    renderFriendRequests(data.requests || []);
+  } catch(e) {}
+}
+
+function renderFriendsList(friends) {
+  const el = document.getElementById('friends-list');
+  if (!friends.length) { el.innerHTML = '<p class="no-friends">No friends yet</p>'; return; }
+  el.innerHTML = friends.map(f => `
+    <div class="friend-item">
+      <span class="friend-name">${f.username}</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary" style="padding:4px 11px;font-size:.76rem"
+                onclick="inviteFriendToGame('${f.uid}','${f.username}')">Invite</button>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:.76rem;color:#ef4444;border-color:#ef4444"
+                onclick="removeFriend('${f.uid}','${f.username}',this)">✕</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderFriendRequests(reqs) {
+  const el = document.getElementById('friend-requests-list');
+  if (!reqs.length) { el.innerHTML = '<p class="no-friends" style="color:var(--muted)">No requests</p>'; return; }
+  el.innerHTML = reqs.map(r => `
+    <div class="friend-req-item" id="freq-${r.id}">
+      <span class="friend-req-from">From: <strong>${r.from_username}</strong></span>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-success" style="padding:4px 11px;font-size:.76rem"
+                onclick="acceptFriendReq('${r.id}',this)">Accept</button>
+        <button class="btn btn-ghost" style="padding:4px 10px;font-size:.76rem"
+                onclick="declineFriendReq('${r.id}',this)">Decline</button>
+      </div>
+    </div>`).join('');
+}
+
+async function sendFriendRequest() {
+  const input  = document.getElementById('friend-search-input');
+  const status = document.getElementById('friend-add-status');
+  const uname  = input.value.trim();
+  if (!uname) return;
+  input.disabled = true;
+  status.textContent = 'Sending…';
+  status.style.color = 'var(--muted)';
+  try {
+    const resp = await fetch('/api/friends/request', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ username: uname }),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      status.textContent = `Friend request sent to ${data.to}!`;
+      status.style.color = '#059669';
+      input.value = '';
+    } else {
+      status.textContent = data.error || 'Failed';
+      status.style.color = '#ef4444';
+    }
+  } catch(e) {
+    status.textContent = 'Network error';
+    status.style.color = '#ef4444';
+  }
+  input.disabled = false;
+}
+
+async function acceptFriendReq(reqId, btn) {
+  const resp = await fetch(`/api/friends/accept/${reqId}`, { method: 'POST' });
+  const data = await resp.json();
+  if (data.ok) {
+    document.getElementById('freq-' + reqId)?.remove();
+    loadFriends();
+  } else {
+    alert(data.error || 'Failed');
+  }
+}
+
+async function declineFriendReq(reqId, btn) {
+  await fetch(`/api/friends/decline/${reqId}`, { method: 'POST' });
+  document.getElementById('freq-' + reqId)?.remove();
+  if (!document.querySelector('.friend-req-item')) {
+    document.getElementById('friend-requests-list').innerHTML =
+      '<p class="no-friends" style="color:var(--muted)">No requests</p>';
+  }
+}
+
+async function removeFriend(friendUid, friendName, btn) {
+  if (!confirm(`Remove ${friendName} from friends?`)) return;
+  const resp = await fetch(`/api/friends/${friendUid}`, { method: 'DELETE' });
+  const data = await resp.json();
+  if (data.ok) loadFriends();
+  else alert(data.error || 'Failed');
+}
+
+async function inviteFriendToGame(friendUid, friendName) {
+  const resp = await fetch('/online/invite/send', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ to_uid: friendUid }),
+  });
+  const data = await resp.json();
+  const status = document.getElementById('friend-add-status');
+  if (data.ok) {
+    status.textContent = `Game invite sent to ${friendName}!`;
+    status.style.color = '#059669';
+    // Also create the room locally so we can switch to waiting
+    roomId = data.room_id;
+    mySide = 'a';
+    const link = location.origin + '/join/' + data.room_id;
+    document.getElementById('share-link-input').value = link;
+    document.getElementById('share-box').style.display = 'flex';
+    showWaiting(data.room_id);
+  } else {
+    status.textContent = data.error || 'Failed to send invite';
+    status.style.color = '#ef4444';
+  }
+}
+
+// Poll friends every 5s while in lobby
+setInterval(() => {
+  if (document.getElementById('lobby-section').style.display !== 'none') {
+    loadFriends();
+  }
+}, 5000);
+
+// ── Invite system ─────────────────────────────────────────────────────────────
+let searchTimer = null;
+
+function searchPlayers(q) {
+  clearTimeout(searchTimer);
+  const box = document.getElementById('search-results');
+  if (q.length < 2) { box.style.display = 'none'; return; }
+  searchTimer = setTimeout(async () => {
+    const data = await fetch('/online/invite/search?q=' + encodeURIComponent(q)).then(r=>r.json());
+    if (!data.length) { box.style.display = 'none'; return; }
+    box.innerHTML = '';
+    data.forEach(u => {
+      const div = document.createElement('div');
+      div.className = 'search-result-item';
+      div.innerHTML = `<span>${u.username}</span><button class="btn btn-primary" style="padding:4px 12px;font-size:.78rem" onclick="sendInvite('${u.id}','${u.username}')">Invite</button>`;
+      box.appendChild(div);
+    });
+    box.style.display = '';
+  }, 300);
+}
+
+async function sendInvite(toUid, toName) {
+  document.getElementById('search-results').style.display = 'none';
+  document.getElementById('player-search').value = '';
+  const resp = await fetch('/online/invite/send', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({ to_uid: toUid }),
+  });
+  const data = await resp.json();
+  const status = document.getElementById('invite-status');
+  if (data.ok) {
+    status.textContent = `Invite sent to ${toName}! Room: ${data.room_id}`;
+    status.style.color = '#059669';
+  } else {
+    status.textContent = data.error || 'Failed to send invite';
+    status.style.color = '#ef4444';
+  }
+}
+
+async function loadInvites() {
+  try {
+    const invites = await fetch('/online/invites').then(r=>r.json());
+    const list = document.getElementById('invites-list');
+    if (!invites.length) {
+      list.innerHTML = '<p class="no-invites">No pending invites</p>';
+      return;
+    }
+    list.innerHTML = '';
+    invites.forEach(inv => {
+      const div = document.createElement('div');
+      div.className = 'invite-item';
+      div.innerHTML = `
+        <span class="invite-from">From: <strong>${inv.from_name}</strong></span>
+        <div class="invite-actions">
+          <button class="btn btn-success" style="padding:5px 14px" onclick="acceptInvite('${inv.invite_id}','${inv.room_id}')">Accept</button>
+          <button class="btn btn-danger" style="padding:5px 14px" onclick="declineInvite('${inv.invite_id}',this)">Decline</button>
+        </div>`;
+      list.appendChild(div);
+    });
+  } catch(e) {
+    // not logged in or error — ignore
+  }
+}
+
+async function acceptInvite(inviteId, roomId_) {
+  const resp = await fetch(`/online/invite/${inviteId}/accept`, { method: 'POST' });
+  const data = await resp.json();
+  if (data.ok) {
+    await joinRoom(data.room_id);
+  } else {
+    alert(data.error || 'Failed to accept invite');
+  }
+}
+
+async function declineInvite(inviteId, btn) {
+  await fetch(`/online/invite/${inviteId}/decline`, { method: 'POST' });
+  btn.closest('.invite-item').remove();
+  if (!document.querySelector('.invite-item')) {
+    document.getElementById('invites-list').innerHTML = '<p class="no-invites">No pending invites</p>';
+  }
+}
+
+// Poll invites every 2s while in lobby
+setInterval(() => {
+  if (document.getElementById('lobby-section').style.display !== 'none') {
+    loadInvites();
+  }
+}, 2000);
+
+// ── Drag / Slingshot input ────────────────────────────────────────────────────
+function getHoveredPlayer(cx, cy) {
+  if (!gameState || gameState.game_over || isAnimating || !mySide) return null;
+  const isA = gameState.is_player_a;
+  const myTurn = (mySide === 'a' && isA) || (mySide === 'b' && !isA);
+  if (!myTurn) return null;
+  const players = mySide === 'a' ? gameState.players_a : gameState.players_b;
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    const d = Math.hypot(p.x - cx, p.y - cy);
+    if (d < PLAYER_R + 8) return i;
+  }
+  return null;
+}
+
+canvas.addEventListener('mousedown', e => {
+  const {x, y} = cssToCv(e);
+  const idx = getHoveredPlayer(x, y);
+  if (idx !== null) {
+    dragPlayer = idx;
+    dragX = x; dragY = y;
+    canvas.style.cursor = 'grabbing';
+    e.preventDefault();
+  }
+});
+
+canvas.addEventListener('mousemove', e => {
+  const {x, y} = cssToCv(e);
+  if (dragPlayer !== null) {
+    dragX = x; dragY = y;
+    render();
+    e.preventDefault();
+  } else {
+    const idx = getHoveredPlayer(x, y);
+    canvas.style.cursor = idx !== null ? 'grab' : 'default';
+  }
+});
+
+canvas.addEventListener('mouseup', e => {
+  if (dragPlayer === null) return;
+  const {x, y} = cssToCv(e);
+  dragX = x; dragY = y;
+  const myPlayers = mySide === 'a' ? gameState.players_a : gameState.players_b;
+  const home = myPlayers[dragPlayer];
+  const {pullX, pullY, power, kickAngle} = calcPull(home);
+  const idx = dragPlayer;
+  dragPlayer = null;
+  canvas.style.cursor = 'default';
+  render();
+  if (power > 5) {
+    submitKick(idx, kickAngle * 180 / Math.PI, power);
+  }
+  e.preventDefault();
+});
+
+canvas.addEventListener('mouseleave', () => {
+  if (dragPlayer !== null) { dragPlayer = null; render(); }
+});
+
+canvas.addEventListener('touchstart', e => {
+  const {x, y} = cssToCv(e);
+  const idx = getHoveredPlayer(x, y);
+  if (idx !== null) { dragPlayer = idx; dragX = x; dragY = y; e.preventDefault(); }
+}, {passive:false});
+
+canvas.addEventListener('touchmove', e => {
+  if (dragPlayer !== null) {
+    const {x, y} = cssToCv(e);
+    dragX = x; dragY = y; render(); e.preventDefault();
+  }
+}, {passive:false});
+
+canvas.addEventListener('touchend', e => {
+  if (dragPlayer === null) return;
+  const touch = e.changedTouches[0];
+  const r = canvas.getBoundingClientRect();
+  dragX = (touch.clientX - r.left) * W / r.width;
+  dragY = (touch.clientY - r.top)  * H / r.height;
+  const myPlayers = mySide === 'a' ? gameState.players_a : gameState.players_b;
+  const home = myPlayers[dragPlayer];
+  const {pullX, pullY, power, kickAngle} = calcPull(home);
+  const idx = dragPlayer;
+  dragPlayer = null; render();
+  if (power > 5) submitKick(idx, kickAngle * 180 / Math.PI, power);
+  e.preventDefault();
+}, {passive:false});
+
+// Hide search results when clicking outside
+document.addEventListener('click', e => {
+  if (!e.target.closest('.search-wrap')) {
+    document.getElementById('search-results').style.display = 'none';
+  }
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+(async () => {
+  // Load initial invites and friends
+  loadInvites();
+  loadFriends();
+
+  if (AUTO_JOIN) {
+    showLobby(); // briefly show lobby, then join
+    await joinRoom(AUTO_JOIN);
+  } else {
+    showLobby();
+  }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Models — Ô Ăn Quan</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#3b82f6;--accent-b:#059669;--red:#ef4444;--amber:#d97706;
+  --text:#1e2d4f;--muted:#6b7fa3;--dim:#9caab8;
+  --glass-bg:rgba(255,255,255,.62);--glass-border:rgba(180,205,255,.5);
+  --glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);
+  --blur:18px;
+}
+body{
+  font-family:'Be Vietnam Pro',system-ui,sans-serif;
+  font-size:14px;color:var(--text);min-height:100vh;
+  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
+}
+.nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.nebula::before{
+  content:'';position:absolute;width:700px;height:700px;
+  background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);
+  top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate;
+}
+.nebula::after{
+  content:'';position:absolute;width:600px;height:500px;
+  background:radial-gradient(ellipse,rgba(16,185,129,.07) 0%,transparent 65%);
+  bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate;
+}
+@keyframes drift {to{transform:translate(40px,-30px)}}
+@keyframes drift2{to{transform:translate(-30px,25px)}}
+
+nav,div.page{position:relative;z-index:1}
+
+/* nav */
+nav{
+  background:rgba(255,255,255,.78);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(180,205,255,.4);
+  padding:12px 24px;display:flex;align-items:center;gap:16px;
+}
+.nav-brand{font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}
+.nav-links{display:flex;gap:12px;margin-left:auto;align-items:center}
+.nav-links a{font-size:.78rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color .15s}
+.nav-links a:hover,.nav-links a.active{color:var(--text)}
+.nav-user{font-size:.75rem;color:var(--dim)}
+.btn-nav-logout{
+  font-family:inherit;font-size:.72rem;font-weight:500;
+  padding:5px 12px;border-radius:6px;
+  border:1px solid var(--glass-border);background:var(--glass-bg);
+  color:var(--muted);cursor:pointer;transition:all .15s;
+}
+.btn-nav-logout:hover{border-color:var(--accent);color:var(--accent)}
+
+/* layout */
+.page{display:grid;grid-template-columns:280px 1fr;gap:20px;max-width:1200px;margin:0 auto;padding:24px 16px}
+@media(max-width:768px){.page{grid-template-columns:1fr}}
+
+/* sidebar */
+.sidebar-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.sidebar-title h2{font-size:.95rem;font-weight:700;color:var(--text)}
+
+/* buttons */
+.btn{
+  font-family:inherit;font-size:.78rem;font-weight:500;
+  padding:7px 14px;border-radius:8px;border:none;cursor:pointer;
+  transition:opacity .12s,transform .12s;
+}
+.btn:hover{opacity:.85;transform:translateY(-1px)}
+.btn-blue  {background:var(--accent);color:#000;box-shadow:0 3px 12px rgba(96,165,250,.3)}
+.btn-green {background:var(--accent-b);color:#000;box-shadow:0 3px 12px rgba(52,211,153,.3)}
+.btn-ghost {background:var(--glass-bg);color:var(--muted);border:1px solid var(--glass-border)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent);opacity:1}
+.btn-danger{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+.btn-danger:hover{background:var(--red);color:#000;opacity:1}
+.btn-sm{padding:4px 10px;font-size:.7rem}
+
+/* model cards */
+.model-card{
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:10px;
+  padding:12px 14px;margin-bottom:8px;cursor:pointer;
+  transition:border-color .15s,box-shadow .15s;
+}
+.model-card:hover{border-color:rgba(96,165,250,.4);box-shadow:0 0 12px rgba(96,165,250,.12)}
+.model-card.active{border-color:rgba(96,165,250,.6);background:rgba(96,165,250,.1);box-shadow:0 0 18px rgba(96,165,250,.2)}
+.mc-name{font-weight:600;font-size:.88rem;color:var(--text);margin-bottom:2px}
+.mc-desc{font-size:.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mc-meta{font-size:.63rem;color:var(--dim);margin-top:7px;display:flex;gap:8px;align-items:center}
+.public-badge{
+  font-size:.6rem;font-weight:600;padding:1px 6px;border-radius:100px;
+  background:rgba(52,211,153,.12);color:var(--accent-b);border:1px solid rgba(52,211,153,.3);
+}
+.empty-state{text-align:center;padding:32px 16px;color:var(--muted);font-size:.82rem}
+.empty-state strong{display:block;font-size:1rem;font-weight:600;color:var(--text);margin-bottom:6px}
+
+/* main panel */
+.main-panel{display:flex;flex-direction:column;gap:0}
+
+/* reference panel */
+.ref-panel{
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;
+  box-shadow:var(--glass-shadow);
+  padding:24px;
+}
+.ref-panel h3{font-size:1rem;font-weight:700;color:var(--text);margin-bottom:16px}
+.ref-section{margin-bottom:20px}
+.ref-section h4{
+  font-size:.7rem;font-weight:600;color:var(--muted);
+  letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;
+}
+pre.ref-code{
+  background:rgba(0,0,0,.4);
+  border:1px solid var(--glass-border);
+  border-radius:8px;padding:13px 15px;
+  font-size:.77rem;line-height:1.65;overflow-x:auto;
+  font-family:'Fira Mono','Courier New',monospace;
+  color:rgba(205,214,244,.9);white-space:pre-wrap;
+}
+.ref-note{font-size:.78rem;color:var(--muted);line-height:1.7}
+.ref-note code{
+  background:rgba(255,255,255,.08);
+  border:1px solid var(--glass-border);
+  padding:1px 5px;border-radius:4px;font-size:.85em;color:var(--accent);
+}
+
+/* editor panel */
+.editor-panel{display:none;background:rgba(15,16,30,.9);border:1px solid var(--glass-border);border-radius:14px;overflow:hidden}
+.editor-panel.visible{display:flex;flex-direction:column}
+
+.editor-header{
+  padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.07);
+  display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;
+  background:rgba(10,10,22,.6);
+}
+.field-inline{display:flex;flex-direction:column;gap:4px}
+.field-inline label{
+  font-size:.68rem;font-weight:600;color:var(--muted);
+  letter-spacing:.06em;text-transform:uppercase;
+}
+.field-inline input{
+  padding:7px 10px;background:rgba(0,0,0,.3);
+  border:1px solid var(--glass-border);border-radius:7px;
+  font-family:inherit;font-size:.85rem;color:var(--text);transition:border-color .15s;
+}
+.field-inline input::placeholder{color:var(--dim)}
+.field-inline input:focus{outline:none;border-color:rgba(96,165,250,.6)}
+#f-name{width:200px}
+#f-desc{width:260px}
+.editor-actions{margin-left:auto;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+
+/* CodeMirror dark override */
+.CodeMirror{
+  font-family:'Fira Mono','Courier New',monospace;
+  font-size:13px;height:460px;
+  background:#0d1117 !important;color:#cdd6f4 !important;
+  border-bottom:1px solid rgba(255,255,255,.07);
+  line-height:1.6;
+}
+.CodeMirror-gutters{background:#0d1117 !important;border-right:1px solid rgba(255,255,255,.07) !important}
+.CodeMirror-linenumber{color:#4a4f69 !important}
+.CodeMirror-cursor{border-left:2px solid var(--accent) !important}
+.CodeMirror-selected{background:rgba(96,165,250,.2) !important}
+.cm-keyword{color:#cba6f7 !important}
+.cm-string{color:#a6e3a1 !important}
+.cm-comment{color:#6c7086 !important}
+.cm-number{color:#fab387 !important}
+.cm-builtin{color:#89b4fa !important}
+.cm-def{color:#89dceb !important}
+.CodeMirror-scroll{padding-bottom:8px}
+
+.editor-footer{
+  padding:11px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:rgba(10,10,22,.6);border-top:1px solid rgba(255,255,255,.07);
+}
+.validate-result{
+  font-size:.75rem;font-weight:500;padding:5px 10px;border-radius:6px;display:none;
+}
+.validate-result.ok {display:block;background:rgba(52,211,153,.12);color:var(--accent-b);border:1px solid rgba(52,211,153,.3)}
+.validate-result.err{display:block;background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+
+.editor-save-row{margin-left:auto;display:flex;gap:8px;align-items:center}
+.public-toggle{display:flex;align-items:center;gap:6px;font-size:.75rem;color:var(--muted);cursor:pointer}
+.public-toggle input{cursor:pointer;accent-color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="nebula"></div>
+
+<nav>
+  <a class="nav-brand" href="/">Ô Ăn Quan</a>
+  <div class="nav-links">
+    <a href="/">Game</a>
+    <a href="/playground">Playground</a>
+    <a href="/my-models" class="active">My Models</a>
+    <a href="/profile">Profile</a>
+    <a href="/leaderboard">Leaderboard</a>
+    <span class="nav-user">{{ username }}</span>
+    <form method="POST" action="/auth/logout" style="display:inline">
+      <button type="submit" class="btn-nav-logout">Logout</button>
+    </form>
+  </div>
+</nav>
+
+<div class="page">
+
+  <!-- Sidebar: model list -->
+  <div>
+    <div class="sidebar-title">
+      <h2>My Models</h2>
+      <button class="btn btn-blue btn-sm" onclick="openNew()">+ New</button>
+    </div>
+
+    <div id="model-list">
+      {% if models %}
+        {% for m in models %}
+        <div class="model-card" id="card-{{ m.id }}" onclick="openEdit('{{ m.id }}')">
+          <div class="mc-name">{{ m.name }}</div>
+          <div class="mc-desc">{{ m.description or 'No description' }}</div>
+          <div class="mc-meta">
+            {% if m.is_public %}<span class="public-badge">Public</span>{% endif %}
+            <span>{{ m.updated_at[:10] if m.updated_at else '' }}</span>
+            <div style="margin-left:auto;display:flex;gap:5px">
+              <button class="btn btn-ghost btn-sm"
+                onclick="event.stopPropagation(); testInPlayground('{{ m.id }}')">▶ Test</button>
+              <button class="btn btn-danger btn-sm"
+                onclick="event.stopPropagation(); deleteModel('{{ m.id }}')">Delete</button>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-state">
+          <strong>No models yet</strong>
+          Click <em>+ New</em> to write your first AI.
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Main: editor or reference -->
+  <div class="main-panel">
+
+    <!-- Reference docs -->
+    <div class="ref-panel" id="ref-panel">
+      <h3>How to write a model</h3>
+
+      <div class="ref-section">
+        <h4>Required function</h4>
+        <pre class="ref-code">def get_ai_move(board, score_a, score_b, is_player_a):
+    # board        — list of 12 slots, each a list of 'dan'/'quan' strings
+    # score_a/b    — {'dan': int, 'quan': int}
+    # is_player_a  — True when it's Player A's turn
+    return pit_index, step   # step: +1 clockwise, -1 counter-clockwise</pre>
+      </div>
+
+      <div class="ref-section">
+        <h4>Board layout</h4>
+        <pre class="ref-code">board[0]     = Quan A (large pit — cannot be sown from)
+board[1–5]   = Player A's 5 small pits
+board[6–10]  = Player B's 5 small pits
+board[11]    = Quan B (large pit — cannot be sown from)
+
+# Each slot is a list of strings, e.g. ['dan', 'dan', 'dan']
+# len(board[i]) = number of seeds in pit i</pre>
+      </div>
+
+      <div class="ref-section">
+        <h4>Allowed imports</h4>
+        <p class="ref-note">
+          <code>random</code>, <code>math</code>, <code>copy</code> are available.
+          OS / network / file-system modules are blocked for safety.
+        </p>
+      </div>
+
+      <div class="ref-section">
+        <h4>Example — random valid move</h4>
+        <pre class="ref-code">import random
+
+MODEL_NAME  = "Random"
+DESCRIPTION = "Picks a random legal move"
+
+def get_ai_move(board, score_a, score_b, is_player_a):
+    pits = range(1, 6) if is_player_a else range(6, 11)
+    valid = [(p, s) for p in pits for s in (1, -1) if board[p]]
+    if not valid:
+        return None, 1
+    return random.choice(valid)</pre>
+      </div>
+
+      <p class="ref-note" style="margin-top:8px">
+        After saving, your model appears in the <strong style="color:var(--text)">AI model selector</strong>
+        in the game. Use it in <em>AI vs AI</em> mode to benchmark against built-ins.
+      </p>
+    </div>
+
+    <!-- Code editor -->
+    <div class="editor-panel" id="editor-panel">
+      <div class="editor-header">
+        <div class="field-inline">
+          <label>Name</label>
+          <input type="text" id="f-name" placeholder="e.g. My Minimax v2" maxlength="60">
+        </div>
+        <div class="field-inline">
+          <label>Description</label>
+          <input type="text" id="f-desc" placeholder="One-line summary" maxlength="120">
+        </div>
+        <div class="editor-actions">
+          <button class="btn btn-ghost btn-sm" onclick="closeEditor()">Cancel</button>
+          <button class="btn btn-ghost btn-sm" onclick="validateCode()">Validate</button>
+          <button class="btn btn-blue btn-sm"  onclick="saveModel()">Save</button>
+        </div>
+      </div>
+
+      <textarea id="code-editor"></textarea>
+
+      <div class="editor-footer">
+        <label class="public-toggle">
+          <input type="checkbox" id="f-public">
+          Make public (visible in benchmarks)
+        </label>
+        <div id="validate-result" class="validate-result"></div>
+        <div class="editor-save-row">
+          <button class="btn btn-green" onclick="saveModel()" style="padding:7px 20px">Save Model</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script>
+let editor = null;
+let editingId = null;
+const TEMPLATE = {{ template_code | tojson }};
+
+const MODEL_DATA = {};
+{% for m in models %}
+MODEL_DATA['{{ m.id }}'] = {
+  name: {{ m.name | tojson }},
+  desc: {{ (m.description or '') | tojson }},
+  is_public: {{ 'true' if m.is_public else 'false' }},
+};
+{% endfor %}
+
+window.addEventListener('DOMContentLoaded', () => {
+  editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+    mode: 'python',
+    lineNumbers: true,
+    indentUnit: 4,
+    tabSize: 4,
+    indentWithTabs: false,
+    extraKeys: { Tab: cm => cm.replaceSelection('    ') },
+    lineWrapping: false,
+    autofocus: false,
+  });
+});
+
+function showEditor() {
+  document.getElementById('ref-panel').style.display = 'none';
+  document.getElementById('editor-panel').classList.add('visible');
+  clearValidateResult();
+  editor.refresh();
+  editor.focus();
+}
+
+function closeEditor() {
+  editingId = null;
+  document.getElementById('editor-panel').classList.remove('visible');
+  document.getElementById('ref-panel').style.display = '';
+  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
+}
+
+function openNew() {
+  editingId = null;
+  editor.setValue(TEMPLATE);
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-desc').value = '';
+  document.getElementById('f-public').checked = false;
+  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
+  showEditor();
+}
+
+function openEdit(id) {
+  const data = MODEL_DATA[id];
+  if (!data) return;
+  editingId = id;
+  document.getElementById('f-name').value = data.name;
+  document.getElementById('f-desc').value = data.desc;
+  document.getElementById('f-public').checked = data.is_public;
+  fetch(`/api/models/user/${id}/code`)
+    .then(r => r.json())
+    .then(d => { editor.setValue(d.code || TEMPLATE); showEditor(); });
+  document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
+  document.getElementById(`card-${id}`)?.classList.add('active');
+}
+
+async function validateCode() {
+  const code = editor.getValue();
+  const el   = document.getElementById('validate-result');
+  el.textContent = 'Validating…';
+  el.className = 'validate-result ok';
+  const r = await fetch('/api/models/user/validate', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({code}),
+  });
+  const data = await r.json();
+  if (data.ok) {
+    el.className = 'validate-result ok';
+    el.textContent = `✓ Valid — test move: ${data.test_move}`;
+  } else {
+    el.className = 'validate-result err';
+    el.textContent = `✗ ${data.error}`;
+  }
+}
+
+function clearValidateResult() {
+  const el = document.getElementById('validate-result');
+  el.textContent = '';
+  el.className = 'validate-result';
+}
+
+async function saveModel() {
+  const name = document.getElementById('f-name').value.trim();
+  const desc = document.getElementById('f-desc').value.trim();
+  const code = editor.getValue();
+  const pub  = document.getElementById('f-public').checked;
+  if (!name) { alert('Model name is required.'); return; }
+  const url    = editingId ? `/api/models/user/${editingId}` : '/api/models/user';
+  const method = editingId ? 'PUT' : 'POST';
+  const r = await fetch(url, {
+    method, headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name, description: desc, code, is_public: pub}),
+  });
+  const data = await r.json();
+  if (data.error) { alert(data.error); return; }
+  location.reload();
+}
+
+async function deleteModel(id) {
+  if (!confirm('Delete this model? This cannot be undone.')) return;
+  await fetch(`/api/models/user/${id}`, {method: 'DELETE'});
+  location.reload();
+}
+
+async function testInPlayground(id) {
+  const r = await fetch(`/api/models/user/${id}/code`);
+  const data = await r.json();
+  if (data.error) { alert(data.error); return; }
+  sessionStorage.setItem('pg_preload_code', data.code);
+  window.location.href = '/playground';
+}
+</script>
+</body>
+</html>

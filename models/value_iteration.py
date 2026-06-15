@@ -1,86 +1,40 @@
-"""
-models/value_iteration.py — Online Value Iteration (limited-depth lookahead).
-
-Applies iterative Bellman updates over a bounded search tree.
-Uses memoization to avoid redundant evaluations.
-"""
+﻿"""Value Iteration Soccer AI: picks most central player, aims through ball."""
 from __future__ import annotations
-import copy
-from models.game_logic import (
-    execute_capture, restore_player_side, is_game_over,
-    calculate_score, get_valid_moves,
-)
+import math
+from models.soccer_logic import simulate_kick, FIELD_W, FIELD_H
 
 MODEL_NAME  = "Value Iteration"
-DESCRIPTION = ("Online value iteration via iterative Bellman updates "
-               "over a depth-4 lookahead tree.")
+DESCRIPTION = "Picks most centrally positioned player, searches angles through ball toward goal."
 
-GAMMA = 0.95
-DEPTH = 4
 
-def _value(board, score_a, score_b, is_player_a, depth, memo):
-    if depth == 0 or is_game_over(board, score_a, score_b):
-        ta = calculate_score(score_a["dan"], score_a["quan"])
-        tb = calculate_score(score_b["dan"], score_b["quan"])
-        return float(tb - ta) * 10.0   # from AI (B) perspective
+def _player_value(px: float, py: float, is_player_a: bool) -> float:
+    cx = FIELD_W * 0.6 if is_player_a else FIELD_W * 0.4
+    return -math.hypot(px - cx, py - FIELD_H / 2)
 
-    key = (str([[len(p) for p in board]]), is_player_a, depth)
-    if key in memo:
-        return memo[key]
 
-    moves = get_valid_moves(board, is_player_a)
-    if not moves:
-        val = _value(board, score_a, score_b, not is_player_a, depth - 1, memo)
-        memo[key] = val
-        return val
+def get_ai_move(state: dict, is_player_a: bool) -> tuple[int, float, float]:
+    players = state["players_a"] if is_player_a else state["players_b"]
+    bx, by  = state["ball"]["x"], state["ball"]["y"]
+    target  = "A" if is_player_a else "B"
 
-    best = float("-inf") if not is_player_a else float("inf")
-    for pos, step in moves:
-        nb = copy.deepcopy(board)
-        na, nbs = score_a.copy(), score_b.copy()
-        res = execute_capture(nb, pos, is_player_a, step)
-        if is_player_a:
-            na["dan"]  += res.captured_dan;  na["quan"]  += res.captured_quan
-        else:
-            nbs["dan"] += res.captured_dan;  nbs["quan"] += res.captured_quan
-        restore_player_side(nb, na,  True)
-        restore_player_side(nb, nbs, False)
+    best_pidx = max(range(3), key=lambda i: _player_value(players[i]["x"], players[i]["y"], is_player_a))
+    p = players[best_pidx]
+    base = math.degrees(math.atan2(by - p["y"], bx - p["x"]))
 
-        reward = res.captured_dan + res.captured_quan * 5.0
-        reward = reward if not is_player_a else -reward   # from B's view
-
-        future = _value(nb, na, nbs, not is_player_a, depth - 1, memo)
-        v = reward + GAMMA * future
-
-        if not is_player_a:   # AI maximises
-            best = max(best, v)
-        else:                 # human minimises (from AI view)
-            best = min(best, v)
-
-    memo[key] = best
-    return best
-
-def get_ai_move(board, score_a, score_b, is_player_a, depth=DEPTH):
-    moves = get_valid_moves(board, is_player_a)
-    if not moves:
-        return None, None
-    memo = {}
     best_val  = float("-inf")
-    best_move = moves[0]
-    for pos, step in moves:
-        nb = copy.deepcopy(board)
-        na, nbs = score_a.copy(), score_b.copy()
-        res = execute_capture(nb, pos, is_player_a, step)
-        if is_player_a:
-            na["dan"]  += res.captured_dan;  na["quan"]  += res.captured_quan
-        else:
-            nbs["dan"] += res.captured_dan;  nbs["quan"] += res.captured_quan
-        restore_player_side(nb, na,  True)
-        restore_player_side(nb, nbs, False)
-        reward = res.captured_dan + res.captured_quan * 5.0
-        future = _value(nb, na, nbs, not is_player_a, depth - 1, memo)
-        val = reward + GAMMA * future
+    best_move = (best_pidx, base, 85.0)
+
+    for off in range(-30, 31, 5):
+        angle = base + off
+        traj, scored = simulate_kick(state, best_pidx, angle, 85.0, is_player_a)
+        val = 1000.0 if scored == target else (-200.0 if scored else 0.0)
+        if not scored and len(traj) > 1:
+            end = traj[-1]
+            val += (FIELD_W - end["x"]) if is_player_a else end["x"]
+        elif len(traj) == 1:
+            val -= 40.0
         if val > best_val:
             best_val  = val
-            best_move = (pos, step)
+            best_move = (best_pidx, angle, 85.0)
+
     return best_move

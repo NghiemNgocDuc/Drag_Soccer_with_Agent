@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: o-an-quan
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 2 --bind 0.0.0.0:$PORT --timeout 120
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FLASK_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: UPSTASH_REDIS_URL
+        sync: false

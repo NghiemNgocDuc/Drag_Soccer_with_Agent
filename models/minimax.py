@@ -1,136 +1,40 @@
-"""
-models/minimax.py — Minimax with Alpha-Beta pruning.
-
-Enhancements over original:
-  - Alpha-beta pruning (cuts search space dramatically)
-  - Move ordering heuristic (try high-capture moves first)
-  - Configurable depth (difficulty levels)
-  - Proper multi-capture evaluation
-"""
+﻿"""Minimax Soccer AI: searches player/angle/power with opponent blocking in mind."""
 from __future__ import annotations
-import copy
-from models.game_logic import (
-    execute_capture, restore_player_side, is_game_over,
-    finalize_scores, calculate_score, get_valid_moves,
-)
+import math
+from models.soccer_logic import simulate_kick, FIELD_W, GOAL_Y1, GOAL_Y2
 
-DEFAULT_DEPTH = 5  # Increase for harder difficulty
+MODEL_NAME  = "Minimax"
+DESCRIPTION = "Evaluates moves considering opponent block positions (ball bounces off them)."
 
-#  Heuristic evaluation 
 
-def _evaluate(board, score_a, score_b) -> float:
-    """
-    Evaluate board from B's perspective (AI = B).
-    Positive = better for AI.
-    """
-    ta = calculate_score(score_a["dan"], score_a["quan"])
-    tb = calculate_score(score_b["dan"], score_b["quan"])
+def _kick_value(state: dict, pidx: int, angle: float, power: float, is_player_a: bool) -> float:
+    target = "A" if is_player_a else "B"
+    traj, scored = simulate_kick(state, pidx, angle, power, is_player_a)
+    if scored == target:
+        return 1000.0
+    if scored:
+        return -300.0
+    if len(traj) == 1:
+        return -60.0  # missed ball
+    end = traj[-1]
+    return (FIELD_W - end["x"]) if is_player_a else end["x"]
 
-    # Material advantage
-    score = (tb - ta) * 10
 
-    # Mobility: AI wants more options
-    ai_moves   = len(get_valid_moves(board, False))
-    human_moves = len(get_valid_moves(board, True))
-    score += (ai_moves - human_moves) * 2
+def get_ai_move(state: dict, is_player_a: bool) -> tuple[int, float, float]:
+    players = state["players_a"] if is_player_a else state["players_b"]
+    bx, by  = state["ball"]["x"], state["ball"]["y"]
+    best_val  = float("-inf")
+    best_move = (0, 0.0, 85.0)
 
-    # Quan proximity: don't let human capture Quan
-    if board[0]:   score += 3   # human's quan still alive → slight advantage for AI
-    if board[11]:  score += 3   # AI's quan still alive
-
-    # Seed density on opponent's side (harder for human)
-    score += sum(len(board[i]) for i in range(6, 11)) * 0.5
-
-    return score
-
-#  Move ordering 
-
-def _order_moves(board, moves, is_maximizing):
-    """
-    Quick greedy pre-sort: try moves that capture most seeds first.
-    Improves alpha-beta pruning efficiency.
-    """
-    def move_score(mv):
-        pos, step = mv
-        test = copy.deepcopy(board)
-        sa = {"dan": 0, "quan": 0}
-        sb = {"dan": 0, "quan": 0}
-        res = execute_capture(test, pos, not is_maximizing, step)
-        return res.captured_dan + res.captured_quan * 5
-
-    return sorted(moves, key=move_score, reverse=True)
-
-#  Alpha-Beta search 
-
-def _alphabeta(board, score_a, score_b, depth, alpha, beta, is_maximizing) -> float:
-    if depth == 0 or is_game_over(board, score_a, score_b):
-        return _evaluate(board, score_a, score_b)
-
-    moves = get_valid_moves(board, not is_maximizing)
-    if not moves:
-        return _evaluate(board, score_a, score_b)
-
-    moves = _order_moves(board, moves, is_maximizing)
-
-    if is_maximizing:
-        best = float('-inf')
-        for pos, step in moves:
-            nb = copy.deepcopy(board)
-            na, nb_score = score_a.copy(), score_b.copy()
-            res = execute_capture(nb, pos, False, step)
-            nb_score["dan"] += res.captured_dan
-            nb_score["quan"] += res.captured_quan
-            restore_player_side(nb, na, True)
-            restore_player_side(nb, nb_score, False)
-            val = _alphabeta(nb, na, nb_score, depth - 1, alpha, beta, False)
-            best = max(best, val)
-            alpha = max(alpha, best)
-            if beta <= alpha:
-                break  # β-cutoff
-        return best
-    else:
-        best = float('inf')
-        for pos, step in moves:
-            nb = copy.deepcopy(board)
-            na, nb_score = score_a.copy(), score_b.copy()
-            res = execute_capture(nb, pos, True, step)
-            na["dan"] += res.captured_dan
-            na["quan"] += res.captured_quan
-            restore_player_side(nb, na, True)
-            restore_player_side(nb, nb_score, False)
-            val = _alphabeta(nb, na, nb_score, depth - 1, alpha, beta, True)
-            best = min(best, val)
-            beta = min(beta, best)
-            if beta <= alpha:
-                break  # α-cutoff
-        return best
-
-#  Public API 
-
-def get_ai_move(board, score_a, score_b, is_player_a, depth=DEFAULT_DEPTH):
-    """Return (pos, step) for the AI's best move using Alpha-Beta Minimax."""
-    moves = get_valid_moves(board, is_player_a)
-    if not moves:
-        return None, None
-
-    moves = _order_moves(board, moves, True)
-    best_val = float('-inf')
-    best_move = moves[0]
-
-    for pos, step in moves:
-        nb = copy.deepcopy(board)
-        na, nb_score = score_a.copy(), score_b.copy()
-        res = execute_capture(nb, pos, False, step)
-        nb_score["dan"] += res.captured_dan
-        nb_score["quan"] += res.captured_quan
-        restore_player_side(nb, na, True)
-        restore_player_side(nb, nb_score, False)
-        val = _alphabeta(nb, na, nb_score, depth - 1, float('-inf'), float('inf'), False)
-        if val > best_val:
-            best_val = val
-            best_move = (pos, step)
+    for pidx in range(3):
+        p = players[pidx]
+        base = math.degrees(math.atan2(by - p["y"], bx - p["x"]))
+        for off in range(-35, 36, 7):
+            for power in (92.0, 75.0, 58.0):
+                angle = base + off
+                val = _kick_value(state, pidx, angle, power, is_player_a)
+                if val > best_val:
+                    best_val  = val
+                    best_move = (pidx, angle, power)
 
     return best_move
-
-MODEL_NAME = "Minimax α-β (depth 5)"
-DESCRIPTION = "Adversarial search with alpha-beta pruning. Looks several turns ahead and plays optimally within its search horizon."

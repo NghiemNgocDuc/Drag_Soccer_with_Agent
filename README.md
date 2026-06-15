@@ -1,6 +1,6 @@
-# O An Quan — AI Strategy Engine
+# Drag Soccer — AI Strategy Game
 
-> A full-stack implementation of the traditional Vietnamese mancala game, powered by five AI agents built from scratch.
+> A slingshot-style top-down soccer game with seven AI opponents, built with Flask and HTML5 Canvas.
 
 
 ## Overview

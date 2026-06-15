@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile — Ô Ăn Quan</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#3b82f6;--accent-b:#059669;--red:#ef4444;
+  --text:#1e2d4f;
+  --muted:#6b7fa3;
+  --dim:#9caab8;
+  --glass-bg:rgba(255,255,255,.62);
+  --glass-border:rgba(180,205,255,.5);
+  --glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);
+  --blur:18px;
+}
+body{
+  font-family:'Be Vietnam Pro',system-ui,sans-serif;
+  font-size:14px;color:var(--text);
+  min-height:100vh;
+  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
+}
+.nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.nebula::before{
+  content:'';position:absolute;width:700px;height:700px;
+  background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);
+  top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate;
+}
+.nebula::after{
+  content:'';position:absolute;width:600px;height:500px;
+  background:radial-gradient(ellipse,rgba(16,185,129,.07) 0%,transparent 65%);
+  bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate;
+}
+@keyframes drift {to{transform:translate(40px,-30px)}}
+@keyframes drift2{to{transform:translate(-30px,25px)}}
+
+nav,main{position:relative;z-index:1}
+
+nav{
+  background:rgba(255,255,255,.78);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(180,205,255,.4);
+  padding:12px 24px;display:flex;align-items:center;gap:16px;
+}
+.nav-brand{font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}
+.nav-links{display:flex;gap:12px;margin-left:auto;align-items:center}
+.nav-links a{font-size:.78rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color .15s}
+.nav-links a:hover,.nav-links a.active{color:var(--text)}
+.nav-user{font-size:.75rem;color:var(--dim)}
+.btn-logout{
+  font-family:inherit;font-size:.72rem;font-weight:500;
+  padding:5px 12px;border-radius:6px;
+  border:1px solid var(--glass-border);background:var(--glass-bg);
+  color:var(--muted);cursor:pointer;transition:all .15s;
+}
+.btn-logout:hover{border-color:var(--accent);color:var(--accent)}
+
+main{max-width:640px;margin:0 auto;padding:30px 16px}
+
+.avatar{
+  width:60px;height:60px;border-radius:50%;
+  background:rgba(96,165,250,.15);
+  border:1px solid rgba(96,165,250,.3);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;font-weight:700;color:var(--accent);
+  margin-bottom:14px;
+  box-shadow:0 0 20px rgba(96,165,250,.15);
+}
+h1{
+  font-size:1.35rem;font-weight:700;letter-spacing:-.02em;
+  background:linear-gradient(135deg,#1e2d4f 0%,#3b82f6 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.subtitle{font-size:.75rem;color:var(--muted);margin-top:3px;margin-bottom:26px}
+
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+.stat-card{
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:12px;
+  box-shadow:var(--glass-shadow);
+  padding:18px 12px;text-align:center;
+}
+.stat-val{font-size:1.7rem;font-weight:700;line-height:1;color:var(--text)}
+.stat-lbl{
+  font-size:.6rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin-top:7px;
+}
+.stat-card.wins   .stat-val{color:var(--accent-b)}
+.stat-card.losses .stat-val{color:var(--red)}
+.stat-card.played .stat-val{color:var(--accent)}
+
+.info-card{
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:12px;
+  box-shadow:var(--glass-shadow);
+  padding:16px 20px;font-size:.83rem;color:var(--muted);line-height:1.7;
+}
+.info-card strong{color:var(--accent-b)}
+
+@media(max-width:480px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div class="nebula"></div>
+
+<nav>
+  <a class="nav-brand" href="/">Ô Ăn Quan</a>
+  <div class="nav-links">
+    <a href="/">Game</a>
+    <a href="/playground">Playground</a>
+    <a href="/my-models">My Models</a>
+    <a href="/profile" class="active">Profile</a>
+    <a href="/leaderboard">Leaderboard</a>
+    <span class="nav-user">{{ username }}</span>
+    <form method="POST" action="/auth/logout" style="display:inline">
+      <button type="submit" class="btn-logout">Logout</button>
+    </form>
+  </div>
+</nav>
+
+<main>
+  <div class="avatar">{{ username[0].upper() }}</div>
+  <h1>{{ username }}</h1>
+  <p class="subtitle">Player stats · Human vs AI games</p>
+
+  <div class="stats-grid">
+    <div class="stat-card played">
+      <div class="stat-val">{{ stats.games_played or 0 }}</div>
+      <div class="stat-lbl">Played</div>
+    </div>
+    <div class="stat-card wins">
+      <div class="stat-val">{{ stats.wins or 0 }}</div>
+      <div class="stat-lbl">Wins</div>
+    </div>
+    <div class="stat-card losses">
+      <div class="stat-val">{{ stats.losses or 0 }}</div>
+      <div class="stat-lbl">Losses</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-val">{{ stats.draws or 0 }}</div>
+      <div class="stat-lbl">Draws</div>
+    </div>
+  </div>
+
+  {% if stats.games_played %}
+  <div class="info-card">
+    Win rate vs AI: <strong>{{ ((stats.wins / stats.games_played) * 100) | round(1) }}%</strong>
+  </div>
+  {% endif %}
+</main>
+</body>
+</html>

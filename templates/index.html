@@ -1,999 +1,898 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Ô Ăn Quan — AI Strategy Game</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400;500&family=Crimson+Pro:ital,wght@0,300;0,400;1,300&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Drag Soccer</title>
 <style>
-:root {
-  --cream:      #F5EDD8;
-  --warm-white: #FBF6EC;
-  --lacquer:    #8B1A1A;
-  --gold:       #C8922A;
-  --gold-light: #E8B84B;
-  --ink:        #1A1209;
-  --ink-soft:   #3D2C14;
-  --jade:       #2D6A4F;
-  --jade-light: #52B788;
-  --paper:      #EFE5CC;
-  --shadow:     rgba(26,18,9,0.18);
-  --radius:     12px;
+:root{
+  --glass-bg:rgba(255,255,255,.62);
+  --glass-border:rgba(180,205,255,.5);
+  --glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);
+  --blur:18px;
+  --accent-a:#3b82f6;
+  --accent-b:#ef4444;
+  --text:#1e2d4f;
+  --muted:#6b7fa3;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;
+  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
+  font-family:'Inter',system-ui,sans-serif;
+  color:var(--text);
+}
+.glass{
+  background:var(--glass-bg);
+  border:1px solid var(--glass-border);
+  box-shadow:var(--glass-shadow);
+  backdrop-filter:blur(var(--blur));
+  -webkit-backdrop-filter:blur(var(--blur));
+  border-radius:18px;
+}
+nav{
+  display:flex;align-items:center;gap:12px;padding:10px 24px;
+  background:rgba(255,255,255,.78);
+  border-bottom:1px solid rgba(180,205,255,.4);
+  position:sticky;top:0;z-index:100;
+}
+.nav-brand{font-weight:700;font-size:1rem;color:var(--text)}
+.nav-links{display:flex;gap:4px;margin-left:auto}
+.nav-link{
+  padding:6px 14px;border-radius:8px;font-size:.82rem;font-weight:500;
+  color:var(--muted);text-decoration:none;transition:all .15s;
+}
+.nav-link:hover,.nav-link.active{background:rgba(59,130,246,.1);color:var(--accent-a)}
+.nav-user{font-size:.82rem;color:var(--muted);padding:6px 0 6px 12px;border-left:1px solid rgba(180,205,255,.4)}
+main{max-width:1000px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:16px}
+
+/* Score HUD */
+.hud{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 24px;
+}
+.team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:110px}
+.team-name{font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.team-score{font-size:2.4rem;font-weight:800;line-height:1}
+.team-a .team-score{color:var(--accent-a)}
+.team-b .team-score{color:var(--accent-b)}
+.hud-mid{display:flex;flex-direction:column;align-items:center;gap:6px}
+.kick-counter{font-size:.72rem;color:var(--muted);font-weight:500}
+.turn-badge{
+  padding:4px 14px;border-radius:20px;font-size:.78rem;font-weight:600;
+}
+.turn-badge.turn-a{background:rgba(59,130,246,.15);color:var(--accent-a)}
+.turn-badge.turn-b{background:rgba(239,68,68,.15);color:var(--accent-b)}
+.winner-banner{
+  display:none;padding:8px 20px;border-radius:12px;font-size:.9rem;font-weight:700;
+  background:rgba(16,185,129,.15);color:#059669;text-align:center;
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* Canvas */
+.canvas-wrap{
+  border-radius:16px;overflow:hidden;
+  box-shadow:0 8px 32px rgba(80,120,200,.15);
+  position:relative;cursor:default;
+}
+#game-canvas{display:block;width:100%;touch-action:none}
+.canvas-overlay{
+  display:none;position:absolute;inset:0;
+  background:rgba(255,255,255,.7);
+  backdrop-filter:blur(4px);
+  align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:600;color:var(--text);
+}
+.canvas-overlay.visible{display:flex}
+.spinner{
+  width:32px;height:32px;border:3px solid rgba(59,130,246,.2);
+  border-top-color:var(--accent-a);border-radius:50%;
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
 
-body {
-  background: var(--cream);
-  color: var(--ink);
-  font-family: 'Crimson Pro', Georgia, serif;
-  min-height: 100vh;
-  overflow-x: hidden;
+/* Controls */
+.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px}
+.btn{
+  padding:7px 18px;border-radius:10px;border:none;cursor:pointer;
+  font-size:.82rem;font-weight:600;transition:all .15s;outline:none;
 }
+.btn-primary{background:rgba(59,130,246,.12);color:var(--accent-a);border:1px solid rgba(59,130,246,.25)}
+.btn-primary:hover{background:rgba(59,130,246,.22)}
+.btn-danger{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:rgba(239,68,68,.2)}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid rgba(180,205,255,.5)}
+.btn-ghost:hover{background:rgba(180,205,255,.2)}
+.sep{width:1px;height:24px;background:rgba(180,205,255,.5);margin:0 4px}
+select{
+  padding:7px 12px;border-radius:10px;border:1px solid rgba(180,205,255,.5);
+  background:rgba(255,255,255,.7);color:var(--text);font-size:.82rem;
+  font-weight:500;cursor:pointer;outline:none;
+}
+.mode-label,.speed-label,.model-label{font-size:.72rem;font-weight:600;color:var(--muted);white-space:nowrap}
+.speed-wrap{display:flex;align-items:center;gap:8px}
+#speed-slider{width:80px;cursor:pointer;accent-color:var(--accent-a)}
+.controls-right{margin-left:auto;display:flex;align-items:center;gap:10px}
 
-/* ── Background texture ── */
-body::before {
-  content: '';
-  position: fixed; inset: 0; z-index: 0;
-  background-image:
-    radial-gradient(ellipse at 20% 10%, rgba(200,146,42,0.08) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 90%, rgba(139,26,26,0.07) 0%, transparent 50%),
-    url("data:image/svg+xml,%3Csvg width='60' height='60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 0h60v60H0z' fill='none'/%3E%3Ccircle cx='30' cy='30' r='0.5' fill='%23C8922A' opacity='0.15'/%3E%3C/svg%3E");
-  pointer-events: none;
-}
+/* Log */
+.log-panel{padding:12px 18px;max-height:120px;overflow-y:auto}
+.log-panel p{font-size:.76rem;color:var(--muted);margin:2px 0}
+.log-panel .log-goal{color:#059669;font-weight:600}
 
-/* ── Layout ── */
-.shell {
-  position: relative; z-index: 1;
-  max-width: 1280px; margin: 0 auto;
-  padding: 24px 20px;
-  display: grid;
-  grid-template-columns: 1fr 340px;
-  grid-template-rows: auto 1fr;
-  gap: 24px;
-}
-
-/* ── Header ── */
-header {
-  grid-column: 1 / -1;
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 28px;
-  background: var(--lacquer);
-  border-radius: var(--radius);
-  box-shadow: 0 4px 24px rgba(139,26,26,0.35);
-}
-
-.header-title {
-  display: flex; flex-direction: column;
-}
-.header-title .vn { font-family: 'Playfair Display', serif; font-size: 2rem; font-weight: 700; color: var(--gold-light); letter-spacing: 0.03em; }
-.header-title .en { font-family: 'DM Mono', monospace; font-size: 0.72rem; color: rgba(232,184,75,0.6); letter-spacing: 0.14em; text-transform: uppercase; margin-top: 2px; }
-
-.header-meta {
-  display: flex; gap: 16px; align-items: center;
-}
-
-.pill {
-  font-family: 'DM Mono', monospace; font-size: 0.7rem; letter-spacing: 0.08em;
-  padding: 5px 12px; border-radius: 100px;
-  background: rgba(232,184,75,0.12); color: var(--gold-light);
-  border: 1px solid rgba(232,184,75,0.25);
-}
-
-/* ── Turn banner ── */
-.turn-banner {
-  grid-column: 1 / -1;
-  display: flex; align-items: center; justify-content: center; gap: 12px;
-  padding: 10px 20px;
-  background: var(--warm-white);
-  border: 1.5px solid var(--gold);
-  border-radius: var(--radius);
-  box-shadow: 0 2px 12px var(--shadow);
-  font-family: 'Playfair Display', serif;
-  font-size: 1.05rem; color: var(--ink-soft);
-  transition: background 0.3s, border-color 0.3s;
-}
-.turn-banner.ai-turn  { background: rgba(45,106,79,0.07); border-color: var(--jade); }
-.turn-banner.game-over { background: rgba(139,26,26,0.07); border-color: var(--lacquer); }
-.turn-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--gold); flex-shrink: 0; }
-.turn-banner.ai-turn .turn-dot { background: var(--jade); }
-.turn-banner.game-over .turn-dot { background: var(--lacquer); }
-
-/* ── Score panel ── */
-.score-row {
-  display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: center;
-}
-
-.score-card {
-  background: var(--warm-white);
-  border-radius: var(--radius);
-  padding: 16px 20px;
-  border: 1.5px solid rgba(200,146,42,0.2);
-  box-shadow: 0 2px 12px var(--shadow);
-}
-.score-card.active { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200,146,42,0.12), 0 2px 12px var(--shadow); }
-.score-card .label { font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--gold); opacity: 0.7; margin-bottom: 6px; }
-.score-card .name  { font-family: 'Playfair Display', serif; font-size: 1.1rem; font-weight: 700; color: var(--ink); }
-.score-card .seeds { display: flex; gap: 16px; margin-top: 8px; }
-.score-card .seed-type { display: flex; flex-direction: column; align-items: center; gap: 2px; }
-.score-card .seed-icon { font-size: 1.3rem; }
-.score-card .seed-val  { font-family: 'DM Mono', monospace; font-size: 0.85rem; font-weight: 500; color: var(--ink-soft); }
-.score-card .total { font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700; color: var(--lacquer); margin-top: 4px; }
-.score-card.player-b .total { color: var(--jade); }
-
-.vs-badge {
-  font-family: 'Playfair Display', serif; font-style: italic;
-  font-size: 1.4rem; color: var(--gold); opacity: 0.7;
-  text-align: center;
-}
-
-/* ── Board ── */
-.board-section {
-  display: flex; flex-direction: column; gap: 16px;
-}
-
-.board-wrap {
-  background: var(--warm-white);
-  border: 2px solid rgba(200,146,42,0.25);
-  border-radius: 18px;
-  padding: 24px;
-  box-shadow: 0 6px 32px var(--shadow);
-  position: relative;
-  overflow: hidden;
-}
-
-.board-wrap::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse at 50% 50%, rgba(200,146,42,0.04) 0%, transparent 70%);
-  pointer-events: none;
-}
-
-/* Board player label */
-.board-player-label {
-  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.12em;
-  text-transform: uppercase; color: var(--jade); opacity: 0.6;
-  text-align: center; margin-bottom: 8px;
-}
-.board-player-label.player-a { color: var(--lacquer); margin-top: 8px; margin-bottom: 0; }
-
-/* Board grid */
-.board-grid {
-  display: grid;
-  grid-template-columns: 90px repeat(5, 1fr) 90px;
-  gap: 8px;
-  align-items: center;
-  position: relative; z-index: 1;
-}
-
-.pit {
-  background: var(--paper);
-  border: 1.5px solid rgba(200,146,42,0.2);
-  border-radius: 10px;
-  padding: 10px 6px;
-  text-align: center;
-  min-height: 80px;
-  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
-  cursor: default;
-  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s, background 0.15s;
-  position: relative;
-  overflow: hidden;
-}
-
-.pit-num {
-  font-family: 'DM Mono', monospace; font-size: 0.6rem;
-  color: rgba(61,44,20,0.35); margin-bottom: 2px;
-}
-
-.pit-seeds {
-  display: flex; flex-wrap: wrap; gap: 2px;
-  justify-content: center; align-items: center;
-  min-height: 36px; width: 100%;
-}
-
-.seed {
-  display: inline-block;
-  animation: seed-pop 0.25s cubic-bezier(0.34,1.56,0.64,1) both;
-}
-.seed.dan {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, var(--gold-light), var(--gold));
-  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
-}
-.seed.quan {
-  width: 18px; height: 18px; border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #555, #1a1a1a);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
-}
-
-.pit-count {
-  font-family: 'DM Mono', monospace; font-size: 0.68rem;
-  color: rgba(61,44,20,0.5);
-  margin-top: 3px;
-}
-
-/* Clickable pits */
-.pit.clickable {
-  cursor: pointer;
-  border-color: rgba(200,146,42,0.45);
-}
-.pit.clickable:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 6px 20px rgba(200,146,42,0.2);
-  border-color: var(--gold);
-  background: rgba(200,146,42,0.06);
-}
-
-/* Selected pit */
-.pit.selected {
-  border-color: var(--lacquer);
-  background: rgba(139,26,26,0.05);
-  box-shadow: 0 0 0 3px rgba(139,26,26,0.15);
-}
-
-/* Quan pits */
-.pit.quan-pit {
-  background: linear-gradient(135deg, #2a2a2a, #1a1a1a);
-  border-color: rgba(200,146,42,0.4);
-  border-radius: 50%;
-  min-height: 90px;
-  align-self: center;
-}
-.pit.quan-pit .pit-num { color: rgba(232,184,75,0.4); }
-.pit.quan-pit .pit-count { color: rgba(232,184,75,0.6); }
-
-/* Captured animation */
-@keyframes seed-pop {
-  from { transform: scale(0) rotate(-15deg); opacity: 0; }
-  to   { transform: scale(1) rotate(0deg);  opacity: 1; }
-}
-
-/* Last move highlight */
-.pit.last-move {
-  box-shadow: 0 0 0 3px rgba(82,183,136,0.4);
-  border-color: var(--jade-light);
-}
-
-/* ── Direction chooser ── */
-.direction-panel {
-  display: none;
-  background: var(--warm-white);
-  border: 1.5px solid var(--gold);
-  border-radius: var(--radius);
-  padding: 18px 20px;
-  box-shadow: 0 4px 20px var(--shadow);
-  text-align: center;
-}
-.direction-panel.visible { display: block; animation: slide-down 0.2s ease; }
-.direction-panel .label {
-  font-family: 'Playfair Display', serif; font-style: italic;
-  font-size: 0.95rem; color: var(--ink-soft); margin-bottom: 14px;
-}
-.dir-buttons { display: flex; gap: 12px; justify-content: center; }
-
-/* ── Buttons ── */
-.btn {
-  font-family: 'DM Mono', monospace; font-size: 0.78rem; letter-spacing: 0.06em;
-  padding: 10px 22px; border-radius: 8px; border: none; cursor: pointer;
-  transition: transform 0.12s, box-shadow 0.12s;
-}
-.btn:hover { transform: translateY(-1px); }
-.btn:active { transform: translateY(0); }
-
-.btn-gold {
-  background: var(--gold); color: var(--ink);
-  box-shadow: 0 2px 8px rgba(200,146,42,0.3);
-}
-.btn-gold:hover { background: var(--gold-light); box-shadow: 0 4px 14px rgba(200,146,42,0.4); }
-
-.btn-jade {
-  background: var(--jade); color: #fff;
-  box-shadow: 0 2px 8px rgba(45,106,79,0.3);
-}
-.btn-jade:hover { background: var(--jade-light); }
-
-.btn-ghost {
-  background: transparent; color: var(--ink-soft);
-  border: 1.5px solid rgba(61,44,20,0.2);
-}
-.btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
-
-.btn-red {
-  background: var(--lacquer); color: var(--cream);
-  box-shadow: 0 2px 8px rgba(139,26,26,0.3);
-}
-
-/* ── Sidebar ── */
-.sidebar {
-  display: flex; flex-direction: column; gap: 16px;
-}
-
-/* ── Panel card ── */
-.panel {
-  background: var(--warm-white);
-  border: 1.5px solid rgba(200,146,42,0.18);
-  border-radius: var(--radius);
-  padding: 18px 20px;
-  box-shadow: 0 2px 12px var(--shadow);
-}
-
-.panel-title {
-  font-family: 'DM Mono', monospace; font-size: 0.65rem; letter-spacing: 0.14em;
-  text-transform: uppercase; color: var(--gold); opacity: 0.75;
-  margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
-}
-.panel-title::after { content: ''; flex: 1; height: 1px; background: rgba(200,146,42,0.15); }
-
-/* ── Tabs ── */
-.tabs { display: flex; gap: 4px; margin-bottom: 16px; }
-.tab {
-  font-family: 'DM Mono', monospace; font-size: 0.68rem; letter-spacing: 0.06em;
-  padding: 7px 14px; border-radius: 7px; border: none; cursor: pointer;
-  background: transparent; color: rgba(61,44,20,0.45);
-  transition: all 0.15s;
-}
-.tab.active { background: var(--gold); color: var(--ink); font-weight: 500; }
-.tab:hover:not(.active) { color: var(--ink-soft); background: rgba(200,146,42,0.08); }
-.tab-content { display: none; }
-.tab-content.active { display: block; animation: fade-in 0.18s ease; }
-
-/* ── Model selector ── */
-.model-option {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 12px; border-radius: 8px; cursor: pointer;
-  border: 1.5px solid transparent;
-  transition: all 0.15s; margin-bottom: 6px;
-}
-.model-option:hover { background: rgba(200,146,42,0.06); border-color: rgba(200,146,42,0.2); }
-.model-option.selected { background: rgba(200,146,42,0.1); border-color: var(--gold); }
-.model-radio { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(200,146,42,0.4); flex-shrink: 0; margin-top: 3px; transition: all 0.15s; }
-.model-option.selected .model-radio { background: var(--gold); border-color: var(--gold); box-shadow: 0 0 0 3px rgba(200,146,42,0.15); }
-.model-info .model-name { font-family: 'Crimson Pro', serif; font-size: 0.95rem; font-weight: 400; color: var(--ink); }
-.model-info .model-desc { font-family: 'DM Mono', monospace; font-size: 0.6rem; color: rgba(61,44,20,0.5); margin-top: 2px; line-height: 1.5; }
-
-/* ── Mode selector ── */
-.mode-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.mode-btn {
-  padding: 8px 4px; border-radius: 7px; border: 1.5px solid rgba(200,146,42,0.2);
-  background: transparent; cursor: pointer; text-align: center;
-  font-family: 'DM Mono', monospace; font-size: 0.62rem; letter-spacing: 0.04em;
-  color: rgba(61,44,20,0.5); transition: all 0.15s;
-}
-.mode-btn.active { background: var(--lacquer); color: var(--cream); border-color: var(--lacquer); }
-.mode-btn:hover:not(.active) { border-color: var(--gold); color: var(--gold); }
-.mode-icon { font-size: 1.1rem; display: block; margin-bottom: 3px; }
-
-/* ── Move log ── */
-.move-log {
-  max-height: 200px; overflow-y: auto;
-  font-family: 'DM Mono', monospace; font-size: 0.67rem;
-  line-height: 1.8; color: rgba(61,44,20,0.6);
-  scrollbar-width: thin; scrollbar-color: rgba(200,146,42,0.3) transparent;
-}
-.move-log::-webkit-scrollbar { width: 4px; }
-.move-log::-webkit-scrollbar-thumb { background: rgba(200,146,42,0.3); border-radius: 2px; }
-.log-entry { padding: 4px 0; border-bottom: 1px solid rgba(200,146,42,0.08); }
-.log-entry:last-child { color: var(--ink-soft); font-weight: 500; }
-.log-a { color: rgba(139,26,26,0.7); }
-.log-b { color: rgba(45,106,79,0.7); }
-.log-num { color: rgba(200,146,42,0.5); margin-right: 4px; }
-
-/* ── Benchmark ── */
-.bench-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
-.bench-select {
-  width: 100%; padding: 8px 10px; border-radius: 7px;
-  border: 1.5px solid rgba(200,146,42,0.2); background: var(--paper);
-  font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--ink-soft);
-  cursor: pointer;
-}
-.bench-select:focus { outline: none; border-color: var(--gold); }
-
-.bench-result {
-  font-family: 'DM Mono', monospace; font-size: 0.7rem;
-  background: var(--paper); border-radius: 8px; padding: 12px;
-  display: none;
-}
-.bench-result.show { display: block; animation: fade-in 0.2s ease; }
-.bench-bar { height: 8px; border-radius: 4px; margin: 6px 0; overflow: hidden; display: flex; }
-.bench-bar-a { background: var(--lacquer); }
-.bench-bar-b { background: var(--jade); }
-.bench-label { display: flex; justify-content: space-between; color: rgba(61,44,20,0.6); font-size: 0.62rem; }
-
-/* ── Game over overlay ── */
-.game-over-panel {
-  display: none; text-align: center; padding: 12px;
-}
-.game-over-panel.show { display: block; animation: fade-in 0.3s ease; }
-.winner-text {
-  font-family: 'Playfair Display', serif; font-size: 1.5rem; font-weight: 700;
-  color: var(--lacquer); margin-bottom: 6px;
-}
-.final-scores {
-  font-family: 'DM Mono', monospace; font-size: 0.75rem;
-  color: rgba(61,44,20,0.6); margin-bottom: 14px; line-height: 2;
-}
-
-/* ── Think indicator ── */
-.think-indicator {
-  display: none; align-items: center; gap: 6px;
-  font-family: 'DM Mono', monospace; font-size: 0.68rem; color: var(--jade);
-}
-.think-indicator.show { display: flex; }
-.think-dots span {
-  display: inline-block; width: 5px; height: 5px; border-radius: 50%;
-  background: var(--jade); margin: 0 1px;
-  animation: bounce 1.2s infinite;
-}
-.think-dots span:nth-child(2) { animation-delay: 0.2s; }
-.think-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-/* ── Animations ── */
-@keyframes slide-down {
-  from { opacity: 0; transform: translateY(-8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes fade-in {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes bounce {
-  0%, 60%, 100% { transform: translateY(0); }
-  30%           { transform: translateY(-5px); }
-}
-
-/* ── Control row ── */
-.control-row {
-  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-}
-
-/* ── Responsive ── */
-@media (max-width: 900px) {
-  .shell { grid-template-columns: 1fr; }
-  .sidebar { order: -1; }
+/* Hint */
+.hint{
+  text-align:center;font-size:.78rem;color:var(--muted);padding:8px 16px;
+  background:rgba(59,130,246,.06);border-radius:10px;
 }
 </style>
 </head>
 <body>
-<div class="shell">
+<nav>
+  <span class="nav-brand">Drag Soccer</span>
+  <div class="nav-links">
+    <a href="/" class="nav-link active">Play</a>
+    <a href="/online" class="nav-link">Online</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/profile" class="nav-link">Profile</a>
+  </div>
+  <span class="nav-user">{{ username }}</span>
+  <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+</nav>
 
-  <!-- Header -->
-  <header>
-    <div class="header-title">
-      <span class="vn">Ô Ăn Quan</span>
-      <span class="en">Vietnamese Mancala · AI Strategy Engine</span>
+<main>
+  <!-- HUD -->
+  <div class="glass hud">
+    <div class="team team-a">
+      <div class="team-name">You (A)</div>
+      <div class="team-score" id="score-a">0</div>
     </div>
-    <div class="header-meta">
-      <span class="pill" id="mode-pill">Human vs AI</span>
-      <span class="pill" id="model-pill">Minimax α-β</span>
+    <div class="hud-mid">
+      <div class="turn-badge turn-a" id="turn-badge">Your turn</div>
+      <div class="kick-counter" id="kick-counter">Kick 0 / 12</div>
+      <div class="winner-banner" id="winner-banner"></div>
     </div>
-  </header>
-
-  <!-- Main board area -->
-  <div class="board-section">
-
-    <!-- Turn banner -->
-    <div class="turn-banner" id="turn-banner">
-      <div class="turn-dot"></div>
-      <span id="turn-text">Your turn — click a pit to move</span>
-      <div class="think-indicator" id="think-indicator">
-        <div class="think-dots"><span></span><span></span><span></span></div>
-        <span>AI thinking…</span>
-      </div>
+    <div class="team team-b">
+      <div class="team-name">AI (B)</div>
+      <div class="team-score" id="score-b">0</div>
     </div>
-
-    <!-- Score row -->
-    <div class="score-row">
-      <div class="score-card active" id="score-a">
-        <div class="label">Player A · You</div>
-        <div class="name">Human</div>
-        <div class="seeds">
-          <div class="seed-type"><span class="seed-icon">🟡</span><span class="seed-val" id="sa-dan">0</span></div>
-          <div class="seed-type"><span class="seed-icon">⚫</span><span class="seed-val" id="sa-quan">0</span></div>
-        </div>
-        <div class="total" id="sa-total">0</div>
-      </div>
-      <div class="vs-badge">vs</div>
-      <div class="score-card player-b" id="score-b">
-        <div class="label">Player B · AI</div>
-        <div class="name" id="sb-name">Minimax</div>
-        <div class="seeds">
-          <div class="seed-type"><span class="seed-icon">🟡</span><span class="seed-val" id="sb-dan">0</span></div>
-          <div class="seed-type"><span class="seed-icon">⚫</span><span class="seed-val" id="sb-quan">0</span></div>
-        </div>
-        <div class="total" id="sb-total">0</div>
-      </div>
-    </div>
-
-    <!-- Board -->
-    <div class="board-wrap">
-      <div class="board-player-label">← Player B (AI) ←</div>
-      <div class="board-grid" id="board"></div>
-      <div class="board-player-label player-a">→ Player A (You) →</div>
-    </div>
-
-    <!-- Direction chooser -->
-    <div class="direction-panel" id="dir-panel">
-      <div class="label">Choose sowing direction for pit <strong id="chosen-pit">—</strong></div>
-      <div class="dir-buttons">
-        <button class="btn btn-gold" onclick="submitMove(-1)">← Counter-clockwise</button>
-        <button class="btn btn-ghost" onclick="cancelMove()">Cancel</button>
-        <button class="btn btn-jade" onclick="submitMove(1)">Clockwise →</button>
-      </div>
-    </div>
-
-    <!-- Game over -->
-    <div class="game-over-panel" id="game-over-panel">
-      <div class="winner-text" id="winner-text"></div>
-      <div class="final-scores" id="final-scores"></div>
-      <button class="btn btn-gold" onclick="resetGame()">Play Again</button>
-    </div>
-
-    <!-- Controls -->
-    <div class="control-row">
-      <button class="btn btn-ghost" onclick="undoMove()">↩ Undo</button>
-      <button class="btn btn-ghost" onclick="resetGame()">↺ Reset</button>
-      <span id="last-think" style="font-family:'DM Mono',monospace;font-size:0.65rem;color:rgba(61,44,20,0.4);margin-left:auto;"></span>
-    </div>
-
   </div>
 
-  <!-- Sidebar -->
-  <div class="sidebar">
-
-    <!-- Tabs -->
-    <div class="panel">
-      <div class="tabs">
-        <button class="tab active" onclick="switchTab('settings')">Settings</button>
-        <button class="tab" onclick="switchTab('log')">Move Log</button>
-        <button class="tab" onclick="switchTab('bench')">Benchmark</button>
+  <!-- Canvas -->
+  <div class="canvas-wrap">
+    <canvas id="game-canvas" width="800" height="500"></canvas>
+    <div class="canvas-overlay" id="canvas-overlay">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+        <div class="spinner" id="overlay-spinner"></div>
+        <span id="overlay-text">AI thinking…</span>
       </div>
-
-      <!-- Settings tab -->
-      <div class="tab-content active" id="tab-settings">
-
-        <div class="panel-title">Game Mode</div>
-        <div class="mode-buttons" style="margin-bottom:18px;">
-          <button class="mode-btn active" id="mode-hvai" onclick="setMode('hvai')">
-            <span class="mode-icon">Human/Computer</span>vs AI
-          </button>
-          <button class="mode-btn" id="mode-hvh" onclick="setMode('hvh')">
-            <span class="mode-icon">Human</span>vs Human
-          </button>
-          <button class="mode-btn" id="mode-aivai" onclick="setMode('aivai')">
-            <span class="mode-icon">AI</span>AI vs AI
-          </button>
-        </div>
-
-        <div class="panel-title">AI Model (Player B)</div>
-        <div id="model-list-b"></div>
-
-        <div id="model-a-section" style="display:none;">
-          <div class="panel-title" style="margin-top:12px;">AI Model (Player A)</div>
-          <div id="model-list-a"></div>
-        </div>
-
-      </div>
-
-      <!-- Log tab -->
-      <div class="tab-content" id="tab-log">
-        <div class="panel-title">Move History</div>
-        <div class="move-log" id="move-log">
-          <div style="color:rgba(61,44,20,0.35);font-size:0.65rem;">No moves yet…</div>
-        </div>
-      </div>
-
-      <!-- Benchmark tab -->
-      <div class="tab-content" id="tab-bench">
-        <div class="panel-title">AI Benchmark</div>
-        <p style="font-family:'DM Mono',monospace;font-size:0.65rem;color:rgba(61,44,20,0.5);margin-bottom:12px;line-height:1.7;">
-          Run simulated games between two AI agents to compare performance.
-        </p>
-        <div class="bench-row">
-          <select class="bench-select" id="bench-a"><option value="">Agent A…</option></select>
-          <select class="bench-select" id="bench-b"><option value="">Agent B…</option></select>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
-          <select class="bench-select" style="width:80px;" id="bench-n">
-            <option value="10">10</option>
-            <option value="20">20</option>
-            <option value="50">50</option>
-          </select>
-          <span style="font-family:'DM Mono',monospace;font-size:0.65rem;color:rgba(61,44,20,0.45);">games</span>
-          <button class="btn btn-gold" style="margin-left:auto;" onclick="runBenchmark()" id="bench-btn">Run</button>
-        </div>
-        <div class="bench-result" id="bench-result"></div>
-      </div>
-
     </div>
-
-    <!-- About -->
-    <div class="panel">
-      <div class="panel-title">About the Game</div>
-      <p style="font-family:'Crimson Pro',serif;font-size:0.88rem;line-height:1.7;color:var(--ink-soft);">
-        <em>Ô Ăn Quan</em> is a traditional Vietnamese mancala played on a 2×5 board with two large "Quan" pits. Players sow and capture stones, with five AI strategies ranging from simple greedy heuristics to full Monte Carlo tree search.
-      </p>
-    </div>
-
   </div>
-</div>
+
+  <div class="hint" id="hint-text">Drag any blue player backward (like a slingshot) then release to kick</div>
+
+  <!-- Controls -->
+  <div class="glass controls">
+    <span class="mode-label">Mode</span>
+    <select id="mode-select" onchange="setMode(this.value)">
+      <option value="hvai">Human vs AI</option>
+      <option value="hvh">Human vs Human</option>
+      <option value="aivai">AI vs AI</option>
+    </select>
+
+    <div class="sep"></div>
+    <span class="model-label">AI</span>
+    <select id="model-select" onchange="switchModel(this.value)">
+      <option value="greedy">Greedy Striker</option>
+      <option value="minimax">Minimax</option>
+      <option value="monte_carlo">Monte Carlo</option>
+      <option value="bayesian">Bayesian</option>
+      <option value="value_iteration">Value Iteration</option>
+      <option value="policy_iteration">Policy Iteration</option>
+      <option value="q_learning">Q-Learning</option>
+    </select>
+
+    <div class="sep"></div>
+    <button class="btn btn-primary" onclick="resetGame()">New Game</button>
+    <button class="btn btn-ghost" onclick="undoMove()">Undo</button>
+
+    <div class="controls-right">
+      <div class="speed-wrap">
+        <span class="speed-label">Speed</span>
+        <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1"
+               oninput="setAnimSpeed(+this.value)">
+      </div>
+      <button class="btn btn-ghost" id="aivai-btn" style="display:none" onclick="triggerAI()">Run AI</button>
+    </div>
+  </div>
+
+  <!-- Move Log -->
+  <div class="glass log-panel" id="log-panel"></div>
+</main>
 
 <script>
-// ─────────────────────────────────────────────────────────────
-// State
-// ─────────────────────────────────────────────────────────────
-let selectedPos = null;
-let currentModels = {};
-let activeModelB = 'minimax';
-let activeModelA = 'minimax';
-let currentMode  = 'hvai';
-let lastMovePos  = null;
-let gameIsOver   = false;
+// ── Constants ────────────────────────────────────────────────────────────────
+const W = 800, H = 500;
+const PLAYER_R = 20, BALL_R = 12;
+const GOAL_Y1 = 185, GOAL_Y2 = 315, GOAL_DEPTH = 20;  // depth = field margin so goal mouth is at white line
+const TEAM_A_COLOR = '#3b82f6';
+const TEAM_B_COLOR = '#ef4444';
+const BALL_COLOR   = '#facc15';
+const MAX_DRAG = 110;  // px on canvas scale
+const PLAYER_TRAVEL = 3.0;  // must match _PLAYER_TRAVEL in soccer_logic.py
+const HOME_A = [{x:150,y:165},{x:150,y:250},{x:150,y:335}];
+const HOME_B = [{x:650,y:165},{x:650,y:250},{x:650,y:335}];
 
-// ─────────────────────────────────────────────────────────────
-// Init
-// ─────────────────────────────────────────────────────────────
-window.onload = async () => {
-  await loadModels();
-  const state = await fetchState();
-  renderAll(state);
-};
+// ── State ────────────────────────────────────────────────────────────────────
+let gameState   = null;
+let isAnimating = false;
+let animSpeed   = 1.0;  // 1 = normal, higher = faster
 
-async function fetchState() {
-  const r = await fetch('/state');
-  return r.json();
+// Drag state (human)
+let dragPlayer  = null;
+let dragX       = 0, dragY = 0;
+let lastPullX   = 0, lastPullY = 0;
+
+// AI drag preview state — shown while AI is "aiming"
+let aiDragPreview = null;  // {team, playerIdx, hx, hy, pullX, pullY, power, kickAngle}
+
+// Shared animated ball position — set by animateTrajectory so render() picks it up
+// even when called from animatePlayerMove (running in parallel).
+let animBall = null;
+
+// Canvas
+const canvas = document.getElementById('game-canvas');
+const ctx    = canvas.getContext('2d');
+
+// Scale from CSS pixels → canvas pixels
+function cssToCv(e) {
+  const r  = canvas.getBoundingClientRect();
+  const sx = W / r.width;
+  const sy = H / r.height;
+  const x  = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
+  const y  = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
+  return { x: x * sx, y: y * sy };
 }
 
-async function loadModels() {
-  const r = await fetch('/models');
-  const models = await r.json();
-  models.forEach(m => { currentModels[m.id] = m; });
+// ── Drawing ──────────────────────────────────────────────────────────────────
+function drawField() {
+  // Grass
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0,   '#27a85f');
+  grad.addColorStop(0.5, '#2d8a50');
+  grad.addColorStop(1,   '#27a85f');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
 
-  const listB = document.getElementById('model-list-b');
-  const listA = document.getElementById('model-list-a');
-  const bA = document.getElementById('bench-a');
-  const bB = document.getElementById('bench-b');
+  // Stripe pattern
+  ctx.fillStyle = 'rgba(0,0,0,.04)';
+  for (let x = 0; x < W; x += 80) ctx.fillRect(x, 0, 40, H);
 
-  models.forEach(m => {
-    listB.appendChild(makeModelOption(m, 'b', m.id === activeModelB));
-    listA.appendChild(makeModelOption(m, 'a', m.id === activeModelA));
-    [bA, bB].forEach(sel => {
-      const opt = document.createElement('option');
-      opt.value = m.id; opt.textContent = m.name;
-      sel.appendChild(opt);
-    });
-  });
-  bA.value = 'greedy';
-  bB.value = 'minimax';
+  ctx.save();
+  ctx.strokeStyle = 'rgba(255,255,255,.65)';
+  ctx.lineWidth   = 2;
+
+  // Boundary
+  ctx.strokeRect(20, 20, W-40, H-40);
+
+  // Center line
+  ctx.beginPath(); ctx.moveTo(W/2, 20); ctx.lineTo(W/2, H-20); ctx.stroke();
+
+  // Center circle
+  ctx.beginPath(); ctx.arc(W/2, H/2, 60, 0, Math.PI*2); ctx.stroke();
+
+  // Center dot
+  ctx.fillStyle = 'rgba(255,255,255,.65)';
+  ctx.beginPath(); ctx.arc(W/2, H/2, 4, 0, Math.PI*2); ctx.fill();
+
+  // Penalty areas
+  ctx.strokeRect(20, (H-180)/2, 100, 180);
+  ctx.strokeRect(W-120, (H-180)/2, 100, 180);
+
+  // Goals
+  ctx.fillStyle = 'rgba(255,255,255,.18)';
+  ctx.fillRect(0, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
+  ctx.strokeRect(0, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
+  ctx.fillRect(W-GOAL_DEPTH, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
+  ctx.strokeRect(W-GOAL_DEPTH, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
+
+  ctx.restore();
 }
 
-function makeModelOption(m, target, selected) {
-  const div = document.createElement('div');
-  div.className = 'model-option' + (selected ? ' selected' : '');
-  div.dataset.id = m.id;
-  div.dataset.target = target;
-  div.innerHTML = `
-    <div class="model-radio"></div>
-    <div class="model-info">
-      <div class="model-name">${m.name}</div>
-      <div class="model-desc">${m.desc}</div>
-    </div>`;
-  div.onclick = () => selectModel(m.id, target);
-  return div;
-}
+function drawPlayer(x, y, team, label, highlight) {
+  const col = team === 'a' ? TEAM_A_COLOR : TEAM_B_COLOR;
 
-async function selectModel(id, target) {
-  const list = document.getElementById(`model-list-${target}`);
-  list.querySelectorAll('.model-option').forEach(el => {
-    el.classList.toggle('selected', el.dataset.id === id);
-  });
-  if (target === 'b') activeModelB = id;
-  else activeModelA = id;
+  // Shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.25)';
+  ctx.shadowBlur  = 8;
+  ctx.shadowOffsetY = 3;
 
-  await fetch('/switch_model', {
-    method: 'POST',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({model: id, target})
-  });
-  updateModelPill();
-}
-
-// ─────────────────────────────────────────────────────────────
-// Rendering
-// ─────────────────────────────────────────────────────────────
-function renderAll(state) {
-  renderBoard(state.board, state.is_player_A, state.valid_moves || []);
-  renderScores(state);
-  renderTurnBanner(state);
-  renderLog(state.move_history || []);
-  gameIsOver = state.game_over;
-  if (state.game_over) renderGameOver(state);
-  else hideGameOver();
-}
-
-function renderBoard(board, isPlayerA, validMoves) {
-  const container = document.getElementById('board');
-  container.innerHTML = '';
-
-  const vmSet = new Set(validMoves.map(([p]) => p));
-
-  // Row 1: [Quan B left] [6] [7] [8] [9] [10] [Quan A right - placeholder]
-  // We render: quan(11) | pits 6-10 | quan(0)
-  // Row 2: quan(11) | pits 5-1 reversed | quan(0)
-
-  // Top row (Player B's pits: 6–10 + Quan pits on ends)
-  appendPit(container, 11, board[11], 'quan-pit', false, false);
-  for (let i = 6; i <= 10; i++) {
-    const clickable = !isPlayerA && vmSet.has(i) && currentMode === 'hvh';
-    appendPit(container, i, board[i], 'top', clickable, i === lastMovePos);
+  // Outer glow if highlighted
+  if (highlight) {
+    ctx.beginPath();
+    ctx.arc(x, y, PLAYER_R + 7, 0, Math.PI*2);
+    ctx.fillStyle = col + '55';
+    ctx.fill();
   }
-  appendPit(container, 0, board[0], 'quan-pit', false, false);
 
-  // Bottom row (Player A's pits: 5–1 reversed)
-  appendPit(container, 11, board[11], 'quan-pit', false, false);
-  for (let i = 5; i >= 1; i--) {
-    const clickable = isPlayerA && vmSet.has(i) && currentMode !== 'aivai';
-    appendPit(container, i, board[i], 'bottom', clickable, i === lastMovePos);
-  }
-  appendPit(container, 0, board[0], 'quan-pit', false, false);
+  // Circle
+  ctx.beginPath();
+  ctx.arc(x, y, PLAYER_R, 0, Math.PI*2);
+  const g2 = ctx.createRadialGradient(x-4, y-5, 2, x, y, PLAYER_R);
+  g2.addColorStop(0, lighten(col));
+  g2.addColorStop(1, col);
+  ctx.fillStyle = g2;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.6)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Number
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 12px Inter,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.shadowBlur = 0;
+  ctx.fillText(label, x, y);
+  ctx.restore();
 }
 
-function appendPit(container, idx, contents, cls, clickable, highlight) {
-  const div = document.createElement('div');
-  div.className = `pit ${cls}`;
-  if (clickable) div.classList.add('clickable');
-  if (highlight) div.classList.add('last-move');
-  if (idx === selectedPos) div.classList.add('selected');
-  if (clickable) div.onclick = () => selectPit(idx);
+function lighten(hex) {
+  const r = parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgb(${Math.min(255,r+60)},${Math.min(255,g+60)},${Math.min(255,b+60)})`;
+}
 
-  const numEl = document.createElement('div');
-  numEl.className = 'pit-num';
-  numEl.textContent = idx === 0 ? 'Quan A' : idx === 11 ? 'Quan B' : `#${idx}`;
+function drawBall(x, y) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.3)';
+  ctx.shadowBlur  = 10;
+  ctx.shadowOffsetY = 4;
+  const g = ctx.createRadialGradient(x-3, y-4, 1, x, y, BALL_R);
+  g.addColorStop(0, '#fff');
+  g.addColorStop(0.4, BALL_COLOR);
+  g.addColorStop(1, '#d97706');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y, BALL_R, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
 
-  const seedsEl = document.createElement('div');
-  seedsEl.className = 'pit-seeds';
-  contents.forEach((s, i) => {
-    const sd = document.createElement('span');
-    sd.className = `seed ${s}`;
-    sd.style.animationDelay = `${i * 0.03}s`;
-    seedsEl.appendChild(sd);
+// Compute capped pull info from home + raw drag position
+function calcPull(home) {
+  const ddx = dragX - home.x, ddy = dragY - home.y;
+  const dist = Math.sqrt(ddx*ddx + ddy*ddy);
+  const capped = Math.min(MAX_DRAG, dist);
+  const ratio  = dist > 0 ? capped / dist : 0;
+  const pullX  = home.x + ddx * ratio;
+  const pullY  = home.y + ddy * ratio;
+  return {
+    pullX, pullY,
+    power:     capped / MAX_DRAG * 100,
+    kickAngle: Math.atan2(home.y - pullY, home.x - pullX),  // radians
+  };
+}
+
+function drawDragVisuals(hx, hy, pullX, pullY, power, kickAngle) {
+  // kickAngle points FROM pull TOWARD home = kick direction
+  ctx.save();
+  ctx.lineCap = 'round';
+
+  // Rubber band: two lines from HOME position backward to pull point
+  // (player stays at home; band shows stretch going behind it)
+  const perp = kickAngle + Math.PI / 2;
+  const spread = 11;
+  ctx.strokeStyle = 'rgba(251,146,60,.92)';
+  ctx.lineWidth   = 3;
+  ctx.setLineDash([]);
+  for (const sign of [1, -1]) {
+    const bx = hx + Math.cos(perp) * spread * sign;
+    const by = hy + Math.sin(perp) * spread * sign;
+    ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(pullX, pullY); ctx.stroke();
+  }
+
+  // Kick-direction arrow: from home outward in kick direction
+  const arrowLen = 46 + power * 0.72;
+  const ax = hx + Math.cos(kickAngle) * arrowLen;
+  const ay = hy + Math.sin(kickAngle) * arrowLen;
+  ctx.strokeStyle = 'rgba(255,255,255,.88)';
+  ctx.lineWidth   = 2.5;
+  ctx.setLineDash([10, 5]);
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(ax, ay); ctx.stroke();
+
+  // Arrowhead
+  ctx.setLineDash([]);
+  const hl = 15, ha = 0.42;
+  ctx.fillStyle = 'rgba(255,255,255,.95)';
+  ctx.beginPath();
+  ctx.moveTo(ax, ay);
+  ctx.lineTo(ax - hl*Math.cos(kickAngle-ha), ay - hl*Math.sin(kickAngle-ha));
+  ctx.lineTo(ax - hl*Math.cos(kickAngle+ha), ay - hl*Math.sin(kickAngle+ha));
+  ctx.closePath(); ctx.fill();
+
+  // Power bar near the pull point (where user's finger/cursor is)
+  const bw = 54, bh = 8, bx2 = pullX - bw/2, by2 = pullY - 20;
+  ctx.fillStyle = 'rgba(0,0,0,.45)';
+  ctx.beginPath(); ctx.roundRect(bx2, by2, bw, bh, 4); ctx.fill();
+  const col = power > 70 ? '#ef4444' : power > 40 ? '#f59e0b' : '#22c55e';
+  ctx.fillStyle = col;
+  ctx.beginPath(); ctx.roundRect(bx2, by2, bw * power/100, bh, 4); ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.roundRect(bx2, by2, bw, bh, 4); ctx.stroke();
+
+  ctx.restore();
+}
+
+function render(ballOverride) {
+  if (!gameState) return;
+  ctx.clearRect(0, 0, W, H);
+  drawField();
+
+  const ball = ballOverride || animBall || gameState.ball;
+  const isA  = gameState.is_player_a;
+  const mode = gameState.game_mode;
+  const over = gameState.game_over;
+
+  // Compute pull info now (needed to know where to draw dragged player)
+  let pull = null;
+  if (dragPlayer !== null) {
+    const home = gameState.players_a[dragPlayer];
+    pull = { hx: home.x, hy: home.y, ...calcPull(home) };
+  }
+
+  // Players B — highlight the AI's chosen player during its drag preview
+  const aiB = aiDragPreview && aiDragPreview.team === 'b' ? aiDragPreview.playerIdx : -1;
+  gameState.players_b.forEach((p, i) => drawPlayer(p.x, p.y, 'b', i+1, i === aiB));
+
+  // Players A — always drawn at home; dragged player highlighted; also AI-A preview
+  const canSelectA = !over && !isAnimating && isA && (mode === 'hvai' || mode === 'hvh');
+  const aiA = aiDragPreview && aiDragPreview.team === 'a' ? aiDragPreview.playerIdx : -1;
+  gameState.players_a.forEach((p, i) => {
+    const hl = (canSelectA && dragPlayer === null) || i === dragPlayer || i === aiA;
+    drawPlayer(p.x, p.y, 'a', i+1, hl);
   });
 
-  const countEl = document.createElement('div');
-  countEl.className = 'pit-count';
-  countEl.textContent = contents.length ? `${contents.length}` : '—';
+  // Ball
+  drawBall(ball.x, ball.y);
 
-  div.appendChild(numEl);
-  div.appendChild(seedsEl);
-  div.appendChild(countEl);
-  container.appendChild(div);
+  // Human drag visuals (rubber band + arrow)
+  if (pull !== null) {
+    drawDragVisuals(pull.hx, pull.hy, pull.pullX, pull.pullY, pull.power, pull.kickAngle);
+  }
+
+  // AI drag preview — same visual style as human, so the AI "shows its aim"
+  if (aiDragPreview !== null) {
+    const d = aiDragPreview;
+    drawDragVisuals(d.hx, d.hy, d.pullX, d.pullY, d.power, d.kickAngle);
+  }
 }
 
-function renderScores(state) {
-  const saTotal = state.score_A.dan + state.score_A.quan * 5;
-  const sbTotal = state.score_B.dan + state.score_B.quan * 5;
-  document.getElementById('sa-dan').textContent  = state.score_A.dan;
-  document.getElementById('sa-quan').textContent = state.score_A.quan;
-  document.getElementById('sa-total').textContent = saTotal;
-  document.getElementById('sb-dan').textContent  = state.score_B.dan;
-  document.getElementById('sb-quan').textContent = state.score_B.quan;
-  document.getElementById('sb-total').textContent = sbTotal;
+// ── HUD updates ──────────────────────────────────────────────────────────────
+function updateHUD(st) {
+  document.getElementById('score-a').textContent = st.score_a;
+  document.getElementById('score-b').textContent = st.score_b;
+  document.getElementById('kick-counter').textContent = `Kick ${st.kick_count} / ${st.max_kicks}`;
 
-  document.getElementById('score-a').classList.toggle('active', state.is_player_A);
-  document.getElementById('score-b').classList.toggle('active', !state.is_player_A);
-  document.getElementById('sb-name').textContent = currentModels[activeModelB]?.name || 'AI';
-}
+  const tb   = document.getElementById('turn-badge');
+  const hint = document.getElementById('hint-text');
+  const wb   = document.getElementById('winner-banner');
+  const over = st.game_over;
 
-function renderTurnBanner(state) {
-  const banner = document.getElementById('turn-banner');
-  const text   = document.getElementById('turn-text');
-  const think  = document.getElementById('think-indicator');
-  banner.classList.remove('ai-turn', 'game-over');
-  think.classList.remove('show');
-
-  if (state.game_over) {
-    banner.classList.add('game-over');
-    text.textContent = 'Game over';
-  } else if (!state.is_player_A && currentMode === 'hvai') {
-    banner.classList.add('ai-turn');
-    text.textContent = 'AI is thinking…';
-    think.classList.add('show');
-  } else if (currentMode === 'hvh') {
-    text.textContent = `Player ${state.is_player_A ? 'A' : 'B'}'s turn — click a pit to move`;
-  } else if (currentMode === 'aivai') {
-    banner.classList.add('ai-turn');
-    text.textContent = `AI ${state.is_player_A ? 'A' : 'B'} is thinking…`;
-    think.classList.add('show');
+  if (over) {
+    wb.style.display = 'block';
+    const w = st.winner;
+    wb.textContent = w === 'A' ? '🏆 You win!' : w === 'B' ? 'AI wins!' : "It's a draw!";
+    wb.style.color  = w === 'A' ? '#059669' : w === 'B' ? '#ef4444' : '#6b7fa3';
+    tb.style.display = 'none';
+    hint.textContent = 'Game over — click New Game to play again';
   } else {
-    text.textContent = 'Your turn — click a pit to move';
+    wb.style.display = 'none';
+    tb.style.display = '';
+    const isA = st.is_player_a;
+    const mode = st.game_mode;
+    if (mode === 'hvai') {
+      tb.textContent  = isA ? 'Your turn' : 'AI thinking…';
+      tb.className    = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+      hint.textContent = isA
+        ? 'Drag a blue player backward then release to kick toward the right goal'
+        : 'AI is calculating its shot…';
+    } else if (mode === 'hvh') {
+      tb.textContent  = isA ? 'Team A turn' : 'Team B turn';
+      tb.className    = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+      hint.textContent = isA
+        ? 'Team A: drag a blue player to kick right'
+        : 'Team B: click Run AI or wait for human to drag a red player';
+    } else {
+      tb.textContent  = isA ? 'Team A (AI)' : 'Team B (AI)';
+      tb.className    = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+      hint.textContent = 'AI vs AI — press Run AI to start auto-play';
+    }
   }
+
+  const aiBtn = document.getElementById('aivai-btn');
+  aiBtn.style.display = (st.game_mode === 'aivai' || (st.game_mode === 'hvh' && !st.is_player_a)) ? '' : 'none';
 }
 
-function renderLog(history) {
-  const log = document.getElementById('move-log');
-  if (!history.length) {
-    log.innerHTML = '<div style="color:rgba(61,44,20,0.35);font-size:0.65rem;">No moves yet…</div>';
-    return;
+function logMove(text, isGoal) {
+  const panel = document.getElementById('log-panel');
+  const p = document.createElement('p');
+  if (isGoal) p.className = 'log-goal';
+  p.textContent = text;
+  panel.prepend(p);
+  while (panel.children.length > 20) panel.lastChild.remove();
+}
+
+// ── Animation ────────────────────────────────────────────────────────────────
+function animateTrajectory(trajectory, onDone) {
+  if (!trajectory || trajectory.length === 0) { animBall = null; onDone(); return; }
+  let i = 0;
+  const msPerFrame = Math.max(8, 24 / animSpeed);
+
+  function step() {
+    if (i >= trajectory.length) { animBall = null; onDone(); return; }
+    const pt = trajectory[i++];
+    animBall = { x: pt.x, y: pt.y };  // shared — render() picks this up from any caller
+    render();
+    setTimeout(step, msPerFrame);
   }
-  log.innerHTML = history.map((h, i) => {
-    const cls = h.player === 'A' ? 'log-a' : 'log-b';
-    return `<div class="log-entry ${cls}"><span class="log-num">${i+1}.</span>${h.desc}</div>`;
-  }).join('');
-  log.scrollTop = log.scrollHeight;
+  step();
 }
 
-function renderGameOver(state) {
-  const panel = document.getElementById('game-over-panel');
-  panel.classList.add('show');
-  document.getElementById('winner-text').textContent = state.winner || '';
-  document.getElementById('final-scores').innerHTML =
-    `Player A: <strong>${state.total_A}</strong> pts &nbsp;|&nbsp; Player B: <strong>${state.total_B}</strong> pts`;
-  document.getElementById('dir-panel').classList.remove('visible');
+// Rocket player from fromPos to toPos, stays there permanently.
+function animatePlayerMove(playerIdx, team, fromPos, toPos, onDone) {
+  const players = team === 'a' ? gameState.players_a : gameState.players_b;
+  const p = players[playerIdx];
+  p.x = fromPos.x; p.y = fromPos.y;
+  const STEPS = 16;
+  let t = 0;
+
+  function tick() {
+    t++;
+    const ease = 1 - Math.pow(1 - t / STEPS, 2);  // ease-out
+    p.x = fromPos.x + (toPos.x - fromPos.x) * ease;
+    p.y = fromPos.y + (toPos.y - fromPos.y) * ease;
+    render();
+    if (t < STEPS) setTimeout(tick, 12 / animSpeed);
+    else { p.x = toPos.x; p.y = toPos.y; onDone(); }
+  }
+  tick();
 }
 
-function hideGameOver() {
-  document.getElementById('game-over-panel').classList.remove('show');
+// Show AI "aiming" — rubber band pulls back then releases. aiDragPreview drives render().
+function showAIDragPreview(playerIdx, team, angleDeg, power, onDone) {
+  const players = team === 'a' ? gameState.players_a : gameState.players_b;
+  const p = players[playerIdx];
+  const hx = p.x, hy = p.y;
+
+  // Pull direction is OPPOSITE of kick (slingshot: pull back to shoot forward)
+  const pullRad = (angleDeg + 180) * Math.PI / 180;
+  const pullDist = (power / 100) * MAX_DRAG;
+  const targetPX = hx + Math.cos(pullRad) * pullDist;
+  const targetPY = hy + Math.sin(pullRad) * pullDist;
+  const kickRad  = angleDeg * Math.PI / 180;
+
+  aiDragPreview = { team, playerIdx, hx, hy, pullX: hx, pullY: hy, power: 0, kickAngle: kickRad };
+
+  const PULL_STEPS = 22;
+  let t = 0;
+
+  function pullTick() {
+    t++;
+    const frac = t / PULL_STEPS;
+    aiDragPreview.pullX  = hx + (targetPX - hx) * frac;
+    aiDragPreview.pullY  = hy + (targetPY - hy) * frac;
+    aiDragPreview.power  = power * frac;
+    render();
+    if (t < PULL_STEPS) setTimeout(pullTick, 18 / animSpeed);
+    else setTimeout(releaseTick, 160 / animSpeed);  // brief hold at full stretch
+  }
+
+  function releaseTick() {
+    aiDragPreview = null;
+    render();
+    onDone();
+  }
+
+  pullTick();
 }
 
-// ─────────────────────────────────────────────────────────────
-// Game actions
-// ─────────────────────────────────────────────────────────────
-function selectPit(pos) {
-  if (gameIsOver) return;
-  selectedPos = pos;
-  document.getElementById('chosen-pit').textContent = `#${pos}`;
-  document.getElementById('dir-panel').classList.add('visible');
-  // Re-render to show selection highlight
-  fetchState().then(s => renderBoard(s.board, s.is_player_A, s.valid_moves || []));
+// ── Move submission ───────────────────────────────────────────────────────────
+
+// Client-side kick endpoint (mirrors server physics) — used so we can animate
+// the player flying forward even when the server has already reset them to HOME.
+function kickEndpoint(from, angleDeg, power) {
+  const rad = angleDeg * Math.PI / 180;
+  const travel = power * PLAYER_TRAVEL;
+  return {
+    x: Math.max(PLAYER_R, Math.min(W - PLAYER_R, from.x + Math.cos(rad) * travel)),
+    y: Math.max(PLAYER_R, Math.min(H - PLAYER_R, from.y + Math.sin(rad) * travel)),
+  };
 }
 
-function cancelMove() {
-  selectedPos = null;
-  document.getElementById('dir-panel').classList.remove('visible');
+// After a goal: smoothly slide all 6 players back to their kickoff positions.
+function animateKickoff(onDone) {
+  const fromA = gameState.players_a.map(p => ({x: p.x, y: p.y}));
+  const fromB = gameState.players_b.map(p => ({x: p.x, y: p.y}));
+  const STEPS = 22;
+  let t = 0;
+  function tick() {
+    t++;
+    const ease = 1 - Math.pow(1 - t / STEPS, 2);
+    gameState.players_a.forEach((p, i) => {
+      p.x = fromA[i].x + (HOME_A[i].x - fromA[i].x) * ease;
+      p.y = fromA[i].y + (HOME_A[i].y - fromA[i].y) * ease;
+    });
+    gameState.players_b.forEach((p, i) => {
+      p.x = fromB[i].x + (HOME_B[i].x - fromB[i].x) * ease;
+      p.y = fromB[i].y + (HOME_B[i].y - fromB[i].y) * ease;
+    });
+    render();
+    if (t < STEPS) setTimeout(tick, 12 / animSpeed);
+    else {
+      gameState.players_a.forEach((p, i) => { p.x = HOME_A[i].x; p.y = HOME_A[i].y; });
+      gameState.players_b.forEach((p, i) => { p.x = HOME_B[i].x; p.y = HOME_B[i].y; });
+      onDone();
+    }
+  }
+  tick();
 }
 
-async function submitMove(step) {
-  if (selectedPos === null) return;
-  document.getElementById('dir-panel').classList.remove('visible');
-  setThinking(true);
+// After a trajectory animation ends, patch gameState.ball to the last drawn point.
+// Without this, the next render() would snap the ball back to its pre-kick position.
+function syncBall(trajectory, scored) {
+  if (!trajectory || trajectory.length === 0) return;
+  const last = trajectory[trajectory.length - 1];
+  // If a goal was scored the ball resets to centre; otherwise stay at final spot.
+  gameState.ball = scored ? { x: 400, y: 250 } : { x: last.x, y: last.y };
+}
 
-  const r = await fetch('/move', {
+async function submitKick(playerIdx, angleDeg, power, pullX, pullY) {
+  isAnimating = true;
+  setOverlay(false);
+
+  // Capture current player position before server updates it
+  const fromPosA = { x: gameState.players_a[playerIdx].x, y: gameState.players_a[playerIdx].y };
+
+  const resp = await fetch('/move', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({pos: selectedPos, step})
+    body: JSON.stringify({ player_idx: playerIdx, angle: angleDeg, power }),
   });
-  const state = await r.json();
-  lastMovePos = selectedPos;
-  selectedPos = null;
-  setThinking(false);
+  const data = await resp.json();
 
-  if (state.ai_result?.think_ms) {
-    document.getElementById('last-think').textContent = `AI: ${state.ai_result.think_ms}ms`;
+  // Player snaps forward, then ball rolls visibly across the field
+  if (data.move_result) {
+    const mr = data.move_result;
+    const kickEndA = mr.kick_endpoint || kickEndpoint(fromPosA, angleDeg, power);
+    await new Promise(r => animatePlayerMove(playerIdx, 'a', fromPosA, kickEndA, r));
+    if (mr.push_result) {
+      const pr = mr.push_result;
+      await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
+    }
+    await new Promise(r => animateTrajectory(mr.trajectory, r));
+    syncBall(mr.trajectory, mr.scored);
+    logMove(mr.desc, !!mr.scored);
+    if (mr.scored) {
+      await new Promise(r => setTimeout(r, 400 / animSpeed));
+      await new Promise(r => animateKickoff(r));
+    }
   }
 
-  renderAll(state);
+  // AI response: aim preview → player snaps → ball rolls
+  if (data.ai_result) {
+    const ai = data.ai_result;
+    const fromPosB = { x: gameState.players_b[ai.player_idx].x, y: gameState.players_b[ai.player_idx].y };
+    const kickEndB = ai.kick_endpoint || kickEndpoint(fromPosB, ai.angle, ai.power);
+    await new Promise(r => setTimeout(r, 160 / animSpeed));
+    await new Promise(r => showAIDragPreview(ai.player_idx, 'b', ai.angle, ai.power, r));
+    await new Promise(r => animatePlayerMove(ai.player_idx, 'b', fromPosB, kickEndB, r));
+    if (ai.push_result) {
+      const pr = ai.push_result;
+      await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
+    }
+    await new Promise(r => animateTrajectory(ai.trajectory, r));
+    syncBall(ai.trajectory, ai.scored);
+    logMove(ai.desc, !!ai.scored);
+    if (ai.scored) {
+      await new Promise(r => setTimeout(r, 400 / animSpeed));
+      await new Promise(r => animateKickoff(r));
+    }
+  }
 
-  // AI vs AI: auto-trigger next move
-  if (currentMode === 'aivai' && !state.game_over) {
-    setTimeout(triggerAIMove, 700);
+  gameState = data;
+  isAnimating = false;
+  render();
+  updateHUD(data);
+}
+
+async function triggerAI() {
+  if (isAnimating || (gameState && gameState.game_over)) return;
+  isAnimating = true;
+  // No overlay — it causes a visible flash between AI turns
+
+  const resp = await fetch('/ai_move', { method: 'POST' });
+  const data = await resp.json();
+
+  if (data.ai_result) {
+    const ai   = data.ai_result;
+    const team = data.is_player_a ? 'b' : 'a';
+    const pool = team === 'a' ? gameState.players_a : gameState.players_b;
+    const fromPos = { x: pool[ai.player_idx].x, y: pool[ai.player_idx].y };
+    const kickEnd = ai.kick_endpoint || kickEndpoint(fromPos, ai.angle, ai.power);
+    await new Promise(r => showAIDragPreview(ai.player_idx, team, ai.angle, ai.power, r));
+    await new Promise(r => animatePlayerMove(ai.player_idx, team, fromPos, kickEnd, r));
+    if (ai.push_result) {
+      const pr = ai.push_result;
+      await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
+    }
+    await new Promise(r => animateTrajectory(ai.trajectory, r));
+    syncBall(ai.trajectory, ai.scored);
+    logMove(ai.desc, !!ai.scored);
+    if (ai.scored) {
+      await new Promise(r => setTimeout(r, 400 / animSpeed));
+      await new Promise(r => animateKickoff(r));
+    }
+  }
+
+  gameState = data;
+  isAnimating = false;
+  render();
+  updateHUD(data);
+
+  // In AI vs AI mode keep running automatically until the game ends
+  if (data.game_mode === 'aivai' && !data.game_over) {
+    setTimeout(triggerAI, 80);
   }
 }
 
-async function triggerAIMove() {
-  if (gameIsOver) return;
-  setThinking(true);
-  const r = await fetch('/ai_move', {method:'POST'});
-  const state = await r.json();
-  setThinking(false);
-  if (state.ai_result?.think_ms) {
-    document.getElementById('last-think').textContent = `AI: ${state.ai_result.think_ms}ms`;
-  }
-  renderAll(state);
-  if (currentMode === 'aivai' && !state.game_over) {
-    setTimeout(triggerAIMove, 700);
-  }
+// ── Controls ─────────────────────────────────────────────────────────────────
+async function resetGame() {
+  if (isAnimating) return;
+  const data = await fetch('/reset', {method:'POST'}).then(r=>r.json());
+  gameState = data;
+  document.getElementById('log-panel').innerHTML = '';
+  render();
+  updateHUD(data);
 }
 
 async function undoMove() {
-  const r = await fetch('/undo', {method:'POST'});
-  const state = await r.json();
-  lastMovePos = null;
-  selectedPos = null;
-  document.getElementById('dir-panel').classList.remove('visible');
-  renderAll(state);
+  if (isAnimating) return;
+  const data = await fetch('/undo', {method:'POST'}).then(r=>r.json());
+  gameState = data;
+  render();
+  updateHUD(data);
 }
 
-async function resetGame() {
-  const r = await fetch('/reset', {method:'POST'});
-  const state = await r.json();
-  lastMovePos = null; selectedPos = null; gameIsOver = false;
-  document.getElementById('dir-panel').classList.remove('visible');
-  document.getElementById('last-think').textContent = '';
-  renderAll(state);
-  if (currentMode === 'aivai') setTimeout(triggerAIMove, 800);
-}
-
-// ─────────────────────────────────────────────────────────────
-// Settings
-// ─────────────────────────────────────────────────────────────
 async function setMode(mode) {
-  currentMode = mode;
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById(`mode-${mode}`).classList.add('active');
-  document.getElementById('model-a-section').style.display = mode === 'aivai' ? 'block' : 'none';
-
-  const labels = {hvai:'Human vs AI', hvh:'Human vs Human', aivai:'AI vs AI'};
-  document.getElementById('mode-pill').textContent = labels[mode];
-
-  await fetch('/set_mode', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({mode})
-  });
-  await resetGame();
+  if (isAnimating) return;
+  await fetch('/set_mode', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode})});
+  const data = await fetch('/state').then(r=>r.json());
+  gameState = data;
+  render();
+  updateHUD(data);
 }
 
-function updateModelPill() {
-  const m = currentModels[activeModelB];
-  if (m) document.getElementById('model-pill').textContent = m.name;
+async function switchModel(name) {
+  await fetch('/switch_model', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:name,target:'b'})});
 }
 
-function setThinking(on) {
-  const ind = document.getElementById('think-indicator');
-  if (on) ind.classList.add('show');
-  else    ind.classList.remove('show');
+function setAnimSpeed(v) { animSpeed = v; }
+
+function setOverlay(show, text='AI thinking…') {
+  const el = document.getElementById('canvas-overlay');
+  el.classList.toggle('visible', show);
+  if (show) document.getElementById('overlay-text').textContent = text;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Tabs
-// ─────────────────────────────────────────────────────────────
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    const names = ['settings','log','bench'];
-    t.classList.toggle('active', names[i] === name);
-  });
-  document.querySelectorAll('.tab-content').forEach(c => {
-    c.classList.toggle('active', c.id === `tab-${name}`);
-  });
+// ── Drag / Slingshot input ────────────────────────────────────────────────────
+function getHoveredPlayer(cx, cy) {
+  if (!gameState || gameState.game_over || isAnimating) return null;
+  const isA  = gameState.is_player_a;
+  const mode = gameState.game_mode;
+  const players = (isA || mode === 'hvh') ? gameState.players_a : null;
+  if (!players) return null;
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    const d = Math.hypot(p.x - cx, p.y - cy);
+    if (d < PLAYER_R + 8) return i;
+  }
+  return null;
 }
 
-// ─────────────────────────────────────────────────────────────
-// Benchmark
-// ─────────────────────────────────────────────────────────────
-async function runBenchmark() {
-  const ma = document.getElementById('bench-a').value;
-  const mb = document.getElementById('bench-b').value;
-  const n  = document.getElementById('bench-n').value;
-  if (!ma || !mb) { alert('Select both agents'); return; }
+canvas.addEventListener('mousedown', e => {
+  const {x, y} = cssToCv(e);
+  const idx = getHoveredPlayer(x, y);
+  if (idx !== null) {
+    dragPlayer = idx;
+    dragX = x; dragY = y;
+    canvas.style.cursor = 'grabbing';
+    e.preventDefault();
+  }
+});
 
-  const btn = document.getElementById('bench-btn');
-  btn.textContent = 'Running…'; btn.disabled = true;
+canvas.addEventListener('mousemove', e => {
+  const {x, y} = cssToCv(e);
+  if (dragPlayer !== null) {
+    dragX = x; dragY = y;
+    render();
+    e.preventDefault();
+  } else {
+    const idx = getHoveredPlayer(x, y);
+    canvas.style.cursor = idx !== null ? 'grab' : 'default';
+  }
+});
 
-  const r = await fetch('/benchmark', {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({model_a: ma, model_b: mb, games: parseInt(n)})
-  });
-  const data = await r.json();
-  btn.textContent = 'Run'; btn.disabled = false;
+canvas.addEventListener('mouseup', e => {
+  if (dragPlayer === null) return;
+  const {x, y} = cssToCv(e);
+  dragX = x; dragY = y;
+  const home = gameState.players_a[dragPlayer];
+  const {pullX, pullY, power, kickAngle} = calcPull(home);
+  const idx = dragPlayer;
+  dragPlayer = null;
+  canvas.style.cursor = 'default';
+  render();
+  if (power > 5) {
+    submitKick(idx, kickAngle * 180 / Math.PI, power, pullX, pullY);
+  }
+  e.preventDefault();
+});
 
-  const res = document.getElementById('bench-result');
-  res.classList.add('show');
-  const wa = data.win_rate_a, wb = data.win_rate_b;
-  const wd = 100 - wa - wb;
-  res.innerHTML = `
-    <div class="bench-label">
-      <span style="color:var(--lacquer)">${currentModels[ma]?.name} (A): ${wa}%</span>
-      <span style="color:var(--jade)">${currentModels[mb]?.name} (B): ${wb}%</span>
-    </div>
-    <div class="bench-bar">
-      <div class="bench-bar-a" style="width:${wa}%"></div>
-      <div style="background:rgba(61,44,20,0.12);width:${wd}%"></div>
-      <div class="bench-bar-b" style="width:${wb}%"></div>
-    </div>
-    <div class="bench-label" style="margin-top:4px;">
-      <span>${data.wins_a}W / ${data.draws}D / ${data.wins_b}L over ${data.games} games</span>
-      <span>avg ${data.avg_moves} moves</span>
-    </div>
-  `;
-}
+canvas.addEventListener('mouseleave', () => {
+  if (dragPlayer !== null) { dragPlayer = null; render(); }
+});
+
+// Touch support
+canvas.addEventListener('touchstart', e => {
+  const {x, y} = cssToCv(e);
+  const idx = getHoveredPlayer(x, y);
+  if (idx !== null) { dragPlayer = idx; dragX = x; dragY = y; e.preventDefault(); }
+}, {passive:false});
+
+canvas.addEventListener('touchmove', e => {
+  if (dragPlayer !== null) {
+    const {x, y} = cssToCv(e);
+    dragX = x; dragY = y; render(); e.preventDefault();
+  }
+}, {passive:false});
+
+canvas.addEventListener('touchend', e => {
+  if (dragPlayer === null) return;
+  const touch = e.changedTouches[0];
+  const r = canvas.getBoundingClientRect();
+  dragX = (touch.clientX - r.left) * W / r.width;
+  dragY = (touch.clientY - r.top)  * H / r.height;
+  const home = gameState.players_a[dragPlayer];
+  const {pullX, pullY, power, kickAngle} = calcPull(home);
+  const idx = dragPlayer;
+  dragPlayer = null; render();
+  if (power > 5) submitKick(idx, kickAngle * 180 / Math.PI, power, pullX, pullY);
+  e.preventDefault();
+}, {passive:false});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+(async () => {
+  const data = await fetch('/state').then(r => r.json());
+  // Populate model selector
+  try {
+    const models = await fetch('/models').then(r => r.json());
+    const sel = document.getElementById('model-select');
+    sel.innerHTML = '';
+    models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id; opt.textContent = m.name;
+      if (m.id === data.ai_model) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch(e) {}
+
+  // Set mode select
+  document.getElementById('mode-select').value = data.game_mode || 'hvai';
+
+  gameState = data;
+  render();
+  updateHUD(data);
+})();
 </script>
 </body>
 </html>

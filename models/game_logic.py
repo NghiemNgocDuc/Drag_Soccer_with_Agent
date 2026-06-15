@@ -59,24 +59,33 @@ def get_valid_moves(board: list[list[str]], is_player_a: bool) -> list[tuple[int
 
 #  Core move mechanics 
 
-def _sow(board: list[list[str]], pos: int, step: int) -> int:
-    """Scatter seeds from pit `pos` in direction `step`. Returns last pit sown."""
-    seeds = board[pos][:]
-    board[pos] = []
+def _sow(board: list[list[str]], pos: int, step: int, count: int | None = None) -> int:
+    """Scatter seeds from pit `pos` in direction `step`. Returns last pit sown.
+    If count is given, only that many seeds are picked up; the rest remain in pos."""
+    all_seeds = board[pos][:]
+    if count is None or count >= len(all_seeds):
+        seeds = all_seeds
+        board[pos] = []
+    else:
+        seeds = all_seeds[:count]
+        board[pos] = all_seeds[count:]
     cur = pos
     while seeds:
         cur = _next_pos(cur, step)
         board[cur].append(seeds.pop(0))
     return cur
 
-def _relay_sow(board: list[list[str]], start: int, step: int) -> int:
+def _relay_sow(board: list[list[str]], start: int, step: int, count: int | None = None) -> int:
     """
     Relay rule: if the pit immediately after the last seed lands is non-empty
     (and not a Quan), keep sowing from there. Return final resting pit.
+    count only applies to the first (player-chosen) sow.
     """
     cur = start
+    first = True
     while True:
-        last = _sow(board, cur, step)
+        last = _sow(board, cur, step, count if first else None)
+        first = False
         nxt = _next_pos(last, step)
         if board[nxt] and nxt not in (0, 11):
             cur = nxt
@@ -97,13 +106,14 @@ def execute_capture(
     start_pos: int,
     is_player_a: bool,
     step: int,
+    count: int | None = None,
 ) -> TurnResult:
     """
     Execute a full turn: relay sow + multi-capture sweep.
     Returns TurnResult describing what was captured.
     """
     result = TurnResult()
-    last = _relay_sow(board, start_pos, step)
+    last = _relay_sow(board, start_pos, step, count)
     result.relay_positions.append(last)
 
     # Multi-capture: keep hopping over empty pits and grabbing
