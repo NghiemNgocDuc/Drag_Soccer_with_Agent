@@ -1,4 +1,4 @@
-﻿"""soccer_logic.py — Soccer game physics engine."""
+"""soccer_logic.py — Soccer game physics engine."""
 from __future__ import annotations
 import math
 
@@ -78,8 +78,19 @@ def _player_endpoint(
     min_t, hit_idx = 1.0, -1
     for i, bp in enumerate(blockers):
         ox, oy = float(bp["x"]), float(bp["y"])
-        if math.hypot(px0 - ox, py0 - oy) < _P2P:
-            continue  # already overlapping — let them separate
+        cur_dist = math.hypot(px0 - ox, py0 - oy)
+        if cur_dist < _P2P:
+            # Already overlapping — check if we are moving TOWARD them or AWAY.
+            # Dot product of movement with (blocker - kicker) direction:
+            # positive = moving toward blocker, negative = moving away.
+            toward_x, toward_y = ox - px0, oy - py0
+            dot = dx * toward_x + dy * toward_y
+            if dot > 0:
+                # Moving toward them while overlapping => instant collision at t=0
+                if 0.0 < min_t:
+                    min_t, hit_idx = 0.0, i
+            # If moving away, let them separate — skip
+            continue
         A = dx*dx + dy*dy
         if A < 1e-9:
             continue
@@ -263,7 +274,7 @@ def apply_kick(
             nx, ny = math.cos(angle_rad), math.sin(angle_rad)
         # Push energy = remaining fraction of the intended travel
         seg_len = math.hypot(raw_fx - px0, raw_fy - py0)
-        push_dist = (1.0 - t_stop) * seg_len * 0.75
+        push_dist = max(_P2P * 1.5, (1.0 - t_stop) * seg_len * 0.75)
         push_tx = max(float(PLAYER_R), min(float(FIELD_W - PLAYER_R), bp["x"] + nx * push_dist))
         push_ty = max(float(PLAYER_R), min(float(FIELD_H - PLAYER_R), bp["y"] + ny * push_dist))
         # Secondary collision: pushed player may hit yet another player

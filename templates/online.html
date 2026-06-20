@@ -113,9 +113,10 @@ main{max-width:1000px;margin:0 auto;padding:24px 16px;display:flex;flex-directio
 
 /* Canvas */
 .canvas-wrap{
-  border-radius:16px;overflow:hidden;
-  box-shadow:0 8px 32px rgba(80,120,200,.15);
+  border-radius:20px;overflow:hidden;
+  box-shadow:0 8px 32px rgba(0,0,0,.4);
   position:relative;cursor:default;
+  border:1px solid rgba(255,255,255,.1);
 }
 #game-canvas{display:block;width:100%;touch-action:none}
 .canvas-overlay{
@@ -201,6 +202,7 @@ input[type=text]:focus,input[type=search]:focus{border-color:rgba(59,130,246,.4)
     <a href="/" class="nav-link">Play</a>
     <a href="/online" class="nav-link active">Online</a>
     <a href="/playground" class="nav-link">Playground</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
     <a href="/profile" class="nav-link">Profile</a>
   </div>
@@ -380,9 +382,9 @@ function cssToCv(e) {
 // ── Drawing ──────────────────────────────────────────────────────────────────
 function drawField() {
   const grad = ctx.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0,   '#27a85f');
-  grad.addColorStop(0.5, '#2d8a50');
-  grad.addColorStop(1,   '#27a85f');
+  grad.addColorStop(0,   '#0f172a');
+  grad.addColorStop(0.5, '#1e293b');
+  grad.addColorStop(1,   '#0f172a');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
@@ -390,7 +392,7 @@ function drawField() {
   for (let x = 0; x < W; x += 80) ctx.fillRect(x, 0, 40, H);
 
   ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,.65)';
+  ctx.strokeStyle = 'rgba(255,255,255,.2)';
   ctx.lineWidth   = 2;
 
   ctx.strokeRect(20, 20, W-40, H-40);

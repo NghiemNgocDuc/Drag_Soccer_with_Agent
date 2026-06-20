@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Models — Ô Ăn Quan</title>
+<title>My Models — Agent Soccer</title>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <style>
@@ -195,13 +195,14 @@ pre.ref-code{
 <div class="nebula"></div>
 
 <nav>
-  <a class="nav-brand" href="/">Ô Ăn Quan</a>
+  <a class="nav-brand" href="/">Agent Soccer</a>
   <div class="nav-links">
-    <a href="/">Game</a>
-    <a href="/playground">Playground</a>
-    <a href="/my-models" class="active">My Models</a>
-    <a href="/profile">Profile</a>
-    <a href="/leaderboard">Leaderboard</a>
+    <a href="/" class="nav-link">Game</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/my-models" class="nav-link active">My Models</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
     <span class="nav-user">{{ username }}</span>
     <form method="POST" action="/auth/logout" style="display:inline">
       <button type="submit" class="btn-nav-logout">Logout</button>

@@ -102,3 +102,41 @@ as $$
   order by wins desc, games_played desc
   limit limit_count;
 $$;
+
+-- 5. Tournaments
+create table if not exists public.tournaments (
+  id          uuid default gen_random_uuid() primary key,
+  creator_id  uuid references auth.users not null,
+  name        text not null,
+  status      text default 'pending', -- pending, active, completed
+  created_at  timestamp with time zone default now()
+);
+
+alter table public.tournaments enable row level security;
+create policy ""Users can manage own tournaments"" on public.tournaments for all using (auth.uid() = creator_id);
+create policy ""Anyone can read tournaments"" on public.tournaments for select using (true);
+
+create table if not exists public.tournament_participants (
+  id            uuid default gen_random_uuid() primary key,
+  tournament_id uuid references public.tournaments on delete cascade not null,
+  participant_id text not null, -- can be a user_model id, built-in model name, or user id
+  name          text not null
+);
+alter table public.tournament_participants enable row level security;
+create policy ""Anyone can read participants"" on public.tournament_participants for select using (true);
+create policy ""Service can insert participants"" on public.tournament_participants for insert with check (true);
+
+create table if not exists public.tournament_matches (
+  id            uuid default gen_random_uuid() primary key,
+  tournament_id uuid references public.tournaments on delete cascade not null,
+  round_num     integer not null,
+  match_index   integer not null,
+  participant_a uuid references public.tournament_participants(id),
+  participant_b uuid references public.tournament_participants(id),
+  winner        uuid references public.tournament_participants(id),
+  status        text default 'pending',
+  replay_data   jsonb
+);
+alter table public.tournament_matches enable row level security;
+create policy ""Anyone can read matches"" on public.tournament_matches for select using (true);
+create policy ""Service can update matches"" on public.tournament_matches for all using (true);

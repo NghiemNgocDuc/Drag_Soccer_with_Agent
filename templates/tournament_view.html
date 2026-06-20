@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tournament View — Agent Soccer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.match-card {
+  background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px;
+  padding: 12px; margin-bottom: 12px;
+}
+.match-part { display:flex; justify-content:space-between; margin-bottom:4px; font-size: 0.85rem; font-weight:600;}
+.match-winner { color: var(--accent-success); }
+.bracket-col { flex: 1; padding: 0 10px; border-right: 1px solid var(--glass-border); }
+.bracket-col:last-child { border-right: none; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand title-gradient" href="/">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Game</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/tournaments" class="nav-link active">Tournaments</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+  </div>
+</nav>
+
+<main>
+  <h1>Tournament: {{ t.name }}</h1>
+  
+  {% if t.status == 'pending' %}
+  <div class="glass-card" style="margin-bottom: 20px;">
+    <h3>Add Participants</h3>
+    <div style="display:flex;gap:10px;margin-top:10px;">
+      <select id="modelSelect">
+        <option value="">-- Select AI Model --</option>
+        {% for m in models %}
+        <option value="{{ m.id }}">{{ m.name }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary" onclick="addParticipant('model')">Add Model</button>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:10px;">
+      <select id="friendSelect">
+        <option value="">-- Select Friend --</option>
+        {% for f in friends %}
+        <option value="friend:{{ f.uid }}">{{ f.username }}</option>
+        {% endfor %}
+      </select>
+      <button class="btn btn-primary" onclick="addParticipant('friend')">Add Friend</button>
+    </div>
+    
+    <hr style="margin:20px 0; border:none; border-top:1px solid var(--glass-border);">
+    
+    <h4>Current Participants ({{ t.participants|length }})</h4>
+    <ul style="padding-left:20px; font-size:0.9rem; margin-bottom:15px">
+      {% for p in t.participants %}
+      <li>{{ p.name }}</li>
+      {% endfor %}
+    </ul>
+    
+    {% if t.participants|length >= 2 %}
+    <button class="btn btn-green" onclick="generateBracket()">Generate Bracket</button>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="glass-card" style="display:flex;">
+    {% set rounds = [] %}
+    {% for m in t.matches %}
+      {% if m.round_num not in rounds %}
+        {% set _ = rounds.append(m.round_num) %}
+      {% endif %}
+    {% endfor %}
+    
+    {% for r in rounds|sort %}
+    <div class="bracket-col">
+      <h3 style="text-align:center; font-size:0.9rem; margin-bottom:15px;">Round {{ r }}</h3>
+      {% for m in t.matches %}
+        {% if m.round_num == r %}
+          <div class="match-card">
+            {% set pa_name = "TBD" %}
+            {% set pb_name = "TBD" %}
+            {% for p in t.participants %}
+              {% if p.id == m.participant_a %}{% set pa_name = p.name %}{% endif %}
+              {% if p.id == m.participant_b %}{% set pb_name = p.name %}{% endif %}
+            {% endfor %}
+            <div class="match-part {% if m.winner == m.participant_a %}match-winner{% endif %}">{{ pa_name }}</div>
+            <div class="match-part {% if m.winner == m.participant_b %}match-winner{% endif %}">{{ pb_name }}</div>
+            
+            <div style="margin-top:10px; text-align:center;">
+              {% if m.status == 'pending' and m.participant_a and m.participant_b %}
+                <button class="btn btn-sm btn-primary" onclick="simulateMatch('{{ m.id }}')">Simulate</button>
+              {% elif m.status == 'completed' and m.participant_a and m.participant_b and m.replay_data %}
+                <a href="/tournaments/{{ t.id }}/watch/{{ m.id }}" class="btn btn-sm btn-ghost">Watch</a>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+</main>
+
+<script>
+function addParticipant(type) {
+  let select = document.getElementById(type + 'Select');
+  let val = select.value;
+  let text = select.options[select.selectedIndex].text;
+  if(!val) return;
+  
+  fetch('/tournaments/{{ t.id }}/add', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ participant_id: val, name: text })
+  }).then(res => res.json()).then(data => {
+    if(data.ok) location.reload();
+    else alert(data.error);
+  });
+}
+
+function generateBracket() {
+  fetch('/tournaments/{{ t.id }}/generate', { method: 'POST' })
+    .then(res => res.json()).then(data => {
+      if(data.ok) location.reload();
+      else alert(data.error);
+    });
+}
+
+function simulateMatch(matchId) {
+  fetch('/tournaments/{{ t.id }}/simulate/' + matchId, { method: 'POST' })
+    .then(res => res.json()).then(data => {
+      if(data.ok) location.reload();
+      else alert(data.error);
+    });
+}
+</script>
+</body>
+</html>

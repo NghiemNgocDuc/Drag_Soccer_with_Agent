@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Profile — Ô Ăn Quan</title>
+<title>Profile — Agent Soccer</title>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -109,17 +109,16 @@ h1{
 <div class="nebula"></div>
 
 <nav>
-  <a class="nav-brand" href="/">Ô Ăn Quan</a>
+  <a class="nav-brand" href="/">Agent Soccer</a>
   <div class="nav-links">
-    <a href="/">Game</a>
-    <a href="/playground">Playground</a>
-    <a href="/my-models">My Models</a>
-    <a href="/profile" class="active">Profile</a>
-    <a href="/leaderboard">Leaderboard</a>
+    <a href="/" class="nav-link">Game</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/profile" class="nav-link active">Profile</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
     <span class="nav-user">{{ username }}</span>
-    <form method="POST" action="/auth/logout" style="display:inline">
-      <button type="submit" class="btn-logout">Logout</button>
-    </form>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
   </div>
 </nav>
 

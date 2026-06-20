@@ -1,4 +1,4 @@
-﻿"""app.py — Soccer AI Platform (Flask)"""
+"""app.py — Soccer AI Platform (Flask)"""
 from __future__ import annotations
 import importlib
 import threading
@@ -1018,7 +1018,129 @@ def api_remove_friend(friend_uid):
     return jsonify({"ok": True})
 
 
+# ── Tournaments ─────────────────────────────────────────────────────────────
+
+@app.route("/tournaments")
+@login_required
+def tournaments_page():
+    from db.tournaments import get_tournaments
+    t_list = get_tournaments()
+    return render_template("tournaments.html", username=session.get("username", "Player"), tournaments=t_list)
+
+@app.route("/tournaments/create", methods=["POST"])
+@login_required
+def create_tournament_api():
+    from db.tournaments import create_tournament
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "Unnamed Tournament").strip()
+    t = create_tournament(uid(), name)
+    return jsonify({"ok": True, "tournament": t})
+
+@app.route("/tournaments/<tid>")
+@login_required
+def tournament_view(tid):
+    from db.tournaments import get_tournament
+    t = get_tournament(tid)
+    if not t:
+        flash("Tournament not found")
+        return redirect(url_for("tournaments_page"))
+    # build a list of all available models to pick from
+    avail = _builtin_model_list()
+    try:
+        from db.user_models import get_user_models
+        for m in get_user_models(uid()):
+            avail.append({"id": USER_MODEL_PREFIX + m["id"], "name": m["name"]})
+    except: pass
+    
+    # also add friends
+    friends = _get_friends(uid())
+    return render_template("tournament_view.html", username=session.get("username", "Player"), t=t, models=avail, friends=friends)
+
+@app.route("/tournaments/<tid>/add", methods=["POST"])
+@login_required
+def tournament_add_participant(tid):
+    from db.tournaments import add_participant, get_tournament
+    t = get_tournament(tid)
+    if not t or t["creator_id"] != uid(): return jsonify({"error": "Unauthorized"}), 403
+    data = request.get_json(silent=True) or {}
+    pid = data.get("participant_id")
+    name = data.get("name")
+    if not pid or not name: return jsonify({"error": "Missing info"}), 400
+    p = add_participant(tid, pid, name)
+    return jsonify({"ok": True, "participant": p})
+
+@app.route("/tournaments/<tid>/generate", methods=["POST"])
+@login_required
+def tournament_generate(tid):
+    from db.tournaments import generate_bracket, get_tournament
+    t = get_tournament(tid)
+    if not t or t["creator_id"] != uid(): return jsonify({"error": "Unauthorized"}), 403
+    if generate_bracket(tid):
+        return jsonify({"ok": True})
+    return jsonify({"error": "Could not generate bracket"}), 400
+
+@app.route("/tournaments/<tid>/simulate/<match_id>", methods=["POST"])
+@login_required
+def tournament_simulate(tid, match_id):
+    from db.tournaments import get_tournament, get_match, save_match_result
+    from models.soccer_logic import new_soccer_state, apply_kick as _kick
+    t = get_tournament(tid)
+    if not t or t["creator_id"] != uid(): return jsonify({"error": "Unauthorized"}), 403
+    m = get_match(tid, match_id)
+    if not m or m["status"] != "pending": return jsonify({"error": "Invalid match"}), 400
+    
+    parts = {p["id"]: p for p in t["participants"]}
+    pa = parts.get(m["participant_a"])
+    pb = parts.get(m["participant_b"])
+    if not pa or not pb: return jsonify({"error": "Missing participants"}), 400
+    
+    # Load models
+    def _run_model(participant_info, state, is_player_a):
+        pid = participant_info["participant_id"]
+        # If it's a friend (not a model), we fallback to greedy for now since we don't have async human-play built in for tournaments
+        if pid.startswith("friend:"):
+            mod = _load_model("greedy")
+            return mod.get_ai_move(state, is_player_a)
+        else:
+            mod = _load_model(pid)
+            return mod.get_ai_move(state, is_player_a)
+            
+    st = new_soccer_state()
+    st["move_history"] = []
+    
+    for __ in range(40):
+        if st.get("game_over"): break
+        is_a = st["is_player_a"]
+        try:
+            pidx, ang, pwr = _run_model(pa if is_a else pb, st, is_a)
+            from game.session import push_snapshot
+            push_snapshot(st)
+            traj, scored, desc, kick_ep, push_res = _kick(st, pidx, ang, pwr, is_a)
+            st["move_history"].append({
+                "mover": "a" if is_a else "b",
+                "player_idx": pidx, "angle": round(ang,1), "power": round(pwr,1),
+                "trajectory": traj, "push_result": push_res, "scored": scored
+            })
+        except Exception as e:
+            # If a model crashes, other player wins
+            st["winner"] = "B" if is_a else "A"
+            st["game_over"] = True
+            break
+            
+    winner_id = m["participant_a"] if st.get("winner") == "A" else m["participant_b"]
+    save_match_result(tid, match_id, winner_id, st["move_history"])
+    return jsonify({"ok": True, "winner": winner_id})
+
+@app.route("/tournaments/<tid>/watch/<match_id>")
+@login_required
+def tournament_watch(tid, match_id):
+    from db.tournaments import get_tournament, get_match
+    t = get_tournament(tid)
+    m = get_match(tid, match_id)
+    if not t or not m or m["status"] != "completed":
+        flash("Match not available for replay")
+        return redirect(url_for("tournament_view", tid=tid))
+    return render_template("replay.html", username=session.get("username", "Player"), t=t, match=m)
+
 if __name__ == "__main__":
-    import webbrowser
-    webbrowser.open("http://127.0.0.1:5000")
     app.run(debug=True, port=5000)

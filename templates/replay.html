@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Replay — Agent Soccer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.replay-controls { display:flex; justify-content:center; gap: 15px; margin-top: 20px; }
+.btn-play { font-size: 1.1rem; padding: 10px 25px; }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand title-gradient" href="/">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Game</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/tournaments" class="nav-link active">Tournaments</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+  </div>
+</nav>
+
+<main>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <h1>Match Replay</h1>
+    <a href="/tournaments/{{ t.id }}" class="btn btn-ghost">Back to Bracket</a>
+  </div>
+  
+  <div class="glass-card">
+    <div class="hud">
+      <div class="team team-a">
+        <div class="team-name">Player A</div>
+        <div class="team-score" id="score-a">0</div>
+      </div>
+      <div class="hud-mid">
+        <div class="kick-counter">Move <span id="kick-count">0</span> / {{ match.replay_data|length }}</div>
+        <div class="turn-badge turn-a" id="turn-badge">Ready</div>
+      </div>
+      <div class="team team-b">
+        <div class="team-name">Player B</div>
+        <div class="team-score" id="score-b">0</div>
+      </div>
+    </div>
+    
+    <div class="stadium">
+      <div class="canvas-wrap">
+        <canvas id="game-canvas" width="800" height="500"></canvas>
+      </div>
+    </div>
+    
+    <div class="replay-controls">
+      <button class="btn btn-primary btn-play" id="btn-next" onclick="playNextMove()">Next Move</button>
+      <button class="btn btn-ghost btn-play" id="btn-auto" onclick="toggleAutoPlay()">Auto Play</button>
+    </div>
+  </div>
+</main>
+
+<script>
+const replayData = {{ match.replay_data | tojson }};
+let currentMove = 0;
+let isAnimating = false;
+let autoPlayInterval = null;
+
+let state = {
+  ball: {x: 400, y: 250},
+  players_a: [{x:150, y:165}, {x:150, y:250}, {x:150, y:335}],
+  players_b: [{x:650, y:165}, {x:650, y:250}, {x:650, y:335}],
+  score_a: 0,
+  score_b: 0
+};
+
+const canvas = document.getElementById('game-canvas');
+const ctx = canvas.getContext('2d');
+const W = 800, H = 500, GOAL_Y1 = 160, GOAL_Y2 = 340, GOAL_DEPTH = 30;
+
+function drawField() {
+  ctx.fillStyle = '#22c55e'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle = '#16a34a';
+  for(let i=0; i<W; i+=80) ctx.fillRect(i,0,40,H);
+  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 3;
+  ctx.strokeRect(40,40,W-80,H-80);
+  ctx.beginPath(); ctx.moveTo(W/2,40); ctx.lineTo(W/2,H-40); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W/2,H/2,60,0,Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W/2,H/2,4,0,Math.PI*2); ctx.fill();
+  
+  ctx.fillStyle = 'rgba(255,255,255,0.15)';
+  ctx.fillRect(0,GOAL_Y1,40,GOAL_Y2-GOAL_Y1);
+  ctx.fillRect(W-40,GOAL_Y1,40,GOAL_Y2-GOAL_Y1);
+  
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fillRect(0,GOAL_Y1,GOAL_DEPTH,GOAL_Y2-GOAL_Y1);
+  ctx.fillRect(W-GOAL_DEPTH,GOAL_Y1,GOAL_DEPTH,GOAL_Y2-GOAL_Y1);
+}
+
+function drawEntity(x,y,r,color,isBall=false) {
+  ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+  ctx.fillStyle = color; ctx.fill();
+  if(!isBall) {
+    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.stroke();
+    ctx.beginPath(); ctx.arc(x,y,r-4,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.stroke();
+  } else {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x-3,y-3,4,0,Math.PI*2); ctx.fill();
+  }
+}
+
+function drawState(st) {
+  drawField();
+  for(let p of st.players_a) drawEntity(p.x, p.y, 16, '#3b82f6');
+  for(let p of st.players_b) drawEntity(p.x, p.y, 16, '#ef4444');
+  drawEntity(st.ball.x, st.ball.y, 10, '#f1f5f9', true);
+  
+  document.getElementById('score-a').innerText = st.score_a;
+  document.getElementById('score-b').innerText = st.score_b;
+  document.getElementById('kick-count').innerText = currentMove;
+}
+
+function playNextMove() {
+  if (isAnimating || currentMove >= replayData.length) return;
+  const move = replayData[currentMove];
+  const traj = move.trajectory;
+  if (!traj || traj.length === 0) {
+    currentMove++;
+    return;
+  }
+  
+  isAnimating = true;
+  document.getElementById('btn-next').disabled = true;
+  document.getElementById('turn-badge').innerText = move.mover === 'a' ? "Player A's Move" : "Player B's Move";
+  document.getElementById('turn-badge').className = "turn-badge " + (move.mover === 'a' ? "turn-a" : "turn-b");
+  
+  let frame = 0;
+  function animate() {
+    if (frame >= traj.length) {
+      // update final state
+      let last = traj[traj.length-1];
+      state.ball = last.ball;
+      state.players_a = last.players_a;
+      state.players_b = last.players_b;
+      if (move.scored === 'A') state.score_a++;
+      else if (move.scored === 'B') state.score_b++;
+      
+      currentMove++;
+      isAnimating = false;
+      document.getElementById('btn-next').disabled = false;
+      drawState(state);
+      
+      if (autoPlayInterval && currentMove < replayData.length) {
+        setTimeout(playNextMove, 500);
+      }
+      return;
+    }
+    
+    // Draw current frame
+    let st = traj[frame];
+    drawField();
+    for(let p of st.players_a) drawEntity(p.x, p.y, 16, '#3b82f6');
+    for(let p of st.players_b) drawEntity(p.x, p.y, 16, '#ef4444');
+    drawEntity(st.ball.x, st.ball.y, 10, '#f1f5f9', true);
+    
+    frame++;
+    requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+function toggleAutoPlay() {
+  const btn = document.getElementById('btn-auto');
+  if (autoPlayInterval) {
+    clearInterval(autoPlayInterval);
+    autoPlayInterval = null;
+    btn.innerText = "Auto Play";
+    btn.classList.remove("btn-primary");
+    btn.classList.add("btn-ghost");
+  } else {
+    autoPlayInterval = true;
+    btn.innerText = "Stop Auto";
+    btn.classList.remove("btn-ghost");
+    btn.classList.add("btn-primary");
+    playNextMove();
+  }
+}
+
+drawState(state);
+</script>
+</body>
+</html>

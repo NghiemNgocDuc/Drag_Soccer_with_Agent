@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tournaments — Agent Soccer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand title-gradient" href="/">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Game</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/tournaments" class="nav-link active">Tournaments</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+  </div>
+</nav>
+
+<main>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <h1>Tournaments</h1>
+    <button class="btn btn-primary" onclick="createTournament()">+ New Tournament</button>
+  </div>
+  
+  <div class="glass-card">
+    {% if tournaments %}
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for t in tournaments %}
+        <tr>
+          <td style="font-weight:600">{{ t.name }}</td>
+          <td>
+            <span class="turn-badge {% if t.status == 'active' %}turn-a{% elif t.status == 'completed' %}turn-b{% endif %}">
+              {{ t.status | upper }}
+            </span>
+          </td>
+          <td>
+            <a href="/tournaments/{{ t.id }}" class="btn btn-sm btn-ghost">View</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">No tournaments yet. Be the first to create one!</div>
+    {% endif %}
+  </div>
+</main>
+
+<script>
+function createTournament() {
+  const name = prompt("Enter tournament name:");
+  if(!name) return;
+  fetch('/tournaments/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name })
+  }).then(res => res.json()).then(data => {
+    if(data.ok) window.location.href = '/tournaments/' + data.tournament.id;
+    else alert(data.error || 'Failed to create');
+  });
+}
+</script>
+</body>
+</html>
