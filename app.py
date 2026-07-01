@@ -1175,11 +1175,22 @@ def _seed_test_account():
                 return
         except Exception:
             pass
-        res = anon.auth.sign_up({"email": TEST_EMAIL, "password": TEST_PASSWORD})
-        user = res.user
+        try:
+            res = service.auth.admin.create_user({
+                "email": TEST_EMAIL,
+                "password": TEST_PASSWORD,
+                "email_confirm": True,
+            })
+            user = res.user
+        except (AttributeError, NotImplementedError):
+            res = anon.auth.sign_up({"email": TEST_EMAIL, "password": TEST_PASSWORD})
+            user = res.user
+            if user:
+                try:
+                    service.auth.admin.update_user_by_id(user.id, {"email_confirm": True})
+                except Exception:
+                    pass
         if user:
-            if not user.identities or len(user.identities) == 0:
-                return
             service.table("profiles").upsert({"id": user.id, "username": TEST_USERNAME}).execute()
     except Exception:
         pass

@@ -105,9 +105,17 @@ input:focus{outline:none;border-color:rgba(59,130,246,.6);background:rgba(255,25
   <h2>Sign in to your account</h2>
 
   <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:9px;padding:12px 14px;margin-bottom:18px;font-size:.78rem;line-height:1.5">
-    <strong style="color:var(--accent);font-size:.82rem">Demo test account</strong><br>
-    <span style="color:var(--muted)">Email:</span> <code style="background:rgba(255,255,255,.6);padding:1px 6px;border-radius:4px;font-size:.75rem"><strong>edward@umass.edu</strong></code><br>
-    <span style="color:var(--muted)">Password:</span> <code style="background:rgba(255,255,255,.6);padding:1px 6px;border-radius:4px;font-size:.75rem"><strong>123456</strong></code>
+    <div style="color:var(--accent);font-size:.82rem;font-weight:600">Demo test account</div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+      <span style="color:var(--muted);white-space:nowrap">Email:</span>
+      <code style="background:rgba(255,255,255,.6);padding:1px 6px;border-radius:4px;font-size:.75rem;flex:1">edward@umass.edu</code>
+      <button onclick="navigator.clipboard.writeText('edward@umass.edu')" style="background:none;border:1px solid rgba(59,130,246,.3);border-radius:5px;cursor:pointer;padding:2px 7px;font-size:.7rem;color:var(--accent);line-height:1.4" title="Copy email">Copy</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:4px">
+      <span style="color:var(--muted);white-space:nowrap">Password:</span>
+      <code style="background:rgba(255,255,255,.6);padding:1px 6px;border-radius:4px;font-size:.75rem;flex:1">123456</code>
+      <button onclick="navigator.clipboard.writeText('123456')" style="background:none;border:1px solid rgba(59,130,246,.3);border-radius:5px;cursor:pointer;padding:2px 7px;font-size:.7rem;color:var(--accent);line-height:1.4" title="Copy password">Copy</button>
+    </div>
   </div>
 
   {% with messages = get_flashed_messages() %}
