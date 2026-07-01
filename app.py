@@ -1169,29 +1169,37 @@ def _seed_test_account():
         from db.supabase_client import anon, service
         if anon is None or service is None:
             return
+        user = None
         try:
             existing = service.auth.admin.get_user_by_email(TEST_EMAIL)
             if existing:
-                return
-        except Exception:
-            pass
-        try:
-            res = service.auth.admin.create_user({
-                "email": TEST_EMAIL,
-                "password": TEST_PASSWORD,
-                "email_confirm": True,
-            })
-            user = res.user
-        except (AttributeError, NotImplementedError):
-            res = anon.auth.sign_up({"email": TEST_EMAIL, "password": TEST_PASSWORD})
-            user = res.user
-            if user:
+                uid = existing.id if hasattr(existing, "id") else existing.user.id
+                user = {"id": uid}
                 try:
-                    service.auth.admin.update_user_by_id(user.id, {"email_confirm": True})
+                    service.auth.admin.update_user_by_id(uid, {"email_confirm": True})
                 except Exception:
                     pass
+        except Exception:
+            pass
+        if not user:
+            try:
+                res = service.auth.admin.create_user({
+                    "email": TEST_EMAIL,
+                    "password": TEST_PASSWORD,
+                    "email_confirm": True,
+                })
+                user = res.user
+            except (AttributeError, NotImplementedError):
+                res = anon.auth.sign_up({"email": TEST_EMAIL, "password": TEST_PASSWORD})
+                user = res.user
+                if user:
+                    try:
+                        service.auth.admin.update_user_by_id(user.id, {"email_confirm": True})
+                    except Exception:
+                        pass
         if user:
-            service.table("profiles").upsert({"id": user.id, "username": TEST_USERNAME}).execute()
+            uid = user.id if hasattr(user, "id") else user["id"]
+            service.table("profiles").upsert({"id": uid, "username": TEST_USERNAME}).execute()
     except Exception:
         pass
 
