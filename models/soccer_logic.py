@@ -6,10 +6,10 @@ FIELD_W: int   = 800
 FIELD_H: int   = 500
 BALL_R: int    = 12
 PLAYER_R: int  = 20
-FRICTION: float = 0.93
+FRICTION: float = 0.91
 GOAL_Y1: float  = 185.0
 GOAL_Y2: float  = 315.0
-POWER_SCALE: float = 1.0
+POWER_SCALE: float = 0.55
 GOALS_TO_WIN: int  = 5
 MAX_KICKS: int     = 60   # plenty of room for a 5-goal game
 
