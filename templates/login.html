@@ -104,6 +104,12 @@ input:focus{outline:none;border-color:rgba(59,130,246,.6);background:rgba(255,25
 
   <h2>Sign in to your account</h2>
 
+  <div style="background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.25);border-radius:9px;padding:12px 14px;margin-bottom:18px;font-size:.78rem;line-height:1.5">
+    <strong style="color:var(--accent);font-size:.82rem">Demo test account</strong><br>
+    <span style="color:var(--muted)">Email:</span> <code style="background:rgba(255,255,255,.6);padding:1px 6px;border-radius:4px;font-size:.75rem"><strong>edward@umass.edu</strong></code><br>
+    <span style="color:var(--muted)">Password:</span> <code style="background:rgba(255,255,255,.6);padding:1px 6px;border-radius:4px;font-size:.75rem"><strong>123456</strong></code>
+  </div>
+
   {% with messages = get_flashed_messages() %}
     {% if messages %}
       {% for msg in messages %}

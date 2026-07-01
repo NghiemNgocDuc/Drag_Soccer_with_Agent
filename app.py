@@ -169,10 +169,11 @@ def register_page():
 @app.route("/auth/register", methods=["POST"])
 def auth_register():
     from db.supabase_client import anon, service
-    data     = request.get_json(silent=True) or request.form
-    email    = (data.get("email") or "").strip().lower()
-    password = data.get("password") or ""
-    username = (data.get("username") or "").strip()
+    data       = request.get_json(silent=True) or request.form
+    email      = (data.get("email") or "").strip().lower()
+    password   = data.get("password") or ""
+    confirm    = data.get("confirm") or ""
+    username   = (data.get("username") or "").strip()
 
     def _err(msg):
         if request.is_json:
@@ -182,6 +183,8 @@ def auth_register():
 
     if not email or not password or not username:
         return _err("Email, username and password are required.")
+    if password != confirm:
+        return _err("Passwords do not match.")
     if len(password) < 6:
         return _err("Password must be at least 6 characters.")
     if len(username) < 2:
@@ -195,10 +198,26 @@ def auth_register():
         return redirect(url_for("index"))
 
     try:
+        if service:
+            try:
+                existing = service.auth.admin.get_user_by_email(email)
+                if existing:
+                    return _err("Email already registered. Try logging in instead.")
+            except (AttributeError, NotImplementedError):
+                pass
+            except Exception as e:
+                if "not found" in str(e).lower():
+                    pass
+                elif "user_not_found" in str(e).lower():
+                    pass
+                elif "already" in str(e).lower() and "registered" in str(e).lower():
+                    return _err("Email already registered. Try logging in instead.")
         res  = anon.auth.sign_up({"email": email, "password": password})
         user = res.user
         if not user:
             return _err("Registration failed. Try again.")
+        if not user.identities or len(user.identities) == 0:
+            return _err("Email already registered. Try logging in instead.")
         service.table("profiles").insert({"id": user.id, "username": username}).execute()
         session["user_id"]  = user.id
         session["username"] = username
@@ -208,8 +227,8 @@ def auth_register():
     except Exception as exc:
         msg = str(exc).lower()
         if "already" in msg and "registered" in msg:
-            return _err("Email already registered.")
-        if "unique" in msg:
+            return _err("Email already registered. Try logging in instead.")
+        if "unique" in msg or "duplicate" in msg:
             return _err("Username already taken.")
         return _err("Registration failed. Please try again.")
 
@@ -1141,6 +1160,31 @@ def tournament_watch(tid, match_id):
         flash("Match not available for replay")
         return redirect(url_for("tournament_view", tid=tid))
     return render_template("replay.html", username=session.get("username", "Player"), t=t, match=m)
+
+def _seed_test_account():
+    TEST_EMAIL = "edward@umass.edu"
+    TEST_PASSWORD = "123456"
+    TEST_USERNAME = "Edward"
+    try:
+        from db.supabase_client import anon, service
+        if anon is None or service is None:
+            return
+        try:
+            existing = service.auth.admin.get_user_by_email(TEST_EMAIL)
+            if existing:
+                return
+        except Exception:
+            pass
+        res = anon.auth.sign_up({"email": TEST_EMAIL, "password": TEST_PASSWORD})
+        user = res.user
+        if user:
+            if not user.identities or len(user.identities) == 0:
+                return
+            service.table("profiles").upsert({"id": user.id, "username": TEST_USERNAME}).execute()
+    except Exception:
+        pass
+
+_seed_test_account()
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
