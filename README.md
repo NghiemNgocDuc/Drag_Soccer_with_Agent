@@ -1,5 +1,7 @@
 # Agent Soccer
 
+[![Live](https://img.shields.io/badge/Live-drag--soccer--with--agent.onrender.com-blue)](https://drag-soccer-with-agent.onrender.com/)
+
 A top-down slingshot soccer game where you code your own AI to play against built-in agents, challenge friends online, or watch AIs battle each other in real time.
 
 Built with Flask, HTML5 Canvas, Redis, and Supabase.
