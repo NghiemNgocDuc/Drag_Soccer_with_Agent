@@ -1,4 +1,4 @@
-# Drag Soccer
+# Agent Soccer
 
 A top-down slingshot soccer game where you code your own AI to play against built-in agents, challenge friends online, or watch AIs battle each other in real time.
 
@@ -21,6 +21,8 @@ Physics include wall bounces, player-player collisions (with billiard-style push
 - **3 game modes** — Human vs AI, Human vs Human, AI vs AI (auto-loop)
 - **Online multiplayer** — real-time 1v1 via invite link or username search, no account needed to join
 - **Friend system** — send/accept friend requests, invite friends to games directly from the lobby
+- **Tournaments** — create and join single-elimination tournaments; AI vs AI matches auto-advance
+- **Replays** — watch recorded match replays with playback controls
 - **AI Playground** — write a custom Python AI in the browser, import a `.py` file from disk, validate and test it live against any built-in agent
 - **My Models** — save, edit, and publish your custom AIs; use them as opponents in the main game
 - **Leaderboard & Profile** — win/loss stats tracked per user
@@ -30,15 +32,15 @@ Physics include wall bounces, player-player collisions (with billiard-style push
 
 ## AI Agents
 
-| Agent | Algorithm | Notes |
+| Agent | Algorithm | Description |
 |---|---|---|
-| `minimax` | Alpha-Beta Minimax | Searches kick outcomes, prunes with alpha-beta |
-| `monte_carlo` | UCB1 MCTS | 300 rollouts per move with heuristic simulation |
-| `q_learning` | Tabular Q-Learning | Pre-trained via self-play, ε-greedy policy |
-| `bayesian` | Bayesian inference | Updates belief over opponent strategy each turn |
-| `value_iteration` | Dynamic programming | Converged value function over discretised state |
-| `policy_iteration` | Dynamic programming | Greedy policy extracted from iterated evaluation |
-| `greedy` | Heuristic | Picks the kick that moves the ball closest to goal |
+| `minimax` | Search | Evaluates kicks considering opponent block positions (ball bounces off them) |
+| `monte_carlo` | Sampling | Samples random kicks centred on the player-to-ball direction |
+| `q_learning` | Zone search | Zone-aware angle search centred on player-to-ball direction |
+| `bayesian` | Gaussian prior | Gaussian prior over kick angles centred on the player-to-ball direction |
+| `value_iteration` | Centrality | Picks most centrally positioned player, searches angles through ball toward goal |
+| `policy_iteration` | Lane scoring | Picks player with clearest path to ball, aims through ball toward goal |
+| `greedy` | Heuristic | Picks the player nearest the ball, aims through it toward goal |
 
 ---
 
@@ -67,7 +69,7 @@ def get_ai_move(state, is_player_a):
     # power         → 0–100
 ```
 
-`math`, `random`, and `copy` are available. Network access, file I/O, and dangerous builtins are blocked. Execution is sandboxed with a 5-second timeout per move.
+`math`, `random`, `numpy`, and `copy` are available. Network access, file I/O, and dangerous builtins are blocked. Execution is sandboxed with a 5-second timeout per move.
 
 ---
 
@@ -75,10 +77,10 @@ def get_ai_move(state, is_player_a):
 
 | Layer | Technology |
 |---|---|
-| Backend | Python 3.12, Flask 3 |
-| Game state | Upstash Redis (rooms, sessions, friends) |
+| Backend | Python 3.11, Flask 3 |
+| Game state | Upstash Redis (rooms, sessions, friends, tournaments) |
 | Auth & DB | Supabase (profiles, games, user models) |
-| Frontend | Vanilla JS, HTML5 Canvas |
+| Frontend | Vanilla JS, HTML5 Canvas, CSS glass-morphism theme |
 | Code editor | CodeMirror 5 |
 | Deployment | Render (`render.yaml` included) |
 
@@ -87,7 +89,7 @@ def get_ai_move(state, is_player_a):
 ## Project Structure
 
 ```
-├── app.py                   # Flask routes (game, online, playground, friends, auth)
+├── app.py                   # Flask routes (game, online, playground, friends, auth, tournaments)
 ├── config.py                # Environment variable loading
 ├── render.yaml              # Render deployment config
 ├── requirements.txt
@@ -98,7 +100,7 @@ def get_ai_move(state, is_player_a):
 │   ├── minimax.py
 │   ├── monte_carlo.py
 │   ├── q_learning.py
-│   ├── bayesian.py (bayes.py)
+│   ├── bayes.py
 │   ├── value_iteration.py
 │   ├── policy_iteration.py
 │   └── greedy_model.py
@@ -107,13 +109,17 @@ def get_ai_move(state, is_player_a):
 │   └── session.py           # Redis-backed game/playground state
 │
 ├── db/
-│   ├── redis_client.py
-│   ├── supabase_client.py
+│   ├── redis_client.py      # Upstash Redis client with in-memory fallback for dev
+│   ├── supabase_client.py   # Supabase anon + service clients
 │   ├── games.py             # Save results, leaderboard queries
-│   └── user_models.py       # CRUD for user-uploaded AI models
+│   ├── user_models.py       # CRUD for user-uploaded AI models
+│   └── tournaments.py       # Tournament creation, bracket generation, match results
 │
 ├── user_models/
-│   └── runner.py            # Sandboxed Python execution for custom AI
+│   └── runner.py            # Sandboxed Python execution for custom AI (AST scan + timeout)
+│
+├── static/
+│   └── style.css            # Glass-morphism theme, light mode
 │
 └── templates/
     ├── index.html           # Main game (slingshot canvas)
@@ -123,7 +129,10 @@ def get_ai_move(state, is_player_a):
     ├── leaderboard.html
     ├── profile.html
     ├── login.html
-    └── register.html
+    ├── register.html
+    ├── tournaments.html     # Tournament listings
+    ├── tournament_view.html # Tournament bracket view
+    └── replay.html          # Match replay viewer
 ```
 
 ---
@@ -183,6 +192,12 @@ Rooms are stored in Redis and expire after 6 hours.
 
 ---
 
+## Tournaments
+
+Create a tournament at `/tournaments`, invite participants, and generate a single-elimination bracket. AI vs AI matches run automatically and the bracket advances as matches complete. Tournament data is stored in Redis.
+
+---
+
 ## Deployment
 
 The repo includes `render.yaml` for one-click deploy on [Render](https://render.com):
@@ -198,4 +213,3 @@ The repo includes `render.yaml` for one-click deploy on [Render](https://render.
 
 **Ngoc Duc Nghiem**  
 GitHub: [NghiemNgocDuc](https://github.com/NghiemNgocDuc)
-
