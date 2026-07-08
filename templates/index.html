@@ -573,7 +573,15 @@ function animateTrajectory(trajectory, onDone) {
   function step() {
     if (i >= trajectory.length) { animBall = null; onDone(); return; }
     const pt = trajectory[i++];
-    animBall = { x: pt.x, y: pt.y };  // shared — render() picks this up from any caller
+    animBall = { x: pt.x, y: pt.y };
+    if (pt.a && typeof gameState !== "undefined" && gameState.players_a) {
+      for (let k = 0; k < 3; k++) {
+        gameState.players_a[k].x = pt.a[k].x;
+        gameState.players_a[k].y = pt.a[k].y;
+        gameState.players_b[k].x = pt.b[k].x;
+        gameState.players_b[k].y = pt.b[k].y;
+      }
+    }  // shared — render() picks this up from any caller
     render();
     setTimeout(step, msPerFrame);
   }
@@ -706,12 +714,12 @@ async function submitKick(playerIdx, angleDeg, power, pullX, pullY) {
   if (data.move_result) {
     const mr = data.move_result;
     const kickEndA = mr.kick_endpoint || kickEndpoint(fromPosA, angleDeg, power);
-    await new Promise(r => animatePlayerMove(playerIdx, 'a', fromPosA, kickEndA, r));
+    
+    await new Promise(r => animateTrajectory(mr.trajectory, r));
     if (mr.push_result) {
       const pr = mr.push_result;
       await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
     }
-    await new Promise(r => animateTrajectory(mr.trajectory, r));
     syncBall(mr.trajectory, mr.scored);
     logMove(mr.desc, !!mr.scored);
     if (mr.scored) {
@@ -727,12 +735,12 @@ async function submitKick(playerIdx, angleDeg, power, pullX, pullY) {
     const kickEndB = ai.kick_endpoint || kickEndpoint(fromPosB, ai.angle, ai.power);
     await new Promise(r => setTimeout(r, 160 / animSpeed));
     await new Promise(r => showAIDragPreview(ai.player_idx, 'b', ai.angle, ai.power, r));
-    await new Promise(r => animatePlayerMove(ai.player_idx, 'b', fromPosB, kickEndB, r));
+    
+    await new Promise(r => animateTrajectory(ai.trajectory, r));
     if (ai.push_result) {
       const pr = ai.push_result;
       await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
     }
-    await new Promise(r => animateTrajectory(ai.trajectory, r));
     syncBall(ai.trajectory, ai.scored);
     logMove(ai.desc, !!ai.scored);
     if (ai.scored) {
@@ -763,11 +771,11 @@ async function triggerAI() {
     const kickEnd = ai.kick_endpoint || kickEndpoint(fromPos, ai.angle, ai.power);
     await new Promise(r => showAIDragPreview(ai.player_idx, team, ai.angle, ai.power, r));
     await new Promise(r => animatePlayerMove(ai.player_idx, team, fromPos, kickEnd, r));
+    await new Promise(r => animateTrajectory(ai.trajectory, r));
     if (ai.push_result) {
       const pr = ai.push_result;
       await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
     }
-    await new Promise(r => animateTrajectory(ai.trajectory, r));
     syncBall(ai.trajectory, ai.scored);
     logMove(ai.desc, !!ai.scored);
     if (ai.scored) {

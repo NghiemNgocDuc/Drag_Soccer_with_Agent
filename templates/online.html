@@ -631,6 +631,14 @@ function animateTrajectory(trajectory, onDone) {
     if (i >= trajectory.length) { animBall = null; onDone(); return; }
     const pt = trajectory[i++];
     animBall = { x: pt.x, y: pt.y };
+    if (pt.a && typeof gameState !== "undefined" && gameState.players_a) {
+      for (let k = 0; k < 3; k++) {
+        gameState.players_a[k].x = pt.a[k].x;
+        gameState.players_a[k].y = pt.a[k].y;
+        gameState.players_b[k].x = pt.b[k].x;
+        gameState.players_b[k].y = pt.b[k].y;
+      }
+    }
     render();
     setTimeout(step, msPerFrame);
   }
@@ -736,11 +744,11 @@ async function animateOpponentMove(mr, opponentSide) {
 
   await new Promise(r => showAIDragPreview(mr.player_idx, opponentSide, mr.angle, mr.power, r));
   await new Promise(r => animatePlayerMove(mr.player_idx, opponentSide, fromPos, kickEnd, r));
+  await new Promise(r => animateTrajectory(mr.trajectory, r));
   if (mr.push_result) {
     const pr = mr.push_result;
     await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
   }
-  await new Promise(r => animateTrajectory(mr.trajectory, r));
   syncBall(mr.trajectory, mr.scored);
   logMove(mr.desc, !!mr.scored);
   if (mr.scored) {
@@ -775,11 +783,11 @@ async function submitKick(playerIdx, angleDeg, power) {
   const kickEnd = mr.kick_endpoint || kickEndpoint(fromPos, angleDeg, power);
 
   await new Promise(r => animatePlayerMove(playerIdx, mySide, fromPos, kickEnd, r));
+  await new Promise(r => animateTrajectory(mr.trajectory, r));
   if (mr.push_result) {
     const pr = mr.push_result;
     await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
   }
-  await new Promise(r => animateTrajectory(mr.trajectory, r));
   syncBall(mr.trajectory, mr.scored);
   logMove(mr.desc, !!mr.scored);
   if (mr.scored) {
