@@ -4,3 +4,4 @@ redis>=5.0
 python-dotenv>=1.0
 gunicorn>=21.0
 numpy>=1.26
+pymunk>=6.5
