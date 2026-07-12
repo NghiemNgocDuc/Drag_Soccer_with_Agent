@@ -13,8 +13,9 @@ def new_game_state(
     mode: str = "hvai",
     model_b: str = "greedy",
     model_a: str = "greedy",
+    player_count: int = 3,
 ) -> dict:
-    return new_soccer_state(mode=mode, model_b=model_b, model_a=model_a)
+    return new_soccer_state(mode=mode, model_b=model_b, model_a=model_a, player_count=player_count)
 
 
 def get_game(user_id: str) -> dict:

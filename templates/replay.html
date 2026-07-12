@@ -5,9 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Replay — Agent Soccer</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<script src="/static/sound.js"></script>
 <style>
 .replay-controls { display:flex; justify-content:center; gap: 15px; margin-top: 20px; }
 .btn-play { font-size: 1.1rem; padding: 10px 25px; }
+.sound-btn{
+  position:absolute;top:8px;right:8px;z-index:10;
+  width:32px;height:32px;border-radius:8px;border:none;
+  background:rgba(255,255,255,.2);color:#fff;
+  font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .15s;line-height:1;
+}
+.sound-btn:hover{background:rgba(255,255,255,.4)}
 </style>
 </head>
 <body>
@@ -49,9 +58,10 @@
     </div>
     
     <div class="stadium">
-      <div class="canvas-wrap">
-        <canvas id="game-canvas" width="800" height="500"></canvas>
-      </div>
+    <div class="canvas-wrap">
+      <canvas id="game-canvas" width="800" height="500"></canvas>
+      <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
+    </div>
     </div>
     
     <div class="replay-controls">
@@ -69,54 +79,258 @@ let autoPlayInterval = null;
 
 let state = {
   ball: {x: 400, y: 250},
-  players_a: [{x:150, y:165}, {x:150, y:250}, {x:150, y:335}],
-  players_b: [{x:650, y:165}, {x:650, y:250}, {x:650, y:335}],
+  players_a: [{x:50, y:250}, {x:320, y:195}, {x:320, y:305}],
+  players_b: [{x:750, y:250}, {x:480, y:195}, {x:480, y:305}],
   score_a: 0,
   score_b: 0
 };
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
-const W = 800, H = 500, GOAL_Y1 = 160, GOAL_Y2 = 340, GOAL_DEPTH = 30;
+const W = 800, H = 500, GOAL_Y1 = 185, GOAL_Y2 = 315, GOAL_DEPTH = 40;
+
+const _CC = ['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc','#6366f1','#14b8a6','#f97316'];
+
+let TEAM_A_COLOR = '#3b82f6';
+let TEAM_B_COLOR = '#ef4444';
+let BALL_BASE_COLOR = '#f8fafc';
+let REF_CENTER_COLOR = '#fde68a';
+let REF_EDGE_COLOR = '#d97706';
+let crowdDots = null;
+function genCrowd() {
+  crowdDots = [];
+  for (let row = 0; row < 4; row++) {
+    const yy = [6 + row * 4, H - 6 - row * 4];
+    for (const y of yy) {
+      for (let x = 8; x < W - 8; x += 8 + (row % 4)) {
+        const jx = Math.sin(x * 0.37 + y * 0.13) * 2;
+        const jy = Math.cos(x * 0.23 + y * 0.41) * 1.5;
+        const c = _CC[Math.floor(Math.abs(Math.sin(x * 0.13 + y * 0.07 + row * 0.29)) * _CC.length)];
+        crowdDots.push({x: x + jx, y: y + jy, c});
+      }
+    }
+  }
+  for (let row = 0; row < 4; row++) {
+    const xx = [6 + row * 4, W - 6 - row * 4];
+    for (const x of xx) {
+      for (let y = 8; y < GOAL_Y1 - 4; y += 8 + (row % 4)) {
+        const jx = Math.sin(x * 0.31 + y * 0.17) * 1.5;
+        const jy = Math.cos(x * 0.19 + y * 0.43) * 2;
+        const c = _CC[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * _CC.length)];
+        crowdDots.push({x: x + jx, y: y + jy, c});
+      }
+      for (let y = GOAL_Y2 + 4; y < H - 8; y += 8 + (row % 4)) {
+        const jx = Math.sin(x * 0.31 + y * 0.17) * 1.5;
+        const jy = Math.cos(x * 0.19 + y * 0.43) * 2;
+        const c = _CC[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * _CC.length)];
+        crowdDots.push({x: x + jx, y: y + jy, c});
+      }
+    }
+  }
+}
+genCrowd();
 
 function drawField() {
-  ctx.fillStyle = '#22c55e'; ctx.fillRect(0,0,W,H);
-  ctx.fillStyle = '#16a34a';
-  for(let i=0; i<W; i+=80) ctx.fillRect(i,0,40,H);
-  ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 3;
-  ctx.strokeRect(40,40,W-80,H-80);
-  ctx.beginPath(); ctx.moveTo(W/2,40); ctx.lineTo(W/2,H-40); ctx.stroke();
-  ctx.beginPath(); ctx.arc(W/2,H/2,60,0,Math.PI*2); ctx.stroke();
-  ctx.beginPath(); ctx.arc(W/2,H/2,4,0,Math.PI*2); ctx.fill();
-  
-  ctx.fillStyle = 'rgba(255,255,255,0.15)';
-  ctx.fillRect(0,GOAL_Y1,40,GOAL_Y2-GOAL_Y1);
-  ctx.fillRect(W-40,GOAL_Y1,40,GOAL_Y2-GOAL_Y1);
-  
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.fillRect(0,GOAL_Y1,GOAL_DEPTH,GOAL_Y2-GOAL_Y1);
-  ctx.fillRect(W-GOAL_DEPTH,GOAL_Y1,GOAL_DEPTH,GOAL_Y2-GOAL_Y1);
+  ctx.fillStyle = '#0a1628';
+  ctx.fillRect(0, 0, W, H);
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#0f172a');
+  grad.addColorStop(0.5, '#1e293b');
+  grad.addColorStop(1, '#0f172a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(0,0,0,.06)';
+  for (let x = 0; x < W; x += 40) ctx.fillRect(x, 0, 20, H);
+  const vig = ctx.createRadialGradient(W/2, H/2, 100, W/2, H/2, 350);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,.6)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(0,0,0,.35)';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(20, 20, W-40, H-40);
+
+  if (crowdDots) {
+    for (const d of crowdDots) {
+      ctx.fillStyle = d.c;
+      ctx.beginPath(); ctx.arc(d.x, d.y, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(d.x - 2.5, d.y + 2, 5, 5);
+      ctx.fillRect(d.x - 3, d.y + 6, 6, 2);
+    }
+  }
+
+  ctx.save();
+
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(0,0,0,.18)';
+  ctx.strokeRect(21, 21, W-42, H-42);
+  ctx.beginPath(); ctx.moveTo(W/2+1, 21); ctx.lineTo(W/2+1, H-19); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W/2+1, H/2+1, 60, 0, Math.PI*2); ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(20, 20, W-40, H-40);
+  ctx.beginPath(); ctx.moveTo(W/2, 20); ctx.lineTo(W/2, H-20); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W/2, H/2, 60, 0, Math.PI*2); ctx.stroke();
+  ctx.fillStyle = 'rgba(255,255,255,.7)';
+  ctx.beginPath(); ctx.arc(W/2, H/2, 4, 0, Math.PI*2); ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  for (const [cx, cy] of [[20,20],[W-20,20],[20,H-20],[W-20,H-20]]) {
+    ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI/2); ctx.stroke();
+  }
+
+  for (const [cx, cy] of [[20,20],[W-20,20],[20,H-20],[W-20,H-20]]) {
+    ctx.strokeStyle = 'rgba(255,255,255,.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx, cy-5); ctx.lineTo(cx, cy-13); ctx.stroke();
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.moveTo(cx, cy-11); ctx.lineTo(cx+5, cy-9); ctx.lineTo(cx, cy-7); ctx.closePath(); ctx.fill();
+  }
+
+  ctx.strokeRect(20, (H-180)/2, 100, 180);
+  ctx.strokeRect(W-120, (H-180)/2, 100, 180);
+
+  const GA_W = 50, GA_D = 36;
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.strokeRect(20, GOAL_Y1 - GA_W, GA_D, GOAL_Y2 - GOAL_Y1 + GA_W * 2);
+  ctx.strokeRect(W - 20 - GA_D, GOAL_Y1 - GA_W, GA_D, GOAL_Y2 - GOAL_Y1 + GA_W * 2);
+
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.arc(120, H/2, 4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W-120, H/2, 4, 0, Math.PI*2); ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,.2)';
+  ctx.beginPath(); ctx.arc(120, H/2, 32, -0.55, 0.55); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W-120, H/2, 32, Math.PI-0.55, Math.PI+0.55); ctx.stroke();
+
+  (function() {
+    const gd = GOAL_DEPTH;
+    for (const side of ['left','right']) {
+      const fx = side === 'left' ? 20 : W - 20;
+      const bx = side === 'left' ? 20 - gd : W - 20 + gd;
+      const nx = side === 'left' ? fx - gd : fx;
+      ctx.fillStyle = 'rgba(255,255,255,.04)';
+      ctx.fillRect(nx, GOAL_Y1, gd, GOAL_Y2 - GOAL_Y1);
+      ctx.strokeStyle = 'rgba(255,255,255,.1)';
+      ctx.lineWidth = 0.6;
+      for (let yy = GOAL_Y1 + 7; yy < GOAL_Y2; yy += 7) {
+        ctx.beginPath(); ctx.moveTo(nx, yy); ctx.lineTo(fx, yy); ctx.stroke();
+      }
+      for (let xx = nx + 5; xx < fx; xx += 5) {
+        ctx.beginPath(); ctx.moveTo(xx, GOAL_Y1); ctx.lineTo(xx, GOAL_Y2); ctx.stroke();
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,.25)';
+      ctx.lineWidth = 4.5;
+      ctx.beginPath(); ctx.moveTo(fx+1, GOAL_Y1+1); ctx.lineTo(fx+1, GOAL_Y2+1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.moveTo(fx, GOAL_Y1); ctx.lineTo(fx, GOAL_Y2); ctx.stroke();
+      for (const [px, py, r] of [[fx, GOAL_Y1, 4],[fx, GOAL_Y2, 4]]) {
+        const pg = ctx.createRadialGradient(px-1.5, py-1.5, 0.5, px, py, r);
+        pg.addColorStop(0, '#ffffff');
+        pg.addColorStop(0.5, '#e0e0e0');
+        pg.addColorStop(1, '#999999');
+        ctx.fillStyle = pg;
+        ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+      }
+      for (const [px, py, r] of [[bx, GOAL_Y1, 2.5],[bx, GOAL_Y2, 2.5]]) {
+        const pg = ctx.createRadialGradient(px-1, py-1, 0.3, px, py, r);
+        pg.addColorStop(0, '#cccccc');
+        pg.addColorStop(1, '#666666');
+        ctx.fillStyle = pg;
+        ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  })();
+
+  ctx.restore();
 }
 
-function drawEntity(x,y,r,color,isBall=false) {
+function drawEntity(x,y,r,color,isBall=false,label=null) {
+  if(isBall) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.3)';
+    ctx.shadowBlur  = 8;
+    ctx.shadowOffsetY = 3;
+    ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
+    ctx.fillStyle = BALL_BASE_COLOR;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
+    ctx.fillStyle = '#1e293b';
+    const pr = r * 0.38;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = (i * 2 * Math.PI / 5) - Math.PI / 2;
+      const px = x + pr * Math.cos(a);
+      const py = y + pr * Math.sin(a);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    for (let i = 0; i < 5; i++) {
+      const a = (i * 2 * Math.PI / 5) + Math.PI / 2;
+      const px = x + r * 0.62 * Math.cos(a);
+      const py = y + r * 0.62 * Math.sin(a);
+      ctx.beginPath();
+      ctx.arc(px, py, r * 0.22, 0, Math.PI*2);
+      ctx.fill();
+    }
+    ctx.restore();
+    return;
+  }
+
   ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2);
   ctx.fillStyle = color; ctx.fill();
-  if(!isBall) {
-    ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.stroke();
-    ctx.beginPath(); ctx.arc(x,y,r-4,0,Math.PI*2);
-    ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.stroke();
-  } else {
+  ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.stroke();
+  ctx.beginPath(); ctx.arc(x,y,r-5,0,Math.PI*2);
+  ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.stroke();
+
+  if (label != null) {
     ctx.fillStyle = '#fff';
-    ctx.beginPath(); ctx.arc(x-3,y-3,4,0,Math.PI*2); ctx.fill();
+    ctx.font = 'bold 11px Inter,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, x, y);
   }
+}
+
+function drawReferee(x, y) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.25)';
+  ctx.shadowBlur  = 6;
+  ctx.shadowOffsetY = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, 14, 0, Math.PI*2);
+  const g = ctx.createRadialGradient(x-2, y-3, 2, x, y, 14);
+  g.addColorStop(0, REF_CENTER_COLOR);
+  g.addColorStop(1, REF_EDGE_COLOR);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 8px Inter,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('REF', x, y + 0.5);
+  ctx.restore();
 }
 
 function drawState(st) {
   drawField();
-  for(let p of st.players_a) drawEntity(p.x, p.y, 16, '#3b82f6');
-  for(let p of st.players_b) drawEntity(p.x, p.y, 16, '#ef4444');
-  drawEntity(st.ball.x, st.ball.y, 10, '#f1f5f9', true);
-  
+  if (st.referee) drawReferee(st.referee.x, st.referee.y);
+  st.players_a.forEach((p,i) => drawEntity(p.x, p.y, 16, TEAM_A_COLOR, false, [1,7,10][i]));
+  st.players_b.forEach((p,i) => drawEntity(p.x, p.y, 16, TEAM_B_COLOR, false, [1,7,10][i]));
+  drawEntity(st.ball.x, st.ball.y, 10, null, true);
+
   document.getElementById('score-a').innerText = st.score_a;
   document.getElementById('score-b').innerText = st.score_b;
   document.getElementById('kick-count').innerText = currentMove;
@@ -125,48 +339,91 @@ function drawState(st) {
 function playNextMove() {
   if (isAnimating || currentMove >= replayData.length) return;
   const move = replayData[currentMove];
-  const traj = move.trajectory;
-  if (!traj || traj.length === 0) {
+  const raw = move.trajectory;
+  if (!raw || raw.length === 0) {
     currentMove++;
     return;
   }
+  
+  // Convert trajectory entries from _sim format (x,y,a,b,ref) to state format (ball,players_a,players_b,referee)
+  const traj = raw.map(pt => ({
+    ball: { x: pt.x, y: pt.y },
+    players_a: pt.a || [],
+    players_b: pt.b || [],
+    referee: pt.ref
+  }));
   
   isAnimating = true;
   document.getElementById('btn-next').disabled = true;
   document.getElementById('turn-badge').innerText = move.mover === 'a' ? "Player A's Move" : "Player B's Move";
   document.getElementById('turn-badge').className = "turn-badge " + (move.mover === 'a' ? "turn-a" : "turn-b");
   
+
+  
+  // Save pre-kick positions for goal slide-back (first frame of trajectory)
+  const _homeA = [{x:50,y:250},{x:320,y:195},{x:320,y:305}];
+  const _homeB = [{x:750,y:250},{x:480,y:195},{x:480,y:305}];
+  const _shirt = [1, 7, 10];
+  const _preA = traj[0].players_a.map(p => ({x: p.x, y: p.y}));
+  const _preB = traj[0].players_b.map(p => ({x: p.x, y: p.y}));
+  
   let frame = 0;
   function animate() {
     if (frame >= traj.length) {
-      // update final state
       let last = traj[traj.length-1];
       state.ball = last.ball;
       state.players_a = last.players_a;
       state.players_b = last.players_b;
-      if (move.scored === 'A') state.score_a++;
-      else if (move.scored === 'B') state.score_b++;
+      if (move.scored === 'A') { state.score_a++; SoundManager.goal(); }
+      else if (move.scored === 'B') { state.score_b++; SoundManager.goal(); }
       
-      currentMove++;
-      isAnimating = false;
-      document.getElementById('btn-next').disabled = false;
-      drawState(state);
-      
-      if (autoPlayInterval && currentMove < replayData.length) {
-        setTimeout(playNextMove, 500);
+      if (move.scored) {
+        // Animate slide-back: restore pre-kick positions, then slide to HOME
+        state.players_a.forEach((p, i) => { p.x = _preA[i].x; p.y = _preA[i].y; });
+        state.players_b.forEach((p, i) => { p.x = _preB[i].x; p.y = _preB[i].y; });
+        drawState(state);
+        const _dur = 200;
+        let _st = null;
+        function slide(ts) {
+          if (!_st) _st = ts;
+          const t = Math.min((ts - _st) / _dur, 1);
+          const e = 1 - Math.pow(1 - t, 2);
+          state.players_a.forEach((p, i) => {
+            p.x = _preA[i].x + (_homeA[i].x - _preA[i].x) * e;
+            p.y = _preA[i].y + (_homeA[i].y - _preA[i].y) * e;
+          });
+          state.players_b.forEach((p, i) => {
+            p.x = _preB[i].x + (_homeB[i].x - _preB[i].x) * e;
+            p.y = _preB[i].y + (_homeB[i].y - _preB[i].y) * e;
+          });
+          drawState(state);
+          if (t < 1) requestAnimationFrame(slide);
+          else { _finish(); }
+        }
+        requestAnimationFrame(slide);
+      } else {
+        _finish();
       }
       return;
     }
     
-    // Draw current frame
     let st = traj[frame];
     drawField();
-    for(let p of st.players_a) drawEntity(p.x, p.y, 16, '#3b82f6');
-    for(let p of st.players_b) drawEntity(p.x, p.y, 16, '#ef4444');
-    drawEntity(st.ball.x, st.ball.y, 10, '#f1f5f9', true);
+  st.players_a.forEach((p,i) => drawEntity(p.x, p.y, 16, TEAM_A_COLOR, false, [1,7,10][i]));
+  st.players_b.forEach((p,i) => drawEntity(p.x, p.y, 16, TEAM_B_COLOR, false, [1,7,10][i]));
+    drawEntity(st.ball.x, st.ball.y, 10, null, true);
     
     frame++;
     requestAnimationFrame(animate);
+  }
+  function _finish() {
+    currentMove++;
+    isAnimating = false;
+    document.getElementById('btn-next').disabled = false;
+    drawState(state);
+    if (autoPlayInterval && currentMove < replayData.length) {
+      setTimeout(playNextMove, 500);
+    }
   }
   animate();
 }

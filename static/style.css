@@ -175,6 +175,20 @@ nav {
   border-left: 1px solid var(--glass-border);
 }
 
+/* Sound toggle */
+.sound-toggle {
+  background: none;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: color .15s;
+  margin-left: 4px;
+}
+.sound-toggle:hover { color: var(--text-main); }
+
 /* Buttons */
 .btn {
   display: inline-flex;

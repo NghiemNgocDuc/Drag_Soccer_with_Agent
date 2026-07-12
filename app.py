@@ -15,7 +15,7 @@ from game.session import (
     get_game, save_game, new_game_state, push_snapshot, pop_snapshot,
     new_pg_state, get_pg, save_pg,
 )
-from models.soccer_logic import apply_kick
+from models.soccer_logic import apply_kick, apply_penalty_kick
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
@@ -94,13 +94,21 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "score_b":      state["score_b"],
         "is_player_a":  state["is_player_a"],
         "kick_count":   state.get("kick_count", 0),
-        "max_kicks":    state.get("max_kicks", 12),
+        "start_time":   state.get("start_time", 0),
         "game_over":    state.get("game_over", False),
         "winner":       state.get("winner"),
         "game_mode":    state.get("game_mode", "hvai"),
+        "player_count": state.get("player_count", 3),
+        "period":       state.get("period", "regular_first"),
+        "penalty_shootout": state.get("penalty_shootout", False),
+        "penalty_kick_num": state.get("penalty_kick_num", 0),
+        "penalty_a_score":  state.get("penalty_a_score", 0),
+        "penalty_b_score":  state.get("penalty_b_score", 0),
+        "penalty_kicks":    state.get("penalty_kicks", []),
         "ai_model":     state.get("model_name_b", "greedy"),
         "ai_model_a":   state.get("model_name_a", "greedy"),
         "move_history": state.get("move_history", []),
+        "referee":     state.get("referee", {"x": 400.0, "y": 420.0}),
     }
     if extra:
         result.update(extra)
@@ -139,6 +147,29 @@ def _apply_move(state: dict, player_idx: int, angle: float, power: float, is_pla
         "power":         round(power, 1),
         "kick_endpoint": kick_endpoint,
         "push_result":   push_result,
+    }
+
+
+def _do_penalty_ai(state: dict, model_name: str, is_player_a: bool) -> dict:
+    """AI takes its penalty kick or chooses goalkeeper direction."""
+    import random
+    if state.get("penalty_goalkeeper_move") is None:
+        state["penalty_goalkeeper_move"] = random.choice(["left", "center", "right"])
+        return {"goalkeeper_move": state["penalty_goalkeeper_move"]}
+    model = _load_model(model_name)
+    player_idx, angle, power = model.get_ai_move(state, is_player_a)
+    result = _apply_move(state, player_idx, angle, power, is_player_a)
+    # Redo as penalty
+    traj, scored, desc = apply_penalty_kick(state, player_idx, angle, power, is_player_a)
+    return {
+        "trajectory": traj,
+        "scored": scored,
+        "desc": desc,
+        "player_idx": player_idx,
+        "angle": round(angle, 1),
+        "power": round(power, 1),
+        "kick_endpoint": traj[-1].get("kicker", {"x": traj[-1]["x"], "y": traj[-1]["y"]}),
+        "push_result": None,
     }
 
 
@@ -334,12 +365,22 @@ def human_move():
     angle      = float(data.get("angle", 0.0))
     power      = max(0.0, min(100.0, float(data.get("power", 80.0))))
 
-    result = _apply_move(state, player_idx, angle, power, True)
-    extra  = {"move_result": result}
-
-    if state["game_mode"] == "hvai" and not state["is_player_a"] and not state.get("game_over"):
-        ai_res = _do_ai_move(state, state["model_name_b"], False)
-        extra["ai_result"] = ai_res
+    if state.get("penalty_shootout"):
+        traj, scored, desc = apply_penalty_kick(state, player_idx, angle, power, True)
+        result = {
+            "trajectory": traj,
+            "scored": scored,
+            "desc": desc,
+            "player_idx": player_idx,
+            "angle": round(angle, 1),
+            "power": round(power, 1),
+            "kick_endpoint": traj[-1].get("kicker", {"x": traj[-1]["x"], "y": traj[-1]["y"]}),
+            "push_result": None,
+        }
+        extra = {"move_result": result}
+    else:
+        result = _apply_move(state, player_idx, angle, power, True)
+        extra = {"move_result": result}
 
     save_game(user_id, state)
     return jsonify(_full_state(state, extra))
@@ -354,7 +395,23 @@ def trigger_ai_move():
         return jsonify(_full_state(state, {"error": "Game is over"}))
     is_player_a = state["is_player_a"]
     model_name  = state["model_name_a"] if is_player_a else state["model_name_b"]
-    result = _do_ai_move(state, model_name, is_player_a)
+    if state.get("penalty_shootout"):
+        if state.get("penalty_goalkeeper_move") is None and not is_player_a:
+            return jsonify({"error": "Goalkeeper must choose direction first"}), 400
+        if state.get("penalty_goalkeeper_move") is None:
+            import random
+            state["penalty_goalkeeper_move"] = random.choice(["left", "center", "right"])
+        model = _load_model(model_name)
+        pidx, ang, pwr = model.get_ai_move(state, is_player_a)
+        traj, scored, desc = apply_penalty_kick(state, pidx, ang, pwr, is_player_a)
+        result = {
+            "trajectory": traj, "scored": scored, "desc": desc,
+            "player_idx": pidx, "angle": round(ang, 1), "power": round(pwr, 1),
+            "kick_endpoint": traj[-1].get("kicker", {"x": traj[-1]["x"], "y": traj[-1]["y"]}),
+            "push_result": None,
+        }
+    else:
+        result = _do_ai_move(state, model_name, is_player_a)
     save_game(user_id, state)
     return jsonify(_full_state(state, {"ai_result": result}))
 
@@ -378,6 +435,22 @@ def switch_model():
     return jsonify({"status": f"Model {target} -> {name}"})
 
 
+@app.route("/goalkeeper_move", methods=["POST"])
+@login_required
+def goalkeeper_move():
+    user_id = uid()
+    state = get_game(user_id)
+    if not state.get("penalty_shootout"):
+        return jsonify({"error": "Not in penalty shootout"}), 400
+    data = request.get_json(silent=True) or {}
+    direction = data.get("direction", "center")
+    if direction not in ("left", "center", "right"):
+        return jsonify({"error": "Invalid direction"}), 400
+    state["penalty_goalkeeper_move"] = direction
+    save_game(user_id, state)
+    return jsonify({"ok": True})
+
+
 @app.route("/set_mode", methods=["POST"])
 @login_required
 def set_mode():
@@ -396,10 +469,14 @@ def set_mode():
 def reset_game():
     user_id   = uid()
     old_state = get_game(user_id)
+    data = request.get_json(silent=True) or {}
+    pc = int(data.get("player_count", old_state.get("player_count", 3)))
+    pc = max(1, min(11, pc))
     state = new_game_state(
         mode    = old_state.get("game_mode", "hvai"),
         model_b = old_state.get("model_name_b", "greedy"),
         model_a = old_state.get("model_name_a", "greedy"),
+        player_count = pc,
     )
     save_game(user_id, state)
     return jsonify(_full_state(state))

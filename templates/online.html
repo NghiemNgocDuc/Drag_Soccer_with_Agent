@@ -102,7 +102,7 @@ main{max-width:1000px;margin:0 auto;padding:24px 16px;display:flex;flex-directio
 .team-a .team-score{color:var(--accent-a)}
 .team-b .team-score{color:var(--accent-b)}
 .hud-mid{display:flex;flex-direction:column;align-items:center;gap:6px}
-.kick-counter{font-size:.72rem;color:var(--muted);font-weight:500}
+.kick-counter{font-size:1.6rem;color:#000;font-weight:700;line-height:1}
 .turn-badge{padding:4px 14px;border-radius:20px;font-size:.78rem;font-weight:600}
 .turn-badge.turn-a{background:rgba(59,130,246,.15);color:var(--accent-a)}
 .turn-badge.turn-b{background:rgba(239,68,68,.15);color:var(--accent-b)}
@@ -133,6 +133,14 @@ main{max-width:1000px;margin:0 auto;padding:24px 16px;display:flex;flex-directio
   animation:spin .7s linear infinite;
 }
 @keyframes spin{to{transform:rotate(360deg)}}
+.sound-btn{
+  position:absolute;top:8px;right:8px;z-index:10;
+  width:32px;height:32px;border-radius:8px;border:none;
+  background:rgba(255,255,255,.2);color:#fff;
+  font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .15s;line-height:1;
+}
+.sound-btn:hover{background:rgba(255,255,255,.4)}
 
 /* Controls */
 .controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px}
@@ -194,6 +202,7 @@ input[type=text]:focus,input[type=search]:focus{border-color:rgba(59,130,246,.4)
 .friends-add-row input{flex:1}
 .friend-status{font-size:.76rem;margin-top:6px}
 </style>
+<script src="/static/sound.js"></script>
 </head>
 <body>
 <nav>
@@ -207,7 +216,7 @@ input[type=text]:focus,input[type=search]:focus{border-color:rgba(59,130,246,.4)
     <a href="/profile" class="nav-link">Profile</a>
   </div>
   <span class="nav-user">{{ username }}</span>
-  <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
 </nav>
 
 <main>
@@ -298,8 +307,8 @@ input[type=text]:focus,input[type=search]:focus{border-color:rgba(59,130,246,.4)
         <div class="team-score" id="score-a">0</div>
       </div>
       <div class="hud-mid">
-        <div class="turn-badge turn-a" id="turn-badge">Waiting…</div>
-        <div class="kick-counter" id="kick-counter">Kick 0 / 12</div>
+        <div class="turn-badge turn-a" id="turn-badge">Your turn</div>
+        <div class="kick-counter" id="game-clock">00:00</div>
         <div class="winner-banner" id="winner-banner"></div>
       </div>
       <div class="team team-b">
@@ -317,8 +326,19 @@ input[type=text]:focus,input[type=search]:focus{border-color:rgba(59,130,246,.4)
           <span id="overlay-text">Waiting for opponent…</span>
         </div>
       </div>
+      <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
     </div>
 
+    <!-- Penalty shootout UI -->
+    <div id="penalty-ui" style="display:none">
+      <div id="penalty-keeper-btns" style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+        <button class="btn btn-primary" onclick="chooseKeeperDir('left')">← Left</button>
+        <button class="btn btn-primary" onclick="chooseKeeperDir('center')">Center</button>
+        <button class="btn btn-primary" onclick="chooseKeeperDir('right')">Right →</button>
+      </div>
+      <div id="penalty-keeper-timer" style="text-align:center;font-size:1.2rem;font-weight:700;color:var(--accent-a);margin-top:4px"></div>
+      <div id="penalty-score" style="text-align:center;font-size:.9rem;font-weight:600;color:var(--muted);margin-top:4px"></div>
+    </div>
     <div class="hint" id="hint-text">Waiting for game to start…</div>
 
     <!-- Controls -->
@@ -341,14 +361,51 @@ const AUTO_JOIN   = {{ (auto_join_room | default(None)) | tojson }};
 // ── Constants ────────────────────────────────────────────────────────────────
 const W = 800, H = 500;
 const PLAYER_R = 20, BALL_R = 12;
-const GOAL_Y1 = 185, GOAL_Y2 = 315, GOAL_DEPTH = 20;
-const TEAM_A_COLOR = '#3b82f6';
-const TEAM_B_COLOR = '#ef4444';
-const BALL_COLOR   = '#facc15';
+const GOAL_Y1 = 185, GOAL_Y2 = 315, GOAL_DEPTH = 40;
+let TEAM_A_COLOR = '#3b82f6';
+let TEAM_B_COLOR = '#ef4444';
+let BALL_BASE_COLOR = '#f8fafc';
+let REF_CENTER_COLOR = '#fde68a';
+let REF_EDGE_COLOR = '#d97706';
 const MAX_DRAG = 110;
 const PLAYER_TRAVEL = 3.0;
-const HOME_A = [{x:150,y:165},{x:150,y:250},{x:150,y:335}];
-const HOME_B = [{x:650,y:165},{x:650,y:250},{x:650,y:335}];
+
+const _CC = ['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc','#6366f1','#14b8a6','#f97316'];
+let crowdDots = null;
+function genCrowd() {
+  crowdDots = [];
+  for (let row = 0; row < 4; row++) {
+    const yy = [6 + row * 4, H - 6 - row * 4];
+    for (const y of yy) {
+      for (let x = 8; x < W - 8; x += 8 + (row % 4)) {
+        const jx = Math.sin(x * 0.37 + y * 0.13) * 2;
+        const jy = Math.cos(x * 0.23 + y * 0.41) * 1.5;
+        const c = _CC[Math.floor(Math.abs(Math.sin(x * 0.13 + y * 0.07 + row * 0.29)) * _CC.length)];
+        crowdDots.push({x: x + jx, y: y + jy, c});
+      }
+    }
+  }
+  for (let row = 0; row < 4; row++) {
+    const xx = [6 + row * 4, W - 6 - row * 4];
+    for (const x of xx) {
+      for (let y = 8; y < GOAL_Y1 - 4; y += 8 + (row % 4)) {
+        const jx = Math.sin(x * 0.31 + y * 0.17) * 1.5;
+        const jy = Math.cos(x * 0.19 + y * 0.43) * 2;
+        const c = _CC[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * _CC.length)];
+        crowdDots.push({x: x + jx, y: y + jy, c});
+      }
+      for (let y = GOAL_Y2 + 4; y < H - 8; y += 8 + (row % 4)) {
+        const jx = Math.sin(x * 0.31 + y * 0.17) * 1.5;
+        const jy = Math.cos(x * 0.19 + y * 0.43) * 2;
+        const c = _CC[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * _CC.length)];
+        crowdDots.push({x: x + jx, y: y + jy, c});
+      }
+    }
+  }
+}
+const HOME_A = [{x:50,y:250},{x:320,y:195},{x:320,y:305}];
+const HOME_B = [{x:750,y:250},{x:480,y:195},{x:480,y:305}];
+const SHIRT = [1, 7, 10];
 
 // ── Online state ─────────────────────────────────────────────────────────────
 let roomId      = null;
@@ -360,6 +417,27 @@ let waitPollTimer = null;
 // ── Game state ───────────────────────────────────────────────────────────────
 let gameState   = null;
 let isAnimating = false;
+
+let clockTimer = null;
+function startClock() {
+  if (clockTimer) clearInterval(clockTimer);
+  clockTimer = setInterval(() => {
+    if (!gameState) return;
+    if (gameState.game_over) return;
+    let elapsedReal = (Date.now() / 1000) - (gameState.start_time || (Date.now() / 1000));
+    let totalSec = Math.floor(elapsedReal * 20);
+    let m = Math.floor(totalSec / 60);
+    let s = totalSec % 60;
+    const period = gameState.period || 'regular';
+    let display = `${m}:${String(s).padStart(2,'0')}`;
+    if (period === 'et_first' || period === 'et_second') {
+      display += ' ET';
+    }
+    const clk = document.getElementById('game-clock');
+    if (clk) clk.textContent = display;
+  }, 100);
+}
+startClock();
 let animSpeed   = 1.0;
 
 let dragPlayer  = null;
@@ -381,37 +459,121 @@ function cssToCv(e) {
 
 // ── Drawing ──────────────────────────────────────────────────────────────────
 function drawField() {
+  ctx.fillStyle = '#0a1628';
+  ctx.fillRect(0, 0, W, H);
   const grad = ctx.createLinearGradient(0, 0, W, H);
   grad.addColorStop(0,   '#0f172a');
   grad.addColorStop(0.5, '#1e293b');
   grad.addColorStop(1,   '#0f172a');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = 'rgba(0,0,0,.06)';
+  for (let x = 0; x < W; x += 40) {
+    ctx.fillRect(x, 0, 20, H);
+  }
+  const vig = ctx.createRadialGradient(W/2, H/2, 100, W/2, H/2, 350);
+  vig.addColorStop(0, 'rgba(0,0,0,0)');
+  vig.addColorStop(1, 'rgba(0,0,0,.6)');
+  ctx.fillStyle = vig;
+  ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = 'rgba(0,0,0,.04)';
-  for (let x = 0; x < W; x += 80) ctx.fillRect(x, 0, 40, H);
-
-  ctx.save();
-  ctx.strokeStyle = 'rgba(255,255,255,.2)';
-  ctx.lineWidth   = 2;
-
+  ctx.strokeStyle = 'rgba(0,0,0,.35)';
+  ctx.lineWidth = 8;
   ctx.strokeRect(20, 20, W-40, H-40);
 
+  if (crowdDots) {
+    for (const d of crowdDots) {
+      ctx.fillStyle = d.c;
+      ctx.beginPath(); ctx.arc(d.x, d.y, 2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(d.x - 2.5, d.y + 2, 5, 5);
+      ctx.fillRect(d.x - 3, d.y + 6, 6, 2);
+    }
+  }
+
+  ctx.save();
+
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(0,0,0,.18)';
+  ctx.strokeRect(21, 21, W-42, H-42);
+  ctx.beginPath(); ctx.moveTo(W/2+1, 21); ctx.lineTo(W/2+1, H-19); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W/2+1, H/2+1, 60, 0, Math.PI*2); ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.lineWidth   = 2;
+  ctx.strokeRect(20, 20, W-40, H-40);
   ctx.beginPath(); ctx.moveTo(W/2, 20); ctx.lineTo(W/2, H-20); ctx.stroke();
-
   ctx.beginPath(); ctx.arc(W/2, H/2, 60, 0, Math.PI*2); ctx.stroke();
-
-  ctx.fillStyle = 'rgba(255,255,255,.65)';
+  ctx.fillStyle = 'rgba(255,255,255,.7)';
   ctx.beginPath(); ctx.arc(W/2, H/2, 4, 0, Math.PI*2); ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  for (const [cx, cy] of [[20,20],[W-20,20],[20,H-20],[W-20,H-20]]) {
+    ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI/2); ctx.stroke();
+  }
+
+  for (const [cx, cy] of [[20,20],[W-20,20],[20,H-20],[W-20,H-20]]) {
+    ctx.strokeStyle = 'rgba(255,255,255,.6)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx, cy-5); ctx.lineTo(cx, cy-13); ctx.stroke();
+    ctx.fillStyle = '#ef4444';
+    ctx.beginPath(); ctx.moveTo(cx, cy-11); ctx.lineTo(cx+5, cy-9); ctx.lineTo(cx, cy-7); ctx.closePath(); ctx.fill();
+  }
 
   ctx.strokeRect(20, (H-180)/2, 100, 180);
   ctx.strokeRect(W-120, (H-180)/2, 100, 180);
 
-  ctx.fillStyle = 'rgba(255,255,255,.18)';
-  ctx.fillRect(0, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
-  ctx.strokeRect(0, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
-  ctx.fillRect(W-GOAL_DEPTH, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
-  ctx.strokeRect(W-GOAL_DEPTH, GOAL_Y1, GOAL_DEPTH, GOAL_Y2-GOAL_Y1);
+  const GA_W = 50, GA_D = 36;
+  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.strokeRect(20, GOAL_Y1 - GA_W, GA_D, GOAL_Y2 - GOAL_Y1 + GA_W * 2);
+  ctx.strokeRect(W - 20 - GA_D, GOAL_Y1 - GA_W, GA_D, GOAL_Y2 - GOAL_Y1 + GA_W * 2);
+
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.beginPath(); ctx.arc(120, H/2, 4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(W-120, H/2, 4, 0, Math.PI*2); ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255,255,255,.2)';
+  ctx.beginPath(); ctx.arc(120, H/2, 32, -0.55, 0.55); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W-120, H/2, 32, Math.PI-0.55, Math.PI+0.55); ctx.stroke();
+
+  (function drawBothGoals() {
+    const gd = GOAL_DEPTH;
+    for (const side of ['left', 'right']) {
+      const frontX = side === 'left' ? 20 : W - 20;
+      const backX  = side === 'left' ? 20 - gd : W - 20 + gd;
+      const netX   = side === 'left' ? frontX - gd : frontX;
+      ctx.fillStyle = 'rgba(255,255,255,.04)';
+      ctx.fillRect(netX, GOAL_Y1, gd, GOAL_Y2 - GOAL_Y1);
+      ctx.strokeStyle = 'rgba(255,255,255,.1)';
+      ctx.lineWidth = 0.6;
+      for (let yy = GOAL_Y1 + 7; yy < GOAL_Y2; yy += 7) {
+        ctx.beginPath(); ctx.moveTo(netX, yy); ctx.lineTo(frontX, yy); ctx.stroke();
+      }
+      for (let xx = netX + 5; xx < frontX; xx += 5) {
+        ctx.beginPath(); ctx.moveTo(xx, GOAL_Y1); ctx.lineTo(xx, GOAL_Y2); ctx.stroke();
+      }
+      ctx.strokeStyle = 'rgba(0,0,0,.25)';
+      ctx.lineWidth = 4.5;
+      ctx.beginPath(); ctx.moveTo(frontX+1, GOAL_Y1+1); ctx.lineTo(frontX+1, GOAL_Y2+1); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.moveTo(frontX, GOAL_Y1); ctx.lineTo(frontX, GOAL_Y2); ctx.stroke();
+      for (const [px, py, r] of [[frontX, GOAL_Y1, 4],[frontX, GOAL_Y2, 4]]) {
+        const pg = ctx.createRadialGradient(px-1.5, py-1.5, 0.5, px, py, r);
+        pg.addColorStop(0, '#ffffff');
+        pg.addColorStop(0.5, '#e0e0e0');
+        pg.addColorStop(1, '#999999');
+        ctx.fillStyle = pg;
+        ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+      }
+      for (const [px, py, r] of [[backX, GOAL_Y1, 2.5],[backX, GOAL_Y2, 2.5]]) {
+        const pg = ctx.createRadialGradient(px-1, py-1, 0.3, px, py, r);
+        pg.addColorStop(0, '#cccccc');
+        pg.addColorStop(1, '#666666');
+        ctx.fillStyle = pg;
+        ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+      }
+    }
+  })();
 
   ctx.restore();
 }
@@ -455,20 +617,71 @@ function drawPlayer(x, y, team, label, highlight) {
   ctx.restore();
 }
 
-function drawBall(x, y) {
+function drawReferee(x, y) {
+  ctx.save();
+  ctx.shadowColor = 'rgba(0,0,0,.25)';
+  ctx.shadowBlur  = 6;
+  ctx.shadowOffsetY = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, 16, 0, Math.PI*2);
+  const g = ctx.createRadialGradient(x-3, y-4, 2, x, y, 16);
+  g.addColorStop(0, REF_CENTER_COLOR);
+  g.addColorStop(1, REF_EDGE_COLOR);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.7)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 9px Inter,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('REF', x, y + 0.5);
+  ctx.restore();
+}
+
+function drawSoccerBall(x, y, r) {
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,.3)';
   ctx.shadowBlur  = 10;
   ctx.shadowOffsetY = 4;
-  const g = ctx.createRadialGradient(x-3, y-4, 1, x, y, BALL_R);
-  g.addColorStop(0, '#fff');
-  g.addColorStop(0.4, BALL_COLOR);
-  g.addColorStop(1, '#d97706');
-  ctx.fillStyle = g;
+
   ctx.beginPath();
-  ctx.arc(x, y, BALL_R, 0, Math.PI*2);
+  ctx.arc(x, y, r, 0, Math.PI*2);
+  ctx.fillStyle = BALL_BASE_COLOR;
   ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.25)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+
+  ctx.fillStyle = '#1e293b';
+  const pr = r * 0.38;
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = (i * 2 * Math.PI / 5) - Math.PI / 2;
+    const px = x + pr * Math.cos(a);
+    const py = y + pr * Math.sin(a);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#1e293b';
+  for (let i = 0; i < 5; i++) {
+    const a = (i * 2 * Math.PI / 5) + Math.PI / 2;
+    const px = x + r * 0.62 * Math.cos(a);
+    const py = y + r * 0.62 * Math.sin(a);
+    ctx.beginPath();
+    ctx.arc(px, py, r * 0.22, 0, Math.PI*2);
+    ctx.fill();
+  }
+
   ctx.restore();
+}
 }
 
 function calcPull(home) {
@@ -551,16 +764,20 @@ function render(ballOverride) {
   }
 
   const aiB = aiDragPreview && aiDragPreview.team === 'b' ? aiDragPreview.playerIdx : -1;
-  gameState.players_b.forEach((p, i) => drawPlayer(p.x, p.y, 'b', i+1, i === aiB));
+  gameState.players_b.forEach((p, i) => drawPlayer(p.x, p.y, 'b', SHIRT[i], i === aiB));
 
   const canHlA = myTurn && mySide === 'a';
   const aiA = aiDragPreview && aiDragPreview.team === 'a' ? aiDragPreview.playerIdx : -1;
   gameState.players_a.forEach((p, i) => {
     const hl = (canHlA && dragPlayer === null) || i === dragPlayer || i === aiA;
-    drawPlayer(p.x, p.y, 'a', i+1, hl);
+    drawPlayer(p.x, p.y, 'a', SHIRT[i], hl);
   });
 
-  drawBall(ball.x, ball.y);
+  if (gameState.referee) {
+    drawReferee(gameState.referee.x, gameState.referee.y);
+  }
+
+  drawSoccerBall(ball.x, ball.y, BALL_R);
 
   if (pull !== null) {
     drawDragVisuals(pull.hx, pull.hy, pull.pullX, pull.pullY, pull.power, pull.kickAngle);
@@ -575,7 +792,6 @@ function render(ballOverride) {
 function updateHUD(st, na, nb) {
   document.getElementById('score-a').textContent = st.score_a;
   document.getElementById('score-b').textContent = st.score_b;
-  document.getElementById('kick-counter').textContent = `Kick ${st.kick_count} / ${st.max_kicks}`;
   if (na) document.getElementById('name-a').textContent = na;
   if (nb) document.getElementById('name-b').textContent = nb;
 
@@ -600,7 +816,9 @@ function updateHUD(st, na, nb) {
     tb.style.display = 'none';
     hint.textContent = 'Game over';
     stopPolling();
+    if (!window._whistlePlayed) { window._whistlePlayed = true; SoundManager.whistle(); }
   } else {
+    window._whistlePlayed = false;
     wb.style.display = 'none';
     tb.style.display = '';
     const isA = st.is_player_a;
@@ -629,9 +847,11 @@ function animateTrajectory(trajectory, onDone) {
   const msPerFrame = Math.max(8, 24 / animSpeed);
   function step() {
     if (i >= trajectory.length) { animBall = null; onDone(); return; }
-    const pt = trajectory[i++];
+    const pt = trajectory[i];
+    if (pt.b) SoundManager.bounce();
+    i++;
     animBall = { x: pt.x, y: pt.y };
-    if (pt.a && typeof gameState !== "undefined" && gameState.players_a) {
+    if (pt.a && pt.b && typeof gameState !== "undefined" && gameState.players_a && gameState.players_b) {
       for (let k = 0; k < 3; k++) {
         gameState.players_a[k].x = pt.a[k].x;
         gameState.players_a[k].y = pt.a[k].y;
@@ -705,11 +925,13 @@ function kickEndpoint(from, angleDeg, power) {
 function animateKickoff(onDone) {
   const fromA = gameState.players_a.map(p => ({x: p.x, y: p.y}));
   const fromB = gameState.players_b.map(p => ({x: p.x, y: p.y}));
-  const STEPS = 22;
-  let t = 0;
-  function tick() {
-    t++;
-    const ease = 1 - Math.pow(1 - t / STEPS, 2);
+  const duration = Math.max(120, 264 / animSpeed); // ms
+  let startTime = null;
+
+  function tick(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const t = Math.min((timestamp - startTime) / duration, 1.0);
+    const ease = 1 - Math.pow(1 - t, 2);
     gameState.players_a.forEach((p, i) => {
       p.x = fromA[i].x + (HOME_A[i].x - fromA[i].x) * ease;
       p.y = fromA[i].y + (HOME_A[i].y - fromA[i].y) * ease;
@@ -719,14 +941,14 @@ function animateKickoff(onDone) {
       p.y = fromB[i].y + (HOME_B[i].y - fromB[i].y) * ease;
     });
     render();
-    if (t < STEPS) setTimeout(tick, 12 / animSpeed);
+    if (t < 1.0) requestAnimationFrame(tick);
     else {
       gameState.players_a.forEach((p, i) => { p.x = HOME_A[i].x; p.y = HOME_A[i].y; });
       gameState.players_b.forEach((p, i) => { p.x = HOME_B[i].x; p.y = HOME_B[i].y; });
       onDone();
     }
   }
-  tick();
+  requestAnimationFrame(tick);
 }
 
 function syncBall(trajectory, scored) {
@@ -738,12 +960,10 @@ function syncBall(trajectory, scored) {
 // ── Animate an opponent's last_move from poll data ────────────────────────────
 async function animateOpponentMove(mr, opponentSide) {
   isAnimating = true;
-  const players = opponentSide === 'a' ? gameState.players_a : gameState.players_b;
-  const fromPos = { x: players[mr.player_idx].x, y: players[mr.player_idx].y };
-  const kickEnd = mr.kick_endpoint || kickEndpoint(fromPos, mr.angle, mr.power);
 
+  const _preA = gameState.players_a.map(p => ({x: p.x, y: p.y}));
+  const _preB = gameState.players_b.map(p => ({x: p.x, y: p.y}));
   await new Promise(r => showAIDragPreview(mr.player_idx, opponentSide, mr.angle, mr.power, r));
-  await new Promise(r => animatePlayerMove(mr.player_idx, opponentSide, fromPos, kickEnd, r));
   await new Promise(r => animateTrajectory(mr.trajectory, r));
   if (mr.push_result) {
     const pr = mr.push_result;
@@ -752,7 +972,10 @@ async function animateOpponentMove(mr, opponentSide) {
   syncBall(mr.trajectory, mr.scored);
   logMove(mr.desc, !!mr.scored);
   if (mr.scored) {
+    SoundManager.goal();
     await new Promise(r => setTimeout(r, 400 / animSpeed));
+    gameState.players_a.forEach((p, i) => { p.x = _preA[i].x; p.y = _preA[i].y; });
+    gameState.players_b.forEach((p, i) => { p.x = _preB[i].x; p.y = _preB[i].y; });
     await new Promise(r => animateKickoff(r));
   }
   isAnimating = false;
@@ -780,9 +1003,9 @@ async function submitKick(playerIdx, angleDeg, power) {
   }
 
   const mr = data.move_result;
-  const kickEnd = mr.kick_endpoint || kickEndpoint(fromPos, angleDeg, power);
 
-  await new Promise(r => animatePlayerMove(playerIdx, mySide, fromPos, kickEnd, r));
+  const _preA = gameState.players_a.map(p => ({x: p.x, y: p.y}));
+  const _preB = gameState.players_b.map(p => ({x: p.x, y: p.y}));
   await new Promise(r => animateTrajectory(mr.trajectory, r));
   if (mr.push_result) {
     const pr = mr.push_result;
@@ -791,7 +1014,10 @@ async function submitKick(playerIdx, angleDeg, power) {
   syncBall(mr.trajectory, mr.scored);
   logMove(mr.desc, !!mr.scored);
   if (mr.scored) {
+    SoundManager.goal();
     await new Promise(r => setTimeout(r, 400 / animSpeed));
+    gameState.players_a.forEach((p, i) => { p.x = _preA[i].x; p.y = _preA[i].y; });
+    gameState.players_b.forEach((p, i) => { p.x = _preB[i].x; p.y = _preB[i].y; });
     await new Promise(r => animateKickoff(r));
   }
 
@@ -1274,6 +1500,7 @@ document.addEventListener('click', e => {
 
 // ── Init ─────────────────────────────────────────────────────────────────────
 (async () => {
+  genCrowd();
   // Load initial invites and friends
   loadInvites();
   loadFriends();
