@@ -364,23 +364,25 @@ function genFormation(count) {
   sh.push(1);
   if (count < 2) return {ha, hb, sh: sh.slice(0, count)};
   const outfield = count - 1;
-  const nDef = Math.max(1, Math.floor(outfield / 2));
-  const nAtk = outfield - nDef;
-  const defXA = 50 + (400 - 50) * 0.25;
-  const atkXA = 50 + (400 - 50) * 0.70;
-  const defXB = 750 + (400 - 750) * 0.25;
-  const atkXB = 750 + (400 - 750) * 0.70;
-  const yRange = Math.min(360, 50 + outfield * 30);
+  const fm = {1:[0,0,1],2:[1,0,1],3:[1,1,1],4:[2,0,2],5:[2,1,2],6:[3,1,2],7:[3,2,2],8:[4,2,2],9:[4,3,2],10:[4,3,3],11:[4,4,2]};
+  let [nDef, nMid, nAtk] = fm[count] || [outfield, 0, 0];
+  let tot = nDef + nMid + nAtk;
+  if (tot > outfield) nAtk -= tot - outfield;
+  else if (tot < outfield) nAtk += outfield - tot;
+
+  const yRange = Math.min(300, 80 + outfield * 20);
   const minY = 250 - yRange / 2;
   const maxY = 250 + yRange / 2;
-  for (let i = 0; i < nDef; i++) {
-    const y = minY + (i + 0.5) / nDef * yRange;
-    ha.push({x: defXA, y}); hb.push({x: defXB, y}); sh.push(i + 2);
+
+  function addRow(xA, xB, n) {
+    for (let i = 0; i < n; i++) {
+      const y = minY + (i + 0.5) / n * yRange;
+      ha.push({x: xA, y}); hb.push({x: xB, y}); sh.push(i + 2);
+    }
   }
-  for (let i = 0; i < nAtk; i++) {
-    const y = minY + (i + 0.5) / nAtk * yRange;
-    ha.push({x: atkXA, y}); hb.push({x: atkXB, y}); sh.push(nDef + i + 2);
-  }
+  addRow(130, 670, nDef);
+  addRow(225, 575, nMid);
+  addRow(320, 480, nAtk);
   return {ha, hb, sh: sh.slice(0, count)};
 }
 

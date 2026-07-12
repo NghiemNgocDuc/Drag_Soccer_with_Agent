@@ -33,29 +33,57 @@ PLAYER_COUNT: int = 3  # default, override via game state
 REFEREE_POS: tuple[float, float] = (400.0, 420.0)
 
 def _home_positions(count: int, side: str) -> list[tuple[float, float]]:
-    """Generate `count` home positions for one side. Index 0 = GK."""
+    """Generate realistic soccer formation. Index 0 = GK."""
     if side == "a":
-        gk_x, cx = 50.0, 400.0
+        gk_x = 50.0
+        def_x = 130.0
+        mid_x = 225.0
+        atk_x = 320.0
     else:
-        gk_x, cx = 750.0, 400.0
+        gk_x = 750.0
+        def_x = 670.0
+        mid_x = 575.0
+        atk_x = 480.0
     positions = [(gk_x, 250.0)]
     if count < 2:
         return positions[:count]
+
     outfield = count - 1
-    # Split into defensive (closer to own goal) and attacking (closer to center) rows
-    n_def = max(1, outfield // 2)
-    n_atk = outfield - n_def
-    def_x = gk_x + (cx - gk_x) * 0.25
-    atk_x = gk_x + (cx - gk_x) * 0.70
-    y_range = min(360, 50 + outfield * 30)
+    # Define formations as (defenders, midfielders, forwards) — must sum to outfield
+    formations = {
+        1:  (0, 0, 1),
+        2:  (1, 0, 1),
+        3:  (1, 1, 1),
+        4:  (2, 0, 2),
+        5:  (2, 1, 2),
+        6:  (3, 1, 2),
+        7:  (3, 2, 2),
+        8:  (4, 2, 2),
+        9:  (4, 3, 2),
+        10: (4, 3, 3),
+        11: (4, 4, 2),
+    }
+    n_def, n_mid, n_atk = formations.get(count, (outfield, 0, 0))
+    # Adjust if sum doesn't match (safety)
+    total = n_def + n_mid + n_atk
+    if total > outfield:
+        n_atk -= total - outfield
+    elif total < outfield:
+        n_atk += outfield - total
+
+    y_range = min(300, 80 + outfield * 20)
     min_y = 250 - y_range / 2
     max_y = 250 + y_range / 2
-    def_ys = [min_y + (i + 0.5) / n_def * y_range for i in range(n_def)]
-    atk_ys = [min_y + (i + 0.5) / n_atk * y_range for i in range(n_atk)]
-    for y in def_ys:
-        positions.append((def_x, y))
-    for y in atk_ys:
-        positions.append((atk_x, y))
+
+    def add_row(x_pos, n):
+        if n <= 0: return
+        for i in range(n):
+            y = min_y + (i + 0.5) / n * y_range
+            positions.append((x_pos, y))
+
+    add_row(def_x, n_def)
+    add_row(mid_x, n_mid)
+    add_row(atk_x, n_atk)
     return positions[:count]
 
 HOME_A: list[tuple[float, float]] = _home_positions(PLAYER_COUNT, "a")
