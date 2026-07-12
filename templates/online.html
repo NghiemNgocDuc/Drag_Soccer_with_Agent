@@ -319,7 +319,7 @@ input[type=text]:focus,input[type=search]:focus{border-color:rgba(59,130,246,.4)
 
     <!-- Canvas -->
     <div class="canvas-wrap">
-      <canvas id="game-canvas" width="800" height="500"></canvas>
+      <canvas id="game-canvas" width="1000" height="625"></canvas>
       <div class="canvas-overlay" id="canvas-overlay">
         <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
           <div class="spinner" id="overlay-spinner"></div>
@@ -359,15 +359,15 @@ const ME_USERNAME = {{ username | tojson }};
 const AUTO_JOIN   = {{ (auto_join_room | default(None)) | tojson }};
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const W = 800, H = 500;
+const W = 1000, H = 625;
 const PLAYER_R = 20, BALL_R = 12;
-const GOAL_Y1 = 185, GOAL_Y2 = 315, GOAL_DEPTH = 40;
+const GOAL_Y1 = 231, GOAL_Y2 = 394, GOAL_DEPTH = 50;
 let TEAM_A_COLOR = '#3b82f6';
 let TEAM_B_COLOR = '#ef4444';
 let BALL_BASE_COLOR = '#f8fafc';
 let REF_CENTER_COLOR = '#fde68a';
 let REF_EDGE_COLOR = '#d97706';
-const MAX_DRAG = 110;
+const MAX_DRAG = 138;
 const PLAYER_TRAVEL = 3.0;
 
 const _CC = ['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc','#6366f1','#14b8a6','#f97316'];
@@ -403,8 +403,8 @@ function genCrowd() {
     }
   }
 }
-const HOME_A = [{x:50,y:250},{x:320,y:195},{x:320,y:305}];
-const HOME_B = [{x:750,y:250},{x:480,y:195},{x:480,y:305}];
+const HOME_A = [{x:62,y:312},{x:400,y:244},{x:400,y:381}];
+const HOME_B = [{x:938,y:312},{x:600,y:244},{x:600,y:381}];
 const SHIRT = [1, 7, 10];
 
 // ── Online state ─────────────────────────────────────────────────────────────
@@ -954,7 +954,7 @@ function animateKickoff(onDone) {
 function syncBall(trajectory, scored) {
   if (!trajectory || trajectory.length === 0) return;
   const last = trajectory[trajectory.length - 1];
-  gameState.ball = scored ? { x: 400, y: 250 } : { x: last.x, y: last.y };
+  gameState.ball = scored ? { x: 500, y: 312 } : { x: last.x, y: last.y };
 }
 
 // ── Animate an opponent's last_move from poll data ────────────────────────────

@@ -412,11 +412,11 @@ state["players_b"]   # list of 3 {"x":…, "y":…}
 state["score_a"]     # int
 state["score_b"]     # int
 state["kick_count"]  # int
-state["max_kicks"]   # int (game ends here)</pre>
+state["start_time"]  # float (Unix timestamp of game start)</pre>
 
-            <div class="ins-section-title" style="margin-top:10px">Field layout (800 × 500)</div>
-            <pre class="ins-code"> x=0   ←GOAL B←          →GOAL A→   x=800
-        (y 185–315)        (y 185–315)
+            <div class="ins-section-title" style="margin-top:10px">Field layout (1000 × 625)</div>
+            <pre class="ins-code"> x=0  ←GOAL B←            →GOAL A→   x=1000
+        (y 231–394)        (y 231–394)
  is_player_a=True  → YOU attack RIGHT (x=800)
  is_player_a=False → YOU attack LEFT  (x=0)</pre>
           </div>

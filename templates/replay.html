@@ -59,7 +59,7 @@
     
     <div class="stadium">
     <div class="canvas-wrap">
-      <canvas id="game-canvas" width="800" height="500"></canvas>
+      <canvas id="game-canvas" width="1000" height="625"></canvas>
       <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
     </div>
     </div>
@@ -78,16 +78,16 @@ let isAnimating = false;
 let autoPlayInterval = null;
 
 let state = {
-  ball: {x: 400, y: 250},
-  players_a: [{x:50, y:250}, {x:320, y:195}, {x:320, y:305}],
-  players_b: [{x:750, y:250}, {x:480, y:195}, {x:480, y:305}],
+  ball: {x: 500, y: 312},
+  players_a: [{x:62, y:312}, {x:400, y:244}, {x:400, y:381}],
+  players_b: [{x:938, y:312}, {x:600, y:244}, {x:600, y:381}],
   score_a: 0,
   score_b: 0
 };
 
 const canvas = document.getElementById('game-canvas');
 const ctx = canvas.getContext('2d');
-const W = 800, H = 500, GOAL_Y1 = 185, GOAL_Y2 = 315, GOAL_DEPTH = 40;
+const W = 1000, H = 625, GOAL_Y1 = 231, GOAL_Y2 = 394, GOAL_DEPTH = 50;
 
 const _CC = ['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc','#6366f1','#14b8a6','#f97316'];
 

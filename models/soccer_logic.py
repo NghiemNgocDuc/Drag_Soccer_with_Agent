@@ -4,47 +4,54 @@ import math
 import time
 import pymunk
 
-FIELD_W: int   = 800
-FIELD_H: int   = 500
+FIELD_W: int   = 1000
+FIELD_H: int   = 625
 BALL_R: int    = 12
 PLAYER_R: int  = 20
-GOAL_Y1: float  = 185.0
-GOAL_Y2: float  = 315.0
+# Goal centered on field, ~26% of field height
+_GOAL_H: float = FIELD_H * 0.26
+GOAL_Y1: float  = (FIELD_H - _GOAL_H) / 2  # ~231
+GOAL_Y2: float  = (FIELD_H + _GOAL_H) / 2  # ~394
 POWER_SCALE: float = 0.55
 GOALS_TO_WIN: int  = 5
 _HALFTIME: int      = 135  # 45 min (3s per minute)
 _REGULAR_END: int  = 270  # 90 min (3s per minute)
 _ET_FIRST_END: int  = 315  # 90 + 15 min
 _ET_SECOND_END: int = 360  # 90 + 15 + 15 min
-_GOAL_DEPTH: float = 40.0
+_GOAL_DEPTH: float = 50.0
 
-# Penalty shootout constants
-_PENALTY_SPOT_X_A = 630.0   # Team A kicks toward right goal from here
-_PENALTY_SPOT_X_B = 170.0   # Team B kicks toward left goal from here
-_PENALTY_SPOT_Y   = 250.0
+# Penaly shootout constants — proportional to field
+_PENALTY_SPOT_X_A  = FIELD_W * 0.79     # ~788
+_PENALTY_SPOT_X_B  = FIELD_W * 0.21     # ~212
+_PENALTY_SPOT_Y    = FIELD_H * 0.5      # ~312
 _PENALTY_KICKER_BEHIND = 45.0
-_PENALTY_KEEPER_X_A = 755.0
-_PENALTY_KEEPER_X_B = 45.0
+_PENALTY_KEEPER_X_A    = FIELD_W * 0.95  # ~945
+_PENALTY_KEEPER_X_B    = FIELD_W * 0.05  # ~56
 _PENALTY_KEEPER_DIVE_VEL = 700.0
-_PENALTY_KEEPER_DIVE_TARGETS = {"left": 195.0, "center": 250.0, "right": 305.0}
+_PENALTY_KEEPER_DIVE_TARGETS = {
+    "left":   _PENALTY_SPOT_Y - FIELD_H * 0.11,  # ~243
+    "center": _PENALTY_SPOT_Y,                    # ~312
+    "right":  _PENALTY_SPOT_Y + FIELD_H * 0.11,   # ~381
+}
 _PENALTY_MAX_KICKS = 10  # 5 each
 PLAYER_COUNT: int = 3  # default, override via game state
 
-REFEREE_POS: tuple[float, float] = (400.0, 420.0)
+REFEREE_POS: tuple[float, float] = (FIELD_W / 2, FIELD_H - 80.0)  # (~500, ~545)
 
 def _home_positions(count: int, side: str) -> list[tuple[float, float]]:
     """Generate realistic soccer formation. Index 0 = GK."""
+    center_y = FIELD_H / 2
     if side == "a":
-        gk_x = 50.0
-        def_x = 130.0
-        mid_x = 225.0
-        atk_x = 320.0
+        gk_x = FIELD_W * 0.062  # ~62
+        def_x = FIELD_W * 0.162  # ~162
+        mid_x = FIELD_W * 0.281  # ~281
+        atk_x = FIELD_W * 0.4    # ~400
     else:
-        gk_x = 750.0
-        def_x = 670.0
-        mid_x = 575.0
-        atk_x = 480.0
-    positions = [(gk_x, 250.0)]
+        gk_x = FIELD_W * 0.938  # ~938
+        def_x = FIELD_W * 0.838  # ~838
+        mid_x = FIELD_W * 0.719  # ~719
+        atk_x = FIELD_W * 0.6    # ~600
+    positions = [(gk_x, center_y)]
     if count < 2:
         return positions[:count]
 
@@ -64,16 +71,14 @@ def _home_positions(count: int, side: str) -> list[tuple[float, float]]:
         11: (4, 4, 2),
     }
     n_def, n_mid, n_atk = formations.get(count, (outfield, 0, 0))
-    # Adjust if sum doesn't match (safety)
     total = n_def + n_mid + n_atk
     if total > outfield:
         n_atk -= total - outfield
     elif total < outfield:
         n_atk += outfield - total
 
-    y_range = min(300, 80 + outfield * 20)
-    min_y = 250 - y_range / 2
-    max_y = 250 + y_range / 2
+    y_range = min(FIELD_H * 0.6, 80 + outfield * 25)
+    min_y = center_y - y_range / 2
 
     def add_row(x_pos, n):
         if n <= 0: return
@@ -142,7 +147,7 @@ def new_soccer_state(
     home_a = _home_positions(player_count, "a")
     home_b = _home_positions(player_count, "b")
     return {
-        "ball":         {"x": 400.0, "y": 250.0},
+        "ball":         {"x": FIELD_W / 2, "y": FIELD_H / 2},
         "players_a":    [{"x": x, "y": y} for x, y in home_a],
         "players_b":    [{"x": x, "y": y} for x, y in home_b],
         "score_a":      0,
@@ -700,12 +705,12 @@ def apply_kick(
     # ── Score handling ──────────────────────────────────────────────────────
     if scored == "A":
         state["score_a"] += 1
-        state["ball"] = {"x": 400.0, "y": 250.0}
+        state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
         _reset_players(state)
         state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
     elif scored == "B":
         state["score_b"] += 1
-        state["ball"] = {"x": 400.0, "y": 250.0}
+        state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
         _reset_players(state)
         state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
 
@@ -749,7 +754,7 @@ def apply_kick(
             state["winner"] = "A" if sa > sb else "B"
     elif elapsed >= _ET_FIRST_END and period == "et_first":
         state["period"] = "et_second"
-        state["ball"] = {"x": 400.0, "y": 250.0}
+        state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
         _reset_players(state)
         state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
         state["is_player_a"] = not state["is_player_a"]
@@ -757,14 +762,14 @@ def apply_kick(
         if period == "regular_first":
             # Time jumped past halftime too — do halftime immediately
             state["period"] = "regular_second"
-            state["ball"] = {"x": 400.0, "y": 250.0}
+            state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
             _reset_players(state)
             state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
             state["is_player_a"] = state["first_kicker"] != "A"
         # Now handle full-time / extra time
         if sa == sb:
             state["period"] = "et_first"
-            state["ball"] = {"x": 400.0, "y": 250.0}
+            state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
             _reset_players(state)
             state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
             state["is_player_a"] = state["first_kicker"] != "A"
@@ -773,7 +778,7 @@ def apply_kick(
             state["winner"] = "A" if sa > sb else "B"
     elif elapsed >= _HALFTIME and period == "regular_first":
         state["period"] = "regular_second"
-        state["ball"] = {"x": 400.0, "y": 250.0}
+        state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
         _reset_players(state)
         state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
         state["is_player_a"] = state["first_kicker"] != "A"

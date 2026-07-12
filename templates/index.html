@@ -44,7 +44,7 @@ nav{
 }
 .nav-link:hover,.nav-link.active{background:rgba(59,130,246,.1);color:var(--accent-a)}
 .nav-user{font-size:.82rem;color:var(--muted);padding:6px 0 6px 12px;border-left:1px solid rgba(180,205,255,.4)}
-main{max-width:1000px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:16px}
+main{max-width:1200px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:16px}
 
 /* Score HUD */
 .hud{
@@ -116,10 +116,10 @@ main{max-width:1000px;margin:0 auto;padding:24px 16px;display:flex;flex-directio
   padding:16px;width:100vw;height:100vh;
 }
 #fs-wrap:fullscreen .hud,#fs-wrap:-webkit-full-screen .hud{
-  max-width:800px;width:100%;flex-shrink:0;
+  max-width:960px;width:100%;flex-shrink:0;
 }
 #fs-wrap:fullscreen .canvas-wrap,#fs-wrap:-webkit-full-screen .canvas-wrap{
-  flex:1 1 auto;width:100%;max-width:1000px;
+  flex:1 1 auto;width:100%;max-width:1200px;
   display:flex;align-items:center;justify-content:center;
 }
 #fs-wrap:fullscreen #game-canvas,#fs-wrap:-webkit-full-screen #game-canvas{
@@ -213,7 +213,7 @@ select{
 
     <!-- Canvas -->
     <div class="canvas-wrap" id="canvas-wrap">
-      <canvas id="game-canvas" width="1000" height="700"></canvas>
+      <canvas id="game-canvas" width="1200" height="825"></canvas>
       <div class="canvas-overlay" id="canvas-overlay">
         <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
           <div class="spinner" id="overlay-spinner"></div>
@@ -303,9 +303,9 @@ select{
 
 <script>
 // ── Constants ────────────────────────────────────────────────────────────────
-const W = 800, H = 500;
+const W = 1000, H = 625;
 const PLAYER_R = 20, BALL_R = 12;
-const GOAL_Y1 = 185, GOAL_Y2 = 315, GOAL_DEPTH = 40;  // depth = field margin so goal mouth is at white line
+const GOAL_Y1 = 231, GOAL_Y2 = 394, GOAL_DEPTH = 50;
 let TEAM_A_COLOR = '#3b82f6';
 let TEAM_B_COLOR = '#ef4444';
 let BALL_BASE_COLOR = '#f8fafc';
@@ -314,7 +314,7 @@ let REF_EDGE_COLOR = '#d97706';
 let BG_CENTER_COLOR = '#2a2518';
 let BG_MID_COLOR = '#1a1812';
 let BG_EDGE_COLOR = '#080807';
-const MAX_DRAG = 110;  // px on canvas scale
+const MAX_DRAG = 138;  // px on canvas scale
 const PLAYER_TRAVEL = 3.0;  // must match _PLAYER_TRAVEL in soccer_logic.py
 
 // ── Crowd data (generated once) ──
@@ -353,14 +353,15 @@ function genCrowd() {
     }
   }
 }
-let HOME_A = [{x:50,y:250},{x:320,y:195},{x:320,y:305}];
-let HOME_B = [{x:750,y:250},{x:480,y:195},{x:480,y:305}];
+let HOME_A = [{x:62,y:312},{x:400,y:244},{x:400,y:381}];
+let HOME_B = [{x:938,y:312},{x:600,y:244},{x:600,y:381}];
 let SHIRT = [1, 7, 10];
 
 function genFormation(count) {
   const ha = [], hb = [], sh = [];
-  ha.push({x:50, y:250});
-  hb.push({x:750, y:250});
+  const cx = W / 2, cy = H / 2;
+  ha.push({x: W * 0.062, y: cy});
+  hb.push({x: W * 0.938, y: cy});
   sh.push(1);
   if (count < 2) return {ha, hb, sh: sh.slice(0, count)};
   const outfield = count - 1;
@@ -370,9 +371,8 @@ function genFormation(count) {
   if (tot > outfield) nAtk -= tot - outfield;
   else if (tot < outfield) nAtk += outfield - tot;
 
-  const yRange = Math.min(300, 80 + outfield * 20);
-  const minY = 250 - yRange / 2;
-  const maxY = 250 + yRange / 2;
+  const yRange = Math.min(H * 0.6, 80 + outfield * 25);
+  const minY = cy - yRange / 2;
 
   function addRow(xA, xB, n) {
     for (let i = 0; i < n; i++) {
@@ -380,9 +380,9 @@ function genFormation(count) {
       ha.push({x: xA, y}); hb.push({x: xB, y}); sh.push(i + 2);
     }
   }
-  addRow(130, 670, nDef);
-  addRow(225, 575, nMid);
-  addRow(320, 480, nAtk);
+  addRow(162, 838, nDef);
+  addRow(281, 719, nMid);
+  addRow(400, 600, nAtk);
   return {ha, hb, sh: sh.slice(0, count)};
 }
 
@@ -803,16 +803,16 @@ function drawDragVisuals(hx, hy, pullX, pullY, power, kickAngle, cx, cy) {
 
 function render(ballOverride) {
   if (!gameState) return;
-  ctx.clearRect(0, 0, 1000, 700);
+  ctx.clearRect(0, 0, 1200, 825);
 
   // Warm floodlit glow
   ctx.save();
-  const bgGrad = ctx.createRadialGradient(500, 350, 50, 500, 350, 700);
+  const bgGrad = ctx.createRadialGradient(600, 412, 60, 600, 412, 850);
   bgGrad.addColorStop(0, BG_CENTER_COLOR);
   bgGrad.addColorStop(0.3, BG_MID_COLOR);
   bgGrad.addColorStop(1, BG_EDGE_COLOR);
   ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, 1000, 700);
+  ctx.fillRect(0, 0, 1200, 825);
   ctx.restore();
 
   ctx.save();
@@ -1161,7 +1161,7 @@ function syncBall(trajectory, scored) {
   if (!trajectory || trajectory.length === 0) return;
   const last = trajectory[trajectory.length - 1];
   // If a goal was scored the ball resets to centre; otherwise stay at final spot.
-  gameState.ball = scored ? { x: 400, y: 250 } : { x: last.x, y: last.y };
+  gameState.ball = scored ? { x: 500, y: 312 } : { x: last.x, y: last.y };
 }
 
 let keepTimer = null;
