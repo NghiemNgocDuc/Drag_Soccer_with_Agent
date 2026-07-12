@@ -363,19 +363,25 @@ function genFormation(count) {
   hb.push({x:750, y:250});
   sh.push(1);
   if (count < 2) return {ha, hb, sh: sh.slice(0, count)};
-  const outfield = count - 1, minY = 55, maxY = 445;
-  for (let i = 0; i < outfield; i++) {
-    const t = (i + 0.5) / outfield;
-    const xA = 50 + (320 - 50) * t;
-    const xB = 750 + (480 - 750) * t;
-    const spread = Math.min(80 + t * 60, (maxY - minY) / Math.max(1, outfield - 1));
-    const yOff = (i - (outfield - 1) / 2) * spread;
-    const y = Math.max(minY, Math.min(maxY, 250 + yOff));
-    ha.push({x: xA, y});
-    hb.push({x: xB, y});
-    sh.push(i + 2);
+  const outfield = count - 1;
+  const nDef = Math.max(1, Math.floor(outfield / 2));
+  const nAtk = outfield - nDef;
+  const defXA = 50 + (400 - 50) * 0.25;
+  const atkXA = 50 + (400 - 50) * 0.70;
+  const defXB = 750 + (400 - 750) * 0.25;
+  const atkXB = 750 + (400 - 750) * 0.70;
+  const yRange = Math.min(360, 50 + outfield * 30);
+  const minY = 250 - yRange / 2;
+  const maxY = 250 + yRange / 2;
+  for (let i = 0; i < nDef; i++) {
+    const y = minY + (i + 0.5) / nDef * yRange;
+    ha.push({x: defXA, y}); hb.push({x: defXB, y}); sh.push(i + 2);
   }
-  return {ha, hb, sh};
+  for (let i = 0; i < nAtk; i++) {
+    const y = minY + (i + 0.5) / nAtk * yRange;
+    ha.push({x: atkXA, y}); hb.push({x: atkXB, y}); sh.push(nDef + i + 2);
+  }
+  return {ha, hb, sh: sh.slice(0, count)};
 }
 
 // ── State ────────────────────────────────────────────────────────────────────

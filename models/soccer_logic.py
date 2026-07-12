@@ -35,24 +35,28 @@ REFEREE_POS: tuple[float, float] = (400.0, 420.0)
 def _home_positions(count: int, side: str) -> list[tuple[float, float]]:
     """Generate `count` home positions for one side. Index 0 = GK."""
     if side == "a":
-        gk_x, far_x = 50.0, 320.0
+        gk_x, cx = 50.0, 400.0
     else:
-        gk_x, far_x = 750.0, 480.0
+        gk_x, cx = 750.0, 400.0
     positions = [(gk_x, 250.0)]
     if count < 2:
         return positions[:count]
     outfield = count - 1
-    # Clamp player y within field margins (roughly 45–455)
-    min_y, max_y = 55.0, 445.0
-    for i in range(outfield):
-        t = (i + 0.5) / outfield  # 0..1 across outfield range
-        x = gk_x + (far_x - gk_x) * t
-        # Spread outfield players vertically, clamped to field
-        spread = min(80 + t * 60, (max_y - min_y) / max(1, outfield - 1))
-        y_off = (i - (outfield - 1) / 2) * spread
-        y = max(min_y, min(max_y, 250.0 + y_off))
-        positions.append((x, y))
-    return positions
+    # Split into defensive (closer to own goal) and attacking (closer to center) rows
+    n_def = max(1, outfield // 2)
+    n_atk = outfield - n_def
+    def_x = gk_x + (cx - gk_x) * 0.25
+    atk_x = gk_x + (cx - gk_x) * 0.70
+    y_range = min(360, 50 + outfield * 30)
+    min_y = 250 - y_range / 2
+    max_y = 250 + y_range / 2
+    def_ys = [min_y + (i + 0.5) / n_def * y_range for i in range(n_def)]
+    atk_ys = [min_y + (i + 0.5) / n_atk * y_range for i in range(n_atk)]
+    for y in def_ys:
+        positions.append((def_x, y))
+    for y in atk_ys:
+        positions.append((atk_x, y))
+    return positions[:count]
 
 HOME_A: list[tuple[float, float]] = _home_positions(PLAYER_COUNT, "a")
 HOME_B: list[tuple[float, float]] = _home_positions(PLAYER_COUNT, "b")
