@@ -472,11 +472,19 @@ def reset_game():
     data = request.get_json(silent=True) or {}
     pc = int(data.get("player_count", old_state.get("player_count", 3)))
     pc = max(1, min(11, pc))
+    from db.customization import get_customization
+    cust = get_customization(user_id)
+    hl = int(cust.get("half_length", 45))
+    wl = int(cust.get("win_goal_limit", 5))
+    pcap = int(cust.get("power_cap", 100))
     state = new_game_state(
         mode    = old_state.get("game_mode", "hvai"),
         model_b = old_state.get("model_name_b", "greedy"),
         model_a = old_state.get("model_name_a", "greedy"),
         player_count = pc,
+        half_length = hl,
+        win_goal_limit = wl,
+        power_cap = pcap,
     )
     save_game(user_id, state)
     return jsonify(_full_state(state))
@@ -911,10 +919,11 @@ def online_move(room_id):
     expected = "a" if game["is_player_a"] else "b"
     if my_side != expected:
         return jsonify({"error": "Not your turn"}), 400
-    data = request.get_json(silent=True) or {}
+    data       = request.get_json(silent=True) or {}
     player_idx = max(0, min(2, int(data.get("player_idx", 0))))
     angle      = float(data.get("angle", 0.0))
-    power      = max(0.0, min(100.0, float(data.get("power", 80.0))))
+    pc         = int(state.get("power_cap", 100))
+    power      = max(0.0, min(pc, float(data.get("power", 80.0))))
     push_snapshot(game)
     traj, scored, desc, kick_ep, push_res = apply_kick(game, player_idx, angle, power, game["is_player_a"])
     move_res = {

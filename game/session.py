@@ -14,8 +14,17 @@ def new_game_state(
     model_b: str = "greedy",
     model_a: str = "greedy",
     player_count: int = 3,
+    half_length: int = 45,
+    win_goal_limit: int = 5,
+    power_cap: int = 100,
 ) -> dict:
-    return new_soccer_state(mode=mode, model_b=model_b, model_a=model_a, player_count=player_count)
+    return new_soccer_state(
+        mode=mode, model_b=model_b, model_a=model_a,
+        player_count=player_count,
+        half_length=half_length,
+        win_goal_limit=win_goal_limit,
+        power_cap=power_cap,
+    )
 
 
 def get_game(user_id: str) -> dict:

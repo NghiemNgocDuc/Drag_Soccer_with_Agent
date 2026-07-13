@@ -13,11 +13,13 @@ _GOAL_H: float = FIELD_H * 0.26
 GOAL_Y1: float  = (FIELD_H - _GOAL_H) / 2  # ~231
 GOAL_Y2: float  = (FIELD_H + _GOAL_H) / 2  # ~394
 POWER_SCALE: float = 0.55
-GOALS_TO_WIN: int  = 5
-_HALFTIME: int      = 135  # 45 min (3s per minute)
-_REGULAR_END: int  = 270  # 90 min (3s per minute)
-_ET_FIRST_END: int  = 315  # 90 + 15 min
-_ET_SECOND_END: int = 360  # 90 + 15 + 15 min
+# Default engine constants (can be overridden by state)
+_HALF_DEFAULT   = 45  # minutes
+_WIN_DEFAULT    = 5   # goals
+# Derived time thresholds (3 seconds per game-minute)
+def _time_th(hl: int) -> tuple:
+    ht = hl * 3
+    return (ht, ht * 2, ht * 2 + 45, ht * 2 + 90)  # halftime, fulltime, et1_end, et2_end
 _GOAL_DEPTH: float = 50.0
 
 # Penaly shootout constants — proportional to field
@@ -143,36 +145,42 @@ def new_soccer_state(
     model_b: str = "greedy",
     model_a: str = "greedy",
     player_count: int = 3,
+    half_length: int = _HALF_DEFAULT,
+    win_goal_limit: int = _WIN_DEFAULT,
+    power_cap: int = 100,
 ) -> dict:
     home_a = _home_positions(player_count, "a")
     home_b = _home_positions(player_count, "b")
     return {
-        "ball":         {"x": FIELD_W / 2, "y": FIELD_H / 2},
-        "players_a":    [{"x": x, "y": y} for x, y in home_a],
-        "players_b":    [{"x": x, "y": y} for x, y in home_b],
-        "score_a":      0,
-        "score_b":      0,
-        "is_player_a":  True,
-        "kick_count":   0,
-        "start_time":   time.time(),
-        "game_over":    False,
-        "winner":       None,
-        "move_history": [],
-        "snapshots":    [],
-        "game_mode":    mode,
-        "model_name_a": model_a,
-        "model_name_b": model_b,
-        "first_kicker": "A",
-        "period":       "regular_first",
-        "player_count": player_count,
+        "ball":          {"x": FIELD_W / 2, "y": FIELD_H / 2},
+        "players_a":     [{"x": x, "y": y} for x, y in home_a],
+        "players_b":     [{"x": x, "y": y} for x, y in home_b],
+        "score_a":       0,
+        "score_b":       0,
+        "is_player_a":   True,
+        "kick_count":    0,
+        "start_time":    time.time(),
+        "game_over":     False,
+        "winner":        None,
+        "move_history":  [],
+        "snapshots":     [],
+        "game_mode":     mode,
+        "model_name_a":  model_a,
+        "model_name_b":  model_b,
+        "first_kicker":  "A",
+        "period":        "regular_first",
+        "player_count":  player_count,
+        "half_length":   half_length,
+        "win_goal_limit": win_goal_limit,
+        "power_cap":     power_cap,
         "penalty_shootout": False,
         "penalty_kick_num": 0,
         "penalty_a_score": 0,
         "penalty_b_score": 0,
         "penalty_kicks": [],
         "penalty_goalkeeper_move": None,
-        "referee":      {"x": REFEREE_POS[0], "y": REFEREE_POS[1]},
-        "_finalized":   False,
+        "referee":       {"x": REFEREE_POS[0], "y": REFEREE_POS[1]},
+        "_finalized":    False,
     }
 
 
@@ -730,14 +738,17 @@ def apply_kick(
     sa, sb = state["score_a"], state["score_b"]
     elapsed = time.time() - state.get("start_time", time.time())
     period = state.get("period", "regular_first")
+    hl = state.get("half_length", _HALF_DEFAULT)
+    gw = state.get("win_goal_limit", _WIN_DEFAULT)
+    ht, ft, et1, et2 = _time_th(hl)
 
-    if sa >= GOALS_TO_WIN:
+    if sa >= gw:
         state["game_over"] = True
         state["winner"] = "A"
-    elif sb >= GOALS_TO_WIN:
+    elif sb >= gw:
         state["game_over"] = True
         state["winner"] = "B"
-    elif elapsed >= _ET_SECOND_END:
+    elif elapsed >= et2:
         if sa == sb:
             state["penalty_shootout"] = True
             state["period"] = "penalties"
@@ -747,26 +758,23 @@ def apply_kick(
             state["penalty_kicks"] = []
             state["penalty_goalkeeper_move"] = None
             state["is_player_a"] = True
-            # Place ball and players for first penalty
             _setup_penalty_positions(state, True)
         else:
             state["game_over"] = True
             state["winner"] = "A" if sa > sb else "B"
-    elif elapsed >= _ET_FIRST_END and period == "et_first":
+    elif elapsed >= et1 and period == "et_first":
         state["period"] = "et_second"
         state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
         _reset_players(state)
         state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
         state["is_player_a"] = not state["is_player_a"]
-    elif elapsed >= _REGULAR_END and (period == "regular_first" or period == "regular_second"):
+    elif elapsed >= ft and (period == "regular_first" or period == "regular_second"):
         if period == "regular_first":
-            # Time jumped past halftime too — do halftime immediately
             state["period"] = "regular_second"
             state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
             _reset_players(state)
             state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
             state["is_player_a"] = state["first_kicker"] != "A"
-        # Now handle full-time / extra time
         if sa == sb:
             state["period"] = "et_first"
             state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
@@ -776,7 +784,7 @@ def apply_kick(
         else:
             state["game_over"] = True
             state["winner"] = "A" if sa > sb else "B"
-    elif elapsed >= _HALFTIME and period == "regular_first":
+    elif elapsed >= ht and period == "regular_first":
         state["period"] = "regular_second"
         state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2}
         _reset_players(state)
