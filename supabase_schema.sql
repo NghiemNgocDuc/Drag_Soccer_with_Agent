@@ -5,9 +5,10 @@
 
 -- 1. Public profiles (one row per auth user)
 create table if not exists public.profiles (
-  id         uuid references auth.users on delete cascade primary key,
-  username   text unique not null,
-  created_at timestamp with time zone default now()
+  id            uuid references auth.users on delete cascade primary key,
+  username      text unique not null,
+  created_at    timestamp with time zone default now(),
+  customization jsonb default '{}'::jsonb
 );
 
 alter table public.profiles enable row level security;

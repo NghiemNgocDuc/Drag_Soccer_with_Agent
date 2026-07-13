@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Customize — Agent Soccer</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#3b82f6;--accent-b:#059669;--red:#ef4444;
+  --text:#1e2d4f;
+  --muted:#6b7fa3;
+  --dim:#9caab8;
+  --glass-bg:rgba(255,255,255,.62);
+  --glass-border:rgba(180,205,255,.5);
+  --glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);
+  --blur:18px;
+}
+body{
+  font-family:'Be Vietnam Pro',system-ui,sans-serif;
+  font-size:14px;color:var(--text);
+  min-height:100vh;
+  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
+}
+.nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.nebula::before{
+  content:'';position:absolute;width:700px;height:700px;
+  background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);
+  top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate;
+}
+.nebula::after{
+  content:'';position:absolute;width:600px;height:500px;
+  background:radial-gradient(ellipse,rgba(16,185,129,.07) 0%,transparent 65%);
+  bottom:-100px;left:200px;animation:drift2 22s ease-in-out infinite alternate;
+}
+@keyframes drift {to{transform:translate(40px,-30px)}}
+@keyframes drift2{to{transform:translate(-30px,25px)}}
+
+nav,main{position:relative;z-index:1}
+
+nav{
+  background:rgba(255,255,255,.78);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(180,205,255,.4);
+  padding:12px 24px;display:flex;align-items:center;gap:16px;
+}
+.nav-brand{font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}
+.nav-links{display:flex;gap:12px;margin-left:auto;align-items:center}
+.nav-links a{font-size:.78rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color .15s}
+.nav-links a:hover,.nav-links a.active{color:var(--text)}
+.nav-user{font-size:.75rem;color:var(--dim)}
+.btn-logout{
+  font-family:inherit;font-size:.72rem;font-weight:500;
+  padding:5px 12px;border-radius:6px;
+  border:1px solid var(--glass-border);background:var(--glass-bg);
+  color:var(--muted);cursor:pointer;transition:all .15s;
+}
+.btn-logout:hover{border-color:var(--accent);color:var(--accent)}
+
+main{max-width:720px;margin:0 auto;padding:30px 16px}
+
+h1{
+  font-size:1.35rem;font-weight:700;letter-spacing:-.02em;
+  background:linear-gradient(135deg,#1e2d4f 0%,#3b82f6 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:6px;
+}
+.subtitle{font-size:.75rem;color:var(--muted);margin-bottom:24px}
+
+.glass-card{
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;
+  box-shadow:var(--glass-shadow);
+  padding:24px;
+  margin-bottom:16px;
+}
+.glass-card h2{
+  font-size:.85rem;font-weight:600;color:var(--text);
+  margin-bottom:16px;letter-spacing:-.01em;
+}
+
+/* Color grid */
+.color-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px}
+.color-item{display:flex;flex-direction:column;align-items:center;gap:6px}
+.color-item label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.color-item input[type=color]{
+  width:48px;height:48px;border:3px solid var(--glass-border);border-radius:10px;
+  cursor:pointer;padding:2px;background:none;transition:border-color .15s;
+}
+.color-item input[type=color]:hover{border-color:var(--accent)}
+.color-hex{font-size:.7rem;color:var(--dim);font-family:monospace}
+
+/* Player count */
+.player-count-wrap{display:flex;align-items:center;gap:12px;margin-top:4px}
+.player-count-wrap label{font-size:.72rem;font-weight:600;color:var(--muted);white-space:nowrap}
+.player-count-wrap input[type=range]{width:160px;cursor:pointer;accent-color:var(--accent)}
+.player-count-wrap .count-val{font-size:1rem;font-weight:700;color:var(--text);min-width:24px;text-align:center}
+
+/* Presets */
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.presets span{font-size:.7rem;font-weight:600;color:var(--muted);margin-right:4px;align-self:center}
+.preset-dot{
+  width:28px;height:28px;border-radius:50%;border:2px solid var(--glass-border);
+  cursor:pointer;transition:transform .12s, border-color .12s;
+}
+.preset-dot:hover{transform:scale(1.18);border-color:var(--accent)}
+
+/* Preview */
+.preview-wrap{display:flex;justify-content:center;margin:18px 0 8px}
+.preview-canvas{border-radius:10px;border:2px solid var(--glass-border);width:100%;max-width:480px;height:auto;aspect-ratio:1000/625}
+
+/* Buttons */
+.btn-row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
+.btn{
+  padding:9px 22px;border-radius:10px;border:none;cursor:pointer;
+  font-family:inherit;font-size:.82rem;font-weight:600;transition:all .15s;outline:none;
+  text-decoration:none;display:inline-flex;align-items:center;gap:6px;
+}
+.btn-primary{background:#3b82f6;color:#fff}
+.btn-primary:hover{background:#2563eb}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.btn-ghost{
+  background:rgba(255,255,255,.6);border:1px solid var(--glass-border);
+  color:var(--muted);
+}
+.btn-ghost:hover{background:rgba(255,255,255,.9);color:var(--text)}
+.btn-success{background:var(--accent-b);color:#fff}
+.btn-success:hover{background:#047857}
+.flash-msg{
+  padding:10px 16px;border-radius:8px;font-size:.8rem;font-weight:500;
+  margin-bottom:16px;display:none;
+}
+.flash-msg.success{display:block;background:rgba(16,185,129,.12);color:var(--accent-b);border:1px solid rgba(16,185,129,.25)}
+.flash-msg.error{display:block;background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+</style>
+</head>
+<body>
+<div class="nebula"></div>
+
+<nav>
+  <a class="nav-brand" href="/">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Game</a>
+    <a href="/online" class="nav-link">Online</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/customize" class="nav-link active">Customize</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+  </div>
+</nav>
+
+<main>
+  <h1>Customize</h1>
+  <p class="subtitle">Set your team colors and game preferences</p>
+
+  <div class="flash-msg" id="flash-msg"></div>
+
+  <div class="glass-card">
+    <h2>Team Colors</h2>
+    <div class="color-grid">
+      <div class="color-item">
+        <label>Team A</label>
+        <input type="color" id="team_a_color" value="{{ cust.team_a_color }}">
+        <span class="color-hex" id="hex_team_a_color">{{ cust.team_a_color }}</span>
+      </div>
+      <div class="color-item">
+        <label>Team B</label>
+        <input type="color" id="team_b_color" value="{{ cust.team_b_color }}">
+        <span class="color-hex" id="hex_team_b_color">{{ cust.team_b_color }}</span>
+      </div>
+      <div class="color-item">
+        <label>Referee</label>
+        <input type="color" id="ref_color" value="{{ cust.ref_color }}">
+        <span class="color-hex" id="hex_ref_color">{{ cust.ref_color }}</span>
+      </div>
+      <div class="color-item">
+        <label>Ball</label>
+        <input type="color" id="ball_color" value="{{ cust.ball_color }}">
+        <span class="color-hex" id="hex_ball_color">{{ cust.ball_color }}</span>
+      </div>
+      <div class="color-item">
+        <label>Background</label>
+        <input type="color" id="bg_color" value="{{ cust.bg_color }}">
+        <span class="color-hex" id="hex_bg_color">{{ cust.bg_color }}</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <h2>Players Per Side</h2>
+    <div class="player-count-wrap">
+      <label>Players</label>
+      <input type="range" id="player_count" min="1" max="11" value="{{ cust.player_count }}">
+      <span class="count-val" id="player_count_val">{{ cust.player_count }}</span>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <h2>Color Presets</h2>
+    <div class="presets">
+      <span>Team A:</span>
+      <div class="preset-dot" style="background:#3b82f6" onclick="applyPreset('team_a_color','#3b82f6')" title="Default Blue"></div>
+      <div class="preset-dot" style="background:#22c55e" onclick="applyPreset('team_a_color','#22c55e')" title="Green"></div>
+      <div class="preset-dot" style="background:#a855f7" onclick="applyPreset('team_a_color','#a855f7')" title="Purple"></div>
+      <div class="preset-dot" style="background:#f97316" onclick="applyPreset('team_a_color','#f97316')" title="Orange"></div>
+      <div class="preset-dot" style="background:#ec4899" onclick="applyPreset('team_a_color','#ec4899')" title="Pink"></div>
+    </div>
+    <div class="presets" style="margin-top:6px">
+      <span>Team B:</span>
+      <div class="preset-dot" style="background:#ef4444" onclick="applyPreset('team_b_color','#ef4444')" title="Default Red"></div>
+      <div class="preset-dot" style="background:#f59e0b" onclick="applyPreset('team_b_color','#f59e0b')" title="Amber"></div>
+      <div class="preset-dot" style="background:#06b6d4" onclick="applyPreset('team_b_color','#06b6d4')" title="Cyan"></div>
+      <div class="preset-dot" style="background:#8b5cf6" onclick="applyPreset('team_b_color','#8b5cf6')" title="Violet"></div>
+      <div class="preset-dot" style="background:#10b981" onclick="applyPreset('team_b_color','#10b981')" title="Emerald"></div>
+    </div>
+    <div class="presets" style="margin-top:6px">
+      <span>Background:</span>
+      <div class="preset-dot" style="background:#2a2518" onclick="applyPreset('bg_color','#2a2518')" title="Dark"></div>
+      <div class="preset-dot" style="background:#0f172a" onclick="applyPreset('bg_color','#0f172a')" title="Navy"></div>
+      <div class="preset-dot" style="background:#1e1b4b" onclick="applyPreset('bg_color','#1e1b4b')" title="Indigo"></div>
+      <div class="preset-dot" style="background:#1c1917" onclick="applyPreset('bg_color','#1c1917')" title="Stone"></div>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <h2>Preview</h2>
+    <div class="preview-wrap">
+      <canvas class="preview-canvas" id="preview-canvas" width="1000" height="625"></canvas>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn btn-success" id="save-btn" onclick="saveSettings()">Save Settings</button>
+    <button class="btn btn-ghost" onclick="resetDefaults()">Reset to Defaults</button>
+    <a href="/" class="btn btn-primary">Back to Game</a>
+  </div>
+</main>
+
+<script>
+const CUST = {{ cust | tojson }};
+const DEFAULTS = {
+  team_a_color: '#3b82f6',
+  team_b_color: '#ef4444',
+  ref_color: '#fde68a',
+  ball_color: '#f8fafc',
+  bg_color: '#2a2518',
+  player_count: 3,
+};
+
+let current = {};
+
+function getVal(id) { return document.getElementById(id).value; }
+
+function updateHex(key) {
+  const el = document.getElementById('hex_' + key);
+  if (el) el.textContent = getVal(key);
+}
+
+function applyPreset(key, val) {
+  document.getElementById(key).value = val;
+  updateHex(key);
+  current[key] = val;
+  renderPreview();
+}
+
+function syncFromInputs() {
+  current.team_a_color = getVal('team_a_color');
+  current.team_b_color = getVal('team_b_color');
+  current.ref_color = getVal('ref_color');
+  current.ball_color = getVal('ball_color');
+  current.bg_color = getVal('bg_color');
+  current.player_count = parseInt(getVal('player_count'));
+  document.getElementById('player_count_val').textContent = current.player_count;
+}
+
+Array.from(document.querySelectorAll('input[type=color]')).forEach(el => {
+  el.addEventListener('input', () => {
+    syncFromInputs();
+    updateHex(el.id);
+    renderPreview();
+  });
+});
+document.getElementById('player_count').addEventListener('input', () => {
+  syncFromInputs();
+  renderPreview();
+});
+
+function resetDefaults() {
+  Object.keys(DEFAULTS).forEach(key => {
+    const el = document.getElementById(key);
+    if (el) el.value = DEFAULTS[key];
+    updateHex(key);
+  });
+  syncFromInputs();
+  renderPreview();
+  showFlash('Reset to defaults (not saved yet)', 'success');
+}
+
+function showFlash(msg, type) {
+  const el = document.getElementById('flash-msg');
+  el.textContent = msg;
+  el.className = 'flash-msg ' + type;
+  setTimeout(() => { el.className = 'flash-msg'; }, 4000);
+}
+
+async function saveSettings() {
+  syncFromInputs();
+  const btn = document.getElementById('save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  try {
+    const resp = await fetch('/customize/save', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(current),
+    });
+    const data = await resp.json();
+    if (data.ok) {
+      showFlash('Settings saved! They will apply on the game page.', 'success');
+    } else {
+      showFlash('Failed to save: ' + (data.error || 'unknown error'), 'error');
+    }
+  } catch(e) {
+    showFlash('Network error while saving', 'error');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Save Settings';
+}
+
+function renderPreview() {
+  syncFromInputs();
+  const canvas = document.getElementById('preview-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = 1000, H = 625;
+
+  const bgGrad = ctx.createRadialGradient(500, 312, 60, 500, 312, 700);
+  bgGrad.addColorStop(0, current.bg_color);
+  bgGrad.addColorStop(1, '#080807');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = '#0a1628';
+  ctx.fillRect(0, 0, W, H);
+  const grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, '#0f172a');
+  grad.addColorStop(0.5, '#1e293b');
+  grad.addColorStop(1, '#0f172a');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = 'rgba(255,255,255,.25)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(20, 20, W-40, H-40);
+  ctx.beginPath(); ctx.moveTo(W/2, 20); ctx.lineTo(W/2, H-20); ctx.stroke();
+  ctx.beginPath(); ctx.arc(W/2, H/2, 60, 0, Math.PI*2); ctx.stroke();
+
+  const TEAM_A = [{x:62,y:312},{x:400,y:244},{x:400,y:381}];
+  const TEAM_B = [{x:938,y:312},{x:600,y:244},{x:600,y:381}];
+  const SHIRTS = [1, 7, 10];
+
+  function drawPlayer(x, y, color, num) {
+    ctx.beginPath();
+    ctx.arc(x, y, 20, 0, Math.PI*2);
+    const g = ctx.createRadialGradient(x-4, y-5, 2, x, y, 20);
+    g.addColorStop(0, '#ffffff');
+    g.addColorStop(1, color);
+    ctx.fillStyle = g;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.5)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px Inter,sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(num, x, y);
+  }
+
+  TEAM_A.forEach((p, i) => drawPlayer(p.x, p.y, current.team_a_color, SHIRTS[i]));
+  TEAM_B.forEach((p, i) => drawPlayer(p.x, p.y, current.team_b_color, SHIRTS[i]));
+
+  ctx.beginPath();
+  ctx.arc(400, 420, 16, 0, Math.PI*2);
+  const rg = ctx.createRadialGradient(397, 416, 2, 400, 420, 16);
+  rg.addColorStop(0, current.ref_color);
+  rg.addColorStop(1, '#d97706');
+  ctx.fillStyle = rg;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.7)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 9px Inter,sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('REF', 400, 420);
+
+  ctx.beginPath();
+  ctx.arc(500, 312, 12, 0, Math.PI*2);
+  ctx.fillStyle = current.ball_color;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.2)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath();
+  for (let i = 0; i < 5; i++) {
+    const a = (i * 2 * Math.PI / 5) - Math.PI / 2;
+    const px = 500 + 4.5 * Math.cos(a);
+    const py = 312 + 4.5 * Math.sin(a);
+    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
+syncFromInputs();
+renderPreview();
+</script>
+</body>
+</html>

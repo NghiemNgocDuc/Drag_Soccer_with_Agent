@@ -186,6 +186,7 @@ select{
     <a href="/tournaments" class="nav-link">Tournaments</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
     <a href="/profile" class="nav-link">Profile</a>
+    <a href="/customize" class="nav-link">Customize</a>
   </div>
   <span class="nav-user">{{ username }}</span>
     <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
@@ -263,6 +264,8 @@ select{
     <button class="btn btn-ghost" onclick="undoMove()">Undo</button>
 
     <div class="controls-right">
+      <a href="/customize" class="btn btn-ghost" style="text-decoration:none;padding:6px 12px;font-size:.78rem">Customize</a>
+      <div class="sep"></div>
       <div class="speed-wrap">
         <span class="speed-label">Speed</span>
         <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1"
@@ -272,30 +275,9 @@ select{
     </div>
   </div>
 
-  <!-- Customize -->
-  <div class="glass">
-    <div class="customize-toggle" onclick="toggleCustomize()">🎨 Customize</div>
-    <div class="customize-body hidden" id="cust-body">
-      <div class="cust-group"><label>Team A</label><input type="color" value="#3b82f6" onchange="setColor('teamA',this.value)"></div>
-      <div class="cust-group"><label>Team B</label><input type="color" value="#ef4444" onchange="setColor('teamB',this.value)"></div>
-      <div class="cust-group"><label>Ref</label><input type="color" value="#fde68a" onchange="setColor('ref',this.value)"></div>
-      <div class="cust-group"><label>Ball</label><input type="color" value="#f8fafc" onchange="setColor('ball',this.value)"></div>
-      <div class="cust-group"><label>BG</label><input type="color" value="#2a2518" onchange="setColor('bg',this.value)"></div>
-      <div class="sep"></div>
-      <div class="cust-group"><label>Players</label>
-        <input type="range" min="1" max="11" value="3" id="player-count" onchange="setPlayerCount(+this.value)" style="width:60px;cursor:pointer;accent-color:var(--accent-a)">
-        <span id="player-count-label" style="font-size:.82rem;font-weight:600;color:var(--text);min-width:18px;text-align:center">3</span>
-      </div>
-      <div class="sep"></div>
-      <span style="font-size:.72rem;font-weight:600;color:var(--muted)">Presets:</span>
-      <div class="cust-preset" style="background:#3b82f6" onclick="setColor('teamA','#3b82f6')" title="Default Blue"></div>
-      <div class="cust-preset" style="background:#22c55e" onclick="setColor('teamA','#22c55e')" title="Green"></div>
-      <div class="cust-preset" style="background:#a855f7" onclick="setColor('teamA','#a855f7')" title="Purple"></div>
-      <div class="cust-preset" style="background:#ef4444" onclick="setColor('teamB','#ef4444')" title="Default Red"></div>
-      <div class="cust-preset" style="background:#f59e0b" onclick="setColor('teamB','#f59e0b')" title="Orange"></div>
-      <div class="cust-preset" style="background:#06b6d4" onclick="setColor('teamB','#06b6d4')" title="Cyan"></div>
-    </div>
-  </div>
+  <!-- Hidden player-count input (used by resetGame / init) -->
+  <input type="range" min="1" max="11" value="3" id="player-count" style="display:none">
+  <span id="player-count-label" style="display:none">3</span>
 
   <!-- Move Log -->
   <div class="glass log-panel" id="log-panel"></div>
@@ -1459,29 +1441,27 @@ window.addEventListener('touchend', e => {
   if (power > 5) submitKick(idx, kickAngle * 180 / Math.PI, power, pullX, pullY);
 }, {passive:false});
 
-// ── Customization ──────────────────────────────────────────────────────────────
-function toggleCustomize() {
-  document.getElementById('cust-body').classList.toggle('hidden');
-}
-function setColor(what, val) {
-  switch (what) {
-    case 'teamA': TEAM_A_COLOR = val; break;
-    case 'teamB': TEAM_B_COLOR = val; break;
-    case 'ref': REF_CENTER_COLOR = val; break;
-    case 'ball': BALL_BASE_COLOR = val; break;
-    case 'bg': BG_CENTER_COLOR = val; break;
-  }
-  const input = document.querySelector(`.cust-group input[onchange*="${what}"]`);
-  if (input) input.value = val;
-  render();
-}
-function setPlayerCount(n) {
-  document.getElementById('player-count-label').textContent = n;
-  const f = genFormation(n);
-  HOME_A = f.ha;
-  HOME_B = f.hb;
-  SHIRT = f.sh;
-  resetGame();
+// ── Customization (loaded from server) ─────────────────────────────────────────
+async function loadCustomization() {
+  try {
+    const resp = await fetch('/api/customization');
+    const cust = await resp.json();
+    if (cust.team_a_color) TEAM_A_COLOR = cust.team_a_color;
+    if (cust.team_b_color) TEAM_B_COLOR = cust.team_b_color;
+    if (cust.ref_color) {
+      REF_CENTER_COLOR = cust.ref_color;
+      REF_EDGE_COLOR = cust.ref_color;
+    }
+    if (cust.ball_color) BALL_BASE_COLOR = cust.ball_color;
+    if (cust.bg_color) BG_CENTER_COLOR = cust.bg_color;
+    if (cust.player_count) {
+      const el = document.getElementById('player-count');
+      const lbl = document.getElementById('player-count-label');
+      if (el) el.value = cust.player_count;
+      if (lbl) lbl.textContent = cust.player_count;
+    }
+    render();
+  } catch(e) {}
 }
 
 // ── Init ─────────────────────────────────────────────────────────────────────
@@ -1512,6 +1492,8 @@ function setPlayerCount(n) {
   genCrowd();
   render();
   updateHUD(data);
+  // Load saved customization settings
+  await loadCustomization();
 })();
 </script>
 </body>
