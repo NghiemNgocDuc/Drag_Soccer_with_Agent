@@ -4,45 +4,33 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Profile — Agent Soccer</title>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --accent:#3b82f6;--accent-b:#059669;--red:#ef4444;
-  --text:#1e2d4f;
-  --muted:#6b7fa3;
-  --dim:#9caab8;
-  --glass-bg:rgba(255,255,255,.62);
-  --glass-border:rgba(180,205,255,.5);
-  --glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);
-  --blur:18px;
+  --accent:#06b6d4;--accent-b:#f97316;--red:#ef4444;--green:#22c55e;
+  --text:#0f172a;--muted:#475569;--dim:#94a3b8;
+  --glass-bg:rgba(255,255,255,.7);--glass-border:rgba(255,255,255,.5);
+  --glass-shadow:0 8px 32px rgba(31,38,135,.07),inset 0 1px 0 rgba(255,255,255,.95);
+  --blur:16px;
 }
 body{
   font-family:'Be Vietnam Pro',system-ui,sans-serif;
-  font-size:14px;color:var(--text);
-  min-height:100vh;
-  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
+  font-size:14px;color:var(--text);min-height:100vh;
+  background:linear-gradient(135deg,#fef3c7 0%,#fde68a 15%,#fecaca 30%,#fbcfe8 50%,#c7d2fe 70%,#bfdbfe 85%,#a7f3d0 100%);
+  background-size:400% 400%;animation:bg-flow 20s ease infinite;
 }
+@keyframes bg-flow{0%{background-position:0% 50%}25%{background-position:50% 0%}50%{background-position:100% 50%}75%{background-position:50% 100%}100%{background-position:0% 50%}}
 .nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
-.nebula::before{
-  content:'';position:absolute;width:700px;height:700px;
-  background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);
-  top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate;
-}
-.nebula::after{
-  content:'';position:absolute;width:600px;height:500px;
-  background:radial-gradient(ellipse,rgba(16,185,129,.07) 0%,transparent 65%);
-  bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate;
-}
-@keyframes drift {to{transform:translate(40px,-30px)}}
+.nebula::before{content:'';position:absolute;width:700px;height:700px;background:radial-gradient(ellipse,rgba(6,182,212,.12) 0%,transparent 65%);top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate}
+.nebula::after{content:'';position:absolute;width:600px;height:500px;background:radial-gradient(ellipse,rgba(249,115,22,.1) 0%,transparent 65%);bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate(40px,-30px)}}
 @keyframes drift2{to{transform:translate(-30px,25px)}}
 
 nav,main{position:relative;z-index:1}
-
 nav{
-  background:rgba(255,255,255,.78);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid rgba(180,205,255,.4);
+  background:rgba(255,255,255,.7);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(255,255,255,.5);
   padding:12px 24px;display:flex;align-items:center;gap:16px;
 }
 .nav-brand{font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}
@@ -58,51 +46,141 @@ nav{
 }
 .btn-logout:hover{border-color:var(--accent);color:var(--accent)}
 
-main{max-width:640px;margin:0 auto;padding:30px 16px}
+main{max-width:820px;margin:0 auto;padding:30px 16px}
 
-.avatar{
-  width:60px;height:60px;border-radius:50%;
-  background:rgba(96,165,250,.15);
-  border:1px solid rgba(96,165,250,.3);
-  display:flex;align-items:center;justify-content:center;
-  font-size:1.5rem;font-weight:700;color:var(--accent);
-  margin-bottom:14px;
-  box-shadow:0 0 20px rgba(96,165,250,.15);
-}
-h1{
-  font-size:1.35rem;font-weight:700;letter-spacing:-.02em;
-  background:linear-gradient(135deg,#1e2d4f 0%,#3b82f6 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-}
-.subtitle{font-size:.75rem;color:var(--muted);margin-top:3px;margin-bottom:26px}
-
-.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
-.stat-card{
-  background:var(--glass-bg);
+/* ── Hero ── */
+.hero{
+  background:linear-gradient(135deg,rgba(6,182,212,.12),rgba(249,115,22,.1));
+  border:1px solid rgba(255,255,255,.5);
   backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
-  border:1px solid var(--glass-border);border-radius:12px;
-  box-shadow:var(--glass-shadow);
-  padding:18px 12px;text-align:center;
+  border-radius:20px;padding:32px;
+  display:flex;align-items:center;gap:24px;
+  margin-bottom:24px;position:relative;overflow:hidden;
 }
-.stat-val{font-size:1.7rem;font-weight:700;line-height:1;color:var(--text)}
-.stat-lbl{
-  font-size:.6rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
-  color:var(--muted);margin-top:7px;
+.hero::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse at 30% 50%,rgba(6,182,212,.08) 0%,transparent 60%),
+             radial-gradient(ellipse at 70% 50%,rgba(249,115,22,.08) 0%,transparent 60%);
+  pointer-events:none;
 }
-.stat-card.wins   .stat-val{color:var(--accent-b)}
+.avatar{
+  width:72px;height:72px;border-radius:50%;
+  background:linear-gradient(135deg,#06b6d4,#8b5cf6);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.8rem;font-weight:800;color:#fff;
+  flex-shrink:0;position:relative;
+  box-shadow:0 0 0 3px rgba(255,255,255,.6),0 8px 24px rgba(6,182,212,.25);
+}
+.hero-info{position:relative}
+.hero-info h1{font-size:1.6rem;font-weight:800;letter-spacing:-.03em;color:var(--text)}
+.hero-info .tagline{font-size:.78rem;color:var(--muted);margin-top:2px}
+
+.hero-badge{
+  margin-left:auto;position:relative;
+  background:rgba(255,255,255,.5);border-radius:12px;padding:12px 20px;text-align:center;
+  border:1px solid rgba(255,255,255,.4);
+}
+.hero-badge .val{font-size:1.6rem;font-weight:800;color:var(--accent-b)}
+.hero-badge .lbl{font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+
+/* ── Stats Grid ── */
+.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.stat-card{
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);
+  padding:18px 8px;text-align:center;transition:transform .15s,box-shadow .15s;
+}
+.stat-card:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(31,38,135,.12)}
+.stat-icon{font-size:1.2rem;margin-bottom:6px}
+.stat-val{font-size:1.8rem;font-weight:800;line-height:1;color:var(--text)}
+.stat-lbl{font-size:.6rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-top:6px}
+.stat-card.wins .stat-val{color:var(--green)}
 .stat-card.losses .stat-val{color:var(--red)}
 .stat-card.played .stat-val{color:var(--accent)}
+.stat-card.draws .stat-val{color:var(--dim)}
+.stat-card.rate .stat-val{color:var(--accent-b)}
 
-.info-card{
-  background:var(--glass-bg);
-  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
-  border:1px solid var(--glass-border);border-radius:12px;
-  box-shadow:var(--glass-shadow);
-  padding:16px 20px;font-size:.83rem;color:var(--muted);line-height:1.7;
+/* ── Win Rate Ring ── */
+.winrate-section{margin-bottom:20px}
+.winrate-card{
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);
+  padding:24px;display:flex;align-items:center;gap:28px;
 }
-.info-card strong{color:var(--accent-b)}
+.ring-wrap{position:relative;width:100px;height:100px;flex-shrink:0}
+.ring-wrap svg{transform:rotate(-90deg)}
+.ring-bg{fill:none;stroke:rgba(0,0,0,.06);stroke-width:8}
+.ring-fg{fill:none;stroke:var(--accent-b);stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+.ring-label{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.ring-label .pct{font-size:1.4rem;font-weight:800;color:var(--text);line-height:1}
+.ring-label .sub{font-size:.55rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-top:2px}
+.winrate-detail{flex:1}
+.wr-row{display:flex;justify-content:space-between;padding:6px 0;font-size:.82rem;border-bottom:1px solid rgba(0,0,0,.04)}
+.wr-row:last-child{border-bottom:none}
+.wr-row .lbl{color:var(--muted)}
+.wr-row .val{font-weight:700;color:var(--text)}
+.wr-row .val.green{color:var(--green)}
+.wr-row .val.red{color:var(--red)}
 
-@media(max-width:480px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
+/* ── Goal Stats ── */
+.goal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.goal-card{
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);
+  padding:20px;text-align:center;
+}
+.goal-card .g-icon{font-size:1.4rem;margin-bottom:4px}
+.goal-card .g-val{font-size:1.8rem;font-weight:800;line-height:1}
+.goal-card .g-lbl{font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:6px}
+.goal-card.for .g-val{color:var(--green)}
+.goal-card.against .g-val{color:var(--red)}
+.goal-card.diff .g-val{color:var(--accent)}
+
+/* ── Recent Games ── */
+.section-title{
+  font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--muted);margin-bottom:10px;
+}
+.recent-card{
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);
+  overflow:hidden;
+}
+.recent-table{width:100%;border-collapse:collapse}
+.recent-table th{
+  font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--dim);padding:12px 16px;text-align:left;
+  border-bottom:1px solid rgba(0,0,0,.04);
+}
+.recent-table td{
+  padding:10px 16px;font-size:.8rem;color:var(--muted);
+  border-bottom:1px solid rgba(0,0,0,.03);
+}
+.recent-table tr:last-child td{border-bottom:none}
+.recent-table tr:hover td{background:rgba(6,182,212,.03)}
+.recent-table .mode-tag{
+  display:inline-block;padding:2px 8px;border-radius:4px;
+  font-size:.65rem;font-weight:600;text-transform:uppercase;
+}
+.mode-hvai{background:rgba(6,182,212,.1);color:#06b6d4}
+.mode-online{background:rgba(139,92,246,.1);color:#8b5cf6}
+.mode-ai_vs_ai{background:rgba(249,115,22,.1);color:#f97316}
+.score-cell{font-weight:700;color:var(--text)}
+.score-cell.win{color:var(--green)}
+.score-cell.loss{color:var(--red)}
+.score-cell.draw{color:var(--dim)}
+
+@media(max-width:600px){
+  .stats-grid{grid-template-columns:repeat(3,1fr)}
+  .goal-grid{grid-template-columns:1fr}
+  .hero{flex-direction:column;text-align:center;padding:24px}
+  .hero-badge{margin-left:0}
+  .winrate-card{flex-direction:column;text-align:center}
+  .recent-table th,.recent-table td{padding:8px 10px}
+}
+@media(max-width:400px){.stats-grid{grid-template-columns:repeat(2,1fr)}}
 </style>
 </head>
 <body>
@@ -124,32 +202,155 @@ h1{
 </nav>
 
 <main>
-  <div class="avatar">{{ username[0].upper() }}</div>
-  <h1>{{ username }}</h1>
-  <p class="subtitle">Player stats · Human vs AI games</p>
+  {% set gp = stats.games_played or 0 %}
+  {% set w  = stats.wins or 0 %}
+  {% set l  = stats.losses or 0 %}
+  {% set d  = stats.draws or 0 %}
+  {% set gf = stats.goals_for or 0 %}
+  {% set ga = stats.goals_against or 0 %}
+  {% set op = stats.online_played or 0 %}
+  {% set ow = stats.online_wins or 0 %}
+  {% set rate = (w / gp * 100) if gp > 0 else 0 %}
 
-  <div class="stats-grid">
-    <div class="stat-card played">
-      <div class="stat-val">{{ stats.games_played or 0 }}</div>
-      <div class="stat-lbl">Played</div>
+  <!-- Hero -->
+  <div class="hero">
+    <div class="avatar">{{ username[0].upper() }}</div>
+    <div class="hero-info">
+      <h1>{{ username }}</h1>
+      <p class="tagline">Player · Agent Soccer</p>
     </div>
-    <div class="stat-card wins">
-      <div class="stat-val">{{ stats.wins or 0 }}</div>
-      <div class="stat-lbl">Wins</div>
-    </div>
-    <div class="stat-card losses">
-      <div class="stat-val">{{ stats.losses or 0 }}</div>
-      <div class="stat-lbl">Losses</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-val">{{ stats.draws or 0 }}</div>
-      <div class="stat-lbl">Draws</div>
+    <div class="hero-badge">
+      <div class="val">{{ gp }}</div>
+      <div class="lbl">Total Games</div>
     </div>
   </div>
 
-  {% if stats.games_played %}
-  <div class="info-card">
-    Win rate vs AI: <strong>{{ ((stats.wins / stats.games_played) * 100) | round(1) }}%</strong>
+  <!-- Stats Grid -->
+  <div class="stats-grid">
+    <div class="stat-card played">
+      <div class="stat-icon">⚽</div>
+      <div class="stat-val">{{ gp }}</div>
+      <div class="stat-lbl">Played</div>
+    </div>
+    <div class="stat-card wins">
+      <div class="stat-icon">🏆</div>
+      <div class="stat-val">{{ w }}</div>
+      <div class="stat-lbl">Wins</div>
+    </div>
+    <div class="stat-card losses">
+      <div class="stat-icon">💔</div>
+      <div class="stat-val">{{ l }}</div>
+      <div class="stat-lbl">Losses</div>
+    </div>
+    <div class="stat-card draws">
+      <div class="stat-icon">🤝</div>
+      <div class="stat-val">{{ d }}</div>
+      <div class="stat-lbl">Draws</div>
+    </div>
+    <div class="stat-card rate">
+      <div class="stat-icon">📊</div>
+      <div class="stat-val">{{ rate | round(1) }}%</div>
+      <div class="stat-lbl">Win Rate</div>
+    </div>
+  </div>
+
+  {% if gp > 0 %}
+  <!-- Win Rate Breakdown -->
+  <div class="winrate-section">
+    <div class="section-title">Performance</div>
+    <div class="winrate-card">
+      {% set circum = 2 * 22 / 7 * 38 %}
+      {% set offset = circum - (circum * rate / 100) %}
+      <div class="ring-wrap">
+        <svg width="100" height="100" viewBox="0 0 100 100">
+          <circle class="ring-bg" cx="50" cy="50" r="38"/>
+          <circle class="ring-fg" cx="50" cy="50" r="38" stroke-dasharray="{{ circum }}" stroke-dashoffset="{{ offset }}"/>
+        </svg>
+        <div class="ring-label">
+          <span class="pct">{{ rate | round(1) }}%</span>
+          <span class="sub">Win Rate</span>
+        </div>
+      </div>
+      <div class="winrate-detail">
+        <div class="wr-row"><span class="lbl">Wins</span><span class="val green">{{ w }}</span></div>
+        <div class="wr-row"><span class="lbl">Losses</span><span class="val red">{{ l }}</span></div>
+        <div class="wr-row"><span class="lbl">Draws</span><span class="val">{{ d }}</span></div>
+        <div class="wr-row"><span class="lbl">Win Rate vs AI</span><span class="val">{{ rate | round(1) }}%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Goal Stats -->
+  <div class="section-title">Scoring</div>
+  <div class="goal-grid">
+    <div class="goal-card for">
+      <div class="g-icon">⚽</div>
+      <div class="g-val">{{ gf }}</div>
+      <div class="g-lbl">Goals For</div>
+    </div>
+    <div class="goal-card against">
+      <div class="g-icon">🛡️</div>
+      <div class="g-val">{{ ga }}</div>
+      <div class="g-lbl">Goals Against</div>
+    </div>
+    <div class="goal-card diff">
+      <div class="g-icon">📈</div>
+      <div class="g-val">{% if gf >= ga %}+{% endif %}{{ gf - ga }}</div>
+      <div class="g-lbl">Goal Diff</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if op > 0 %}
+  <div class="section-title">Online</div>
+  <div class="goal-grid">
+    <div class="goal-card for">
+      <div class="g-icon">🌐</div>
+      <div class="g-val">{{ op }}</div>
+      <div class="g-lbl">Games</div>
+    </div>
+    <div class="goal-card diff">
+      <div class="g-icon">🏆</div>
+      <div class="g-val">{{ ow }}</div>
+      <div class="g-lbl">Wins</div>
+    </div>
+    <div class="goal-card diff">
+      <div class="g-icon">📊</div>
+      <div class="g-val">{{ (ow / op * 100) | round(1) }}%</div>
+      <div class="g-lbl">Win Rate</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if stats.recent %}
+  <div class="section-title">Recent Games</div>
+  <div class="recent-card">
+    <table class="recent-table">
+      <thead><tr><th>Mode</th><th>Score</th><th>Result</th></tr></thead>
+      <tbody>
+      {% for g in stats.recent %}
+        {% set winner = g.winner %}
+        {% set sa = g.score_a %}
+        {% set sb = g.score_b %}
+        {% set is_win = (winner == "A" and g.mode == "hvai") or (winner == "A" and g.mode == "online") %}
+        {% set is_loss = (winner == "B") %}
+        {% set is_draw = (winner == "Draw") %}
+        <tr>
+          <td><span class="mode-tag mode-{{ g.mode }}">{{ g.mode }}</span></td>
+          <td class="score-cell {% if is_win %}win{% elif is_loss %}loss{% else %}draw{% endif %}">{{ sa }} – {{ sb }}</td>
+          <td style="color:var(--muted);font-size:.75rem">
+            {% if is_win %}Win{% elif is_loss %}Loss{% else %}Draw{% endif %}
+          </td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if gp == 0 %}
+  <div style="text-align:center;padding:40px 16px;color:var(--dim);font-size:.9rem">
+    No games played yet. <a href="/" style="color:var(--accent);text-decoration:none;font-weight:600">Play your first game!</a>
   </div>
   {% endif %}
 </main>

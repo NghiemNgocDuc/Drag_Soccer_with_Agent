@@ -34,15 +34,28 @@ def save_game_result(
 
 def get_user_stats(user_id: str) -> dict:
     svc = _svc()
+    empty = {"games_played":0,"wins":0,"losses":0,"draws":0,"goals_for":0,"goals_against":0,"recent":[],"online_played":0,"online_wins":0}
     if not svc:
-        return {"games_played": 0, "wins": 0, "losses": 0, "draws": 0}
-    rows = svc.table("games").select("*").eq("user_id", user_id).execute().data or []
+        return empty
+    rows = svc.table("games").select("*").eq("user_id", user_id).order("ended_at", desc=True).execute().data or []
     hvai = [r for r in rows if r.get("mode") == "hvai"]
+    online = [r for r in rows if r.get("mode") == "online"]
+    total_gf = sum(r.get("score_a",0) for r in hvai)
+    total_ga = sum(r.get("score_b",0) for r in hvai)
     return {
         "games_played": len(rows),
         "wins":   sum(1 for r in hvai if r.get("winner") == "A"),
         "losses": sum(1 for r in hvai if r.get("winner") == "B"),
         "draws":  sum(1 for r in hvai if r.get("winner") == "Draw"),
+        "goals_for": total_gf,
+        "goals_against": total_ga,
+        "online_played": len(online),
+        "online_wins": sum(1 for r in online if r.get("winner") == "A"),
+        "recent": [
+            {"mode":r["mode"],"score_a":r["score_a"],"score_b":r["score_b"],
+             "winner":r.get("winner",""),"ended_at":r.get("ended_at","")}
+            for r in rows[:5] if r.get("score_a") is not None
+        ],
     }
 
 

@@ -134,25 +134,24 @@ TEMPLATE = '''\
 # ─────────────────────────────────────────────────────────────────────
 #  Soccer AI — write your strategy below!
 #
-#  You control a team of 3 players on a 800×500 field.
-#  Team A attacks RIGHT (scores in right goal, x=800).
-#  Team B attacks LEFT  (scores in left goal,  x=0).
+#  Field: 1000 × 625  (Team A → RIGHT, goal at x=1000, y=231–394)
+#                    (Team B → LEFT,  goal at x=0,    y=231–394)
 #
-#  state dict keys:
-#    state["ball"]      = {"x": float, "y": float}
-#    state["players_a"] = [{"x": float, "y": float}, ...]  # 3 items
-#    state["players_b"] = [{"x": float, "y": float}, ...]  # 3 items
-#    state["score_a"]   = int
-#    state["score_b"]   = int
-#    state["kick_count"]= int
-#    state["max_kicks"] = int   (game ends at this many kicks total)
+#  state["ball"]       = {"x": float, "y": float}
+#  state["players_a"]  = [{"x": float, "y": float}, ...]  # 3 players
+#  state["players_b"]  = [{"x": float, "y": float}, ...]  # 3 players
+#  state["score_a"]    = int
+#  state["score_b"]    = int
+#  state["kick_count"] = int
+#  state["game_over"]  = bool
+#  state["period"]     = str  # "regular_first", "regular_second", etc.
 #
-#  Return: (player_idx, angle_degrees, power)
-#    player_idx    — 0, 1, or 2  (which of your 3 players to kick with)
-#    angle_degrees — kick direction (0=right, 90=down, 180=left, 270=up)
-#    power         — kick strength 0–100
+#  Return: (player_idx, angle_deg, power)
+#    player_idx    — 0, 1, or 2
+#    angle_degrees — 0=right, 90=down, 180=left, 270=up
+#    power         — 0.0–100.0
 #
-#  math and random are available.
+#  Available: math, random, copy + common builtins
 # ─────────────────────────────────────────────────────────────────────
 
 MODEL_NAME  = "My Soccer AI"
@@ -169,8 +168,8 @@ def get_ai_move(state, is_player_a):
     ))
 
     # Aim at center of opponent\'s goal
-    goal_x = 800.0 if is_player_a else 0.0
-    goal_y = 250.0
+    goal_x = 1000.0 if is_player_a else 0.0
+    goal_y = 312.0
     angle  = math.degrees(math.atan2(goal_y - by, goal_x - bx))
 
     return best_idx, angle, 80.0

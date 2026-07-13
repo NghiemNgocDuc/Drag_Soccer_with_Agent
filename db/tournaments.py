@@ -1,5 +1,6 @@
 import uuid
 import json
+from datetime import datetime
 from db.redis_client import r
 
 def _get_tournaments_list():
@@ -20,7 +21,7 @@ def create_tournament(user_id: str, name: str) -> dict:
         "creator_id": user_id,
         "name": name,
         "status": "pending",
-        "created_at": str(uuid.uuid1()) # quick timestamp
+        "created_at": datetime.utcnow().isoformat()
     }
     lst = _get_tournaments_list()
     lst.append(t)

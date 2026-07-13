@@ -1,8 +1,9 @@
-﻿import asyncio, json, sys
+﻿"""Browser-based E2E test with Playwright — needs Flask server running on :5000."""
+import asyncio, json, sys
 from pathlib import Path
 from playwright.async_api import async_playwright
 
-SCREENSHOTS = Path(r"c:\Users\User\Documents\Playing-O-An-Quan-with-AI\test_screenshots")
+SCREENSHOTS = Path(__file__).parent / "test_screenshots"
 SCREENSHOTS.mkdir(exist_ok=True)
 
 async def run():
@@ -21,7 +22,7 @@ async def run():
 
         # 2. Game page loaded
         await page.wait_for_selector("#game-canvas", timeout=5000)
-        await asyncio.sleep(1.5)   # let JS init + fetch state
+        await asyncio.sleep(1.5)
         await page.screenshot(path=str(SCREENSHOTS/"02_game_loaded.png"))
 
         # 3. Read initial scores
@@ -30,21 +31,17 @@ async def run():
         print(f"Initial scores — A:{sa0}  B:{sb0}")
 
         # 4. Simulate slingshot drag on the middle player (player 1, idx=1)
-        #    Canvas CSS size on a 1200px wide viewport
         canvas = page.locator("#game-canvas")
         box    = await canvas.bounding_box()
-        scale  = box["width"] / 800     # canvas CSS pixels per game unit
+        scale  = box["width"] / 800
 
-        # Player A[1] home position: (150, 250) in game units
         px = box["x"] + 150 * scale
         py = box["y"] + 250 * scale
-        # Pull LEFT by 90 game units → rightward kick
         pull_x = box["x"] + (150 - 90) * scale
         pull_y = py
 
         await page.mouse.move(px, py)
         await page.mouse.down()
-        # Move gradually to show drag
         for step in range(10):
             ix = px + (pull_x - px) * (step+1) / 10
             await page.mouse.move(ix, pull_y)
@@ -56,12 +53,11 @@ async def run():
         await asyncio.sleep(4)
         await page.screenshot(path=str(SCREENSHOTS/"04_after_kick.png"))
 
-        # 6. Verify scores changed (goal was likely scored given power)
+        # 6. Verify scores changed
         sa1 = await page.inner_text("#score-a")
         sb1 = await page.inner_text("#score-b")
         print(f"After kick  — A:{sa1}  B:{sb1}")
 
-        # 7. Verify canvas still has content (not blank)
         canvas_data = await page.evaluate("""
             () => {
                 const c = document.getElementById('game-canvas');
@@ -77,7 +73,6 @@ async def run():
         fill_pct = round(canvas_data["nonZero"] / canvas_data["total"] * 100, 1)
         print(f"Canvas fill: {fill_pct}% non-black pixels")
 
-        # 8. Quick new-game reset test
         await page.click('button:has-text("New Game")')
         await asyncio.sleep(0.8)
         sa2 = await page.inner_text("#score-a")
@@ -87,11 +82,11 @@ async def run():
 
         await browser.close()
 
-        # Results
         print()
         assert sa2 == "0" and sb2 == "0", "Reset should clear scores to 0"
         assert fill_pct > 30, f"Canvas should have content, got {fill_pct}%"
         print("ALL CHECKS PASSED")
         print(f"Screenshots saved to {SCREENSHOTS}")
 
-asyncio.run(run())
+if __name__ == "__main__":
+    asyncio.run(run())

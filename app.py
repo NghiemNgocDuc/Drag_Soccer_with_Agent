@@ -59,7 +59,7 @@ def _load_model(name: str):
 
 def _load_user_model(model_id: str) -> _UserModelWrapper:
     from flask import g
-    cache = g.get("_um_cache") or {}
+    cache = getattr(g, "_um_cache", {}) or {}
     if model_id not in cache:
         from db.user_models import get_model_by_id
         data = get_model_by_id(model_id, requesting_user_id=uid())
@@ -562,7 +562,9 @@ def benchmark():
 def profile():
     from db.games import get_user_stats
     stats = get_user_stats(uid())
-    return render_template("profile.html", username=session.get("username", "Player"), stats=stats)
+    username = session.get("username", "Player")
+    joined_days = session.get("joined_at")
+    return render_template("profile.html", username=username, stats=stats, joined_days=joined_days)
 
 
 @app.route("/leaderboard")
@@ -922,7 +924,7 @@ def online_move(room_id):
     data       = request.get_json(silent=True) or {}
     player_idx = max(0, min(2, int(data.get("player_idx", 0))))
     angle      = float(data.get("angle", 0.0))
-    pc         = int(state.get("power_cap", 100))
+    pc         = int(game.get("power_cap", 100))
     power      = max(0.0, min(pc, float(data.get("power", 80.0))))
     push_snapshot(game)
     traj, scored, desc, kick_ep, push_res = apply_kick(game, player_idx, angle, power, game["is_player_a"])

@@ -9,17 +9,20 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --accent:#3b82f6;--accent-b:#059669;--red:#ef4444;--amber:#d97706;
-  --text:#1e2d4f;--muted:#6b7fa3;--dim:#9caab8;
-  --glass-bg:rgba(255,255,255,.62);--glass-border:rgba(180,205,255,.5);
-  --glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);
-  --blur:18px;
+  --accent:#06b6d4;--accent-b:#f97316;--red:#ef4444;--amber:#d97706;
+  --text:#0f172a;--muted:#475569;--dim:#94a3b8;
+  --glass-bg:rgba(255,255,255,.7);--glass-border:rgba(255,255,255,.5);
+  --glass-shadow:0 8px 32px rgba(31,38,135,.07),inset 0 1px 0 rgba(255,255,255,.95);
+  --blur:16px;
 }
 body{
   font-family:'Be Vietnam Pro',system-ui,sans-serif;font-size:14px;
   color:var(--text);min-height:100vh;display:flex;flex-direction:column;
-  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
+  background:linear-gradient(135deg,#fef3c7 0%,#fde68a 15%,#fecaca 30%,#fbcfe8 50%,#c7d2fe 70%,#bfdbfe 85%,#a7f3d0 100%);
+  background-size:400% 400%;
+  animation:bg-flow 20s ease infinite;
 }
+@keyframes bg-flow{0%{background-position:0% 50%}25%{background-position:50% 0%}50%{background-position:100% 50%}75%{background-position:50% 100%}100%{background-position:0% 50%}}
 .nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
 .nebula::before{
   content:'';position:absolute;width:700px;height:700px;
@@ -28,7 +31,7 @@ body{
 }
 .nebula::after{
   content:'';position:absolute;width:600px;height:500px;
-  background:radial-gradient(ellipse,rgba(16,185,129,.07) 0%,transparent 65%);
+  background:radial-gradient(ellipse,rgba(249,115,22,.07) 0%,transparent 65%);
   bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate;
 }
 @keyframes drift {to{transform:translate(40px,-30px)}}
@@ -37,9 +40,9 @@ body{
 /* ── Nav ── */
 nav{
   position:relative;z-index:2;
-  background:rgba(255,255,255,.78);
+  background:rgba(255,255,255,.7);
   backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid rgba(180,205,255,.4);
+  border-bottom:1px solid rgba(255,255,255,.5);
   padding:12px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0;
 }
 .nav-brand{font-size:.9rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}

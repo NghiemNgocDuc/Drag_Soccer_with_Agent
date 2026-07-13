@@ -60,7 +60,7 @@ def get_ai_move(state, is_player_a):
     # state["score_a"]    → int
     # state["score_b"]    → int
     # state["kick_count"] → int
-    # state["max_kicks"]  → int  (game ends here)
+    # state["start_time"] → float (Unix timestamp of game start)
     #
     # is_player_a = True  → you are Team A, attack RIGHT (goal at x ≈ 800)
     # is_player_a = False → you are Team B, attack LEFT  (goal at x ≈ 0)

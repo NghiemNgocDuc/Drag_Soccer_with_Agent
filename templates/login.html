@@ -8,21 +8,24 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --accent:#3b82f6;
-  --text:#1e2d4f;
-  --muted:#6b7fa3;
-  --dim:#9caab8;
+  --accent:#06b6d4;
+  --text:#0f172a;
+  --muted:#475569;
+  --dim:#94a3b8;
   --red:#ef4444;
-  --glass-bg:rgba(255,255,255,.65);
-  --glass-border:rgba(180,205,255,.5);
+  --glass-bg:rgba(255,255,255,.7);
+  --glass-border:rgba(255,255,255,.5);
 }
 body{
   font-family:'Be Vietnam Pro',system-ui,sans-serif;
   font-size:14px;color:var(--text);
   min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
-  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
+  background:linear-gradient(135deg,#fef3c7 0%,#fde68a 15%,#fecaca 30%,#fbcfe8 50%,#c7d2fe 70%,#bfdbfe 85%,#a7f3d0 100%);
+  background-size:400% 400%;
+  animation:bg-flow 20s ease infinite;
   overflow:hidden;
 }
+@keyframes bg-flow{0%{background-position:0% 50%}25%{background-position:50% 0%}50%{background-position:100% 50%}75%{background-position:50% 100%}100%{background-position:0% 50%}}
 body::before{
   content:'';position:fixed;
   width:700px;height:700px;
@@ -33,7 +36,7 @@ body::before{
 body::after{
   content:'';position:fixed;
   width:550px;height:500px;
-  background:radial-gradient(ellipse,rgba(16,185,129,.07) 0%,transparent 65%);
+  background:radial-gradient(ellipse,rgba(249,115,22,.07) 0%,transparent 65%);
   bottom:-100px;right:-60px;pointer-events:none;
   animation:drift2 22s ease-in-out infinite alternate;
 }
@@ -53,7 +56,7 @@ body::after{
 .logo{text-align:center;margin-bottom:28px}
 .logo h1{
   font-size:1.6rem;font-weight:700;letter-spacing:-.03em;
-  background:linear-gradient(135deg,#1e2d4f 0%,#3b82f6 100%);
+  background:linear-gradient(135deg,#06b6d4 0%,#f97316 100%);
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
 }
 .logo p{font-size:.75rem;color:var(--muted);margin-top:4px}
@@ -70,7 +73,7 @@ input[type="email"],input[type="password"],input[type="text"]{
   transition:border-color .15s,background .15s;
 }
 input::placeholder{color:var(--dim)}
-input:focus{outline:none;border-color:rgba(59,130,246,.6);background:rgba(255,255,255,.9)}
+input:focus{outline:none;border-color:rgba(6,182,212,.6);background:rgba(255,255,255,.9)}
 
 .hint{font-size:.68rem;color:var(--dim);margin-top:4px}
 
@@ -79,7 +82,7 @@ input:focus{outline:none;border-color:rgba(59,130,246,.6);background:rgba(255,25
   background:var(--accent);color:#fff;
   font-family:inherit;font-size:.88rem;font-weight:600;
   border:none;border-radius:9px;cursor:pointer;margin-top:8px;
-  box-shadow:0 4px 16px rgba(96,165,250,.35);
+  box-shadow:0 4px 16px rgba(6,182,212,.35);
   transition:opacity .15s,transform .12s;
 }
 .btn-submit:hover{opacity:.88;transform:translateY(-1px)}

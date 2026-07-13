@@ -4,43 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>My Models — Agent Soccer</title>
-<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --accent:#3b82f6;--accent-b:#059669;--red:#ef4444;--amber:#d97706;
-  --text:#1e2d4f;--muted:#6b7fa3;--dim:#9caab8;
-  --glass-bg:rgba(255,255,255,.62);--glass-border:rgba(180,205,255,.5);
-  --glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);
-  --blur:18px;
+  --accent:#06b6d4;--accent-b:#f97316;--red:#ef4444;--amber:#d97706;--green:#22c55e;
+  --text:#0f172a;--muted:#475569;--dim:#94a3b8;
+  --glass-bg:rgba(255,255,255,.7);--glass-border:rgba(255,255,255,.5);
+  --glass-shadow:0 8px 32px rgba(31,38,135,.07),inset 0 1px 0 rgba(255,255,255,.95);
+  --blur:16px;
 }
 body{
   font-family:'Be Vietnam Pro',system-ui,sans-serif;
   font-size:14px;color:var(--text);min-height:100vh;
-  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
+  background:linear-gradient(135deg,#fef3c7 0%,#fde68a 15%,#fecaca 30%,#fbcfe8 50%,#c7d2fe 70%,#bfdbfe 85%,#a7f3d0 100%);
+  background-size:400% 400%;animation:bg-flow 20s ease infinite;
 }
+@keyframes bg-flow{0%{background-position:0% 50%}25%{background-position:50% 0%}50%{background-position:100% 50%}75%{background-position:50% 100%}100%{background-position:0% 50%}}
 .nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
-.nebula::before{
-  content:'';position:absolute;width:700px;height:700px;
-  background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);
-  top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate;
-}
-.nebula::after{
-  content:'';position:absolute;width:600px;height:500px;
-  background:radial-gradient(ellipse,rgba(16,185,129,.07) 0%,transparent 65%);
-  bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate;
-}
-@keyframes drift {to{transform:translate(40px,-30px)}}
+.nebula::before{content:'';position:absolute;width:700px;height:700px;background:radial-gradient(ellipse,rgba(6,182,212,.12) 0%,transparent 65%);top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate}
+.nebula::after{content:'';position:absolute;width:600px;height:500px;background:radial-gradient(ellipse,rgba(249,115,22,.1) 0%,transparent 65%);bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate(40px,-30px)}}
 @keyframes drift2{to{transform:translate(-30px,25px)}}
 
 nav,div.page{position:relative;z-index:1}
-
-/* nav */
 nav{
-  background:rgba(255,255,255,.78);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid rgba(180,205,255,.4);
+  background:rgba(255,255,255,.7);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid rgba(255,255,255,.5);
   padding:12px 24px;display:flex;align-items:center;gap:16px;
 }
 .nav-brand{font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}
@@ -56,102 +47,119 @@ nav{
 }
 .btn-nav-logout:hover{border-color:var(--accent);color:var(--accent)}
 
-/* layout */
-.page{display:grid;grid-template-columns:280px 1fr;gap:20px;max-width:1200px;margin:0 auto;padding:24px 16px}
-@media(max-width:768px){.page{grid-template-columns:1fr}}
+/* ── Layout ── */
+.page{display:grid;grid-template-columns:300px 1fr;gap:20px;max-width:1200px;margin:0 auto;padding:24px 16px;min-height:calc(100vh - 60px)}
+@media(max-width:860px){.page{grid-template-columns:1fr}}
 
-/* sidebar */
-.sidebar-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
-.sidebar-title h2{font-size:.95rem;font-weight:700;color:var(--text)}
-
-/* buttons */
-.btn{
-  font-family:inherit;font-size:.78rem;font-weight:500;
-  padding:7px 14px;border-radius:8px;border:none;cursor:pointer;
-  transition:opacity .12s,transform .12s;
+/* ── Sidebar ── */
+.sidebar-header{
+  background:linear-gradient(135deg,rgba(6,182,212,.12),rgba(249,115,22,.08));
+  border:1px solid rgba(255,255,255,.5);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border-radius:16px;padding:18px 20px;margin-bottom:14px;
+  display:flex;align-items:center;justify-content:space-between;
 }
-.btn:hover{opacity:.85;transform:translateY(-1px)}
-.btn-blue  {background:var(--accent);color:#000;box-shadow:0 3px 12px rgba(96,165,250,.3)}
-.btn-green {background:var(--accent-b);color:#000;box-shadow:0 3px 12px rgba(52,211,153,.3)}
-.btn-ghost {background:var(--glass-bg);color:var(--muted);border:1px solid var(--glass-border)}
-.btn-ghost:hover{border-color:var(--accent);color:var(--accent);opacity:1}
-.btn-danger{background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.3)}
-.btn-danger:hover{background:var(--red);color:#000;opacity:1}
-.btn-sm{padding:4px 10px;font-size:.7rem}
+.sidebar-header h2{font-size:1rem;font-weight:800;letter-spacing:-.02em}
+.sidebar-header .count{font-size:.7rem;color:var(--muted);font-weight:500}
 
-/* model cards */
+.model-list{display:flex;flex-direction:column;gap:8px}
 .model-card{
-  background:var(--glass-bg);
-  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
-  border:1px solid var(--glass-border);border-radius:10px;
-  padding:12px 14px;margin-bottom:8px;cursor:pointer;
-  transition:border-color .15s,box-shadow .15s;
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:12px;
+  padding:14px 16px;cursor:pointer;
+  transition:all .2s;position:relative;overflow:hidden;
 }
-.model-card:hover{border-color:rgba(96,165,250,.4);box-shadow:0 0 12px rgba(96,165,250,.12)}
-.model-card.active{border-color:rgba(96,165,250,.6);background:rgba(96,165,250,.1);box-shadow:0 0 18px rgba(96,165,250,.2)}
-.mc-name{font-weight:600;font-size:.88rem;color:var(--text);margin-bottom:2px}
+.model-card:hover{box-shadow:0 4px 20px rgba(6,182,212,.1)}
+.model-card.active{
+  border-color:#06b6d4;background:rgba(6,182,212,.08);
+  box-shadow:0 0 0 1px rgba(6,182,212,.3),0 4px 20px rgba(6,182,212,.12);
+}
+.model-card.active::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(#06b6d4,#8b5cf6);border-radius:0 3px 3px 0}
+.mc-name{font-weight:700;font-size:.88rem;color:var(--text);margin-bottom:2px}
 .mc-desc{font-size:.7rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.mc-meta{font-size:.63rem;color:var(--dim);margin-top:7px;display:flex;gap:8px;align-items:center}
+.mc-meta{font-size:.63rem;color:var(--dim);margin-top:8px;display:flex;gap:8px;align-items:center}
 .public-badge{
-  font-size:.6rem;font-weight:600;padding:1px 6px;border-radius:100px;
-  background:rgba(52,211,153,.12);color:var(--accent-b);border:1px solid rgba(52,211,153,.3);
+  font-size:.58rem;font-weight:600;padding:2px 8px;border-radius:100px;
+  background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.25);
 }
-.empty-state{text-align:center;padding:32px 16px;color:var(--muted);font-size:.82rem}
+.empty-state{text-align:center;padding:40px 16px;color:var(--muted);font-size:.82rem;background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--glass-border);border-radius:12px}
 .empty-state strong{display:block;font-size:1rem;font-weight:600;color:var(--text);margin-bottom:6px}
 
-/* main panel */
+/* ── Buttons ── */
+.btn{
+  font-family:inherit;font-size:.78rem;font-weight:600;
+  padding:8px 16px;border-radius:10px;border:none;cursor:pointer;
+  transition:all .15s;display:inline-flex;align-items:center;gap:5px;
+}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn-blue{background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;box-shadow:0 3px 12px rgba(6,182,212,.3)}
+.btn-blue:hover{box-shadow:0 5px 18px rgba(6,182,212,.35)}
+.btn-orange{background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;box-shadow:0 3px 12px rgba(249,115,22,.3)}
+.btn-orange:hover{box-shadow:0 5px 18px rgba(249,115,22,.35)}
+.btn-ghost{background:var(--glass-bg);color:var(--muted);border:1px solid var(--glass-border)}
+.btn-ghost:hover{border-color:#06b6d4;color:#06b6d4;opacity:1}
+.btn-danger{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.btn-danger:hover{background:var(--red);color:#fff;opacity:1}
+.btn-sm{padding:5px 12px;font-size:.7rem;border-radius:8px}
+.btn-xs{padding:3px 8px;font-size:.62rem;border-radius:6px}
+
+/* ── Main Panel ── */
 .main-panel{display:flex;flex-direction:column;gap:0}
 
-/* reference panel */
+/* ── Reference Docs ── */
 .ref-panel{
-  background:var(--glass-bg);
-  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
-  border:1px solid var(--glass-border);border-radius:14px;
-  box-shadow:var(--glass-shadow);
-  padding:24px;
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:16px;box-shadow:var(--glass-shadow);
+  padding:28px;
 }
-.ref-panel h3{font-size:1rem;font-weight:700;color:var(--text);margin-bottom:16px}
-.ref-section{margin-bottom:20px}
+.ref-panel h3{font-size:1.05rem;font-weight:800;color:var(--text);margin-bottom:18px}
+.ref-section{margin-bottom:22px}
+.ref-section:last-child{margin-bottom:0}
 .ref-section h4{
-  font-size:.7rem;font-weight:600;color:var(--muted);
+  font-size:.68rem;font-weight:700;color:var(--muted);
   letter-spacing:.08em;text-transform:uppercase;margin-bottom:8px;
+  display:flex;align-items:center;gap:6px;
 }
 pre.ref-code{
-  background:rgba(0,0,0,.4);
-  border:1px solid var(--glass-border);
-  border-radius:8px;padding:13px 15px;
-  font-size:.77rem;line-height:1.65;overflow-x:auto;
+  background:rgba(15,23,42,.85);
+  border:1px solid rgba(255,255,255,.1);
+  border-radius:10px;padding:16px 18px;
+  font-size:.77rem;line-height:1.7;overflow-x:auto;
   font-family:'Fira Mono','Courier New',monospace;
-  color:rgba(205,214,244,.9);white-space:pre-wrap;
+  color:#e2e8f0;white-space:pre-wrap;
 }
 .ref-note{font-size:.78rem;color:var(--muted);line-height:1.7}
 .ref-note code{
-  background:rgba(255,255,255,.08);
-  border:1px solid var(--glass-border);
-  padding:1px 5px;border-radius:4px;font-size:.85em;color:var(--accent);
+  background:rgba(6,182,212,.1);
+  border:1px solid rgba(6,182,212,.15);
+  padding:2px 6px;border-radius:5px;font-size:.85em;color:#06b6d4;font-weight:500;
 }
 
-/* editor panel */
-.editor-panel{display:none;background:rgba(15,16,30,.9);border:1px solid var(--glass-border);border-radius:14px;overflow:hidden}
-.editor-panel.visible{display:flex;flex-direction:column}
-
+/* ── Editor Panel ── */
+.editor-panel{
+  display:none;flex-direction:column;
+  background:rgba(15,23,42,.92);border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,.25);
+}
+.editor-panel.visible{display:flex}
 .editor-header{
-  padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.07);
-  display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;
-  background:rgba(10,10,22,.6);
+  padding:16px 20px;border-bottom:1px solid rgba(255,255,255,.06);
+  display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;
+  background:rgba(10,10,22,.5);
 }
 .field-inline{display:flex;flex-direction:column;gap:4px}
 .field-inline label{
-  font-size:.68rem;font-weight:600;color:var(--muted);
+  font-size:.65rem;font-weight:600;color:rgba(148,163,184,.7);
   letter-spacing:.06em;text-transform:uppercase;
 }
 .field-inline input{
-  padding:7px 10px;background:rgba(0,0,0,.3);
-  border:1px solid var(--glass-border);border-radius:7px;
-  font-family:inherit;font-size:.85rem;color:var(--text);transition:border-color .15s;
+  padding:8px 12px;background:rgba(0,0,0,.35);
+  border:1px solid rgba(255,255,255,.1);border-radius:8px;
+  font-family:inherit;font-size:.85rem;color:#e2e8f0;transition:border-color .15s;
 }
-.field-inline input::placeholder{color:var(--dim)}
-.field-inline input:focus{outline:none;border-color:rgba(96,165,250,.6)}
+.field-inline input::placeholder{color:rgba(148,163,184,.4)}
+.field-inline input:focus{outline:none;border-color:rgba(6,182,212,.5)}
 #f-name{width:200px}
 #f-desc{width:260px}
 .editor-actions{margin-left:auto;display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
@@ -159,15 +167,15 @@ pre.ref-code{
 /* CodeMirror dark override */
 .CodeMirror{
   font-family:'Fira Mono','Courier New',monospace;
-  font-size:13px;height:460px;
+  font-size:13px;height:480px;
   background:#0d1117 !important;color:#cdd6f4 !important;
-  border-bottom:1px solid rgba(255,255,255,.07);
-  line-height:1.6;
+  border-bottom:1px solid rgba(255,255,255,.06);
+  line-height:1.65;
 }
-.CodeMirror-gutters{background:#0d1117 !important;border-right:1px solid rgba(255,255,255,.07) !important}
+.CodeMirror-gutters{background:#0d1117 !important;border-right:1px solid rgba(255,255,255,.06) !important}
 .CodeMirror-linenumber{color:#4a4f69 !important}
-.CodeMirror-cursor{border-left:2px solid var(--accent) !important}
-.CodeMirror-selected{background:rgba(96,165,250,.2) !important}
+.CodeMirror-cursor{border-left:2px solid #06b6d4 !important}
+.CodeMirror-selected{background:rgba(6,182,212,.2) !important}
 .cm-keyword{color:#cba6f7 !important}
 .cm-string{color:#a6e3a1 !important}
 .cm-comment{color:#6c7086 !important}
@@ -177,18 +185,35 @@ pre.ref-code{
 .CodeMirror-scroll{padding-bottom:8px}
 
 .editor-footer{
-  padding:11px 16px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-  background:rgba(10,10,22,.6);border-top:1px solid rgba(255,255,255,.07);
+  padding:12px 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:rgba(10,10,22,.5);border-top:1px solid rgba(255,255,255,.06);
 }
 .validate-result{
-  font-size:.75rem;font-weight:500;padding:5px 10px;border-radius:6px;display:none;
+  font-size:.74rem;font-weight:500;padding:5px 10px;border-radius:6px;display:none;
 }
-.validate-result.ok {display:block;background:rgba(52,211,153,.12);color:var(--accent-b);border:1px solid rgba(52,211,153,.3)}
-.validate-result.err{display:block;background:rgba(248,113,113,.12);color:var(--red);border:1px solid rgba(248,113,113,.3)}
+.validate-result.ok{display:block;background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.25)}
+.validate-result.err{display:block;background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25)}
 
 .editor-save-row{margin-left:auto;display:flex;gap:8px;align-items:center}
-.public-toggle{display:flex;align-items:center;gap:6px;font-size:.75rem;color:var(--muted);cursor:pointer}
-.public-toggle input{cursor:pointer;accent-color:var(--accent)}
+.public-toggle{display:flex;align-items:center;gap:6px;font-size:.74rem;color:rgba(148,163,184,.7);cursor:pointer}
+.public-toggle input{cursor:pointer;accent-color:#06b6d4}
+
+/* ── Blank slate ── */
+.blank-slate{
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:16px;box-shadow:var(--glass-shadow);
+  padding:60px 32px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;
+}
+.blank-slate .big-icon{font-size:3rem;opacity:.4}
+.blank-slate h3{font-size:1.1rem;font-weight:700;color:var(--text)}
+.blank-slate p{font-size:.82rem;color:var(--muted);max-width:380px}
+
+@media(max-width:860px){
+  .page{grid-template-columns:1fr}
+  .editor-header{flex-direction:column;align-items:stretch}
+  .editor-actions{margin-left:0}
+  #f-name,#f-desc{width:100%}
+}
 </style>
 </head>
 <body>
@@ -213,14 +238,17 @@ pre.ref-code{
 
 <div class="page">
 
-  <!-- Sidebar: model list -->
+  <!-- Sidebar -->
   <div>
-    <div class="sidebar-title">
-      <h2>My Models</h2>
+    <div class="sidebar-header">
+      <div>
+        <h2>My Models</h2>
+        <span class="count">{% if models %}{{ models | length }} model{% if models | length != 1 %}s{% endif %}{% endif %}</span>
+      </div>
       <button class="btn btn-blue btn-sm" onclick="openNew()">+ New</button>
     </div>
 
-    <div id="model-list">
+    <div class="model-list" id="model-list">
       {% if models %}
         {% for m in models %}
         <div class="model-card" id="card-{{ m.id }}" onclick="openEdit('{{ m.id }}')">
@@ -229,10 +257,10 @@ pre.ref-code{
           <div class="mc-meta">
             {% if m.is_public %}<span class="public-badge">Public</span>{% endif %}
             <span>{{ m.updated_at[:10] if m.updated_at else '' }}</span>
-            <div style="margin-left:auto;display:flex;gap:5px">
-              <button class="btn btn-ghost btn-sm"
+            <div style="margin-left:auto;display:flex;gap:4px">
+              <button class="btn btn-ghost btn-xs"
                 onclick="event.stopPropagation(); testInPlayground('{{ m.id }}')">▶ Test</button>
-              <button class="btn btn-danger btn-sm"
+              <button class="btn btn-danger btn-xs"
                 onclick="event.stopPropagation(); deleteModel('{{ m.id }}')">Delete</button>
             </div>
           </div>
@@ -247,57 +275,158 @@ pre.ref-code{
     </div>
   </div>
 
-  <!-- Main: editor or reference -->
-  <div class="main-panel">
+  <!-- Main panel -->
+  <div class="main-panel" id="main-panel">
 
-    <!-- Reference docs -->
+    <!-- Reference docs (shown when no editor is open) -->
     <div class="ref-panel" id="ref-panel">
-      <h3>How to write a model</h3>
+      <h3>✍️ How to write a Soccer AI</h3>
 
       <div class="ref-section">
-        <h4>Required function</h4>
-        <pre class="ref-code">def get_ai_move(board, score_a, score_b, is_player_a):
-    # board        — list of 12 slots, each a list of 'dan'/'quan' strings
-    # score_a/b    — {'dan': int, 'quan': int}
-    # is_player_a  — True when it's Player A's turn
-    return pit_index, step   # step: +1 clockwise, -1 counter-clockwise</pre>
+        <h4>🎯 Required function</h4>
+        <pre class="ref-code">def get_ai_move(state, is_player_a):
+    # state        — dict describing the full game state (see below)
+    # is_player_a  — True → you control Team A (attacks RIGHT toward x=1000)
+    #                 False → you control Team B (attacks LEFT toward x=0)
+    return player_idx, angle_deg, power
+    # player_idx   — 0, 1, or 2 (which of your 3 players kicks)
+    # angle_deg    — direction in degrees (0=right, 90=down, 180=left, 270=up)
+    # power        — kick strength 0.0–100.0</pre>
       </div>
 
       <div class="ref-section">
-        <h4>Board layout</h4>
-        <pre class="ref-code">board[0]     = Quan A (large pit — cannot be sown from)
-board[1–5]   = Player A's 5 small pits
-board[6–10]  = Player B's 5 small pits
-board[11]    = Quan B (large pit — cannot be sown from)
-
-# Each slot is a list of strings, e.g. ['dan', 'dan', 'dan']
-# len(board[i]) = number of seeds in pit i</pre>
+        <h4>📋 State dict keys</h4>
+        <pre class="ref-code">state["ball"]       = {"x": float, "y": float}   # ball position
+state["players_a"]  = [{"x":float,"y":float}, ...]  # Team A (3 players)
+state["players_b"]  = [{"x":float,"y":float}, ...]  # Team B (3 players)
+state["score_a"]    = int   # Team A goals
+state["score_b"]    = int   # Team B goals
+state["kick_count"] = int   # total kicks so far
+state["game_over"]  = bool  # True if match ended
+state["winner"]     = str or None  # "A" | "B" | None
+state["period"]     = str   # "regular_first" | "regular_second" |
+                            # "et_first" | "et_second" | "penalties"
+state["player_count"] = int # players per side (default 3)
+state["half_length"]  = int # game-minutes per half (default 45)
+state["win_goal_limit"] = int  # goals to win (default 5)</pre>
       </div>
 
       <div class="ref-section">
-        <h4>Allowed imports</h4>
+        <h4>⚽ Field layout (1000 × 625)</h4>
+        <pre class="ref-code">  (0,0) ─────────────────────────────── (1000,0)
+    │  ┌──────────┐         ┌──────────┐  │
+    │  │ GOAL_B   │         │ GOAL_A   │  │
+    │  │ x=0      │         │ x=1000   │  │
+    │  │ y=231-394│         │ y=231-394│  │
+    │  └──────────┘         └──────────┘  │
+    │        ═══  ════════  ═══          │
+    │         ⚽     ║        ║           │
+    │        ═══     ║        ║           │
+    │  ┌──────────┘         └──────────┐  │
+    │  │ GOAL_B   │         │ GOAL_A   │  │
+    │  │ x=0      │         │ x=1000   │  │
+  (0,625) ───────────────────────────── (1000,625)
+
+  Centre spot:  (500, 312)
+  Goals: width=50, height ≈ 163 (y 231 → 394)
+  Kick-off spots: Team A ~(790,250), Team B ~(210,250)</pre>
+      </div>
+
+      <div class="ref-section">
+        <h4>📦 Available imports & builtins</h4>
         <p class="ref-note">
-          <code>random</code>, <code>math</code>, <code>copy</code> are available.
-          OS / network / file-system modules are blocked for safety.
+          Full access to <code>random</code>, <code>math</code>, <code>copy</code>
+          plus common builtins (<code>min</code>, <code>max</code>, <code>sum</code>,
+          <code>abs</code>, <code>sorted</code>, <code>enumerate</code>, <code>zip</code>,
+          <code>any</code>, <code>all</code>, <code>len</code>, <code>range</code>, …).
+          OS / network / filesystem modules are blocked.
         </p>
       </div>
 
       <div class="ref-section">
-        <h4>Example — random valid move</h4>
-        <pre class="ref-code">import random
+        <h4>🧠 Strategy tips</h4>
+        <pre class="ref-code"># 1. Pick the right player
+#    Use the player closest to the ball for quick response.
+#    Use a different player to intercept / position defensively.
 
-MODEL_NAME  = "Random"
-DESCRIPTION = "Picks a random legal move"
+# 2. Aim smartly
+#    Shoot at goal when close (x > 700 for Team A, x < 300 for Team B).
+#    Vary y-coordinate of target so keeper can't always save.
+#    Pass to teammates when far from goal.
 
-def get_ai_move(board, score_a, score_b, is_player_a):
-    pits = range(1, 6) if is_player_a else range(6, 11)
-    valid = [(p, s) for p in pits for s in (1, -1) if board[p]]
-    if not valid:
-        return None, 1
-    return random.choice(valid)</pre>
+# 3. Use power wisely
+#    80–100 for shots on goal (harder = faster = less time for keeper).
+#    40–60 for passes / defensive clears.
+#    Low power (10–30) for short dribbles.
+
+# 4. Play both sides
+#    Don't always use player 0 — spread kicks across all 3 players.
+#    Keep at least one player back for defense.
+
+# 5. Consider game state
+#    Check state["period"] — play more aggressively in extra time.
+#    Check state["score_a"] vs state["score_b"] — chase or protect lead.</pre>
       </div>
 
-      <p class="ref-note" style="margin-top:8px">
+      <div class="ref-section">
+        <h4>🎲 Example — shoot at goal</h4>
+        <pre class="ref-code">import math
+
+MODEL_NAME  = "Shooter"
+DESCRIPTION = "Kicks toward opponent's goal"
+
+def get_ai_move(state, is_player_a):
+    bx, by = state["ball"]["x"], state["ball"]["y"]
+    players = state["players_a"] if is_player_a else state["players_b"]
+
+    # Closest player to ball
+    idx = min(range(3), key=lambda i: math.hypot(
+        players[i]["x"] - bx, players[i]["y"] - by
+    ))
+
+    # Aim at center of opponent goal with some randomness
+    goal_x = 1000.0 if is_player_a else 0.0
+    goal_y = 312.0 + (random.random() - 0.5) * 80
+    angle = math.degrees(math.atan2(goal_y - by, goal_x - bx))
+
+    return idx, angle, 85.0</pre>
+      </div>
+
+      <div class="ref-section">
+        <h4>🎲 Example — pass & advance</h4>
+        <pre class="ref-code">import math
+
+MODEL_NAME  = "Passer"
+DESCRIPTION = "Passes to forward players"
+
+def get_ai_move(state, is_player_a):
+    bx, by = state["ball"]["x"], state["ball"]["y"]
+    players = state["players_a"] if is_player_a else state["players_b"]
+
+    # Kick with whichever player is closest
+    idx = min(range(3), key=lambda i: math.hypot(
+        players[i]["x"] - bx, players[i]["y"] - by
+    ))
+
+    # Find the furthest-forward teammate to pass to
+    target_x = 0 if is_player_a else 1000  # opposite direction
+    target = max(players, key=lambda p: p["x"] if is_player_a else -p["x"])
+    dx = target["x"] - bx
+    dy = target["y"] - by
+    dist = math.hypot(dx, dy)
+
+    if dist < 150:
+        # Close enough — shoot
+        goal_x = 1000.0 if is_player_a else 0.0
+        angle = math.degrees(math.atan2(312 - by, goal_x - bx))
+        return idx, angle, 90.0
+    else:
+        # Pass forward
+        angle = math.degrees(math.atan2(dy, dx))
+        return idx, angle, 60.0</pre>
+      </div>
+
+      <p class="ref-note" style="margin-top:12px">
         After saving, your model appears in the <strong style="color:var(--text)">AI model selector</strong>
         in the game. Use it in <em>AI vs AI</em> mode to benchmark against built-ins.
       </p>
@@ -330,7 +459,7 @@ def get_ai_move(board, score_a, score_b, is_player_a):
         </label>
         <div id="validate-result" class="validate-result"></div>
         <div class="editor-save-row">
-          <button class="btn btn-green" onclick="saveModel()" style="padding:7px 20px">Save Model</button>
+          <button class="btn btn-orange" onclick="saveModel()" style="padding:8px 22px">Save Model</button>
         </div>
       </div>
     </div>
