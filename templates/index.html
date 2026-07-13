@@ -288,48 +288,93 @@ select{
 const W = 1000, H = 625;
 const PLAYER_R = 20, BALL_R = 12;
 const GOAL_Y1 = 231, GOAL_Y2 = 394, GOAL_DEPTH = 50;
-let TEAM_A_COLOR = '#3b82f6';
-let TEAM_B_COLOR = '#ef4444';
-let BALL_BASE_COLOR = '#f8fafc';
-let REF_CENTER_COLOR = '#fde68a';
-let REF_EDGE_COLOR = '#d97706';
-let BG_CENTER_COLOR = '#2a2518';
-let BG_MID_COLOR = '#1a1812';
-let BG_EDGE_COLOR = '#080807';
+
+// Goal celebration particles
+let goalParticles = [];
+function triggerGoalEffect(effect) {
+  goalParticles = [];
+  if (effect === 'none') return;
+  const colors = effect === 'confetti' ? ['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc'] : effect === 'fireworks' ? ['#f97316','#fbbf24','#ef4444','#fef3c7'] : effect === 'stars' ? ['#fbbf24','#fff','#fde68a'] : ['#f8fafc'];
+  for (let i = 0; i < 60; i++) {
+    goalParticles.push({
+      x: 600 + (Math.random() - 0.5) * 300, y: 412 + (Math.random() - 0.5) * 200,
+      vx: (Math.random() - 0.5) * 6, vy: -Math.random() * 6 - 2,
+      r: 2 + Math.random() * 4, c: colors[Math.floor(Math.random() * colors.length)],
+      life: 1, decay: 0.008 + Math.random() * 0.012, g: 0.12
+    });
+  }
+  requestAnimationFrame(animateGoalParticles);
+}
+function animateGoalParticles() {
+  var alive = false;
+  for (const p of goalParticles) {
+    if (p.life <= 0) continue;
+    p.x += p.vx; p.vy += p.g; p.y += p.vy; p.life -= p.decay;
+    p.vx *= 0.99; alive = true;
+  }
+  goalParticles = goalParticles.filter(p => p.life > 0);
+  render();
+  if (alive && goalParticles.length) requestAnimationFrame(animateGoalParticles);
+}
+
 const MAX_DRAG = 138;  // px on canvas scale
 const PLAYER_TRAVEL = 3.0;  // must match _PLAYER_TRAVEL in soccer_logic.py
 
+// ── Customization state (loaded from server) ──
+let CUST_TEAM_A       = '#3b82f6';
+let CUST_TEAM_B       = '#ef4444';
+let CUST_REF          = '#fde68a';
+let CUST_BALL         = '#f8fafc';
+let CUST_GRASS        = 'dark';
+let CUST_PATTERN      = 'stripes';
+let CUST_LINE_COLOR   = '#ffffff';
+let CUST_CORNER_FLAG  = 'normal';
+let CUST_CROWD        = 'classic';
+let CUST_VIGNETTE     = 0.6;
+let CUST_FLOODLIGHT   = 'warm';
+let CUST_SCENE        = 'night';
+let CUST_BALL_DESIGN  = 'classic';
+let CUST_KEEPER_A     = '#22c55e';
+let CUST_KEEPER_B     = '#f97316';
+let CUST_HIGHLIGHT    = 'glow';
+let CUST_SHIRT_FONT   = 'default';
+let CUST_GOAL_EFFECT  = 'confetti';
+let CUST_TRAIL_COLOR  = '#ffffff';
+let CUST_POWER_BAR    = 'classic';
+let CUST_HALF_LENGTH  = 45;
+let CUST_POWER_CAP    = 100;
+let CUST_WIN_LIMIT    = 5;
+
 // ── Crowd data (generated once) ──
-const _CC = ['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc','#6366f1','#14b8a6','#f97316'];
 let crowdDots = null;
 function genCrowd() {
   crowdDots = [];
-  // Top & bottom stands — full width, corners included
+  var _CP = {'classic':['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc','#6366f1','#14b8a6','#f97316'],'retro':['#b45309','#d97706','#f59e0b','#92400e','#78716c','#a16207','#fef3c7','#fcd34d','#b91c1c','#f97316'],'electric':['#00ff41','#00d4ff','#f0f','#ff0','#ff4500','#7b2ff7','#00ff7f','#ff1493','#00bfff','#ffe4b5'],'mono':['#f8fafc','#e2e8f0','#cbd5e1','#94a3b8','#64748b','#f1f5f9','#d1d5db','#9ca3af','#e5e7eb','#6b7280'],'team_a':[CUST_TEAM_A,'#ffffff','#94a3b8'],'team_b':[CUST_TEAM_B,'#ffffff','#94a3b8']};
+  var cp = _CP[CUST_CROWD] || _CP.classic;
   for (let row = 0; row < 4; row++) {
     const yy = [6 + row * 4, H - 6 - row * 4];
     for (const y of yy) {
       for (let x = 8; x < W - 8; x += 8 + (row % 4)) {
         const jx = Math.sin(x * 0.37 + y * 0.13) * 2;
         const jy = Math.cos(x * 0.23 + y * 0.41) * 1.5;
-        const c = _CC[Math.floor(Math.abs(Math.sin(x * 0.13 + y * 0.07 + row * 0.29)) * _CC.length)];
+        const c = cp[Math.floor(Math.abs(Math.sin(x * 0.13 + y * 0.07 + row * 0.29)) * cp.length)];
         crowdDots.push({x: x + jx, y: y + jy, c});
       }
     }
   }
-  // Side stands — full height, corners included
   for (let row = 0; row < 4; row++) {
     const xx = [6 + row * 4, W - 6 - row * 4];
     for (const x of xx) {
       for (let y = 8; y < GOAL_Y1 - 4; y += 8 + (row % 4)) {
         const jx = Math.sin(x * 0.31 + y * 0.17) * 1.5;
         const jy = Math.cos(x * 0.19 + y * 0.43) * 2;
-        const c = _CC[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * _CC.length)];
+        const c = cp[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * cp.length)];
         crowdDots.push({x: x + jx, y: y + jy, c});
       }
       for (let y = GOAL_Y2 + 4; y < H - 8; y += 8 + (row % 4)) {
         const jx = Math.sin(x * 0.31 + y * 0.17) * 1.5;
         const jy = Math.cos(x * 0.19 + y * 0.43) * 2;
-        const c = _CC[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * _CC.length)];
+        const c = cp[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * cp.length)];
         crowdDots.push({x: x + jx, y: y + jy, c});
       }
     }
@@ -422,37 +467,54 @@ function cssToCv(e) {
 
 // ── Drawing ──────────────────────────────────────────────────────────────────
 function drawField() {
-  // Grass base
+  var lc = CUST_LINE_COLOR;
+
+  // Grass shades
+  var grassMap = {dark:['#0f172a','#1e293b'],bright:['#22c55e','#16a34a'],emerald:['#059669','#047857'],winter:['#78716c','#57534e'],neon:['#00ff41','#00b82a']};
+  var gs = grassMap[CUST_GRASS] || grassMap.dark;
+
   ctx.fillStyle = '#0a1628';
   ctx.fillRect(0, 0, W, H);
-
-  // Grass gradient
-  const grad = ctx.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0,   '#0f172a');
-  grad.addColorStop(0.5, '#1e293b');
-  grad.addColorStop(1,   '#0f172a');
+  var grad = ctx.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, gs[0]);
+  grad.addColorStop(0.5, gs[1]);
+  grad.addColorStop(1, gs[0]);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, W, H);
 
-  // Grass stripes
-  ctx.fillStyle = 'rgba(0,0,0,.06)';
-  for (let x = 0; x < W; x += 40) {
-    ctx.fillRect(x, 0, 20, H);
+  // Pitch patterns
+  ctx.save();
+  ctx.globalAlpha = 0.07;
+  var pc = lc;
+  if (CUST_PATTERN === 'stripes') {
+    ctx.fillStyle = pc;
+    for (var x = 0; x < W; x += 40) ctx.fillRect(x, 0, 20, H);
+  } else if (CUST_PATTERN === 'diagonal') {
+    ctx.strokeStyle = pc; ctx.lineWidth = 18;
+    for (var i = -20; i < 40; i++) {ctx.beginPath(); ctx.moveTo(i*40, 0); ctx.lineTo(i*40+500, H); ctx.stroke();}
+  } else if (CUST_PATTERN === 'checker') {
+    ctx.fillStyle = pc;
+    for (var x = 0; x < W; x += 80) for (var y = 0; y < H; y += 80) ctx.fillRect(x+(y%160?0:40), y, 40, 40);
+  } else if (CUST_PATTERN === 'zigzag') {
+    ctx.strokeStyle = pc; ctx.lineWidth = 6;
+    for (var x = 0; x < W; x += 60) {ctx.beginPath(); ctx.moveTo(x, 0); for (var y = 0; y < H; y += 20) ctx.lineTo(x+(y%40?10:-10), y); ctx.stroke();}
   }
+  ctx.restore();
 
-  // Stadium vignette (dark edges)
-  const vig = ctx.createRadialGradient(W/2, H/2, 100, W/2, H/2, 350);
+  // Vignette
+  var v = CUST_VIGNETTE;
+  var vig = ctx.createRadialGradient(W/2, H/2, 100, W/2, H/2, 350);
   vig.addColorStop(0, 'rgba(0,0,0,0)');
-  vig.addColorStop(1, 'rgba(0,0,0,.6)');
+  vig.addColorStop(1, 'rgba(0,0,0,'+v+')');
   ctx.fillStyle = vig;
   ctx.fillRect(0, 0, W, H);
 
-  // 3D recessed edge shadow — field looks slightly sunken
+  // 3D recessed edge
   ctx.strokeStyle = 'rgba(0,0,0,.35)';
   ctx.lineWidth = 8;
   ctx.strokeRect(20, 20, W-40, H-40);
 
-  // ── Crowd ──
+  // Crowd
   if (crowdDots) {
     for (const d of crowdDots) {
       ctx.fillStyle = d.c;
@@ -464,104 +526,74 @@ function drawField() {
 
   ctx.save();
 
-  // ── Line drop shadow (offset 1px down-right) ──
+  // Line drop shadow
   ctx.lineWidth = 3;
   ctx.strokeStyle = 'rgba(0,0,0,.18)';
   ctx.strokeRect(21, 21, W-42, H-42);
   ctx.beginPath(); ctx.moveTo(W/2+1, 21); ctx.lineTo(W/2+1, H-19); ctx.stroke();
   ctx.beginPath(); ctx.arc(W/2+1, H/2+1, 60, 0, Math.PI*2); ctx.stroke();
 
-  // ── Boundary / touchline ──
+  // Field lines with custom color
   ctx.lineWidth = 2;
-  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  ctx.strokeStyle = lc;
   ctx.strokeRect(20, 20, W-40, H-40);
-
-  // ── Center line ──
-  ctx.setLineDash([]);
   ctx.beginPath(); ctx.moveTo(W/2, 20); ctx.lineTo(W/2, H-20); ctx.stroke();
-
-  // ── Center circle ──
   ctx.beginPath(); ctx.arc(W/2, H/2, 60, 0, Math.PI*2); ctx.stroke();
-  ctx.fillStyle = 'rgba(255,255,255,.7)';
+  ctx.fillStyle = lc; ctx.globalAlpha = 0.7;
   ctx.beginPath(); ctx.arc(W/2, H/2, 4, 0, Math.PI*2); ctx.fill();
+  ctx.globalAlpha = 1;
 
-  // ── Corner arcs ──
-  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  // Corner arcs
+  ctx.strokeStyle = lc;
   for (const [cx, cy] of [[20,20],[W-20,20],[20,H-20],[W-20,H-20]]) {
     ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI/2); ctx.stroke();
   }
 
-  // ── 3D corner flags ──
+  // Corner flags
+  var cfCol = CUST_CORNER_FLAG === 'normal' ? '#ef4444' : CUST_CORNER_FLAG === 'team_a' ? CUST_TEAM_A : CUST_CORNER_FLAG === 'team_b' ? CUST_TEAM_B : '#ffffff';
   for (const [cx, cy] of [[20,20],[W-20,20],[20,H-20],[W-20,H-20]]) {
-    ctx.strokeStyle = 'rgba(255,255,255,.6)';
-    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = lc; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(cx, cy-5); ctx.lineTo(cx, cy-13); ctx.stroke();
-    ctx.fillStyle = '#ef4444';
+    ctx.fillStyle = cfCol;
     ctx.beginPath(); ctx.moveTo(cx, cy-11); ctx.lineTo(cx+5, cy-9); ctx.lineTo(cx, cy-7); ctx.closePath(); ctx.fill();
   }
 
-  // ── Penalty areas (18-yard box) ──
+  // Penalty areas
   ctx.strokeRect(20, (H-180)/2, 100, 180);
   ctx.strokeRect(W-120, (H-180)/2, 100, 180);
-
-  // ── Goal areas (6-yard box) ──
-  const GA_W = 50, GA_D = 36;
-  ctx.strokeStyle = 'rgba(255,255,255,.35)';
+  var GA_W = 50, GA_D = 36;
+  ctx.strokeStyle = lc;
   ctx.strokeRect(20, GOAL_Y1 - GA_W, GA_D, GOAL_Y2 - GOAL_Y1 + GA_W * 2);
   ctx.strokeRect(W - 20 - GA_D, GOAL_Y1 - GA_W, GA_D, GOAL_Y2 - GOAL_Y1 + GA_W * 2);
-
-  // ── Penalty spots ──
-  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.fillStyle = lc; ctx.globalAlpha = 0.5;
   ctx.beginPath(); ctx.arc(120, H/2, 4, 0, Math.PI*2); ctx.fill();
   ctx.beginPath(); ctx.arc(W-120, H/2, 4, 0, Math.PI*2); ctx.fill();
-
-  // ── Penalty arcs (the "D") ──
-  ctx.strokeStyle = 'rgba(255,255,255,.2)';
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = lc; ctx.globalAlpha = 0.4;
   ctx.beginPath(); ctx.arc(120, H/2, 32, -0.55, 0.55); ctx.stroke();
   ctx.beginPath(); ctx.arc(W-120, H/2, 32, Math.PI-0.55, Math.PI+0.55); ctx.stroke();
+  ctx.globalAlpha = 1;
 
-  // ── Goals ──
+  // Goals
   (function drawBothGoals() {
     const gd = GOAL_DEPTH;
     for (const side of ['left', 'right']) {
       const frontX = side === 'left' ? 20 : W - 20;
       const backX  = side === 'left' ? 20 - gd : W - 20 + gd;
-      const netW   = side === 'left' ? gd : gd;
       const netX   = side === 'left' ? frontX - gd : frontX;
-      // Net fill
       ctx.fillStyle = 'rgba(255,255,255,.04)';
-      ctx.fillRect(netX, GOAL_Y1, netW, GOAL_Y2 - GOAL_Y1);
-      // Net grid
-      ctx.strokeStyle = 'rgba(255,255,255,.1)';
-      ctx.lineWidth = 0.6;
-      for (let yy = GOAL_Y1 + 7; yy < GOAL_Y2; yy += 7) {
-        ctx.beginPath(); ctx.moveTo(netX, yy); ctx.lineTo(frontX, yy); ctx.stroke();
-      }
-      for (let xx = netX + 5; xx < frontX; xx += 5) {
-        ctx.beginPath(); ctx.moveTo(xx, GOAL_Y1); ctx.lineTo(xx, GOAL_Y2); ctx.stroke();
-      }
-      // Goal line (shadow + bright)
-      ctx.strokeStyle = 'rgba(0,0,0,.25)';
-      ctx.lineWidth = 4.5;
+      ctx.fillRect(netX, GOAL_Y1, gd, GOAL_Y2 - GOAL_Y1);
+      ctx.strokeStyle = 'rgba(255,255,255,.1)'; ctx.lineWidth = 0.6;
+      for (let yy = GOAL_Y1 + 7; yy < GOAL_Y2; yy += 7) {ctx.beginPath(); ctx.moveTo(netX, yy); ctx.lineTo(frontX, yy); ctx.stroke();}
+      for (let xx = netX + 5; xx < frontX; xx += 5) {ctx.beginPath(); ctx.moveTo(xx, GOAL_Y1); ctx.lineTo(xx, GOAL_Y2); ctx.stroke();}
+      ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 4.5;
       ctx.beginPath(); ctx.moveTo(frontX+1, GOAL_Y1+1); ctx.lineTo(frontX+1, GOAL_Y2+1); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,.85)';
-      ctx.lineWidth = 3.5;
+      ctx.strokeStyle = lc; ctx.lineWidth = 3.5;
       ctx.beginPath(); ctx.moveTo(frontX, GOAL_Y1); ctx.lineTo(frontX, GOAL_Y2); ctx.stroke();
-      // 3D goal posts (cylindrical gradient)
       for (const [px, py, r] of [[frontX, GOAL_Y1, 4],[frontX, GOAL_Y2, 4]]) {
         const pg = ctx.createRadialGradient(px-1.5, py-1.5, 0.5, px, py, r);
-        pg.addColorStop(0, '#ffffff');
-        pg.addColorStop(0.5, '#e0e0e0');
-        pg.addColorStop(1, '#999999');
-        ctx.fillStyle = pg;
-        ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
-      }
-      for (const [px, py, r] of [[backX, GOAL_Y1, 2.5],[backX, GOAL_Y2, 2.5]]) {
-        const pg = ctx.createRadialGradient(px-1, py-1, 0.3, px, py, r);
-        pg.addColorStop(0, '#cccccc');
-        pg.addColorStop(1, '#666666');
-        ctx.fillStyle = pg;
-        ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
+        pg.addColorStop(0, '#ffffff'); pg.addColorStop(0.5, '#e0e0e0'); pg.addColorStop(1, '#999999');
+        ctx.fillStyle = pg; ctx.beginPath(); ctx.arc(px, py, r, 0, Math.PI*2); ctx.fill();
       }
     }
   })();
@@ -570,40 +602,42 @@ function drawField() {
 }
 
 function drawPlayer(x, y, team, label, highlight) {
-  const col = team === 'a' ? TEAM_A_COLOR : TEAM_B_COLOR;
-
-  // Shadow
+  const col = team === 'a' ? CUST_TEAM_A : CUST_TEAM_B;
   ctx.save();
   ctx.shadowColor = 'rgba(0,0,0,.25)';
   ctx.shadowBlur  = 8;
   ctx.shadowOffsetY = 3;
 
-  // Outer glow if highlighted
-  if (highlight) {
-    ctx.beginPath();
-    ctx.arc(x, y, PLAYER_R + 7, 0, Math.PI*2);
-    ctx.fillStyle = col + '55';
-    ctx.fill();
+  // Highlight
+  var hl = CUST_HIGHLIGHT;
+  if (highlight && hl !== 'none') {
+    if (hl === 'glow' || hl === 'pulse') {
+      ctx.beginPath(); ctx.arc(x, y, PLAYER_R + 7, 0, Math.PI*2);
+      var a = hl === 'pulse' ? '0.3' : '0.33';
+      ctx.fillStyle = col + a; ctx.fill();
+    } else if (hl === 'ring') {
+      ctx.beginPath(); ctx.arc(x, y, PLAYER_R + 9, 0, Math.PI*2);
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, PLAYER_R + 5, 0, Math.PI*2);
+      ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+    } else if (hl === 'arrow') {
+      ctx.fillStyle = '#fbbf24';
+      ctx.beginPath(); ctx.moveTo(x+PLAYER_R+12, y); ctx.lineTo(x+PLAYER_R+4, y-6); ctx.lineTo(x+PLAYER_R+4, y+6); ctx.closePath(); ctx.fill();
+    }
   }
 
   // Circle
-  ctx.beginPath();
-  ctx.arc(x, y, PLAYER_R, 0, Math.PI*2);
+  ctx.beginPath(); ctx.arc(x, y, PLAYER_R, 0, Math.PI*2);
   const g2 = ctx.createRadialGradient(x-4, y-5, 2, x, y, PLAYER_R);
-  g2.addColorStop(0, lighten(col));
-  g2.addColorStop(1, col);
-  ctx.fillStyle = g2;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.6)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  g2.addColorStop(0, lighten(col)); g2.addColorStop(1, col);
+  ctx.fillStyle = g2; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.stroke();
 
   // Number
   ctx.fillStyle = '#fff';
-  ctx.font = 'bold 12px Inter,sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowBlur = 0;
+  var fnts = {default:'bold 12px Inter,sans-serif',bold:'bold 14px Inter,sans-serif',narrow:'500 12px Inter,sans-serif',retro:'bold 11px monospace'};
+  ctx.font = fnts[CUST_SHIRT_FONT] || fnts.default;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.shadowBlur = 0;
   ctx.fillText(label, x, y);
   ctx.restore();
 }
@@ -614,94 +648,74 @@ function lighten(hex) {
 }
 
 function drawKeeper(x, y, team) {
-  const col = team === 'a' ? '#22c55e' : '#f97316';
+  const col = team === 'a' ? CUST_KEEPER_A : CUST_KEEPER_B;
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.25)';
-  ctx.shadowBlur = 8;
-  ctx.shadowOffsetY = 3;
-  ctx.beginPath();
-  ctx.arc(x, y, 18, 0, Math.PI * 2);
+  ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 3;
+  ctx.beginPath(); ctx.arc(x, y, 18, 0, Math.PI * 2);
   const g = ctx.createRadialGradient(x - 3, y - 4, 2, x, y, 18);
-  g.addColorStop(0, lighten(col));
-  g.addColorStop(1, col);
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.6)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 11px Inter,sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.shadowBlur = 0;
+  g.addColorStop(0, lighten(col)); g.addColorStop(1, col);
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 11px Inter,sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.shadowBlur = 0;
   ctx.fillText('GK', x, y);
   ctx.restore();
 }
 
 function drawReferee(x, y) {
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.25)';
-  ctx.shadowBlur  = 6;
-  ctx.shadowOffsetY = 2;
-  ctx.beginPath();
-  ctx.arc(x, y, 16, 0, Math.PI*2);
+  ctx.shadowColor = 'rgba(0,0,0,.25)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2;
+  ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI*2);
   const g = ctx.createRadialGradient(x-3, y-4, 2, x, y, 16);
-  g.addColorStop(0, REF_CENTER_COLOR);
-  g.addColorStop(1, REF_EDGE_COLOR);
-  ctx.fillStyle = g;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.7)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-  ctx.shadowBlur = 0;
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 9px Inter,sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
+  g.addColorStop(0, CUST_REF); g.addColorStop(1, CUST_REF);
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 2; ctx.stroke();
+  ctx.shadowBlur = 0; ctx.fillStyle = '#fff';
+  ctx.font = 'bold 9px Inter,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText('REF', x, y + 0.5);
   ctx.restore();
 }
 
 function drawSoccerBall(x, y, r) {
   ctx.save();
-  ctx.shadowColor = 'rgba(0,0,0,.3)';
-  ctx.shadowBlur  = 10;
-  ctx.shadowOffsetY = 4;
+  var bd = CUST_BALL_DESIGN;
+  var bc = CUST_BALL;
+  ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
 
-  // White base
-  ctx.beginPath();
-  ctx.arc(x, y, r, 0, Math.PI*2);
-  ctx.fillStyle = BALL_BASE_COLOR;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,.25)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-
-  ctx.shadowBlur = 0;
-  ctx.shadowOffsetY = 0;
-
-  // Center pentagon
-  ctx.fillStyle = '#1e293b';
-  const pr = r * 0.38;
-  ctx.beginPath();
-  for (let i = 0; i < 5; i++) {
-    const a = (i * 2 * Math.PI / 5) - Math.PI / 2;
-    const px = x + pr * Math.cos(a);
-    const py = y + pr * Math.sin(a);
-    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fill();
-
-  // 5 surrounding patches
-  ctx.fillStyle = '#1e293b';
-  for (let i = 0; i < 5; i++) {
-    const a = (i * 2 * Math.PI / 5) + Math.PI / 2;
-    const px = x + r * 0.62 * Math.cos(a);
-    const py = y + r * 0.62 * Math.sin(a);
+  if (bd === 'classic') {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fillStyle = bc; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    ctx.fillStyle = '#1e293b';
+    const pr = r * 0.38;
     ctx.beginPath();
-    ctx.arc(px, py, r * 0.22, 0, Math.PI*2);
-    ctx.fill();
+    for (let i = 0; i < 5; i++) { const a = (i * 2 * Math.PI / 5) - Math.PI / 2; const px = x + pr * Math.cos(a), py = y + pr * Math.sin(a); i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py); }
+    ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#1e293b';
+    for (let i = 0; i < 5; i++) { const a = (i * 2 * Math.PI / 5) + Math.PI / 2; const px = x + r * 0.62 * Math.cos(a), py = y + r * 0.62 * Math.sin(a); ctx.beginPath(); ctx.arc(px, py, r * 0.22, 0, Math.PI*2); ctx.fill(); }
+  } else if (bd === 'gold') {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fillStyle = '#fbbf24'; ctx.fill();
+    ctx.strokeStyle = '#d97706'; ctx.lineWidth = 2; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.fillStyle = '#b45309';
+    for (let i = 0; i < 5; i++) { const a = i*2*Math.PI/5-Math.PI/2, px=x+4.5*Math.cos(a), py=y+4.5*Math.sin(a); ctx.beginPath(); ctx.arc(px,py,2,0,Math.PI*2); ctx.fill(); }
+  } else if (bd === 'euro') {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fillStyle = bc; ctx.fill();
+    ctx.strokeStyle = CUST_TEAM_A; ctx.lineWidth = 1.5; ctx.stroke(); ctx.shadowBlur = 0;
+    ctx.fillStyle = CUST_TEAM_A; ctx.globalAlpha = 0.25;
+    for (let i = 0; i < 4; i++) { const a = i*Math.PI/2, px=x+7*Math.cos(a), py=y+7*Math.sin(a); ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2); ctx.fill(); }
+    ctx.globalAlpha = 1;
+  } else if (bd === 'retro') {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fillStyle = '#d4a574'; ctx.fill();
+    ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+    ctx.strokeStyle = '#8b6914'; ctx.lineWidth = 1;
+    for (let i = 0; i < 6; i++) { const a = i*Math.PI/3; ctx.beginPath(); ctx.moveTo(x+Math.cos(a)*2,y+Math.sin(a)*2); ctx.lineTo(x+Math.cos(a)*11,y+Math.sin(a)*11); ctx.stroke(); }
+  } else if (bd === 'neon') {
+    ctx.shadowColor = CUST_TRAIL_COLOR; ctx.shadowBlur = 18;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fillStyle = bc; ctx.fill();
+    ctx.shadowBlur = 0; ctx.strokeStyle = CUST_TRAIL_COLOR; ctx.lineWidth = 2.5; ctx.stroke();
+  } else if (bd === 'pixel') {
+    ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; ctx.fillStyle = bc;
+    for (var dx = -8; dx <= 8; dx += 3) for (var dy = -8; dy <= 8; dy += 3) { if (dx*dx + dy*dy < 80) ctx.fillRect(x+dx-1, y+dy-1, 3, 3); }
   }
 
   ctx.restore();
@@ -711,14 +725,15 @@ function drawSoccerBall(x, y, r) {
 function calcPull(home) {
   const ddx = dragX - home.x, ddy = dragY - home.y;
   const dist = Math.sqrt(ddx*ddx + ddy*ddy);
-  const capped = Math.min(MAX_DRAG, dist);
+  const effectiveMax = MAX_DRAG * (CUST_POWER_CAP || 100) / 100;
+  const capped = Math.min(effectiveMax, dist);
   const ratio  = dist > 0 ? capped / dist : 0;
   const pullX  = home.x + ddx * ratio;
   const pullY  = home.y + ddy * ratio;
   return {
     pullX, pullY,
-    power:     capped / MAX_DRAG * 100,
-    kickAngle: Math.atan2(home.y - pullY, home.x - pullX),  // radians
+    power:     dist > 0 ? capped / effectiveMax * 100 : 0,
+    kickAngle: Math.atan2(home.y - pullY, home.x - pullX),
   };
 }
 
@@ -759,21 +774,27 @@ function drawDragVisuals(hx, hy, pullX, pullY, power, kickAngle, cx, cy) {
   ctx.lineTo(ax - hl*Math.cos(kickAngle+ha), ay - hl*Math.sin(kickAngle+ha));
   ctx.closePath(); ctx.fill();
 
-  // Power bar near the pull point — drawn in absolute canvas coords
-  // so it stays visible even when cursor is outside the field
+  // Power bar
   ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);  // reset to absolute canvas space
-  const bw = 60, bh = 10;
-  const barX = (cx + 100) - bw/2;  // +100 = field-to-canvas offset
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  var pbStyle = CUST_POWER_BAR;
+  const bw = 60, bh = pbStyle === 'thin' ? 6 : pbStyle === 'thick' ? 16 : 10;
+  const barX = (cx + 100) - bw/2;
   const barY = (cy + 100) - 34;
+  // Bar background
   ctx.fillStyle = 'rgba(0,0,0,.6)';
-  ctx.beginPath(); ctx.roundRect(barX, barY, bw, bh, 5); ctx.fill();
-  const col = power > 70 ? '#ef4444' : power > 40 ? '#f59e0b' : '#22c55e';
+  var r = pbStyle === 'flat' ? 0 : 5;
+  if (pbStyle === 'flat') ctx.fillRect(barX, barY, bw, bh);
+  else { ctx.beginPath(); ctx.roundRect(barX, barY, bw, bh, r); ctx.fill(); }
+  // Bar fill
+  var col = power > 70 ? '#ef4444' : power > 40 ? '#f59e0b' : '#22c55e';
+  if (pbStyle === 'neon') col = CUST_TRAIL_COLOR;
   ctx.fillStyle = col;
-  ctx.beginPath(); ctx.roundRect(barX, barY, bw * power/100, bh, 5); ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.roundRect(barX, barY, bw, bh, 5); ctx.stroke();
-  // Power percentage text
+  if (pbStyle === 'flat') ctx.fillRect(barX, barY, bw * power/100, bh);
+  else { ctx.beginPath(); ctx.roundRect(barX, barY, bw * power/100, bh, r); ctx.fill(); }
+  // Border
+  if (pbStyle !== 'flat') { ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.roundRect(barX, barY, bw, bh, r); ctx.stroke(); }
+  // Text
   ctx.fillStyle = '#fff';
   ctx.font = 'bold 10px Inter,sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -787,14 +808,39 @@ function render(ballOverride) {
   if (!gameState) return;
   ctx.clearRect(0, 0, 1200, 825);
 
-  // Warm floodlit glow
+  // Scene background
+  var sceneMap = {
+    night: ['#020617','#0f172a','#1e293b'],
+    sunset: ['#431407','#7c2d12','#ea580c'],
+    day: ['#38bdf8','#7dd3fc','#bae6fd'],
+    storm: ['#1c1917','#292524','#44403c']
+  };
+  var ss = sceneMap[CUST_SCENE] || sceneMap.night;
+  var fl = CUST_FLOODLIGHT;
+  var fc;
+  if (fl === 'warm') fc = 'rgba(251,191,36,.12)';
+  else if (fl === 'cool') fc = 'rgba(147,197,253,.15)';
+  else if (fl === 'bright') fc = 'rgba(255,255,255,.20)';
+  else if (fl === 'dark') fc = 'rgba(0,0,0,.25)';
+  else fc = 'rgba(0,0,0,0)';
+
   ctx.save();
-  const bgGrad = ctx.createRadialGradient(600, 412, 60, 600, 412, 850);
-  bgGrad.addColorStop(0, BG_CENTER_COLOR);
-  bgGrad.addColorStop(0.3, BG_MID_COLOR);
-  bgGrad.addColorStop(1, BG_EDGE_COLOR);
+  var bgGrad = ctx.createRadialGradient(600, 412, 60, 600, 412, 850);
+  bgGrad.addColorStop(0, ss[0]);
+  bgGrad.addColorStop(0.3, ss[1]);
+  bgGrad.addColorStop(1, ss[2]);
   ctx.fillStyle = bgGrad;
   ctx.fillRect(0, 0, 1200, 825);
+
+  // Floodlight tint overlay
+  if (fc !== 'rgba(0,0,0,0)') {
+    var flGrad = ctx.createRadialGradient(180, -20, 30, 180, -20, 500);
+    flGrad.addColorStop(0, fc); flGrad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = flGrad; ctx.fillRect(0, 0, 1200, 825);
+    var flGrad2 = ctx.createRadialGradient(1020, -20, 30, 1020, -20, 500);
+    flGrad2.addColorStop(0, fc); flGrad2.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = flGrad2; ctx.fillRect(0, 0, 1200, 825);
+  }
   ctx.restore();
 
   ctx.save();
@@ -856,6 +902,17 @@ function render(ballOverride) {
   }
 
   ctx.restore();
+
+  // Goal celebration particles
+  if (goalParticles.length) {
+    for (const p of goalParticles) {
+      if (p.life <= 0) continue;
+      ctx.globalAlpha = p.life;
+      ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
 }
 
 // ── HUD updates ──────────────────────────────────────────────────────────────
@@ -1014,6 +1071,22 @@ function animateTrajectory(trajectory, onDone) {
     }
 
     render();
+
+    // Trail overlay
+    if (segIdx > 1 && CUST_TRAIL_COLOR !== '#ffffff') {
+      ctx.save();
+      ctx.translate(100, 100);
+      ctx.globalAlpha = 0.3;
+      ctx.strokeStyle = CUST_TRAIL_COLOR;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (var ti = Math.max(0, segIdx - 8); ti <= segIdx; ti++) {
+        var tp = trajectory[ti];
+        ti === Math.max(0, segIdx - 8) ? ctx.moveTo(tp.x, tp.y) : ctx.lineTo(tp.x, tp.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
 
     if (progress < totalSegments) {
       requestAnimationFrame(frame);
@@ -1211,6 +1284,7 @@ async function submitKick(playerIdx, angleDeg, power, pullX, pullY) {
     logMove(mr.desc, !!mr.scored);
     if (mr.scored && !isPenalty) {
       SoundManager.goal();
+      triggerGoalEffect(CUST_GOAL_EFFECT);
       await new Promise(r => setTimeout(r, 400 / animSpeed));
       // Restore pre-kick positions so animateKickoff slides them back visibly
       gameState.players_a.forEach((p, i) => { p.x = _preKickA[i].x; p.y = _preKickA[i].y; });
@@ -1241,6 +1315,7 @@ async function submitKick(playerIdx, angleDeg, power, pullX, pullY) {
       logMove(ai.desc, !!ai.scored);
       if (ai.scored && !aiData.penalty_shootout) {
         SoundManager.goal();
+        triggerGoalEffect(CUST_GOAL_EFFECT);
         await new Promise(r => setTimeout(r, 400 / animSpeed));
         aiData.players_a.forEach((p, i) => { p.x = _preAIA[i].x; p.y = _preAIA[i].y; });
         aiData.players_b.forEach((p, i) => { p.x = _preAIB[i].x; p.y = _preAIB[i].y; });
@@ -1282,6 +1357,8 @@ async function triggerAI() {
     syncBall(ai.trajectory, ai.scored);
     logMove(ai.desc, !!ai.scored);
     if (ai.scored && !isPenalty) {
+      SoundManager.goal();
+      triggerGoalEffect(CUST_GOAL_EFFECT);
       await new Promise(r => setTimeout(r, 400 / animSpeed));
       await new Promise(r => animateKickoff(r));
     }
@@ -1446,20 +1523,36 @@ async function loadCustomization() {
   try {
     const resp = await fetch('/api/customization');
     const cust = await resp.json();
-    if (cust.team_a_color) TEAM_A_COLOR = cust.team_a_color;
-    if (cust.team_b_color) TEAM_B_COLOR = cust.team_b_color;
-    if (cust.ref_color) {
-      REF_CENTER_COLOR = cust.ref_color;
-      REF_EDGE_COLOR = cust.ref_color;
-    }
-    if (cust.ball_color) BALL_BASE_COLOR = cust.ball_color;
-    if (cust.bg_color) BG_CENTER_COLOR = cust.bg_color;
+    if (cust.team_a_color) CUST_TEAM_A = cust.team_a_color;
+    if (cust.team_b_color) CUST_TEAM_B = cust.team_b_color;
+    if (cust.ref_color) CUST_REF = cust.ref_color;
+    if (cust.ball_color) CUST_BALL = cust.ball_color;
+    if (cust.grass_shade) CUST_GRASS = cust.grass_shade;
+    if (cust.pitch_pattern) CUST_PATTERN = cust.pitch_pattern;
+    if (cust.field_line_color) CUST_LINE_COLOR = cust.field_line_color;
+    if (cust.corner_flag) CUST_CORNER_FLAG = cust.corner_flag;
+    if (cust.bg_scene) CUST_SCENE = cust.bg_scene;
+    if (cust.floodlight) CUST_FLOODLIGHT = cust.floodlight;
+    if (cust.vignette !== undefined) CUST_VIGNETTE = parseFloat(cust.vignette);
+    if (cust.crowd_palette) CUST_CROWD = cust.crowd_palette;
+    if (cust.ball_design) CUST_BALL_DESIGN = cust.ball_design;
+    if (cust.keeper_a_color) CUST_KEEPER_A = cust.keeper_a_color;
+    if (cust.keeper_b_color) CUST_KEEPER_B = cust.keeper_b_color;
+    if (cust.highlight_style) CUST_HIGHLIGHT = cust.highlight_style;
+    if (cust.shirt_font) CUST_SHIRT_FONT = cust.shirt_font;
+    if (cust.goal_effect) CUST_GOAL_EFFECT = cust.goal_effect;
+    if (cust.trail_color) CUST_TRAIL_COLOR = cust.trail_color;
+    if (cust.power_bar_style) CUST_POWER_BAR = cust.power_bar_style;
+    if (cust.half_length !== undefined) CUST_HALF_LENGTH = parseInt(cust.half_length);
+    if (cust.power_cap !== undefined) CUST_POWER_CAP = parseInt(cust.power_cap);
+    if (cust.win_goal_limit !== undefined) CUST_WIN_LIMIT = parseInt(cust.win_goal_limit);
     if (cust.player_count) {
       const el = document.getElementById('player-count');
       const lbl = document.getElementById('player-count-label');
       if (el) el.value = cust.player_count;
       if (lbl) lbl.textContent = cust.player_count;
     }
+    genCrowd();
     render();
   } catch(e) {}
 }

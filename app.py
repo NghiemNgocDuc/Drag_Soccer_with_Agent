@@ -578,8 +578,8 @@ def customize_page():
 def customize_save():
     from db.customization import save_customization
     data = request.get_json(silent=True) or {}
-    allowed = {"team_a_color", "team_b_color", "ref_color", "ball_color", "bg_color", "player_count"}
-    cleaned = {k: v for k, v in data.items() if k in allowed}
+    from db.customization import _ALLOWED
+    cleaned = {k: v for k, v in data.items() if k in _ALLOWED}
     ok = save_customization(uid(), cleaned)
     return jsonify({"ok": ok})
 

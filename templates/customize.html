@@ -7,138 +7,72 @@
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --accent:#3b82f6;--accent-b:#059669;--red:#ef4444;
-  --text:#1e2d4f;
-  --muted:#6b7fa3;
-  --dim:#9caab8;
-  --glass-bg:rgba(255,255,255,.62);
-  --glass-border:rgba(180,205,255,.5);
-  --glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);
-  --blur:18px;
-}
-body{
-  font-family:'Be Vietnam Pro',system-ui,sans-serif;
-  font-size:14px;color:var(--text);
-  min-height:100vh;
-  background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%);
-}
+:root{--accent:#3b82f6;--accent-b:#059669;--red:#ef4444;--text:#1e2d4f;--muted:#6b7fa3;--dim:#9caab8;--glass-bg:rgba(255,255,255,.62);--glass-border:rgba(180,205,255,.5);--glass-shadow:0 8px 32px rgba(80,120,200,.10),inset 0 1px 0 rgba(255,255,255,.95);--blur:18px}
+body{font-family:'Be Vietnam Pro',system-ui,sans-serif;font-size:14px;color:var(--text);min-height:100vh;background:linear-gradient(145deg,#e0eaff 0%,#ede9fe 45%,#d1fae5 100%)}
 .nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
-.nebula::before{
-  content:'';position:absolute;width:700px;height:700px;
-  background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);
-  top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate;
-}
-.nebula::after{
-  content:'';position:absolute;width:600px;height:500px;
-  background:radial-gradient(ellipse,rgba(16,185,129,.07) 0%,transparent 65%);
-  bottom:-100px;left:200px;animation:drift2 22s ease-in-out infinite alternate;
-}
-@keyframes drift {to{transform:translate(40px,-30px)}}
+.nebula::before{content:'';position:absolute;width:700px;height:700px;background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate}
+.nebula::after{content:'';position:absolute;width:600px;height:500px;background:radial-gradient(ellipse,rgba(16,185,129,.07) 0%,transparent 65%);bottom:-100px;left:200px;animation:drift2 22s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate(40px,-30px)}}
 @keyframes drift2{to{transform:translate(-30px,25px)}}
-
 nav,main{position:relative;z-index:1}
-
-nav{
-  background:rgba(255,255,255,.78);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid rgba(180,205,255,.4);
-  padding:12px 24px;display:flex;align-items:center;gap:16px;
-}
+nav{background:rgba(255,255,255,.78);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(180,205,255,.4);padding:12px 24px;display:flex;align-items:center;gap:16px}
 .nav-brand{font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}
 .nav-links{display:flex;gap:12px;margin-left:auto;align-items:center}
 .nav-links a{font-size:.78rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color .15s}
 .nav-links a:hover,.nav-links a.active{color:var(--text)}
 .nav-user{font-size:.75rem;color:var(--dim)}
-.btn-logout{
-  font-family:inherit;font-size:.72rem;font-weight:500;
-  padding:5px 12px;border-radius:6px;
-  border:1px solid var(--glass-border);background:var(--glass-bg);
-  color:var(--muted);cursor:pointer;transition:all .15s;
-}
+.btn-logout{font-family:inherit;font-size:.72rem;font-weight:500;padding:5px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-bg);color:var(--muted);cursor:pointer;transition:all .15s}
 .btn-logout:hover{border-color:var(--accent);color:var(--accent)}
+main{max-width:860px;margin:0 auto;padding:30px 16px}
+h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gradient(135deg,#1e2d4f 0%,#3b82f6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:4px}
+.subtitle{font-size:.75rem;color:var(--muted);margin-bottom:20px}
 
-main{max-width:720px;margin:0 auto;padding:30px 16px}
+.glass-card{background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);padding:20px 22px;margin-bottom:14px}
+.glass-card h2{font-size:.82rem;font-weight:600;color:var(--text);margin-bottom:14px;letter-spacing:-.01em}
 
-h1{
-  font-size:1.35rem;font-weight:700;letter-spacing:-.02em;
-  background:linear-gradient(135deg,#1e2d4f 0%,#3b82f6 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-  margin-bottom:6px;
-}
-.subtitle{font-size:.75rem;color:var(--muted);margin-bottom:24px}
+.setting-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid rgba(180,205,255,.15)}
+.setting-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+.setting-label{font-size:.72rem;font-weight:600;color:var(--muted);min-width:100px}
+.setting-control{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.setting-control select{padding:5px 10px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(255,255,255,.7);color:var(--text);font-size:.78rem;font-weight:500;cursor:pointer;outline:none;font-family:inherit}
+.setting-control input[type=color]{width:36px;height:36px;border:2px solid var(--glass-border);border-radius:8px;cursor:pointer;padding:1px;background:none;transition:border-color .15s}
+.setting-control input[type=color]:hover{border-color:var(--accent)}
+.setting-control input[type=range]{width:120px;cursor:pointer;accent-color:var(--accent)}
+.setting-control .range-val{font-size:.85rem;font-weight:700;color:var(--text);min-width:28px;text-align:center}
+.setting-desc{font-size:.68rem;color:var(--dim);width:100%;padding-left:100px;margin-top:-4px}
 
-.glass-card{
-  background:var(--glass-bg);
-  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
-  border:1px solid var(--glass-border);border-radius:14px;
-  box-shadow:var(--glass-shadow);
-  padding:24px;
-  margin-bottom:16px;
-}
-.glass-card h2{
-  font-size:.85rem;font-weight:600;color:var(--text);
-  margin-bottom:16px;letter-spacing:-.01em;
-}
-
-/* Color grid */
-.color-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:14px}
-.color-item{display:flex;flex-direction:column;align-items:center;gap:6px}
-.color-item label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
-.color-item input[type=color]{
-  width:48px;height:48px;border:3px solid var(--glass-border);border-radius:10px;
-  cursor:pointer;padding:2px;background:none;transition:border-color .15s;
-}
+.color-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;margin-bottom:6px}
+.color-item{display:flex;flex-direction:column;align-items:center;gap:4px}
+.color-item label{font-size:.68rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.color-item input[type=color]{width:42px;height:42px;border:2px solid var(--glass-border);border-radius:8px;cursor:pointer;padding:1px;background:none;transition:border-color .15s}
 .color-item input[type=color]:hover{border-color:var(--accent)}
-.color-hex{font-size:.7rem;color:var(--dim);font-family:monospace}
+.color-hex{font-size:.65rem;color:var(--dim);font-family:monospace}
 
-/* Player count */
-.player-count-wrap{display:flex;align-items:center;gap:12px;margin-top:4px}
-.player-count-wrap label{font-size:.72rem;font-weight:600;color:var(--muted);white-space:nowrap}
-.player-count-wrap input[type=range]{width:160px;cursor:pointer;accent-color:var(--accent)}
-.player-count-wrap .count-val{font-size:1rem;font-weight:700;color:var(--text);min-width:24px;text-align:center}
-
-/* Presets */
-.presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.presets span{font-size:.7rem;font-weight:600;color:var(--muted);margin-right:4px;align-self:center}
-.preset-dot{
-  width:28px;height:28px;border-radius:50%;border:2px solid var(--glass-border);
-  cursor:pointer;transition:transform .12s, border-color .12s;
-}
+.presets{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.presets span{font-size:.68rem;font-weight:600;color:var(--muted)}
+.preset-dot{width:24px;height:24px;border-radius:50%;border:2px solid var(--glass-border);cursor:pointer;transition:transform .12s}
 .preset-dot:hover{transform:scale(1.18);border-color:var(--accent)}
 
-/* Preview */
-.preview-wrap{display:flex;justify-content:center;margin:18px 0 8px}
-.preview-canvas{border-radius:10px;border:2px solid var(--glass-border);width:100%;max-width:480px;height:auto;aspect-ratio:1000/625}
+.preview-wrap{display:flex;justify-content:center;margin:10px 0 0}
+.preview-canvas{border-radius:10px;border:2px solid var(--glass-border);width:100%;max-width:520px;height:auto;aspect-ratio:1000/625}
 
-/* Buttons */
-.btn-row{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}
-.btn{
-  padding:9px 22px;border-radius:10px;border:none;cursor:pointer;
-  font-family:inherit;font-size:.82rem;font-weight:600;transition:all .15s;outline:none;
-  text-decoration:none;display:inline-flex;align-items:center;gap:6px;
-}
+.btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.btn{padding:9px 22px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:600;transition:all .15s;outline:none;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
 .btn-primary{background:#3b82f6;color:#fff}
 .btn-primary:hover{background:#2563eb}
 .btn-primary:disabled{opacity:.5;cursor:not-allowed}
-.btn-ghost{
-  background:rgba(255,255,255,.6);border:1px solid var(--glass-border);
-  color:var(--muted);
-}
+.btn-ghost{background:rgba(255,255,255,.6);border:1px solid var(--glass-border);color:var(--muted)}
 .btn-ghost:hover{background:rgba(255,255,255,.9);color:var(--text)}
 .btn-success{background:var(--accent-b);color:#fff}
 .btn-success:hover{background:#047857}
-.flash-msg{
-  padding:10px 16px;border-radius:8px;font-size:.8rem;font-weight:500;
-  margin-bottom:16px;display:none;
-}
+
+.flash-msg{padding:10px 16px;border-radius:8px;font-size:.8rem;font-weight:500;margin-bottom:14px;display:none}
 .flash-msg.success{display:block;background:rgba(16,185,129,.12);color:var(--accent-b);border:1px solid rgba(16,185,129,.25)}
 .flash-msg.error{display:block;background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
 </style>
 </head>
 <body>
 <div class="nebula"></div>
-
 <nav>
   <a class="nav-brand" href="/">Agent Soccer</a>
   <div class="nav-links">
@@ -153,80 +87,278 @@ h1{
     <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
   </div>
 </nav>
-
 <main>
   <h1>Customize</h1>
-  <p class="subtitle">Set your team colors and game preferences</p>
-
+  <p class="subtitle">Set your team colors, pitch, stadium, and game preferences</p>
   <div class="flash-msg" id="flash-msg"></div>
 
+  <!-- 1. Team Colors -->
   <div class="glass-card">
     <h2>Team Colors</h2>
     <div class="color-grid">
-      <div class="color-item">
-        <label>Team A</label>
-        <input type="color" id="team_a_color" value="{{ cust.team_a_color }}">
-        <span class="color-hex" id="hex_team_a_color">{{ cust.team_a_color }}</span>
-      </div>
-      <div class="color-item">
-        <label>Team B</label>
-        <input type="color" id="team_b_color" value="{{ cust.team_b_color }}">
-        <span class="color-hex" id="hex_team_b_color">{{ cust.team_b_color }}</span>
-      </div>
-      <div class="color-item">
-        <label>Referee</label>
-        <input type="color" id="ref_color" value="{{ cust.ref_color }}">
-        <span class="color-hex" id="hex_ref_color">{{ cust.ref_color }}</span>
-      </div>
-      <div class="color-item">
-        <label>Ball</label>
-        <input type="color" id="ball_color" value="{{ cust.ball_color }}">
-        <span class="color-hex" id="hex_ball_color">{{ cust.ball_color }}</span>
-      </div>
-      <div class="color-item">
-        <label>Background</label>
-        <input type="color" id="bg_color" value="{{ cust.bg_color }}">
-        <span class="color-hex" id="hex_bg_color">{{ cust.bg_color }}</span>
-      </div>
+      <div class="color-item"><label>Team A</label><input type="color" id="team_a_color"><span class="color-hex" id="hex_team_a_color"></span></div>
+      <div class="color-item"><label>Team B</label><input type="color" id="team_b_color"><span class="color-hex" id="hex_team_b_color"></span></div>
+      <div class="color-item"><label>Keeper A</label><input type="color" id="keeper_color_a"><span class="color-hex" id="hex_keeper_color_a"></span></div>
+      <div class="color-item"><label>Keeper B</label><input type="color" id="keeper_color_b"><span class="color-hex" id="hex_keeper_color_b"></span></div>
+      <div class="color-item"><label>Referee</label><input type="color" id="ref_color"><span class="color-hex" id="hex_ref_color"></span></div>
+      <div class="color-item"><label>Ball</label><input type="color" id="ball_color"><span class="color-hex" id="hex_ball_color"></span></div>
     </div>
-  </div>
-
-  <div class="glass-card">
-    <h2>Players Per Side</h2>
-    <div class="player-count-wrap">
-      <label>Players</label>
-      <input type="range" id="player_count" min="1" max="11" value="{{ cust.player_count }}">
-      <span class="count-val" id="player_count_val">{{ cust.player_count }}</span>
-    </div>
-  </div>
-
-  <div class="glass-card">
-    <h2>Color Presets</h2>
-    <div class="presets">
+    <div class="presets" style="margin-top:8px">
       <span>Team A:</span>
-      <div class="preset-dot" style="background:#3b82f6" onclick="applyPreset('team_a_color','#3b82f6')" title="Default Blue"></div>
+      <div class="preset-dot" style="background:#3b82f6" onclick="applyPreset('team_a_color','#3b82f6')" title="Blue"></div>
       <div class="preset-dot" style="background:#22c55e" onclick="applyPreset('team_a_color','#22c55e')" title="Green"></div>
       <div class="preset-dot" style="background:#a855f7" onclick="applyPreset('team_a_color','#a855f7')" title="Purple"></div>
       <div class="preset-dot" style="background:#f97316" onclick="applyPreset('team_a_color','#f97316')" title="Orange"></div>
       <div class="preset-dot" style="background:#ec4899" onclick="applyPreset('team_a_color','#ec4899')" title="Pink"></div>
-    </div>
-    <div class="presets" style="margin-top:6px">
-      <span>Team B:</span>
-      <div class="preset-dot" style="background:#ef4444" onclick="applyPreset('team_b_color','#ef4444')" title="Default Red"></div>
+      <span style="margin-left:12px">Team B:</span>
+      <div class="preset-dot" style="background:#ef4444" onclick="applyPreset('team_b_color','#ef4444')" title="Red"></div>
       <div class="preset-dot" style="background:#f59e0b" onclick="applyPreset('team_b_color','#f59e0b')" title="Amber"></div>
       <div class="preset-dot" style="background:#06b6d4" onclick="applyPreset('team_b_color','#06b6d4')" title="Cyan"></div>
       <div class="preset-dot" style="background:#8b5cf6" onclick="applyPreset('team_b_color','#8b5cf6')" title="Violet"></div>
       <div class="preset-dot" style="background:#10b981" onclick="applyPreset('team_b_color','#10b981')" title="Emerald"></div>
     </div>
-    <div class="presets" style="margin-top:6px">
-      <span>Background:</span>
-      <div class="preset-dot" style="background:#2a2518" onclick="applyPreset('bg_color','#2a2518')" title="Dark"></div>
-      <div class="preset-dot" style="background:#0f172a" onclick="applyPreset('bg_color','#0f172a')" title="Navy"></div>
-      <div class="preset-dot" style="background:#1e1b4b" onclick="applyPreset('bg_color','#1e1b4b')" title="Indigo"></div>
-      <div class="preset-dot" style="background:#1c1917" onclick="applyPreset('bg_color','#1c1917')" title="Stone"></div>
+  </div>
+
+  <!-- 2. Pitch & Field -->
+  <div class="glass-card">
+    <h2>Pitch &amp; Field</h2>
+    <div class="setting-row">
+      <span class="setting-label">Grass Shade</span>
+      <div class="setting-control">
+        <select id="grass_shade">
+          <option value="dark">Dark Green</option>
+          <option value="bright">Bright Green</option>
+          <option value="emerald">Emerald</option>
+          <option value="winter">Winter Brown</option>
+          <option value="neon">Neon Pitch</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Pitch Pattern</span>
+      <div class="setting-control">
+        <select id="pitch_pattern">
+          <option value="stripes">Classic Stripes</option>
+          <option value="diagonal">Diagonal</option>
+          <option value="checker">Checkerboard</option>
+          <option value="zigzag">Zig-Zag</option>
+          <option value="solid">Solid</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Line Color</span>
+      <div class="setting-control">
+        <input type="color" id="field_line_color">
+        <span class="color-hex" id="hex_field_line_color"></span>
+        <div class="presets" style="margin-left:4px">
+          <div class="preset-dot" style="background:#ffffff" onclick="document.getElementById('field_line_color').value='#ffffff';updateHex('field_line_color');renderPreview()" title="White"></div>
+          <div class="preset-dot" style="background:#fde68a" onclick="document.getElementById('field_line_color').value='#fde68a';updateHex('field_line_color');renderPreview()" title="Yellow"></div>
+          <div class="preset-dot" style="background:#93c5fd" onclick="document.getElementById('field_line_color').value='#93c5fd';updateHex('field_line_color');renderPreview()" title="Light Blue"></div>
+          <div class="preset-dot" style="background:#d1d5db" onclick="document.getElementById('field_line_color').value='#d1d5db';updateHex('field_line_color');renderPreview()" title="Grey"></div>
+        </div>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Corner Flags</span>
+      <div class="setting-control">
+        <select id="corner_flag_style">
+          <option value="normal">Normal Red</option>
+          <option value="team_a">Team A Colors</option>
+          <option value="team_b">Team B Colors</option>
+          <option value="white">White</option>
+        </select>
+      </div>
     </div>
   </div>
 
+  <!-- 3. Stadium Atmosphere -->
+  <div class="glass-card">
+    <h2>Stadium Atmosphere</h2>
+    <div class="setting-row">
+      <span class="setting-label">Background Scene</span>
+      <div class="setting-control">
+        <select id="bg_scene">
+          <option value="night">Night Stadium</option>
+          <option value="sunset">Sunset</option>
+          <option value="cloudy">Cloudy Day</option>
+          <option value="day">Bright Day</option>
+          <option value="cyber">Cyberpunk</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Floodlights</span>
+      <div class="setting-control">
+        <select id="floodlight_color">
+          <option value="warm">Warm White</option>
+          <option value="cool">Cool Blue</option>
+          <option value="red">Dramatic Red</option>
+          <option value="purple">Purple</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Vignette</span>
+      <div class="setting-control">
+        <input type="range" id="stadium_vignette" min="0" max="100" value="60">
+        <span class="range-val" id="stadium_vignette_val">60</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Crowd Palette</span>
+      <div class="setting-control">
+        <select id="crowd_palette">
+          <option value="classic">Classic Mixed</option>
+          <option value="team_a">Team A Colors</option>
+          <option value="team_b">Team B Colors</option>
+          <option value="rainbow">Rainbow</option>
+          <option value="mono">Monochrome</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Background</span>
+      <div class="setting-control">
+        <input type="color" id="bg_color">
+        <span class="color-hex" id="hex_bg_color"></span>
+        <div class="presets" style="margin-left:4px">
+          <div class="preset-dot" style="background:#2a2518" onclick="document.getElementById('bg_color').value='#2a2518';updateHex('bg_color');renderPreview()" title="Dark"></div>
+          <div class="preset-dot" style="background:#0f172a" onclick="document.getElementById('bg_color').value='#0f172a';updateHex('bg_color');renderPreview()" title="Navy"></div>
+          <div class="preset-dot" style="background:#1e1b4b" onclick="document.getElementById('bg_color').value='#1e1b4b';updateHex('bg_color');renderPreview()" title="Indigo"></div>
+          <div class="preset-dot" style="background:#1c1917" onclick="document.getElementById('bg_color').value='#1c1917';updateHex('bg_color');renderPreview()" title="Stone"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Ball & Players -->
+  <div class="glass-card">
+    <h2>Ball &amp; Players</h2>
+    <div class="setting-row">
+      <span class="setting-label">Ball Design</span>
+      <div class="setting-control">
+        <select id="ball_design">
+          <option value="classic">Classic Panels</option>
+          <option value="euro">Euro Style</option>
+          <option value="gold">Gold</option>
+          <option value="retro">Retro Brown</option>
+          <option value="neon">Neon Glow</option>
+          <option value="pixel">Pixel 8-bit</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Highlight Style</span>
+      <div class="setting-control">
+        <select id="highlight_style">
+          <option value="glow">Glow Ring</option>
+          <option value="pulse">Pulse</option>
+          <option value="ring">Double Ring</option>
+          <option value="arrow">Arrow Indicator</option>
+          <option value="none">None</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Shirt Font</span>
+      <div class="setting-control">
+        <select id="shirt_font">
+          <option value="default">Default</option>
+          <option value="bold">Bold Modern</option>
+          <option value="narrow">Narrow</option>
+          <option value="retro">Retro</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Player Count</span>
+      <div class="setting-control">
+        <input type="range" id="player_count" min="1" max="11" value="3">
+        <span class="range-val" id="player_count_val">3</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. Game Feel -->
+  <div class="glass-card">
+    <h2>Game Feel</h2>
+    <div class="setting-row">
+      <span class="setting-label">Goal Effect</span>
+      <div class="setting-control">
+        <select id="goal_effect">
+          <option value="confetti">Confetti Burst</option>
+          <option value="fireworks">Fireworks</option>
+          <option value="flash">Screen Flash</option>
+          <option value="shake">Screen Shake</option>
+          <option value="none">None</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Trail Color</span>
+      <div class="setting-control">
+        <input type="color" id="trail_color">
+        <span class="color-hex" id="hex_trail_color"></span>
+        <div class="presets" style="margin-left:4px">
+          <div class="preset-dot" style="background:#ffffff" onclick="document.getElementById('trail_color').value='#ffffff';updateHex('trail_color');renderPreview()" title="White"></div>
+          <div class="preset-dot" style="background:#fbbf24" onclick="document.getElementById('trail_color').value='#fbbf24';updateHex('trail_color');renderPreview()" title="Gold"></div>
+          <div class="preset-dot" style="background:#60a5fa" onclick="document.getElementById('trail_color').value='#60a5fa';updateHex('trail_color');renderPreview()" title="Blue"></div>
+          <div class="preset-dot" style="background:#f87171" onclick="document.getElementById('trail_color').value='#f87171';updateHex('trail_color');renderPreview()" title="Red"></div>
+        </div>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Power Bar</span>
+      <div class="setting-control">
+        <select id="power_bar_style">
+          <option value="classic">Classic Bar</option>
+          <option value="compact">Compact Bar</option>
+          <option value="ring">Ring Meter</option>
+          <option value="vertical">Vertical Bar</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. Game Mechanics -->
+  <div class="glass-card">
+    <h2>Game Mechanics</h2>
+    <div class="setting-row">
+      <span class="setting-label">Half Length</span>
+      <div class="setting-control">
+        <select id="half_length">
+          <option value="15">Quick (15 min)</option>
+          <option value="30">Short (30 min)</option>
+          <option value="45">Standard (45 min)</option>
+          <option value="60">Long (60 min)</option>
+        </select>
+      </div>
+      <div class="setting-desc">Game time before extra time / penalties</div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Max Power</span>
+      <div class="setting-control">
+        <input type="range" id="power_cap" min="60" max="120" value="100">
+        <span class="range-val" id="power_cap_val">100</span>
+      </div>
+      <div class="setting-desc">Maximum kick power percentage</div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Win Limit</span>
+      <div class="setting-control">
+        <select id="win_goal_limit">
+          <option value="3">First to 3</option>
+          <option value="5">First to 5</option>
+          <option value="7">First to 7</option>
+          <option value="10">First to 10</option>
+        </select>
+      </div>
+      <div class="setting-desc">Goals needed to win the match</div>
+    </div>
+  </div>
+
+  <!-- Preview -->
   <div class="glass-card">
     <h2>Preview</h2>
     <div class="preview-wrap">
@@ -235,7 +367,7 @@ h1{
   </div>
 
   <div class="btn-row">
-    <button class="btn btn-success" id="save-btn" onclick="saveSettings()">Save Settings</button>
+    <button class="btn btn-success" id="save-btn" onclick="saveSettings()">Save All Settings</button>
     <button class="btn btn-ghost" onclick="resetDefaults()">Reset to Defaults</button>
     <a href="/" class="btn btn-primary">Back to Game</a>
   </div>
@@ -244,181 +376,222 @@ h1{
 <script>
 const CUST = {{ cust | tojson }};
 const DEFAULTS = {
-  team_a_color: '#3b82f6',
-  team_b_color: '#ef4444',
-  ref_color: '#fde68a',
-  ball_color: '#f8fafc',
-  bg_color: '#2a2518',
-  player_count: 3,
+  team_a_color:'#3b82f6',team_b_color:'#ef4444',ref_color:'#fde68a',ball_color:'#f8fafc',bg_color:'#2a2518',
+  player_count:3,grass_shade:'dark',pitch_pattern:'stripes',field_line_color:'#ffffff',corner_flag_style:'normal',
+  crowd_palette:'classic',stadium_vignette:0.6,floodlight_color:'warm',bg_scene:'night',
+  ball_design:'classic',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',highlight_style:'glow',shirt_font:'default',
+  goal_effect:'confetti',trail_color:'#ffffff',power_bar_style:'classic',
+  half_length:45,power_cap:100,win_goal_limit:5
 };
-
+const COLOR_KEYS = ['team_a_color','team_b_color','ref_color','ball_color','bg_color','field_line_color','trail_color','keeper_color_a','keeper_color_b'];
+const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','ball_design','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
+const RANGE_KEYS = ['player_count','stadium_vignette','power_cap'];
 let current = {};
-
-function getVal(id) { return document.getElementById(id).value; }
-
-function updateHex(key) {
-  const el = document.getElementById('hex_' + key);
-  if (el) el.textContent = getVal(key);
+function getVal(id){return document.getElementById(id).value}
+function updateHex(key){var el=document.getElementById('hex_'+key);if(el)el.textContent=getVal(key)}
+function applyPreset(key,val){document.getElementById(key).value=val;updateHex(key);current[key]=val;renderPreview()}
+function syncFromInputs(){
+  COLOR_KEYS.forEach(function(k){current[k]=getVal(k)});
+  SELECT_KEYS.forEach(function(k){current[k]=getVal(k)});
+  RANGE_KEYS.forEach(function(k){current[k]=parseFloat(getVal(k))});
+  document.getElementById('player_count_val').textContent=current.player_count;
+  document.getElementById('stadium_vignette_val').textContent=Math.round(current.stadium_vignette);
+  document.getElementById('power_cap_val').textContent=current.power_cap;
 }
+document.querySelectorAll('input[type=color]').forEach(function(el){el.addEventListener('input',function(){syncFromInputs();updateHex(el.id);renderPreview()})});
+document.querySelectorAll('select').forEach(function(el){el.addEventListener('change',function(){syncFromInputs();renderPreview()})});
+document.querySelectorAll('input[type=range]').forEach(function(el){el.addEventListener('input',function(){syncFromInputs();renderPreview()})});
 
-function applyPreset(key, val) {
-  document.getElementById(key).value = val;
-  updateHex(key);
-  current[key] = val;
-  renderPreview();
-}
-
-function syncFromInputs() {
-  current.team_a_color = getVal('team_a_color');
-  current.team_b_color = getVal('team_b_color');
-  current.ref_color = getVal('ref_color');
-  current.ball_color = getVal('ball_color');
-  current.bg_color = getVal('bg_color');
-  current.player_count = parseInt(getVal('player_count'));
-  document.getElementById('player_count_val').textContent = current.player_count;
-}
-
-Array.from(document.querySelectorAll('input[type=color]')).forEach(el => {
-  el.addEventListener('input', () => {
-    syncFromInputs();
-    updateHex(el.id);
-    renderPreview();
-  });
-});
-document.getElementById('player_count').addEventListener('input', () => {
-  syncFromInputs();
-  renderPreview();
-});
-
-function resetDefaults() {
-  Object.keys(DEFAULTS).forEach(key => {
-    const el = document.getElementById(key);
-    if (el) el.value = DEFAULTS[key];
+function resetDefaults(){
+  Object.keys(DEFAULTS).forEach(function(key){
+    var el=document.getElementById(key);
+    if(el){
+      if(COLOR_KEYS.indexOf(key)!==-1||key==='field_line_color'||key==='trail_color'){el.value=DEFAULTS[key]}
+      else if(SELECT_KEYS.indexOf(key)!==-1){el.value=DEFAULTS[key]}
+      else if(RANGE_KEYS.indexOf(key)!==-1){el.value=DEFAULTS[key]}
+    }
     updateHex(key);
   });
+  syncFromInputs();renderPreview();
+  showFlash('Reset to defaults (not saved yet)','success');
+}
+function showFlash(msg,type){
+  var el=document.getElementById('flash-msg');
+  el.textContent=msg;el.className='flash-msg '+type;
+  setTimeout(function(){el.className='flash-msg'},4000);
+}
+async function saveSettings(){
   syncFromInputs();
-  renderPreview();
-  showFlash('Reset to defaults (not saved yet)', 'success');
+  var btn=document.getElementById('save-btn');btn.disabled=true;btn.textContent='Saving…';
+  try{
+    var resp=await fetch('/customize/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(current)});
+    var data=await resp.json();
+    if(data.ok)showFlash('Settings saved! They will apply on the game page.','success');
+    else showFlash('Failed to save: '+(data.error||'unknown error'),'error');
+  }catch(e){showFlash('Network error while saving','error')}
+  btn.disabled=false;btn.textContent='Save All Settings';
 }
 
-function showFlash(msg, type) {
-  const el = document.getElementById('flash-msg');
-  el.textContent = msg;
-  el.className = 'flash-msg ' + type;
-  setTimeout(() => { el.className = 'flash-msg'; }, 4000);
-}
-
-async function saveSettings() {
+// ── Preview Render ──────────────────────────────────────────────────
+function renderPreview(){
   syncFromInputs();
-  const btn = document.getElementById('save-btn');
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-  try {
-    const resp = await fetch('/customize/save', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(current),
-    });
-    const data = await resp.json();
-    if (data.ok) {
-      showFlash('Settings saved! They will apply on the game page.', 'success');
-    } else {
-      showFlash('Failed to save: ' + (data.error || 'unknown error'), 'error');
+  var c=document.getElementById('preview-canvas'),ctx=c.getContext('2d'),W=1000,H=625;
+  var gc=current;
+
+  // Background scene
+  var sceneColors={night:['#0f172a','#020617'],sunset:['#f97316','#7c2d12'],cloudy:['#94a3b8','#475569'],day:['#87ceeb','#38bdf8'],cyber:['#2e1065','#000000']};
+  var sc=sceneColors[gc.bg_scene]||sceneColors.night;
+  var bgG=ctx.createRadialGradient(500,312,60,500,312,700);
+  bgG.addColorStop(0,gc.bg_color);bgG.addColorStop(1,sc[1]);
+  ctx.fillStyle=bgG;ctx.fillRect(0,0,W,H);
+
+  // Grass shades
+  var grassShades={dark:['#0f172a','#1e293b'],bright:['#22c55e','#16a34a'],emerald:['#059669','#047857'],winter:['#78716c','#57534e'],neon:['#00ff41','#00b82a']};
+  var gs=grassShades[gc.grass_shade]||grassShades.dark;
+  ctx.fillStyle='#0a1628';ctx.fillRect(0,0,W,H);
+  var grad=ctx.createLinearGradient(0,0,W,H);
+  grad.addColorStop(0,gs[0]);grad.addColorStop(0.5,gs[1]);grad.addColorStop(1,gs[0]);
+  ctx.fillStyle=grad;ctx.fillRect(0,0,W,H);
+
+  // Pitch patterns
+  var lc=gc.field_line_color||'rgba(255,255,255,.35)';
+  ctx.globalAlpha=0.08;
+  if(gc.pitch_pattern==='stripes'){
+    ctx.fillStyle=lc;
+    for(var x=0;x<W;x+=40)ctx.fillRect(x,0,20,H);
+  }else if(gc.pitch_pattern==='diagonal'){
+    ctx.strokeStyle=lc;ctx.lineWidth=20;
+    for(var i=-20;i<40;i++){ctx.beginPath();ctx.moveTo(i*40,0);ctx.lineTo(i*40+500,H);ctx.stroke()}
+  }else if(gc.pitch_pattern==='checker'){
+    ctx.fillStyle=lc;
+    for(var x=0;x<W;x+=80)for(var y=0;y<H;y+=80)ctx.fillRect(x+(y%160?0:40),y,40,40);
+  }else if(gc.pitch_pattern==='zigzag'){
+    ctx.strokeStyle=lc;ctx.lineWidth=8;
+    for(var x=0;x<W;x+=60){ctx.beginPath();ctx.moveTo(x,0);for(var y=0;y<H;y+=20)ctx.lineTo(x+(y%40?10:-10),y);ctx.stroke()}
+  }
+  ctx.globalAlpha=1;
+
+  // Vignette
+  var v=parseFloat(gc.stadium_vignette)||0.6;
+  var vig=ctx.createRadialGradient(W/2,H/2,100,W/2,H/2,350);
+  vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,'+v+')');
+  ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
+
+  // Crowd
+  var palettes={classic:['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc','#6366f1','#14b8a6','#f97316'],team_a:[gc.team_a_color],team_b:[gc.team_b_color],rainbow:['#ef4444','#f97316','#f59e0b','#22c55e','#3b82f6','#8b5cf6','#ec4899'],mono:['#6b7280','#9ca3af','#d1d5db','#4b5563']};
+  var p=palettes[gc.crowd_palette]||palettes.classic;
+  for(var row=0;row<3;row++){
+    var yy=[8+row*6,H-8-row*6];
+    for(var yi=0;yi<2;yi++)for(var x=10;x<W-10;x+=12){
+      var ci=Math.floor(Math.abs(Math.sin(x*0.13+y*0.07+row))*(p.length));
+      ctx.fillStyle=p[ci%p.length]||p[0];
+      ctx.beginPath();ctx.arc(x,yy[yi],1.5,0,Math.PI*2);ctx.fill();
     }
-  } catch(e) {
-    showFlash('Network error while saving', 'error');
   }
-  btn.disabled = false;
-  btn.textContent = 'Save Settings';
+
+  // Field lines
+  ctx.save();
+  ctx.strokeStyle=lc;ctx.lineWidth=1.5;
+  ctx.strokeRect(20,20,W-40,H-40);
+  ctx.beginPath();ctx.moveTo(W/2,20);ctx.lineTo(W/2,H-20);ctx.stroke();
+  ctx.beginPath();ctx.arc(W/2,H/2,60,0,Math.PI*2);ctx.stroke();
+  ctx.strokeRect(20,(H-180)/2,100,180);ctx.strokeRect(W-120,(H-180)/2,100,180);
+  // Goal areas
+  ctx.strokeRect(20,231-50,36,394-231+100);ctx.strokeRect(W-56,231-50,36,394-231+100);
+  ctx.fillStyle=lc;ctx.globalAlpha=0.5;
+  ctx.beginPath();ctx.arc(120,H/2,4,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(W-120,H/2,4,0,Math.PI*2);ctx.fill();
+  ctx.globalAlpha=1;
+  ctx.restore();
+
+  // Goals
+  ctx.fillStyle='rgba(255,255,255,.04)';
+  ctx.fillRect(20-50,231,50,163);ctx.fillRect(W-20,231,50,163);
+  ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(20,231);ctx.lineTo(20,394);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(W-20,231);ctx.lineTo(W-20,394);ctx.stroke();
+
+  // Corner flags
+  var cfColor=gc.corner_flag_style==='normal'?'#ef4444':gc.corner_flag_style==='team_a'?gc.team_a_color:gc.corner_flag_style==='team_b'?gc.team_b_color:'#ffffff';
+  [[20,20],[W-20,20],[20,H-20],[W-20,H-20]].forEach(function(p){
+    ctx.strokeStyle='rgba(255,255,255,.6)';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(p[0],p[1]-5);ctx.lineTo(p[0],p[1]-13);ctx.stroke();
+    ctx.fillStyle=cfColor;
+    ctx.beginPath();ctx.moveTo(p[0],p[1]-11);ctx.lineTo(p[0]+5,p[1]-9);ctx.lineTo(p[0],p[1]-7);ctx.closePath();ctx.fill();
+  });
+
+  // Players
+  var ha=[{x:62,y:312},{x:400,y:244},{x:400,y:381}],hb=[{x:938,y:312},{x:600,y:244},{x:600,y:381}],sh=[1,7,10];
+  var fonts={default:'bold 12px Inter,sans-serif',bold:'bold 14px Inter,sans-serif',narrow:'500 12px Inter,sans-serif',retro:'bold 11px monospace'};
+  var fnt=fonts[gc.shirt_font]||fonts.default;
+  function drawP(x,y,col,num,hl){
+    ctx.beginPath();ctx.arc(x,y,20,0,Math.PI*2);
+    var g=ctx.createRadialGradient(x-4,y-5,2,x,y,20);
+    g.addColorStop(0,'#ffffff');g.addColorStop(1,col);ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font=fnt;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(num,x,y);
+  }
+  ha.forEach(function(p,i){drawP(p.x,p.y,gc.team_a_color,sh[i])});
+  hb.forEach(function(p,i){drawP(p.x,p.y,gc.team_b_color,sh[i])});
+
+  // Keepers
+  function drawK(x,y,col){
+    ctx.beginPath();ctx.arc(x,y,18,0,Math.PI*2);
+    var g=ctx.createRadialGradient(x-3,y-4,2,x,y,18);
+    g.addColorStop(0,'#ffffff');g.addColorStop(1,col);ctx.fillStyle=g;ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
+    ctx.fillStyle='#fff';ctx.font='bold 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('GK',x,y);
+  }
+  drawK(62,272,gc.keeper_color_a);drawK(938,352,gc.keeper_color_b);
+
+  // Ref
+  ctx.beginPath();ctx.arc(400,420,16,0,Math.PI*2);
+  var rg=ctx.createRadialGradient(397,416,2,400,420,16);
+  rg.addColorStop(0,gc.ref_color);rg.addColorStop(1,'#00000033');
+  ctx.fillStyle=rg;ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.fillStyle='#fff';ctx.font='bold 9px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('REF',400,420);
+
+  // Ball
+  drawBall(500,312);
+
+  function drawBall(x,y){
+    ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fillStyle=gc.ball_color;ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,.2)';ctx.lineWidth=1;ctx.stroke();
+
+    if(gc.ball_design==='classic'){
+      ctx.fillStyle='#1e293b';
+      ctx.beginPath();for(var i=0;i<5;i++){var a=i*2*Math.PI/5-Math.PI/2,px=x+4.5*Math.cos(a),py=y+4.5*Math.sin(a);i===0?ctx.moveTo(px,py):ctx.lineTo(px,py)}ctx.closePath();ctx.fill();
+      ctx.fillStyle='#1e293b';
+      for(var i=0;i<5;i++){var a=i*2*Math.PI/5+Math.PI/2,px=x+7*Math.cos(a),py=y+7*Math.sin(a);ctx.beginPath();ctx.arc(px,py,2.5,0,Math.PI*2);ctx.fill()}
+    }else if(gc.ball_design==='gold'){
+      ctx.fillStyle='#fbbf24';ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#d97706';ctx.lineWidth=2;ctx.stroke();
+      ctx.fillStyle='#b45309';
+      for(var i=0;i<5;i++){var a=i*2*Math.PI/5-Math.PI/2,px=x+4.5*Math.cos(a),py=y+4.5*Math.sin(a);ctx.beginPath();ctx.arc(px,py,2,0,Math.PI*2);ctx.fill()}
+    }else if(gc.ball_design==='euro'){
+      ctx.fillStyle=gc.ball_color;ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle=gc.team_a_color;ctx.lineWidth=1.5;ctx.stroke();
+      ctx.fillStyle=gc.team_a_color;ctx.globalAlpha=0.3;
+      for(var i=0;i<4;i++){var a=i*Math.PI/2,px=x+7*Math.cos(a),py=y+7*Math.sin(a);ctx.beginPath();ctx.arc(px,py,5,0,Math.PI*2);ctx.fill()}
+      ctx.globalAlpha=1;
+    }else if(gc.ball_design==='retro'){
+      ctx.fillStyle='#d4a574';ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#8b6914';ctx.lineWidth=1.5;ctx.stroke();
+      ctx.strokeStyle='#8b6914';ctx.lineWidth=1;
+      for(var i=0;i<6;i++){var a=i*Math.PI/3;ctx.beginPath();ctx.moveTo(x+Math.cos(a)*2,y+Math.sin(a)*2);ctx.lineTo(x+Math.cos(a)*11,y+Math.sin(a)*11);ctx.stroke()}
+    }else if(gc.ball_design==='neon'){
+      ctx.shadowColor=gc.trail_color;ctx.shadowBlur=15;
+      ctx.fillStyle=gc.ball_color;ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();
+      ctx.shadowBlur=0;ctx.strokeStyle=gc.trail_color;ctx.lineWidth=2;ctx.stroke();
+    }else if(gc.ball_design==='pixel'){
+      ctx.fillStyle=gc.ball_color;
+      for(var dx=-8;dx<=8;dx+=3)for(var dy=-8;dy<=8;dy+=3){if(dx*dx+dy*dy<80){ctx.fillRect(x+dx-1,y+dy-1,3,3)}}
+    }
+  }
 }
 
-function renderPreview() {
-  syncFromInputs();
-  const canvas = document.getElementById('preview-canvas');
-  const ctx = canvas.getContext('2d');
-  const W = 1000, H = 625;
-
-  const bgGrad = ctx.createRadialGradient(500, 312, 60, 500, 312, 700);
-  bgGrad.addColorStop(0, current.bg_color);
-  bgGrad.addColorStop(1, '#080807');
-  ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.fillStyle = '#0a1628';
-  ctx.fillRect(0, 0, W, H);
-  const grad = ctx.createLinearGradient(0, 0, W, H);
-  grad.addColorStop(0, '#0f172a');
-  grad.addColorStop(0.5, '#1e293b');
-  grad.addColorStop(1, '#0f172a');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.strokeStyle = 'rgba(255,255,255,.25)';
-  ctx.lineWidth = 1.5;
-  ctx.strokeRect(20, 20, W-40, H-40);
-  ctx.beginPath(); ctx.moveTo(W/2, 20); ctx.lineTo(W/2, H-20); ctx.stroke();
-  ctx.beginPath(); ctx.arc(W/2, H/2, 60, 0, Math.PI*2); ctx.stroke();
-
-  const TEAM_A = [{x:62,y:312},{x:400,y:244},{x:400,y:381}];
-  const TEAM_B = [{x:938,y:312},{x:600,y:244},{x:600,y:381}];
-  const SHIRTS = [1, 7, 10];
-
-  function drawPlayer(x, y, color, num) {
-    ctx.beginPath();
-    ctx.arc(x, y, 20, 0, Math.PI*2);
-    const g = ctx.createRadialGradient(x-4, y-5, 2, x, y, 20);
-    g.addColorStop(0, '#ffffff');
-    g.addColorStop(1, color);
-    ctx.fillStyle = g;
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,.5)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 12px Inter,sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(num, x, y);
-  }
-
-  TEAM_A.forEach((p, i) => drawPlayer(p.x, p.y, current.team_a_color, SHIRTS[i]));
-  TEAM_B.forEach((p, i) => drawPlayer(p.x, p.y, current.team_b_color, SHIRTS[i]));
-
-  ctx.beginPath();
-  ctx.arc(400, 420, 16, 0, Math.PI*2);
-  const rg = ctx.createRadialGradient(397, 416, 2, 400, 420, 16);
-  rg.addColorStop(0, current.ref_color);
-  rg.addColorStop(1, '#d97706');
-  ctx.fillStyle = rg;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(255,255,255,.7)';
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.fillStyle = '#fff';
-  ctx.font = 'bold 9px Inter,sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText('REF', 400, 420);
-
-  ctx.beginPath();
-  ctx.arc(500, 312, 12, 0, Math.PI*2);
-  ctx.fillStyle = current.ball_color;
-  ctx.fill();
-  ctx.strokeStyle = 'rgba(0,0,0,.2)';
-  ctx.lineWidth = 1;
-  ctx.stroke();
-  ctx.fillStyle = '#1e293b';
-  ctx.beginPath();
-  for (let i = 0; i < 5; i++) {
-    const a = (i * 2 * Math.PI / 5) - Math.PI / 2;
-    const px = 500 + 4.5 * Math.cos(a);
-    const py = 312 + 4.5 * Math.sin(a);
-    i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fill();
-}
-
+// Init
 syncFromInputs();
 renderPreview();
 </script>
