@@ -161,14 +161,20 @@ select.opp-sel{
 select.opp-sel:focus{outline:none;border-color:rgba(96,165,250,.6)}
 select.opp-sel option{background:#1a1a2e;color:var(--text)}
 
-.btn{font-family:inherit;font-size:.78rem;font-weight:500;padding:7px 14px;border-radius:7px;border:none;cursor:pointer;transition:opacity .12s,transform .1s}
-.btn:hover:not(:disabled){opacity:.85;transform:translateY(-1px)}
-.btn:disabled{opacity:.4;cursor:not-allowed}
-.btn-blue {background:var(--accent);color:#000;box-shadow:0 3px 10px rgba(96,165,250,.3)}
-.btn-green{background:var(--accent-b);color:#000;box-shadow:0 3px 10px rgba(52,211,153,.3)}
-.btn-ghost{background:rgba(255,255,255,.07);color:var(--muted);border:1px solid var(--glass-border)}
-.btn-ghost:hover:not(:disabled){border-color:var(--accent);color:var(--accent);opacity:1;transform:none}
-.btn-amber{background:#92400e;color:#fbbf24;border:1px solid rgba(251,191,36,.3)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;font-size:.82rem;font-weight:600;padding:8px 18px;border:none;border-radius:10px;cursor:pointer;position:relative;overflow:hidden;transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .25s,background .25s,border-color .25s;user-select:none;text-decoration:none}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.12) 45%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.12) 55%,transparent 70%);background-size:300% 100%;background-position:100% 0;transition:background-position .5s;pointer-events:none}
+.btn:hover::after{background-position:0 0}
+.btn-blue{background:linear-gradient(135deg,#06b6d4 0%,#0891b2 50%,#6366f1 100%);color:#fff;box-shadow:0 4px 16px rgba(6,182,212,.3)}
+.btn-blue:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(6,182,212,.45)}
+.btn-green{background:linear-gradient(135deg,#34d399 0%,#10b981 50%,#059669 100%);color:#fff;box-shadow:0 4px 16px rgba(16,185,129,.3)}
+.btn-green:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(16,185,129,.45)}
+.btn-ghost{background:rgba(255,255,255,.55);backdrop-filter:blur(8px);color:var(--muted);border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.btn-ghost:hover{transform:translateY(-2px);background:rgba(255,255,255,.8);border-color:rgba(6,182,212,.35);color:#06b6d4}
+.btn-ghost::after{display:none}
+.btn-amber{background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#d97706 100%);color:#fff;box-shadow:0 4px 16px rgba(245,158,11,.3)}
+.btn-amber:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(245,158,11,.45)}
 
 /* Turn banner */
 .turn-banner{
@@ -340,10 +346,13 @@ details[open] .ins-toggle{transform:rotate(180deg)}
   <div class="nav-links">
     <a href="/" class="nav-link">Game</a>
     <a href="/playground" class="nav-link active">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/my-models" class="nav-link">My Models</a>
     <a href="/profile" class="nav-link">Profile</a>
     <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
     <a href="/customize" class="nav-link">Customize</a>
     <span class="nav-user">{{ username }}</span>
     <form method="POST" action="/auth/logout" style="display:inline">
@@ -778,9 +787,18 @@ function handleFileImport(evt) {
 // ── Status bar ────────────────────────────────────────────────────────────────
 function setStatus(msg, type) {
   const el = document.getElementById('ep-status');
-  el.innerHTML = msg
-    ? `<span class="status-${type}">${msg}</span>`
-    : '<span class="status-info">Ready.</span>';
+  el.textContent = '';
+  if (msg) {
+    const sp = document.createElement('span');
+    sp.className = 'status-' + type;
+    sp.textContent = msg;
+    el.appendChild(sp);
+  } else {
+    const sp = document.createElement('span');
+    sp.className = 'status-info';
+    sp.textContent = 'Ready.';
+    el.appendChild(sp);
+  }
 }
 
 function setThinking(on, label = 'Thinking…') {
@@ -904,15 +922,24 @@ function renderTurnBanner(state) {
 function renderLog(history) {
   const log = document.getElementById('move-log');
   if (!history.length) {
-    log.innerHTML = '<div style="color:var(--muted)">No moves yet.</div>';
+    log.textContent = 'No moves yet.';
     return;
   }
-  log.innerHTML = history.map((h, i) => {
+  log.textContent = '';
+  history.forEach((h, i) => {
+    const div = document.createElement('div');
     const cls = h.player === 'A' ? 'log-a' : 'log-b';
-    return `<div class="log-entry ${cls}"><span class="log-num">${i+1}.</span>${h.desc}</div>`;
-  }).join('');
+    div.className = 'log-entry ' + cls;
+    const num = document.createElement('span');
+    num.className = 'log-num';
+    num.textContent = (i+1) + '.';
+    div.appendChild(num);
+    div.appendChild(document.createTextNode(h.desc || ''));
+    log.appendChild(div);
+  });
   log.scrollTop = log.scrollHeight;
 }
 </script>
+<script src="/static/feedback.js"></script>
 </body>
 </html>

@@ -85,23 +85,21 @@ nav{
 .empty-state strong{display:block;font-size:1rem;font-weight:600;color:var(--text);margin-bottom:6px}
 
 /* ── Buttons ── */
-.btn{
-  font-family:inherit;font-size:.78rem;font-weight:600;
-  padding:8px 16px;border-radius:10px;border:none;cursor:pointer;
-  transition:all .15s;display:inline-flex;align-items:center;gap:5px;
-}
-.btn:hover{transform:translateY(-1px)}
-.btn:active{transform:translateY(0)}
-.btn-blue{background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;box-shadow:0 3px 12px rgba(6,182,212,.3)}
-.btn-blue:hover{box-shadow:0 5px 18px rgba(6,182,212,.35)}
-.btn-orange{background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;box-shadow:0 3px 12px rgba(249,115,22,.3)}
-.btn-orange:hover{box-shadow:0 5px 18px rgba(249,115,22,.35)}
-.btn-ghost{background:var(--glass-bg);color:var(--muted);border:1px solid var(--glass-border)}
-.btn-ghost:hover{border-color:#06b6d4;color:#06b6d4;opacity:1}
-.btn-danger{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
-.btn-danger:hover{background:var(--red);color:#fff;opacity:1}
-.btn-sm{padding:5px 12px;font-size:.7rem;border-radius:8px}
-.btn-xs{padding:3px 8px;font-size:.62rem;border-radius:6px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;font-size:.82rem;font-weight:600;padding:8px 18px;border:none;border-radius:10px;cursor:pointer;position:relative;overflow:hidden;transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .25s,background .25s,border-color .25s;user-select:none;text-decoration:none}
+.btn:active{transform:scale(.97)}
+.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.12) 45%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.12) 55%,transparent 70%);background-size:300% 100%;background-position:100% 0;transition:background-position .5s;pointer-events:none}
+.btn:hover::after{background-position:0 0}
+.btn-blue{background:linear-gradient(135deg,#06b6d4 0%,#0891b2 50%,#6366f1 100%);color:#fff;box-shadow:0 4px 16px rgba(6,182,212,.3)}
+.btn-blue:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(6,182,212,.45)}
+.btn-orange{background:linear-gradient(135deg,#f97316 0%,#ef4444 100%);color:#fff;box-shadow:0 4px 16px rgba(249,115,22,.3)}
+.btn-orange:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(249,115,22,.45)}
+.btn-ghost{background:rgba(255,255,255,.55);backdrop-filter:blur(8px);color:var(--muted);border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.btn-ghost:hover{transform:translateY(-2px);background:rgba(255,255,255,.8);border-color:rgba(6,182,212,.35);color:#06b6d4}
+.btn-ghost::after{display:none}
+.btn-danger{background:linear-gradient(135deg,#f97316 0%,#ef4444 100%);color:#fff;box-shadow:0 4px 16px rgba(249,115,22,.3)}
+.btn-danger:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(249,115,22,.45)}
+.btn-sm{padding:6px 14px;font-size:.76rem;border-radius:9px}
+.btn-xs{padding:4px 10px;font-size:.68rem;border-radius:7px}
 
 /* ── Main Panel ── */
 .main-panel{display:flex;flex-direction:column;gap:0}
@@ -224,10 +222,13 @@ pre.ref-code{
   <div class="nav-links">
     <a href="/" class="nav-link">Game</a>
     <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/my-models" class="nav-link active">My Models</a>
     <a href="/profile" class="nav-link">Profile</a>
     <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
     <a href="/customize" class="nav-link">Customize</a>
     <span class="nav-user">{{ username }}</span>
     <form method="POST" action="/auth/logout" style="display:inline">
@@ -591,5 +592,6 @@ async function testInPlayground(id) {
   window.location.href = '/playground';
 }
 </script>
+<script src="/static/feedback.js"></script>
 </body>
 </html>

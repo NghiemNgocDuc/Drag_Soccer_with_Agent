@@ -135,16 +135,26 @@ main{max-width:1200px;margin:0 auto;padding:24px 16px;display:flex;flex-directio
 /* Controls */
 .controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px}
 .btn{
-  padding:7px 18px;border-radius:10px;border:none;cursor:pointer;
-  font-size:.82rem;font-weight:600;transition:all .15s;outline:none;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:8px 20px;border:none;border-radius:11px;cursor:pointer;
+  font-size:.84rem;font-weight:600;position:relative;overflow:hidden;
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .25s,background .25s,border-color .25s;
+  text-decoration:none;user-select:none;
 }
-.btn-primary{background:rgba(59,130,246,.12);color:var(--accent-a);border:1px solid rgba(59,130,246,.25)}
-.btn-primary:hover{background:rgba(59,130,246,.22)}
-.btn-danger{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
-.btn-danger:hover{background:rgba(239,68,68,.2)}
-.btn-ghost{background:transparent;color:var(--muted);border:1px solid rgba(180,205,255,.5)}
-.btn-ghost:hover{background:rgba(180,205,255,.2)}
+.btn:active{transform:scale(.97)}
+.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.12) 45%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.12) 55%,transparent 70%);background-size:300% 100%;background-position:100% 0;transition:background-position .5s;pointer-events:none}
+.btn:hover::after{background-position:0 0}
+.btn-primary{background:linear-gradient(135deg,#06b6d4 0%,#0891b2 50%,#6366f1 100%);color:#fff;box-shadow:0 4px 18px rgba(6,182,212,.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(6,182,212,.45)}
+.btn-danger{background:linear-gradient(135deg,#f97316 0%,#ef4444 100%);color:#fff;box-shadow:0 4px 18px rgba(249,115,22,.3)}
+.btn-danger:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(249,115,22,.45)}
+.btn-ghost{background:rgba(255,255,255,.55);backdrop-filter:blur(8px);color:var(--muted);border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.btn-ghost:hover{transform:translateY(-2px);background:rgba(255,255,255,.8);border-color:rgba(6,182,212,.35);color:#06b6d4}
+.btn-ghost::after{display:none}
+.btn-success{background:linear-gradient(135deg,#34d399 0%,#10b981 50%,#059669 100%);color:#fff;box-shadow:0 4px 18px rgba(16,185,129,.3)}
+.btn-success:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(16,185,129,.45)}
 .sep{width:1px;height:24px;background:rgba(180,205,255,.5);margin:0 4px}
+
 select{
   padding:7px 12px;border-radius:10px;border:1px solid rgba(180,205,255,.5);
   background:rgba(255,255,255,.7);color:var(--text);font-size:.82rem;
@@ -179,19 +189,32 @@ select{
   text-align:center;font-size:.78rem;color:var(--muted);padding:8px 16px;
   background:rgba(59,130,246,.06);border-radius:10px;
 }
+.flash-msg{
+  position:fixed;top:70px;right:16px;z-index:999;
+  padding:10px 18px;border-radius:10px;font-size:.82rem;font-weight:600;
+  opacity:0;transform:translateY(-8px);transition:opacity .3s,transform .3s;
+  pointer-events:none;
+}
+.flash-msg.show{opacity:1;transform:translateY(0)}
+.flash-msg.success{background:rgba(16,185,129,.15);color:#059669;border:1px solid rgba(16,185,129,.25)}
+.flash-msg.error{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
 </style>
 <script src="/static/sound.js"></script>
 </head>
 <body>
+<div class="flash-msg" id="flash-msg"></div>
 <nav>
   <span class="nav-brand">Agent Soccer</span>
   <div class="nav-links">
     <a href="/" class="nav-link active">Play</a>
     <a href="/online" class="nav-link">Online</a>
     <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
     <a href="/profile" class="nav-link">Profile</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
     <a href="/customize" class="nav-link">Customize</a>
   </div>
   <span class="nav-user">{{ username }}</span>
@@ -220,7 +243,7 @@ select{
 
     <!-- Canvas -->
     <div class="canvas-wrap" id="canvas-wrap">
-      <canvas id="game-canvas" width="1000" height="625"></canvas>
+      <canvas id="game-canvas" width="1200" height="825"></canvas>
       <div class="canvas-overlay" id="canvas-overlay">
         <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
           <div class="spinner" id="overlay-spinner"></div>
@@ -269,6 +292,7 @@ select{
     <button class="btn btn-primary" onclick="resetGame()">New Game</button>
     <button class="btn btn-ghost" onclick="undoMove()">Undo</button>
 
+    <div class="sep"></div>
     <div class="controls-right">
       <a href="/customize" class="btn btn-ghost" style="text-decoration:none;padding:6px 12px;font-size:.78rem">Customize</a>
       <div class="sep"></div>
@@ -278,6 +302,40 @@ select{
                oninput="setAnimSpeed(+this.value)">
       </div>
       <button class="btn btn-ghost" id="aivai-btn" style="display:none" onclick="triggerAI()">Run AI</button>
+
+    </div>
+  </div>
+
+  <!-- New Game Dialog -->
+  <div id="newgame-overlay" style="display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);align-items:center;justify-content:center">
+    <div class="glass" style="padding:32px;width:360px;display:flex;flex-direction:column;gap:18px">
+      <h2 style="font-size:1.1rem;font-weight:700;text-align:center;margin:0">New Game Setup</h2>
+      <div style="display:flex;gap:16px;justify-content:center">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <label style="font-size:.7rem;font-weight:600;color:var(--muted)">Team A</label>
+          <input type="color" id="ng-team-a" value="#3b82f6" style="width:40px;height:40px;border:2px solid rgba(180,205,255,.5);border-radius:8px;cursor:pointer;padding:0;background:none">
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+          <label style="font-size:.7rem;font-weight:600;color:var(--muted)">Team B</label>
+          <input type="color" id="ng-team-b" value="#ef4444" style="width:40px;height:40px;border:2px solid rgba(180,205,255,.5);border-radius:8px;cursor:pointer;padding:0;background:none">
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;justify-content:center">
+        <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;font-weight:600;cursor:pointer">
+          <input type="radio" name="ng-mode" value="regular" checked onchange="document.getElementById('ng-pc-wrap').style.display='block'"> Regular
+        </label>
+        <label style="display:flex;align-items:center;gap:4px;font-size:.8rem;font-weight:600;cursor:pointer">
+          <input type="radio" name="ng-mode" value="penalty" onchange="document.getElementById('ng-pc-wrap').style.display='none'"> Penalty
+        </label>
+      </div>
+      <div id="ng-pc-wrap" style="display:flex;flex-direction:column;gap:6px">
+        <label style="font-size:.7rem;font-weight:600;color:var(--muted);text-align:center">Players per team: <span id="ng-pc-label">3</span></label>
+        <input type="range" id="ng-pc" min="1" max="11" value="3" style="width:100%;cursor:pointer;accent-color:#06b6d4" oninput="document.getElementById('ng-pc-label').textContent=this.value">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:center">
+        <button class="btn btn-ghost" onclick="closeNewGameDialog()">Cancel</button>
+        <button class="btn btn-primary" onclick="confirmNewGame()">Start Game</button>
+      </div>
     </div>
   </div>
 
@@ -324,7 +382,7 @@ function animateGoalParticles() {
 }
 
 const MAX_DRAG = 138;  // px on canvas scale
-const PLAYER_TRAVEL = 3.0;  // must match _PLAYER_TRAVEL in soccer_logic.py
+const PLAYER_TRAVEL = 8.0;  // how far the kicker launches forward (pingpong follow-through)
 
 // ── Customization state (loaded from server) ──
 let CUST_TEAM_A       = '#3b82f6';
@@ -350,6 +408,40 @@ let CUST_POWER_BAR    = 'classic';
 let CUST_HALF_LENGTH  = 45;
 let CUST_POWER_CAP    = 100;
 let CUST_WIN_LIMIT    = 5;
+
+// ── Commentator (Web Speech API) ──
+const commentator = {
+  _queue: [],
+  _speaking: false,
+  _last: '',
+  say(text) {
+    if (!window.speechSynthesis) return;
+    if (text === this._last) return;
+    this._last = text;
+    this._queue.push(text);
+    if (!this._speaking) this._next();
+  },
+  _next() {
+    if (!this._queue.length) { this._speaking = false; return; }
+    this._speaking = true;
+    const text = this._queue.shift();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.15; u.pitch = 1.1; u.volume = 1;
+    u.onend = () => this._next();
+    speechSynthesis.speak(u);
+  },
+  goal() { this.say(['GOOOAL! What a strike!','It\'s in the back of the net!','The crowd erupts!'][Math.floor(Math.random()*3)]); },
+  saved() { this.say(['The goalkeeper makes the save!','Saved! Great reflexes!','The keeper denies the shot!'][Math.floor(Math.random()*3)]); },
+  kick() { this.say(['He takes the shot!','Here comes the kick!','He\'s going for goal!'][Math.floor(Math.random()*3)]); },
+  penaltyKick() { this.say(['The pressure is on for this penalty!','Can he score from the spot?','A crucial penalty kick!'][Math.floor(Math.random()*3)]); },
+  penaltyGoal() { this.say(['Cool as you like! Penalty scored!','Ice in the veins!','Straight down the middle!'][Math.floor(Math.random()*3)]); },
+  penaltySaved() { this.say(['The keeper saves the penalty!','What a save! Denied from the spot!','The goalkeeper is the hero!'][Math.floor(Math.random()*3)]); },
+  gameOver(winner) {
+    if (winner === 'A') this.say('The blue team wins the match!');
+    else if (winner === 'B') this.say('The red team takes the victory!');
+    else this.say("It's a draw! Full time!");
+  },
+};
 
 // ── Crowd data (generated once) ──
 let crowdDots = null;
@@ -424,24 +516,41 @@ let gameState   = null;
 let isAnimating = false;
 let animSpeed   = 1.0;  // 1 = normal, higher = faster
 
+// Player rocket (immediate visual on release)
+let _playerRocket = null;  // {playerIdx, team, fromX, fromY, toX, toY, startTime, duration}
+// Skips updating kicker in trajectory so rocket stays visible
+let _skipKickerIdx = -1;
+let _skipKickerTeam = '';
+
 let clockTimer = null;
+let _turnLostPending = false;
 function startClock() {
   if (clockTimer) clearInterval(clockTimer);
   clockTimer = setInterval(() => {
     if (!gameState) return;
     if (gameState.game_over) return;
-    let elapsedReal = (Date.now() / 1000) - (gameState.start_time || (Date.now() / 1000));
-    let totalSec = Math.floor(elapsedReal * 20);
-    let m = Math.floor(totalSec / 60);
-    let s = totalSec % 60;
+    const now = Date.now() / 1000;
+    const elapsedReal = now - (gameState.start_time || now);
+    const totalSec = Math.floor(elapsedReal * 20);
+    const m = Math.floor(totalSec / 60);
+    const s = totalSec % 60;
     const period = gameState.period || 'regular';
     let display = `${m}:${String(s).padStart(2,'0')}`;
-    if (period === 'et_first' || period === 'et_second') {
-      display += ' ET';
-    }
+    if (period === 'et_first' || period === 'et_second') display += ' ET';
     const clk = document.getElementById('game-clock');
     if (clk) clk.textContent = display;
-  }, 100);
+
+    // Auto-turn-loss when shot clock ring depletes
+    if (!isAnimating && gameState.game_mode === 'hvai' && gameState.is_player_a && gameState.turn_start_time) {
+      const elapsed = (Date.now() / 1000) - gameState.turn_start_time;
+      if (elapsed >= 30 && !_turnLostPending) {
+        _turnLostPending = true;
+        submitKick(0, 0, 1);
+      }
+    } else {
+      _turnLostPending = false;
+    }
+  }, 200);
 }
 startClock();
 
@@ -464,8 +573,8 @@ const ctx    = canvas.getContext('2d');
 // Scale from CSS pixels → canvas pixels
 function cssToCv(e) {
   const r  = canvas.getBoundingClientRect();
-  const sx = W / r.width;
-  const sy = H / r.height;
+  const sx = canvas.width / r.width;
+  const sy = canvas.height / r.height;
   const x  = (e.touches ? e.touches[0].clientX : e.clientX) - r.left;
   const y  = (e.touches ? e.touches[0].clientY : e.clientY) - r.top;
   return { x: x * sx - 100, y: y * sy - 100 };
@@ -587,9 +696,9 @@ function drawField() {
       const frontX = side === 'left' ? 20 : W - 20;
       const backX  = side === 'left' ? 20 - gd : W - 20 + gd;
       const netX   = side === 'left' ? frontX - gd : frontX;
-      ctx.fillStyle = 'rgba(255,255,255,.04)';
+      ctx.fillStyle = 'rgba(255,255,255,.12)';
       ctx.fillRect(netX, GOAL_Y1, gd, GOAL_Y2 - GOAL_Y1);
-      ctx.strokeStyle = 'rgba(255,255,255,.1)'; ctx.lineWidth = 0.6;
+      ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1;
       for (let yy = GOAL_Y1 + 7; yy < GOAL_Y2; yy += 7) {ctx.beginPath(); ctx.moveTo(netX, yy); ctx.lineTo(frontX, yy); ctx.stroke();}
       for (let xx = netX + 5; xx < frontX; xx += 5) {ctx.beginPath(); ctx.moveTo(xx, GOAL_Y1); ctx.lineTo(xx, GOAL_Y2); ctx.stroke();}
       ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 4.5;
@@ -812,7 +921,7 @@ function drawDragVisuals(hx, hy, pullX, pullY, power, kickAngle, cx, cy) {
 
 function render(ballOverride) {
   if (!gameState) return;
-  ctx.clearRect(0, 0, 1200, 825);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Scene background
   var sceneMap = {
@@ -836,16 +945,16 @@ function render(ballOverride) {
   bgGrad.addColorStop(0.3, ss[1]);
   bgGrad.addColorStop(1, ss[2]);
   ctx.fillStyle = bgGrad;
-  ctx.fillRect(0, 0, 1200, 825);
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   // Floodlight tint overlay
   if (fc !== 'rgba(0,0,0,0)') {
     var flGrad = ctx.createRadialGradient(180, -20, 30, 180, -20, 500);
     flGrad.addColorStop(0, fc); flGrad.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = flGrad; ctx.fillRect(0, 0, 1200, 825);
+    ctx.fillStyle = flGrad; ctx.fillRect(0, 0, canvas.width, canvas.height);
     var flGrad2 = ctx.createRadialGradient(1020, -20, 30, 1020, -20, 500);
     flGrad2.addColorStop(0, fc); flGrad2.addColorStop(1, 'rgba(0,0,0,0)');
-    ctx.fillStyle = flGrad2; ctx.fillRect(0, 0, 1200, 825);
+    ctx.fillStyle = flGrad2; ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   ctx.restore();
 
@@ -862,29 +971,59 @@ function render(ballOverride) {
   // Compute pull info now (needed to know where to draw dragged player)
   let pull = null;
   if (dragPlayer !== null) {
-    const home = gameState.players_a[dragPlayer];
+    const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
     pull = { hx: home.x, hy: home.y, ...calcPull(home) };
   }
 
-  // Penalty mode — only draw keeper + kicker, not all outfielders
+  // Penalty mode — drag ball to aim, outfield players stand at center line
   if (gameState.penalty_shootout) {
     const kickTeam = isA ? 'a' : 'b';
     const defTeam = isA ? 'b' : 'a';
     const defPlayers = isA ? gameState.players_b : gameState.players_a;
-    if (defPlayers.length) drawKeeper(defPlayers[0].x, defPlayers[0].y, defTeam);
+    defPlayers.forEach((p, i) => {
+      if (i === 0) drawKeeper(p.x, p.y, defTeam);
+      else drawPlayer(p.x, p.y, defTeam, SHIRT[i], false);
+    });
     const attPlayers = isA ? gameState.players_a : gameState.players_b;
     attPlayers.forEach((p, i) => drawPlayer(p.x, p.y, kickTeam, SHIRT[i], false));
   } else {
+    // Shot clock ring: depleting circle around active players
+    function drawShotClockRing(x, y, radius, fraction, color) {
+      if (fraction <= 0.01) return;
+      ctx.save();
+      ctx.beginPath();
+      const startAngle = -Math.PI / 2;
+      const endAngle = startAngle + Math.PI * 2 * fraction;
+      ctx.arc(x, y, radius + 6, startAngle, endAngle);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 3;
+      ctx.lineCap = 'round';
+      ctx.shadowColor = color;
+      ctx.shadowBlur = 6;
+      ctx.stroke();
+      ctx.restore();
+    }
+    let turnFraction = 1;
+    if (gameState.turn_start_time && !over && !isAnimating && mode === 'hvai' && isA) {
+      const elapsed = (Date.now() / 1000) - gameState.turn_start_time;
+      turnFraction = Math.max(0, 1 - elapsed / 30);
+    }
+
     // Players B — highlight the AI's chosen player during its drag preview
     const aiB = aiDragPreview && aiDragPreview.team === 'b' ? aiDragPreview.playerIdx : -1;
-    gameState.players_b.forEach((p, i) => drawPlayer(p.x, p.y, 'b', SHIRT[i], i === aiB));
+    gameState.players_b.forEach((p, i) => {
+      if (i === 0) { drawKeeper(p.x, p.y, 'b'); return; }
+      drawPlayer(p.x, p.y, 'b', SHIRT[i], i === aiB);
+    });
 
     // Players A — always drawn at home; dragged player highlighted; also AI-A preview
     const canSelectA = !over && !isAnimating && isA && (mode === 'hvai' || mode === 'hvh');
     const aiA = aiDragPreview && aiDragPreview.team === 'a' ? aiDragPreview.playerIdx : -1;
     gameState.players_a.forEach((p, i) => {
+      if (i === 0) { drawKeeper(p.x, p.y, 'a'); return; }
       const hl = (canSelectA && dragPlayer === null) || i === dragPlayer || i === aiA;
       drawPlayer(p.x, p.y, 'a', SHIRT[i], hl);
+      if (turnFraction < 1) drawShotClockRing(p.x, p.y, PLAYER_R, turnFraction, CUST_TEAM_A);
     });
   }
 
@@ -945,10 +1084,15 @@ function updateHUD(st) {
     if (m === 'hvai' && !isA) {
       keeperBtns.style.display = 'flex';
       startKeeperTimer();
+    } else if (m === 'hvai' && isA) {
+      keeperBtns.style.display = 'none';
+      if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+      startPenaltyShootTimer();
     } else {
       keeperBtns.style.display = 'none';
       keeperTimer.textContent = '';
       if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+      if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
     }
   } else {
     pUI.style.display = 'none';
@@ -961,7 +1105,7 @@ function updateHUD(st) {
     wb.style.color  = w === 'A' ? '#059669' : w === 'B' ? '#ef4444' : '#6b7fa3';
     tb.style.display = 'none';
     hint.textContent = 'Game over — click New Game to play again';
-    if (!window._whistlePlayed) { window._whistlePlayed = true; SoundManager.whistle(); }
+    if (!window._whistlePlayed) { window._whistlePlayed = true; SoundManager.whistle(); commentator.gameOver(w); }
   } else {
     window._whistlePlayed = false;
     wb.style.display = 'none';
@@ -1026,9 +1170,13 @@ function animateTrajectory(trajectory, onDone) {
     const pt = trajectory[0];
     animBall = { x: pt.x, y: pt.y };
     if (pt.a && pt.b && gameState && gameState.players_a && gameState.players_b) {
-      for (let k = 0; k < 3; k++) {
+      for (let k = 0; k < gameState.players_a.length; k++) {
+        if (_skipKickerTeam === 'a' && _skipKickerIdx === k) continue;
         gameState.players_a[k].x = pt.a[k].x;
         gameState.players_a[k].y = pt.a[k].y;
+      }
+      for (let k = 0; k < gameState.players_b.length; k++) {
+        if (_skipKickerTeam === 'b' && _skipKickerIdx === k) continue;
         gameState.players_b[k].x = pt.b[k].x;
         gameState.players_b[k].y = pt.b[k].y;
       }
@@ -1066,11 +1214,15 @@ function animateTrajectory(trajectory, onDone) {
       y: lerp(ptA.y, ptB.y, segFrac),
     };
 
-    // Interpolate all player positions
+    // Interpolate all player positions (skip the kicker — animated separately for pingpong launch)
     if (ptA.a && ptA.b && ptB.a && ptB.b && gameState && gameState.players_a && gameState.players_b) {
-      for (let k = 0; k < 3; k++) {
+      for (let k = 0; k < gameState.players_a.length; k++) {
+        if (_skipKickerTeam === 'a' && _skipKickerIdx === k) continue;
         gameState.players_a[k].x = lerp(ptA.a[k].x, ptB.a[k].x, segFrac);
         gameState.players_a[k].y = lerp(ptA.a[k].y, ptB.a[k].y, segFrac);
+      }
+      for (let k = 0; k < gameState.players_b.length; k++) {
+        if (_skipKickerTeam === 'b' && _skipKickerIdx === k) continue;
         gameState.players_b[k].x = lerp(ptA.b[k].x, ptB.b[k].x, segFrac);
         gameState.players_b[k].y = lerp(ptA.b[k].y, ptB.b[k].y, segFrac);
       }
@@ -1097,12 +1249,16 @@ function animateTrajectory(trajectory, onDone) {
     if (progress < totalSegments) {
       requestAnimationFrame(frame);
     } else {
-      // Snap to final frame exactly
+      // Snap to final frame exactly (skip kicker — animated separately)
       const last = trajectory[trajectory.length - 1];
       if (last.a && last.b && gameState && gameState.players_a && gameState.players_b) {
-        for (let k = 0; k < 3; k++) {
+        for (let k = 0; k < gameState.players_a.length; k++) {
+          if (_skipKickerTeam === 'a' && _skipKickerIdx === k) continue;
           gameState.players_a[k].x = last.a[k].x;
           gameState.players_a[k].y = last.a[k].y;
+        }
+        for (let k = 0; k < gameState.players_b.length; k++) {
+          if (_skipKickerTeam === 'b' && _skipKickerIdx === k) continue;
           gameState.players_b[k].x = last.b[k].x;
           gameState.players_b[k].y = last.b[k].y;
         }
@@ -1226,6 +1382,7 @@ function syncBall(trajectory, scored) {
 }
 
 let keepTimer = null;
+let penaltyShootTimer = null;
 
 function startKeeperTimer() {
   if (keepTimer) clearTimeout(keepTimer);
@@ -1245,6 +1402,30 @@ function startKeeperTimer() {
   }, 1000);
 }
 
+function startPenaltyShootTimer() {
+  if (penaltyShootTimer) clearInterval(penaltyShootTimer);
+  let sec = 10;
+  const el = document.getElementById('penalty-keeper-timer');
+  if (!el) return;
+  el.textContent = 'Shoot in ' + sec + 's';
+  penaltyShootTimer = setInterval(() => {
+    sec--;
+    if (sec <= 0) {
+      clearInterval(penaltyShootTimer); penaltyShootTimer = null;
+      el.textContent = 'Auto-shooting!';
+      autoPenaltyKick();
+    } else {
+      el.textContent = 'Shoot in ' + sec + 's';
+    }
+  }, 1000);
+}
+
+async function autoPenaltyKick() {
+  if (isAnimating || (gameState && gameState.game_over)) return;
+  await submitKick(0, 0, 85, 0, 0);
+  // submitKick handles state update and AI response; re-render happens inside it
+}
+
 async function chooseKeeperDir(dir) {
   await fetch('/goalkeeper_move', {
     method: 'POST',
@@ -1258,6 +1439,7 @@ async function chooseKeeperDir(dir) {
 
 async function submitKick(playerIdx, angleDeg, power, pullX, pullY) {
   isAnimating = true;
+  if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
   setOverlay(false);
 
   // Capture current player position before server updates it
@@ -1279,15 +1461,36 @@ async function submitKick(playerIdx, angleDeg, power, pullX, pullY) {
     const mr = data.move_result;
     const kickEndA = mr.kick_endpoint || kickEndpoint(fromPosA, angleDeg, power);
     
+    const isPenalty = data.penalty_shootout;
+    if (!isPenalty) commentator.kick();
+    else commentator.penaltyKick();
 
-    await new Promise(r => animateTrajectory(mr.trajectory, r));
+    if (!isPenalty) {
+      // Pingpong launch: animate kicker flying forward independently of the ball
+      _skipKickerIdx = playerIdx;
+      _skipKickerTeam = 'a';
+      await Promise.all([
+        new Promise(r => animateTrajectory(mr.trajectory, r)),
+        new Promise(r => animatePlayerMove(playerIdx, 'a', fromPosA, kickEndA, r)),
+      ]);
+      _skipKickerIdx = -1;
+      _skipKickerTeam = '';
+    } else {
+      // Penalty: kicker stays put, only ball animates
+      await new Promise(r => animateTrajectory(mr.trajectory, r));
+    }
     if (mr.push_result) {
       const pr = mr.push_result;
       await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
     }
-    const isPenalty = data.penalty_shootout;
     syncBall(mr.trajectory, mr.scored);
     logMove(mr.desc, !!mr.scored);
+    if (mr.scored) {
+      if (isPenalty) commentator.penaltyGoal();
+      else commentator.goal();
+    } else if (isPenalty) {
+      commentator.penaltySaved();
+    }
     if (mr.scored && !isPenalty) {
       SoundManager.goal();
       triggerGoalEffect(CUST_GOAL_EFFECT);
@@ -1312,7 +1515,24 @@ async function submitKick(playerIdx, angleDeg, power, pullX, pullY) {
 
       const _preAIA = aiData.players_a.map(p => ({x: p.x, y: p.y}));
       const _preAIB = aiData.players_b.map(p => ({x: p.x, y: p.y}));
-      await new Promise(r => animateTrajectory(ai.trajectory, r));
+      if (!aiData.penalty_shootout) {
+        // Pingpong launch for AI kicker (use trajectory[0] for pre-kick position)
+        const aiTraj0 = ai.trajectory && ai.trajectory[0];
+        _skipKickerIdx = ai.player_idx;
+        _skipKickerTeam = 'b';
+        const aiFrom = aiTraj0 && aiTraj0.b
+          ? { x: aiTraj0.b[ai.player_idx].x, y: aiTraj0.b[ai.player_idx].y }
+          : { x: aiData.players_b[ai.player_idx].x, y: aiData.players_b[ai.player_idx].y };
+        const aiKickEnd = ai.kick_endpoint || kickEndpoint(aiFrom, ai.angle, ai.power);
+        await Promise.all([
+          new Promise(r => animateTrajectory(ai.trajectory, r)),
+          new Promise(r => animatePlayerMove(ai.player_idx, 'b', aiFrom, aiKickEnd, r)),
+        ]);
+        _skipKickerIdx = -1;
+        _skipKickerTeam = '';
+      } else {
+        await new Promise(r => animateTrajectory(ai.trajectory, r));
+      }
       if (ai.push_result) {
         const pr = ai.push_result;
         await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
@@ -1354,14 +1574,42 @@ async function triggerAI() {
     if (!isPenalty) {
       const team = data.is_player_a ? 'b' : 'a';
       await new Promise(r => showAIDragPreview(ai.player_idx, team, ai.angle, ai.power, r));
+      commentator.kick();
+    } else {
+      commentator.penaltyKick();
     }
-    await new Promise(r => animateTrajectory(ai.trajectory, r));
+    if (!isPenalty) {
+      // Pingpong launch for AI kicker (use trajectory[0] for pre-kick position)
+      const aiTraj0 = ai.trajectory && ai.trajectory[0];
+      const aiTeam = data.is_player_a ? 'b' : 'a';
+      const aiPlayers = aiTeam === 'a' ? data.players_a : data.players_b;
+      const aiFrom = aiTraj0 && aiTraj0[aiTeam]
+        ? { x: aiTraj0[aiTeam][ai.player_idx].x, y: aiTraj0[aiTeam][ai.player_idx].y }
+        : { x: aiPlayers[ai.player_idx].x, y: aiPlayers[ai.player_idx].y };
+      const aiKickEnd = ai.kick_endpoint || kickEndpoint(aiFrom, ai.angle, ai.power);
+      _skipKickerIdx = ai.player_idx;
+      _skipKickerTeam = aiTeam;
+      await Promise.all([
+        new Promise(r => animateTrajectory(ai.trajectory, r)),
+        new Promise(r => animatePlayerMove(ai.player_idx, aiTeam, aiFrom, aiKickEnd, r)),
+      ]);
+      _skipKickerIdx = -1;
+      _skipKickerTeam = '';
+    } else {
+      await new Promise(r => animateTrajectory(ai.trajectory, r));
+    }
     if (ai.push_result) {
       const pr = ai.push_result;
       await new Promise(r => animatePlayerMove(pr.player_idx, pr.team, pr.from, pr.to, r));
     }
     syncBall(ai.trajectory, ai.scored);
     logMove(ai.desc, !!ai.scored);
+    if (ai.scored) {
+      if (isPenalty) commentator.penaltyGoal();
+      else commentator.goal();
+    } else if (isPenalty) {
+      commentator.penaltySaved();
+    }
     if (ai.scored && !isPenalty) {
       SoundManager.goal();
       triggerGoalEffect(CUST_GOAL_EFFECT);
@@ -1381,18 +1629,43 @@ async function triggerAI() {
   }
 }
 
-// ── Controls ─────────────────────────────────────────────────────────────────
-async function resetGame() {
+// ── New Game Dialog ───────────────────────────────────────────────────────────
+function resetGame() {
   if (isAnimating) return;
-  const pc = +document.getElementById('player-count').value;
-  const data = await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_count: pc})}).then(r=>r.json());
+  document.getElementById('ng-team-a').value = CUST_TEAM_A;
+  document.getElementById('ng-team-b').value = CUST_TEAM_B;
+  document.querySelector('input[name="ng-mode"][value="regular"]').checked = true;
+  document.getElementById('ng-pc-wrap').style.display = 'block';
+  document.getElementById('ng-pc').value = document.getElementById('player-count').value;
+  document.getElementById('ng-pc-label').textContent = document.getElementById('player-count').value;
+  document.getElementById('newgame-overlay').style.display = 'flex';
+}
+
+function closeNewGameDialog() {
+  document.getElementById('newgame-overlay').style.display = 'none';
+}
+
+async function confirmNewGame() {
+  if (isAnimating) return;
+  closeNewGameDialog();
+  const teamA = document.getElementById('ng-team-a').value;
+  const teamB = document.getElementById('ng-team-b').value;
+  const penaltyMode = document.querySelector('input[name="ng-mode"]:checked').value === 'penalty';
+  const pc = +document.getElementById('ng-pc').value;
+  CUST_TEAM_A = teamA;
+  CUST_TEAM_B = teamB;
+  try {
+    await fetch('/customize/save', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({team_a_color: teamA, team_b_color: teamB})});
+  } catch(e) {}
+  document.getElementById('player-count').value = penaltyMode ? 5 : pc;
+  const body = penaltyMode ? {penalty_mode: true} : {player_count: pc};
+  const data = await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)}).then(r=>r.json());
   gameState = data;
-  // Sync formation to the returned player count
-  const f = genFormation(data.player_count || pc);
+  const f = genFormation(data.player_count || (penaltyMode ? 5 : pc));
   HOME_A = f.ha; HOME_B = f.hb; SHIRT = f.sh;
-  if (document.getElementById('player-count')) document.getElementById('player-count').value = data.player_count || pc;
-  if (document.getElementById('player-count-label')) document.getElementById('player-count-label').textContent = data.player_count || pc;
+  if (document.getElementById('player-count-label')) document.getElementById('player-count-label').textContent = data.player_count || (penaltyMode ? 5 : pc);
   document.getElementById('log-panel').innerHTML = '';
+  genCrowd();
   render();
   updateHUD(data);
 }
@@ -1425,6 +1698,15 @@ async function switchModel(name) {
 
 function setAnimSpeed(v) { animSpeed = v; }
 
+function flashMsg(text, type='success') {
+  const el = document.getElementById('flash-msg');
+  if (!el) return;
+  el.className = 'flash-msg ' + type + ' show';
+  el.textContent = text;
+  clearTimeout(el._timer);
+  el._timer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
 function toggleFullscreen() {
   const el = document.getElementById('fs-wrap');
   if (document.fullscreenElement || document.webkitFullscreenElement) {
@@ -1447,6 +1729,13 @@ function getHoveredPlayer(cx, cy) {
   if (!gameState || gameState.game_over || isAnimating) return null;
   const isA  = gameState.is_player_a;
   const mode = gameState.game_mode;
+  if (gameState.penalty_shootout) {
+    if (gameState.ball) {
+      const d = Math.hypot(gameState.ball.x - cx, gameState.ball.y - cy);
+      if (d < BALL_R + 12) return 'ball';
+    }
+    return null; // penalty: only the ball is draggable
+  }
   const players = (isA || mode === 'hvh') ? gameState.players_a : null;
   if (!players) return null;
   for (let i = 0; i < players.length; i++) {
@@ -1485,9 +1774,9 @@ window.addEventListener('mouseup', e => {
   if (dragPlayer === null) return;
   const {x, y} = cssToCv(e);
   dragX = x; dragY = y;
-  const home = gameState.players_a[dragPlayer];
+  const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
   const {pullX, pullY, power, kickAngle} = calcPull(home);
-  const idx = dragPlayer;
+  const idx = dragPlayer === 'ball' ? 0 : dragPlayer;
   dragPlayer = null;
   canvas.style.cursor = 'default';
   render();
@@ -1515,11 +1804,13 @@ window.addEventListener('touchend', e => {
   if (dragPlayer === null) return;
   const touch = e.changedTouches[0];
   const r = canvas.getBoundingClientRect();
-  dragX = (touch.clientX - r.left) * W / r.width;
-  dragY = (touch.clientY - r.top)  * H / r.height;
-  const home = gameState.players_a[dragPlayer];
+  const sx = canvas.width / r.width;
+  const sy = canvas.height / r.height;
+  dragX = (touch.clientX - r.left) * sx - 100;
+  dragY = (touch.clientY - r.top) * sy - 100;
+  const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
   const {pullX, pullY, power, kickAngle} = calcPull(home);
-  const idx = dragPlayer;
+  const idx = dragPlayer === 'ball' ? 0 : dragPlayer;
   dragPlayer = null; render();
   if (power > 5) submitKick(idx, kickAngle * 180 / Math.PI, power, pullX, pullY);
 }, {passive:false});
@@ -1595,5 +1886,6 @@ async function loadCustomization() {
   await loadCustomization();
 })();
 </script>
+<script src="/static/feedback.js"></script>
 </body>
 </html>

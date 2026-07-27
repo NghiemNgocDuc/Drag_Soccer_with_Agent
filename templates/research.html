@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Research — Agent Soccer</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --accent:#06b6d4;--accent-b:#f97316;
+  --text:#0f172a;--muted:#475569;--dim:#94a3b8;
+  --glass-bg:rgba(255,255,255,.7);--glass-border:rgba(255,255,255,.5);
+  --glass-shadow:0 8px 32px rgba(31,38,135,.07),inset 0 1px 0 rgba(255,255,255,.95);
+  --blur:16px;
+}
+body{
+  font-family:'Be Vietnam Pro',system-ui,sans-serif;font-size:14px;
+  color:var(--text);min-height:100vh;
+  background:linear-gradient(135deg,#fef3c7 0%,#fde68a 15%,#fecaca 30%,#fbcfe8 50%,#c7d2fe 70%,#bfdbfe 85%,#a7f3d0 100%);
+  background-size:400% 400%;animation:bg-flow 20s ease infinite;
+}
+@keyframes bg-flow{0%{background-position:0% 50%}25%{background-position:50% 0%}50%{background-position:100% 50%}75%{background-position:50% 100%}100%{background-position:0% 50%}}
+nav,main{position:relative;z-index:1}
+.nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.nebula::before{content:'';position:absolute;width:700px;height:700px;background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate}
+.nebula::after{content:'';position:absolute;width:600px;height:500px;background:radial-gradient(ellipse,rgba(249,115,22,.07) 0%,transparent 65%);bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate(40px,-30px)}}
+@keyframes drift2{to{transform:translate(-30px,25px)}}
+
+nav{background:rgba(255,255,255,.7);backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.5);padding:12px 20px;display:flex;align-items:center;gap:14px}
+.nav-brand{font-size:.9rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}
+.nav-links{display:flex;gap:12px;margin-left:auto;align-items:center}
+.nav-links a{font-size:.78rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color .15s}
+.nav-links a:hover,.nav-links a.active{color:var(--text)}
+.nav-links a.active{font-weight:600}
+.nav-user{font-size:.78rem;font-weight:600;color:var(--muted);padding:4px 0 4px 12px;border-left:2px solid rgba(6,182,212,.2)}
+.logout{color:#ef4444!important;font-size:.75rem!important;margin-left:4px}
+
+.glass{background:var(--glass-bg);border:1px solid var(--glass-border);box-shadow:var(--glass-shadow);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border-radius:18px;transition:all .25s}
+
+main{max-width:1100px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:16px}
+
+.header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:18px 24px}
+.header h1{font-size:1rem;font-weight:700;background:linear-gradient(135deg,#06b6d4 0%,#8b5cf6 40%,#ec4899 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.header p{font-size:.78rem;color:var(--muted);margin-top:4px}
+.tab-bar{display:flex;gap:4px}
+.tab{font-size:.78rem;font-weight:600;padding:8px 18px;border-radius:10px;cursor:pointer;border:none;background:rgba(255,255,255,.4);color:var(--muted);transition:all .15s}
+.tab:hover{background:rgba(255,255,255,.7);color:var(--text)}
+.tab.active{background:var(--glass-bg);color:#06b6d4;box-shadow:0 2px 8px rgba(6,182,212,.1)}
+.tab-count{font-size:.65rem;font-weight:700;background:rgba(6,182,212,.12);color:#0891b2;padding:1px 7px;border-radius:100px;margin-left:6px}
+
+.search-section{padding:18px 24px;display:flex;flex-direction:column;gap:12px}
+.search-row{display:flex;gap:10px}
+.search-row input{flex:1;padding:12px 16px;border-radius:12px;border:1px solid var(--glass-border);background:rgba(255,255,255,.7);font-family:inherit;font-size:.9rem;color:var(--text);outline:none;transition:border-color .15s}
+.search-row input:focus{border-color:rgba(6,182,212,.5);box-shadow:0 0 0 3px rgba(6,182,212,.12)}
+.search-row input::placeholder{color:var(--dim)}
+.suggested{display:flex;flex-wrap:wrap;gap:6px}
+.suggested .chip{font-size:.72rem;font-weight:500;padding:5px 12px;border-radius:100px;background:rgba(6,182,212,.08);color:#0891b2;border:1px solid rgba(6,182,212,.2);cursor:pointer;transition:all .12s}
+.suggested .chip:hover{background:rgba(6,182,212,.18);transform:translateY(-1px)}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border:none;border-radius:10px;cursor:pointer;font-size:.82rem;font-weight:600;font-family:inherit;transition:all .15s;text-decoration:none;user-select:none;white-space:nowrap}
+.btn-primary{background:linear-gradient(135deg,#06b6d4,#0891b2);color:#fff;box-shadow:0 4px 14px rgba(6,182,212,.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(6,182,212,.45)}
+.btn-ghost{background:rgba(255,255,255,.55);color:var(--text);border:1px solid rgba(255,255,255,.6)}
+.btn-ghost:hover{background:rgba(255,255,255,.8);color:#06b6d4;border-color:rgba(6,182,212,.35)}
+.btn-sm{padding:6px 12px;font-size:.75rem;border-radius:8px}
+.btn-xs{padding:4px 9px;font-size:.68rem;border-radius:6px}
+.btn-danger{background:linear-gradient(135deg,rgba(249,115,22,.1),rgba(234,88,12,.08));color:#ea580c;border:1px solid rgba(249,115,22,.2)}
+.btn-danger:hover{background:linear-gradient(135deg,rgba(249,115,22,.25),rgba(234,88,12,.2));color:#fff}
+.btn-success{background:linear-gradient(135deg,#34d399,#10b981);color:#fff;box-shadow:0 4px 14px rgba(16,185,129,.3)}
+.btn-success:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(16,185,129,.45)}
+
+.spinner{width:28px;height:28px;border:3px solid rgba(6,182,212,.2);border-top-color:#06b6d4;border-radius:50%;animation:spin .6s linear infinite;margin:40px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.results-section{padding:18px 24px;min-height:200px}
+.results-section.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--dim);padding:60px 24px}
+.results-section.empty .empty-icon{font-size:2.4rem;opacity:.4}
+.results-section.empty .empty-text{font-size:.85rem}
+
+.paper-card{padding:16px;border-bottom:1px solid rgba(6,182,212,.08);transition:background .12s}
+.paper-card:last-child{border-bottom:none}
+.paper-card:hover{background:rgba(6,182,212,.03)}
+.paper-title{font-size:.92rem;font-weight:700;color:var(--text);cursor:pointer;transition:color .12s;line-height:1.4}
+.paper-title:hover{color:#06b6d4}
+.paper-authors{font-size:.75rem;color:var(--muted);margin-top:3px}
+.paper-meta{display:flex;align-items:center;gap:10px;margin-top:5px;flex-wrap:wrap}
+.paper-venue{font-size:.68rem;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:.04em}
+.paper-year{font-size:.72rem;color:var(--dim);font-weight:600}
+.paper-cites{font-size:.72rem;font-weight:600}
+.paper-cites.high{color:#059669}
+.paper-cites.med{color:#d97706}
+.paper-cites.low{color:var(--dim)}
+.paper-abstract{font-size:.78rem;color:var(--muted);line-height:1.6;margin-top:8px;display:none}
+.paper-abstract.open{display:block}
+.paper-actions{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.paper-id{font-size:.65rem;color:var(--dim);font-family:monospace;margin-top:4px}
+
+.library-section{padding:18px 24px;min-height:100px}
+.library-grid{display:grid;grid-template-columns:1fr;gap:10px}
+.lib-card{padding:16px;display:flex;flex-direction:column;gap:6px;border-bottom:1px solid rgba(6,182,212,.06)}
+.lib-card:last-child{border-bottom:none}
+.lib-card:hover{background:rgba(6,182,212,.02)}
+.lib-title{font-size:.88rem;font-weight:700;color:var(--text);line-height:1.3;cursor:pointer}
+.lib-title:hover{color:#06b6d4}
+.lib-authors{font-size:.72rem;color:var(--muted)}
+.lib-meta{display:flex;align-items:center;gap:12px;font-size:.7rem;color:var(--dim)}
+.lib-notes{font-size:.78rem;color:var(--muted);background:rgba(255,255,255,.5);padding:8px 12px;border-radius:8px;margin-top:2px;line-height:1.5}
+.lib-tags{display:flex;gap:4px;flex-wrap:wrap}
+.lib-tag{font-size:.6rem;font-weight:600;padding:2px 8px;border-radius:100px;background:rgba(6,182,212,.08);color:#0891b2;border:1px solid rgba(6,182,212,.15)}
+.lib-actions{display:flex;gap:6px;margin-top:2px}
+
+/* Detail modal */
+.modal-overlay{display:none;position:fixed;inset:0;z-index:200;background:rgba(0,0,0,.5);backdrop-filter:blur(6px);align-items:center;justify-content:center;padding:20px}
+.modal-overlay.visible{display:flex}
+.modal{background:rgba(255,255,255,.96);backdrop-filter:blur(24px);border:1px solid var(--glass-border);border-radius:20px;box-shadow:0 24px 60px rgba(31,38,135,.15);width:100%;max-width:680px;max-height:85vh;overflow-y:auto;padding:28px 32px;position:relative}
+.modal-close{position:absolute;top:14px;right:16px;width:32px;height:32px;border-radius:50%;border:none;background:rgba(0,0,0,.06);color:var(--text);font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s}
+.modal-close:hover{background:rgba(0,0,0,.12)}
+.modal h2{font-size:1.1rem;font-weight:700;color:var(--text);line-height:1.4;padding-right:30px}
+.modal .authors{font-size:.82rem;color:var(--muted);margin-top:8px}
+.modal .meta-row{display:flex;gap:16px;margin-top:10px;flex-wrap:wrap}
+.modal .meta-row span{font-size:.72rem;color:var(--dim);font-weight:600}
+.modal .label{font-size:.65rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-top:16px;margin-bottom:6px}
+.modal .abstract-text{font-size:.82rem;color:var(--text);line-height:1.7;background:rgba(255,255,255,.5);padding:12px 16px;border-radius:10px;border:1px solid rgba(6,182,212,.08)}
+.modal .external-links{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.modal .ext-link{font-size:.75rem;color:#0891b2;text-decoration:none;font-weight:600;padding:4px 10px;border-radius:6px;background:rgba(6,182,212,.06)}
+.modal .ext-link:hover{text-decoration:underline}
+.modal .notes-area{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(255,255,255,.7);font-family:inherit;font-size:.82rem;color:var(--text);resize:vertical;min-height:60px;outline:none;transition:border-color .15s}
+.modal .notes-area:focus{border-color:rgba(6,182,212,.5)}
+.modal .rec-card{padding:12px;border-bottom:1px solid rgba(6,182,212,.06);font-size:.78rem;cursor:pointer;transition:background .12s}
+.modal .rec-card:last-child{border-bottom:none}
+.modal .rec-card:hover{background:rgba(6,182,212,.04)}
+.modal .rec-card .rec-title{font-weight:600;color:var(--text)}
+.modal .rec-card .rec-auth{color:var(--muted);font-size:.72rem}
+
+.saved-badge{display:inline-flex;align-items:center;gap:4px;font-size:.65rem;font-weight:700;padding:3px 9px;border-radius:100px;background:rgba(16,185,129,.1);color:#059669;border:1px solid rgba(16,185,129,.25)}
+
+.sep{width:1px;height:20px;background:linear-gradient(180deg,rgba(6,182,212,.15),rgba(139,92,246,.15));margin:0 8px}
+
+.empty-state{padding:60px 20px;text-align:center;color:var(--muted);font-size:.85rem}
+.empty-state strong{display:block;font-size:1rem;font-weight:700;color:var(--text);margin-bottom:6px}
+
+.flash-msg{position:fixed;top:70px;right:16px;z-index:999;padding:10px 18px;border-radius:10px;font-size:.82rem;font-weight:600;opacity:0;transform:translateY(-8px);transition:opacity .3s,transform .3s;pointer-events:none}
+.flash-msg.show{opacity:1;transform:translateY(0)}
+.flash-msg.success{background:rgba(16,185,129,.15);color:#059669;border:1px solid rgba(16,185,129,.25)}
+.flash-msg.error{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
+</style>
+</head>
+<body>
+<div class="flash-msg" id="flash-msg"></div>
+<div class="nebula"></div>
+<nav>
+  <a href="/" class="nav-brand">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/">Play</a>
+    <a href="/online">Online</a>
+    <a href="/playground">Playground</a>
+    <a href="/arena">AI Arena</a>
+    <a href="/tournaments">Tournaments</a>
+    <a href="/research" class="active">Research</a>
+    <a href="/leaderboard">Leaderboard</a>
+    <a href="/profile">Profile</a>
+    <a href="/customize">Customize</a>
+  </div>
+  <span class="nav-user">{{ username }}</span>
+  <a href="/auth/logout" class="nav-link logout">Logout</a>
+</nav>
+
+<main>
+  <div class="glass header">
+    <div>
+      <h1>Research Hub</h1>
+      <p>Search academic papers on game AI, reinforcement learning, and soccer simulation</p>
+    </div>
+    <div class="tab-bar">
+      <div class="tab active" data-tab="search" onclick="switchTab('search')">Search</div>
+      <div class="tab" data-tab="library" onclick="switchTab('library')">My Library <span class="tab-count" id="lib-count">0</span></div>
+    </div>
+  </div>
+
+  <!-- Search Tab -->
+  <div id="tab-search" class="tab-content">
+    <div class="glass search-section">
+      <div class="search-row">
+        <input type="text" id="search-input" placeholder='Search papers — e.g. "multi-agent reinforcement learning soccer"' onkeydown="if(event.key==='Enter') searchPapers()">
+        <button class="btn btn-primary" onclick="searchPapers()">Search</button>
+      </div>
+      <div class="suggested" id="suggested">
+        {% for q in suggested_queries %}
+        <span class="chip" onclick="quickSearch('{{ q|e }}')">{{ q }}</span>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="glass results-section" id="results-section">
+      <div class="empty-state">
+        <strong>Search for papers</strong>
+        <p>Search the Semantic Scholar database for academic papers on game AI, RL, planning, and soccer agents</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Library Tab -->
+  <div id="tab-library" class="tab-content" style="display:none">
+    <div class="glass library-section" id="library-section">
+      <div class="empty-state" id="lib-empty">
+        <strong>No saved papers yet</strong>
+        <p>Search and save papers to build your research library</p>
+      </div>
+      <div class="library-grid" id="library-grid"></div>
+    </div>
+  </div>
+</main>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal">
+    <button class="modal-close" onclick="closeDetail()">&times;</button>
+    <div id="modal-content">
+      <div class="spinner"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let savedPapers = [];
+let currentSearchResults = [];
+
+function flash(msg, type) {
+  const el = document.getElementById('flash-msg');
+  el.textContent = msg;
+  el.className = 'flash-msg ' + type + ' show';
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+  document.getElementById('tab-' + tab).style.display = 'block';
+  if (tab === 'library') loadLibrary();
+}
+
+function quickSearch(q) {
+  document.getElementById('search-input').value = q;
+  searchPapers();
+}
+
+async function searchPapers() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q || q.length < 2) { flash('Enter at least 2 characters', 'error'); return; }
+  const section = document.getElementById('results-section');
+  section.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch('/api/research/search?q=' + encodeURIComponent(q) + '&limit=15');
+    const d = await r.json();
+    if (d.error) { section.innerHTML = '<div class="empty-state"><strong>Error</strong><p>' + d.error + '</p></div>'; return; }
+    currentSearchResults = d.results || [];
+    renderResults(d.results);
+  } catch (e) {
+    section.innerHTML = '<div class="empty-state"><strong>Search failed</strong><p>Check your connection and try again</p></div>';
+  }
+}
+
+function renderResults(results) {
+  const section = document.getElementById('results-section');
+  if (!results.length) {
+    section.innerHTML = '<div class="empty-state"><strong>No results</strong><p>Try a different search term</p></div>';
+    return;
+  }
+  let html = '';
+  for (const p of results) {
+    const isSaved = savedPapers.some(sp => sp.paper_id === p.paperId);
+    html += paperCard(p, isSaved);
+  }
+  section.innerHTML = html;
+}
+
+function paperCard(p, isSaved) {
+  const authors = (p.authors || []).slice(0, 4).map(a => a.name).join(', ');
+  const hasMore = (p.authors || []).length > 4;
+  const cites = p.citationCount || 0;
+  const citesCls = cites > 100 ? 'high' : cites > 20 ? 'med' : 'low';
+  const abstract = (p.abstract || '').length > 300 ? (p.abstract || '').slice(0, 300) + '...' : (p.abstract || '');
+  const pid = p.paperId || '';
+  return `<div class="paper-card">
+    <div class="paper-title" onclick="openDetail('${pid}')">${escHtml(p.title || 'Untitled')}</div>
+    <div class="paper-authors">${escHtml(authors)}${hasMore ? ', …' : ''}</div>
+    <div class="paper-meta">
+      ${p.venue ? `<span class="paper-venue">${escHtml(p.venue)}</span>` : ''}
+      ${p.year ? `<span class="paper-year">${p.year}</span>` : ''}
+      ${cites > 0 ? `<span class="paper-cites ${citesCls}">${cites} citations</span>` : ''}
+      ${isSaved ? '<span class="saved-badge">&#10003; Saved</span>' : ''}
+    </div>
+    ${abstract ? `<div class="paper-abstract" id="abs-${pid}">${escHtml(abstract)}</div>` : ''}
+    <div class="paper-actions">
+      <button class="btn btn-ghost btn-xs" onclick="toggleAbstract('${pid}')">Abstract</button>
+      ${p.url ? `<a class="btn btn-ghost btn-xs" href="${p.url}" target="_blank">Open</a>` : ''}
+      <button class="btn btn-xs ${isSaved ? 'btn-danger' : 'btn-success'}" onclick="toggleSave('${pid}')">${isSaved ? 'Remove' : 'Save'}</button>
+    </div>
+    <div class="paper-id">ID: ${pid}</div>
+  </div>`;
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function toggleAbstract(pid) {
+  const el = document.getElementById('abs-' + pid);
+  if (el) el.classList.toggle('open');
+}
+
+async function toggleSave(paperId) {
+  const isSaved = savedPapers.some(p => p.paper_id === paperId);
+  if (isSaved) {
+    const r = await fetch('/api/research/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paper_id: paperId}) });
+    const d = await r.json();
+    if (d.ok) { flash('Removed from library', 'success'); loadLibrary(); searchPapers(); }
+    else flash('Failed to remove', 'error');
+  } else {
+    const paper = currentSearchResults.find(p => p.paperId === paperId);
+    if (!paper) return;
+    const r = await fetch('/api/research/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paper: paper}) });
+    const d = await r.json();
+    if (d.ok) { flash('Saved to library!', 'success'); loadLibrary(); renderResults(currentSearchResults); }
+    else flash('Failed to save', 'error');
+  }
+}
+
+async function openDetail(paperId) {
+  const modal = document.getElementById('detail-modal');
+  const content = document.getElementById('modal-content');
+  content.innerHTML = '<div class="spinner"></div>';
+  modal.classList.add('visible');
+  try {
+    const r = await fetch('/api/research/detail?paper_id=' + encodeURIComponent(paperId));
+    const d = await r.json();
+    if (d.error) { content.innerHTML = '<p style="color:#ef4444">' + d.error + '</p>'; return; }
+    renderDetail(d.paper, d.recommendations || []);
+  } catch (e) {
+    content.innerHTML = '<p style="color:#ef4444">Failed to load paper details</p>';
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detail-modal').classList.remove('visible');
+}
+
+function renderDetail(paper, recs) {
+  const authors = (paper.authors || []).map(a => a.name).join(', ');
+  const cites = paper.citationCount || 0;
+  const extIds = paper.externalIds || {};
+  const isSaved = savedPapers.some(p => p.paper_id === paper.paperId);
+  const savedNote = savedPapers.find(p => p.paper_id === paper.paperId);
+
+  let extLinks = '';
+  if (extIds.DOI) extLinks += `<a class="ext-link" href="https://doi.org/${extIds.DOI}" target="_blank">DOI</a>`;
+  if (extIds.ArXiv) extLinks += `<a class="ext-link" href="https://arxiv.org/abs/${extIds.ArXiv}" target="_blank">arXiv</a>`;
+  if (extIds.PubMed) extLinks += `<a class="ext-link" href="https://pubmed.ncbi.nlm.nih.gov/${extIds.PubMed}" target="_blank">PubMed</a>`;
+  if (paper.url) extLinks += `<a class="ext-link" href="${paper.url}" target="_blank">Semantic Scholar</a>`;
+
+  let recHtml = '';
+  if (recs.length) {
+    recHtml = '<div class="label">Recommended Papers</div>';
+    for (const r of recs) {
+      const ra = (r.authors || []).slice(0, 3).map(a => a.name).join(', ');
+      recHtml += `<div class="rec-card" onclick="openDetail('${r.paperId || ''}')">
+        <div class="rec-title">${escHtml(r.title || 'Untitled')}</div>
+        <div class="rec-auth">${escHtml(ra)}${(r.authors||[]).length > 3 ? ', …' : ''} — ${r.year || ''}</div>
+      </div>`;
+    }
+  }
+
+  const content = document.getElementById('modal-content');
+  content.innerHTML = `
+    <h2>${escHtml(paper.title || 'Untitled')}</h2>
+    <div class="authors">${escHtml(authors)}</div>
+    <div class="meta-row">
+      ${paper.venue ? `<span>${escHtml(paper.venue)}</span>` : ''}
+      ${paper.year ? `<span>${paper.year}</span>` : ''}
+      <span>${cites} citations</span>
+      ${paper.fieldsOfStudy ? `<span>${(paper.fieldsOfStudy || []).join(', ')}</span>` : ''}
+    </div>
+    ${extLinks ? `<div class="external-links">${extLinks}</div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-xs ${isSaved ? 'btn-danger' : 'btn-success'}" onclick="toggleSave('${paper.paperId}')">${isSaved ? 'Remove from Library' : 'Save to Library'}</button>
+    </div>
+    <div class="label">Abstract</div>
+    <div class="abstract-text">${escHtml(paper.abstract || 'No abstract available')}</div>
+    <div class="label">Notes</div>
+    <textarea class="notes-area" id="detail-notes" placeholder="Add your research notes here…" oninput="saveNotes('${paper.paperId}')">${escHtml(savedNote?.notes || '')}</textarea>
+    <div class="label">Citation</div>
+    <div class="abstract-text" style="font-size:.78rem;font-style:italic">${escHtml(paper._citation || '')}</div>
+    ${recHtml}
+  `;
+}
+
+async function saveNotes(paperId) {
+  const notes = document.getElementById('detail-notes').value;
+  await fetch('/api/research/save/notes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paper_id: paperId, notes: notes}) });
+}
+
+async function loadLibrary() {
+  try {
+    const r = await fetch('/api/research/saved');
+    const d = await r.json();
+    savedPapers = d.papers || [];
+    document.getElementById('lib-count').textContent = savedPapers.length;
+    const grid = document.getElementById('library-grid');
+    const empty = document.getElementById('lib-empty');
+    if (!savedPapers.length) {
+      grid.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    let html = '';
+    for (const p of savedPapers) {
+      const authors = (p.authors || []).slice(0, 4).map(a => a.name || a).join(', ');
+      const tags = p.tags || [];
+      html += `<div class="lib-card">
+        <div class="lib-title" onclick="openDetail('${p.paper_id}')">${escHtml(p.title || 'Untitled')}</div>
+        <div class="lib-authors">${escHtml(authors)}${(p.authors||[]).length > 4 ? ', …' : ''}</div>
+        <div class="lib-meta">
+          ${p.venue ? `<span>${escHtml(p.venue)}</span>` : ''}
+          ${p.year ? `<span>${p.year}</span>` : ''}
+          <span>Saved ${new Date(p.saved_at).toLocaleDateString()}</span>
+        </div>
+        ${p.notes ? `<div class="lib-notes">${escHtml(p.notes)}</div>` : ''}
+        ${tags.length ? `<div class="lib-tags">${tags.map(t => `<span class="lib-tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
+        <div class="lib-actions">
+          <button class="btn btn-ghost btn-xs" onclick="openDetail('${p.paper_id}')">View</button>
+          <button class="btn btn-danger btn-xs" onclick="toggleSave('${p.paper_id}')">Remove</button>
+        </div>
+      </div>`;
+    }
+    grid.innerHTML = html;
+  } catch (e) {
+    console.error('Failed to load library', e);
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadLibrary();
+  document.getElementById('detail-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeDetail();
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feedback — Agent Soccer</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--accent:#06b6d4;--accent-b:#f97316;--text:#0f172a;--muted:#475569;--dim:#94a3b8;--glass-bg:rgba(255,255,255,.7);--glass-border:rgba(255,255,255,.5);--glass-shadow:0 8px 32px rgba(31,38,135,.07),inset 0 1px 0 rgba(255,255,255,.95);--blur:16px}
+body{font-family:'Be Vietnam Pro',system-ui,sans-serif;font-size:14px;color:var(--text);min-height:100vh;background:linear-gradient(135deg,#fef3c7 0%,#fde68a 15%,#fecaca 30%,#fbcfe8 50%,#c7d2fe 70%,#bfdbfe 85%,#a7f3d0 100%);background-size:400% 400%;animation:bg-flow 20s ease infinite}
+@keyframes bg-flow{0%{background-position:0% 50%}25%{background-position:50% 0%}50%{background-position:100% 50%}75%{background-position:50% 100%}100%{background-position:0% 50%}}
+.nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.nebula::before{content:'';position:absolute;width:700px;height:700px;background:radial-gradient(ellipse,rgba(6,182,212,.12) 0%,transparent 65%);top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate}
+.nebula::after{content:'';position:absolute;width:600px;height:500px;background:radial-gradient(ellipse,rgba(249,115,22,.1) 0%,transparent 65%);bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate}
+@keyframes drift{to{transform:translate(40px,-30px)}}
+@keyframes drift2{to{transform:translate(-30px,25px)}}
+
+nav,main{position:relative;z-index:1}
+nav{background:rgba(255,255,255,.7);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid rgba(255,255,255,.5);padding:12px 24px;display:flex;align-items:center;gap:16px}
+.nav-brand{font-size:1rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}
+.nav-links{display:flex;gap:12px;margin-left:auto;align-items:center}
+.nav-links a{font-size:.78rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color .15s}
+.nav-links a:hover,.nav-links a.active{color:var(--text)}
+.nav-user{font-size:.75rem;color:var(--dim)}
+.btn-logout{font-family:inherit;font-size:.72rem;font-weight:500;padding:5px 12px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass-bg);color:var(--muted);cursor:pointer;transition:all .15s}
+.btn-logout:hover{border-color:var(--accent);color:var(--accent)}
+
+main{max-width:640px;margin:0 auto;padding:30px 16px}
+
+.card{background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--glass-border);border-radius:18px;box-shadow:var(--glass-shadow);padding:32px}
+.card h1{font-size:1.5rem;font-weight:800;letter-spacing:-.03em;color:var(--text);margin-bottom:4px}
+.card .sub{font-size:.82rem;color:var(--muted);margin-bottom:24px}
+.field{margin-bottom:16px}
+.field label{display:block;font-size:.75rem;font-weight:500;color:var(--muted);margin-bottom:5px}
+.field input,.field textarea{width:100%;padding:10px 13px;background:rgba(255,255,255,.7);border:1px solid var(--glass-border);border-radius:9px;font-family:inherit;font-size:.88rem;color:var(--text);outline:none;transition:border-color .15s,background .15s}
+.field input:focus,.field textarea:focus{border-color:rgba(6,182,212,.6);background:rgba(255,255,255,.9)}
+.field textarea{resize:vertical;min-height:100px}
+.msg{display:none;font-size:.8rem;padding:10px 14px;border-radius:8px;margin-bottom:16px}
+.msg.success{display:block;background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);color:#059669}
+.msg.error{display:block;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#dc2626}
+.btn-submit{width:100%;padding:12px;background:linear-gradient(135deg,#06b6d4 0%,#0891b2 50%,#6366f1 100%);color:#fff;font-family:inherit;font-size:.88rem;font-weight:600;border:none;border-radius:10px;cursor:pointer;box-shadow:0 4px 20px rgba(6,182,212,.3);transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .25s}
+.btn-submit:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(6,182,212,.45)}
+.btn-submit:active{transform:scale(.97)}
+.btn-submit:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+</style>
+</head>
+<body>
+<div class="nebula"></div>
+
+<nav>
+  <a class="nav-brand" href="/">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Game</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/feedback" class="nav-link active">Feedback</a>
+    <a href="/customize" class="nav-link">Customize</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+  </div>
+</nav>
+
+<main>
+  <div class="card">
+    <h1>Send Feedback</h1>
+    <p class="sub">Help us improve Agent Soccer — report bugs, suggest features, or just say hi.</p>
+
+    <div id="msg" class="msg"></div>
+
+    <div class="field">
+      <label for="title">Title *</label>
+      <input id="title" type="text" placeholder="Brief summary of your feedback" autofocus>
+    </div>
+    <div class="field">
+      <label for="desc">Description</label>
+      <textarea id="desc" placeholder="Tell us more..."></textarea>
+    </div>
+    <button id="submit" class="btn-submit">Send Feedback</button>
+  </div>
+
+  <div style="margin-top:24px;display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div style="background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);padding:20px;text-align:center">
+      <div style="font-size:1.6rem;margin-bottom:4px">&#128161;</div>
+      <div style="font-size:.8rem;font-weight:600;color:var(--text)">Feature Request</div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:2px">Got an idea? Let us know.</div>
+    </div>
+    <div style="background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);padding:20px;text-align:center">
+      <div style="font-size:1.6rem;margin-bottom:4px">&#128119;</div>
+      <div style="font-size:.8rem;font-weight:600;color:var(--text)">Bug Report</div>
+      <div style="font-size:.7rem;color:var(--muted);margin-top:2px">Something broken? Tell us.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+var title = document.getElementById('title');
+var desc = document.getElementById('desc');
+var submit = document.getElementById('submit');
+var msg = document.getElementById('msg');
+
+submit.addEventListener('click', function () {
+  var t = title.value.trim();
+  if (!t) {
+    showMsg('Please enter a title.', 'error');
+    return;
+  }
+  submit.disabled = true;
+  submit.textContent = 'Sending...';
+
+  fetch('/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: t, description: desc.value.trim() }),
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    if (data.ok) {
+      showMsg('Thanks for your feedback! We read every submission.', 'success');
+      title.value = '';
+      desc.value = '';
+      submit.textContent = 'Sent!';
+      setTimeout(function () {
+        submit.disabled = false;
+        submit.textContent = 'Send Feedback';
+      }, 2000);
+    } else {
+      showMsg(data.error || 'Failed to send feedback.', 'error');
+      submit.disabled = false;
+      submit.textContent = 'Send Feedback';
+    }
+  })
+  .catch(function () {
+    showMsg('Network error. Try again.', 'error');
+    submit.disabled = false;
+    submit.textContent = 'Send Feedback';
+  });
+});
+
+function showMsg(text, type) {
+  msg.className = 'msg ' + type;
+  msg.textContent = text;
+}
+</script>
+</body>
+</html>

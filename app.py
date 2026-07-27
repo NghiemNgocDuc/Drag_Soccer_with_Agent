@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import threading
 import time
+import logging
 from functools import wraps
 
 from flask import (
@@ -15,10 +16,33 @@ from game.session import (
     get_game, save_game, new_game_state, push_snapshot, pop_snapshot,
     new_pg_state, get_pg, save_pg,
 )
-from models.soccer_logic import apply_kick, apply_penalty_kick
+from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions
+
+# ── External service initialisation ───────────────────────────────────────
+from services.sentry import init as _sentry_init
+_sentry_init()
+
+import services.posthog as _ph
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+)
+_dev_mode = __import__("config").DEV_MODE
+if not _dev_mode:
+    app.config["SESSION_COOKIE_SECURE"] = True
+
+
+@app.after_request
+def _security_headers(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if not _dev_mode:
+        resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return resp
 
 MODELS: dict[str, str] = {
     "minimax":          "models.minimax",
@@ -70,6 +94,40 @@ def _load_user_model(model_id: str) -> _UserModelWrapper:
     return cache[model_id]
 
 
+# ── Rate limiter (Redis-backed) ─────────────────────────────────────────
+
+_RATE_LIMITS: dict[str, tuple[int, int]] = {
+    "/auth/login":    (5, 60),     # 5 requests per 60 seconds
+    "/auth/register": (3, 300),    # 3 registrations per 5 minutes
+}
+
+
+def _check_rate_limit(endpoint: str) -> bool:
+    try:
+        from db.redis_client import r
+        key = f"ratelimit:{endpoint}:{uid() or request.remote_addr}"
+        count = r.get(key)
+        max_req, window = _RATE_LIMITS.get(endpoint, (100, 1))
+        if count and int(count) >= max_req:
+            return False
+        pipe = r.pipeline()
+        pipe.incr(key)
+        pipe.expire(key, window)
+        pipe.execute()
+        return True
+    except Exception:
+        return True
+
+
+def rate_limited(f):
+    @wraps(f)
+    def _inner(*args, **kwargs):
+        if not _check_rate_limit(request.path):
+            return jsonify({"error": "Too many requests. Try again later."}), 429
+        return f(*args, **kwargs)
+    return _inner
+
+
 def login_required(f):
     @wraps(f)
     def _inner(*args, **kwargs):
@@ -77,6 +135,7 @@ def login_required(f):
             if request.is_json:
                 return jsonify({"error": "Not authenticated"}), 401
             return redirect(url_for("login_page"))
+        _ph.track_pageview(session["user_id"], request.path)
         return f(*args, **kwargs)
     return _inner
 
@@ -95,6 +154,7 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "is_player_a":  state["is_player_a"],
         "kick_count":   state.get("kick_count", 0),
         "start_time":   state.get("start_time", 0),
+        "turn_start_time": state.get("turn_start_time", 0),
         "game_over":    state.get("game_over", False),
         "winner":       state.get("winner"),
         "game_mode":    state.get("game_mode", "hvai"),
@@ -131,6 +191,8 @@ def _persist_result(state: dict) -> None:
             score_b    = state["score_b"],
             total_moves= state.get("kick_count", 0),
         )
+        _ph.track_game_end(uid(), state.get("game_mode", "hvai"), winner, state["score_a"], state["score_b"])
+        _auto_clear_state(uid())
     except Exception as e:
         app.logger.warning("Failed to save game result: %s", e)
 
@@ -187,17 +249,20 @@ def _do_ai_move(state: dict, model_name: str, is_player_a: bool) -> dict:
 def login_page():
     if "user_id" in session:
         return redirect(url_for("index"))
-    return render_template("login.html")
+    from config import CLERK_PUBLISHABLE_KEY, DEV_MODE
+    return render_template("login.html", clerk_publishable_key=CLERK_PUBLISHABLE_KEY, dev_mode=DEV_MODE)
 
 
 @app.route("/register")
 def register_page():
     if "user_id" in session:
         return redirect(url_for("index"))
-    return render_template("register.html")
+    from config import CLERK_PUBLISHABLE_KEY
+    return render_template("register.html", clerk_publishable_key=CLERK_PUBLISHABLE_KEY)
 
 
 @app.route("/auth/register", methods=["POST"])
+@rate_limited
 def auth_register():
     from db.supabase_client import anon, service
     data       = request.get_json(silent=True) or request.form
@@ -218,12 +283,17 @@ def auth_register():
         return _err("Passwords do not match.")
     if len(password) < 6:
         return _err("Password must be at least 6 characters.")
-    if len(username) < 2:
-        return _err("Username must be at least 2 characters.")
+    if len(username) < 2 or len(username) > 30:
+        return _err("Username must be 2-30 characters.")
+    import re
+    if not re.match(r"^[a-zA-Z0-9_\-\. ]+$", username):
+        return _err("Username can only contain letters, numbers, spaces, and . - _")
+    username = username.strip()
 
     if anon is None:
         session["user_id"]  = f"dev:{email}"
         session["username"] = username
+        _ph.track_signup(session["user_id"], email)
         if request.is_json:
             return jsonify({"ok": True, "username": username})
         return redirect(url_for("index"))
@@ -252,6 +322,11 @@ def auth_register():
         service.table("profiles").insert({"id": user.id, "username": username}).execute()
         session["user_id"]  = user.id
         session["username"] = username
+        _ph.track_signup(user.id, email)
+        threading.Thread(
+            target=lambda: __import__("services.resend", fromlist=["send_welcome"]).send_welcome(email, username),
+            daemon=True,
+        ).start()
         if request.is_json:
             return jsonify({"ok": True, "username": username})
         return redirect(url_for("index"))
@@ -265,6 +340,7 @@ def auth_register():
 
 
 @app.route("/auth/login", methods=["POST"])
+@rate_limited
 def auth_login():
     from db.supabase_client import anon, service
     data     = request.get_json(silent=True) or request.form
@@ -313,11 +389,7 @@ def index():
     return render_template("index.html", username=session.get("username", "Player"))
 
 
-@app.route("/state")
-@login_required
-def get_state():
-    state = get_game(uid())
-    return jsonify(_full_state(state))
+
 
 
 @app.route("/models")
@@ -383,6 +455,7 @@ def human_move():
         extra = {"move_result": result}
 
     save_game(user_id, state)
+    _auto_save_state(user_id, state)
     return jsonify(_full_state(state, extra))
 
 
@@ -413,6 +486,7 @@ def trigger_ai_move():
     else:
         result = _do_ai_move(state, model_name, is_player_a)
     save_game(user_id, state)
+    _auto_save_state(user_id, state)
     return jsonify(_full_state(state, {"ai_result": result}))
 
 
@@ -470,23 +544,45 @@ def reset_game():
     user_id   = uid()
     old_state = get_game(user_id)
     data = request.get_json(silent=True) or {}
-    pc = int(data.get("player_count", old_state.get("player_count", 3)))
-    pc = max(1, min(11, pc))
-    from db.customization import get_customization
-    cust = get_customization(user_id)
-    hl = int(cust.get("half_length", 45))
-    wl = int(cust.get("win_goal_limit", 5))
-    pcap = int(cust.get("power_cap", 100))
-    state = new_game_state(
-        mode    = old_state.get("game_mode", "hvai"),
-        model_b = old_state.get("model_name_b", "greedy"),
-        model_a = old_state.get("model_name_a", "greedy"),
-        player_count = pc,
-        half_length = hl,
-        win_goal_limit = wl,
-        power_cap = pcap,
-    )
+    penalty_mode = data.get("penalty_mode", False)
+    if penalty_mode:
+        pc = 5
+        state = new_game_state(
+            mode    = old_state.get("game_mode", "hvai"),
+            model_b = old_state.get("model_name_b", "greedy"),
+            model_a = old_state.get("model_name_a", "greedy"),
+            player_count = pc,
+        )
+        state["penalty_shootout"] = True
+        state["period"] = "penalties"
+        state["penalty_kick_num"] = 0
+        state["penalty_a_score"] = 0
+        state["penalty_b_score"] = 0
+        state["penalty_kicks"] = []
+        state["penalty_goalkeeper_move"] = None
+        state["score_a"] = 0
+        state["score_b"] = 0
+        _setup_penalty_positions(state, True)
+    else:
+        pc = int(data.get("player_count", old_state.get("player_count", 3)))
+        pc = max(1, min(11, pc))
+        from db.customization import get_customization
+        cust = get_customization(user_id)
+        hl = int(cust.get("half_length", 45))
+        wl = int(cust.get("win_goal_limit", 5))
+        pcap = int(cust.get("power_cap", 100))
+        state = new_game_state(
+            mode    = old_state.get("game_mode", "hvai"),
+            model_b = old_state.get("model_name_b", "greedy"),
+            model_a = old_state.get("model_name_a", "greedy"),
+            player_count = pc,
+            half_length = hl,
+            win_goal_limit = wl,
+            power_cap = pcap,
+        )
+    _auto_clear_state(user_id)
     save_game(user_id, state)
+    _ph.track_game_start(uid(), state.get("game_mode", "hvai"), state.get("model_name_b", ""))
     return jsonify(_full_state(state))
 
 
@@ -511,6 +607,7 @@ def undo():
     if state["move_history"]:
         state["move_history"].pop()
     save_game(user_id, state)
+    _auto_save_state(user_id, state)
     return jsonify(_full_state(state, {"undone": True}))
 
 
@@ -519,6 +616,48 @@ def undo():
 def history():
     state = get_game(uid())
     return jsonify({"history": state.get("move_history", [])})
+
+
+# ── Auto-save / load game progress ──────────────────────────────────────────
+
+def _auto_save_state(user_id: str, state: dict) -> None:
+    if state.get("game_over"):
+        return
+    try:
+        from db.saved_states import upsert_state
+        upsert_state(user_id, state)
+    except Exception:
+        pass
+
+
+def _auto_clear_state(user_id: str) -> None:
+    try:
+        from db.saved_states import delete_saved_state
+        delete_saved_state(user_id)
+    except Exception:
+        pass
+
+
+@app.route("/state")
+@login_required
+def get_state_route():
+    user_id = uid()
+    raw = __import__("db.redis_client", fromlist=["r"]).r.get(f"game:{user_id}")
+    if not raw:
+        try:
+            from db.saved_states import get_saved_state
+            saved = get_saved_state(user_id)
+            if saved:
+                st = saved["state"]
+                if isinstance(st, str):
+                    import json
+                    st = json.loads(st)
+                if not st.get("game_over"):
+                    save_game(user_id, st)
+        except Exception:
+            pass
+    state = get_game(user_id)
+    return jsonify(_full_state(state))
 
 
 @app.route("/benchmark", methods=["POST"])
@@ -1276,7 +1415,229 @@ def tournament_watch(tid, match_id):
         return redirect(url_for("tournament_view", tid=tid))
     return render_template("replay.html", username=session.get("username", "Player"), t=t, match=m)
 
+# ── Clerk — verify session ────────────────────────────────────────────────
+@app.route("/api/auth/clerk/verify", methods=["POST"])
+def clerk_verify():
+    data = request.get_json(silent=True) or {}
+    token = data.get("session_token", "")
+    if not token:
+        return jsonify({"verified": False, "error": "No token"}), 400
+    from services.clerk import verify_session as _clerk_verify
+    result = _clerk_verify(token)
+    if result:
+        uid_ = result.get("user_id", "")
+        session["user_id"] = f"clerk:{uid_}"
+        session["username"] = result.get("username", "ClerkUser")
+        _ph.track_pageview(uid_, "clerk_login")
+        return jsonify({"verified": True, "user_id": uid_})
+    return jsonify({"verified": False, "error": "Invalid token"}), 401
+
+
+# ── Feedback page ────────────────────────────────────────────────────────
+@app.route("/feedback")
+@login_required
+def feedback_page():
+    return render_template("feedback.html", username=session.get("username", "Player"))
+
+
+# ── ProductBridge — feedback ─────────────────────────────────────────────
+@app.route("/api/feedback", methods=["POST"])
+@login_required
+def api_submit_feedback():
+    data = request.get_json(silent=True) or {}
+    title = (data.get("title") or "").strip()
+    desc = (data.get("description") or "").strip()
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+    from services.productbridge import submit_feedback
+    result = submit_feedback(
+        title=title,
+        description=desc,
+        user_email=session.get("username", ""),
+    )
+    if result:
+        _ph.capture(uid(), "feedback_submitted", {"title": title})
+        return jsonify({"ok": True, "result": result})
+    return jsonify({"error": "Feedback service unavailable"}), 502
+
+
+@app.route("/api/feedback/boards", methods=["GET"])
+@login_required
+def api_list_feedback_boards():
+    from services.productbridge import list_boards
+    boards = list_boards()
+    return jsonify({"boards": boards})
+
+
+# ── Pinecone — AI move embedding ─────────────────────────────────────────
+@app.route("/api/embed/move", methods=["POST"])
+@login_required
+def api_embed_move():
+    data = request.get_json(silent=True) or {}
+    vector_id = data.get("id", "")
+    values = data.get("values", [])
+    metadata = data.get("metadata", {})
+    if not vector_id or not values:
+        return jsonify({"error": "id and values required"}), 400
+    from services.pinecone import upsert_vector
+    ok = upsert_vector(vector_id, values, metadata)
+    return jsonify({"ok": ok})
+
+
+@app.route("/api/embed/query", methods=["POST"])
+@login_required
+def api_query_embed():
+    data = request.get_json(silent=True) or {}
+    values = data.get("values", [])
+    top_k = int(data.get("top_k", 5))
+    if not values:
+        return jsonify({"error": "values required"}), 400
+    from services.pinecone import query_vector
+    matches = query_vector(values, top_k=top_k)
+    return jsonify({"matches": matches})
+
+
+@app.route("/api/embed/stats", methods=["GET"])
+@login_required
+def api_embed_stats():
+    from services.pinecone import describe_index_stats
+    stats = describe_index_stats()
+    return jsonify(stats)
+
+
+# ── Research Hub — paper search & library ──────────────────────────────────────
+
+@app.route("/research")
+@login_required
+def research_page():
+    from services.paper_search import SUGGESTED_QUERIES
+    return render_template("research.html",
+                           username=session.get("username", "Player"),
+                           suggested_queries=SUGGESTED_QUERIES)
+
+
+@app.route("/api/research/search")
+@login_required
+def api_research_search():
+    from services.paper_search import search_papers, format_citation
+    q = (request.args.get("q") or "").strip()
+    limit = int(request.args.get("limit", 10))
+    if not q or len(q) < 2:
+        return jsonify({"error": "Query must be at least 2 characters"}), 400
+    results = search_papers(q, limit)
+    for r in results:
+        r["_citation"] = format_citation(r)
+    return jsonify({"results": results})
+
+
+@app.route("/api/research/detail")
+@login_required
+def api_research_detail():
+    from services.paper_search import get_paper_detail, get_recommended_papers, format_citation
+    paper_id = (request.args.get("paper_id") or "").strip()
+    if not paper_id:
+        return jsonify({"error": "paper_id required"}), 400
+    paper = get_paper_detail(paper_id)
+    if not paper:
+        return jsonify({"error": "Paper not found"}), 404
+    paper["_citation"] = format_citation(paper)
+    recs = get_recommended_papers(paper_id)
+    for r in recs:
+        r["_citation"] = format_citation(r)
+    return jsonify({"paper": paper, "recommendations": recs})
+
+
+@app.route("/api/research/saved")
+@login_required
+def api_research_saved():
+    from db.research_papers import get_saved_papers
+    papers = get_saved_papers(uid())
+    return jsonify({"papers": papers})
+
+
+@app.route("/api/research/save", methods=["POST"])
+@login_required
+def api_research_save():
+    from db.research_papers import save_paper
+    data = request.get_json(silent=True) or {}
+    paper = data.get("paper", {})
+    if not paper.get("paperId"):
+        return jsonify({"error": "Invalid paper data"}), 400
+    result = save_paper(uid(), paper)
+    if result:
+        return jsonify({"ok": True, "paper": result})
+    return jsonify({"error": "Failed to save paper"}), 500
+
+
+@app.route("/api/research/save/notes", methods=["POST"])
+@login_required
+def api_research_save_notes():
+    from db.research_papers import update_paper_notes
+    data = request.get_json(silent=True) or {}
+    paper_id = data.get("paper_id", "")
+    notes = data.get("notes", "")
+    tags = data.get("tags")
+    if not paper_id:
+        return jsonify({"error": "paper_id required"}), 400
+    ok = update_paper_notes(uid(), paper_id, notes, tags)
+    return jsonify({"ok": ok})
+
+
+@app.route("/api/research/delete", methods=["POST"])
+@login_required
+def api_research_delete():
+    from db.research_papers import delete_paper
+    data = request.get_json(silent=True) or {}
+    paper_id = data.get("paper_id", "")
+    if not paper_id:
+        return jsonify({"error": "paper_id required"}), 400
+    ok = delete_paper(uid(), paper_id)
+    return jsonify({"ok": ok})
+
+
+# ── AI Arena — model benchmarking & analytics ──────────────────────────────
+
+@app.route("/arena")
+@login_required
+def arena_page():
+    from services.game_analytics import MODEL_CATALOG
+    return render_template("arena.html", username=session.get("username", "Player"), models=MODEL_CATALOG)
+
+
+@app.route("/api/arena/models")
+@login_required
+def arena_models():
+    from services.game_analytics import MODEL_CATALOG
+    return jsonify(MODEL_CATALOG)
+
+
+@app.route("/api/arena/battle", methods=["POST"])
+@login_required
+def arena_battle():
+    from services.game_analytics import run_model_battle
+    data = request.get_json(silent=True) or {}
+    model_a = data.get("model_a", "minimax")
+    model_b = data.get("model_b", "greedy")
+    games = min(int(data.get("games", 10)), 50)
+    result = run_model_battle(model_a, model_b, games)
+    if result is None:
+        return jsonify({"error": f"Model not found or failed to load. Available: {list(MODELS.keys())}"}), 400
+    return jsonify(result)
+
+
+@app.route("/api/arena/matrix", methods=["POST"])
+@login_required
+def arena_matrix():
+    from services.game_analytics import compute_head_to_head_matrix
+    result = compute_head_to_head_matrix()
+    if result is None:
+        return jsonify({"error": "Failed to compute matrix. Check server logs."}), 500
+    return jsonify(result)
+
+
 def _seed_test_account():
+    if not __import__("config").DEV_MODE:
+        return
     TEST_EMAIL = "edward@umass.edu"
     TEST_PASSWORD = "123456"
     TEST_USERNAME = "Edward"
@@ -1321,4 +1682,4 @@ def _seed_test_account():
 _seed_test_account()
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=__import__("config").DEV_MODE, port=5000)

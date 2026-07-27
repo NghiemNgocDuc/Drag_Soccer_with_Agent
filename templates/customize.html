@@ -58,14 +58,18 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
 .preview-canvas{border-radius:10px;border:2px solid var(--glass-border);width:100%;max-width:520px;height:auto;aspect-ratio:1000/625}
 
 .btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
-.btn{padding:9px 22px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:.82rem;font-weight:600;transition:all .15s;outline:none;text-decoration:none;display:inline-flex;align-items:center;gap:6px}
-.btn-primary{background:#3b82f6;color:#fff}
-.btn-primary:hover{background:#2563eb}
-.btn-primary:disabled{opacity:.5;cursor:not-allowed}
-.btn-ghost{background:rgba(255,255,255,.6);border:1px solid var(--glass-border);color:var(--muted)}
-.btn-ghost:hover{background:rgba(255,255,255,.9);color:var(--text)}
-.btn-success{background:var(--accent-b);color:#fff}
-.btn-success:hover{background:#047857}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 22px;border:none;border-radius:11px;cursor:pointer;font-family:inherit;font-size:.84rem;font-weight:600;position:relative;overflow:hidden;transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .25s,background .25s,border-color .25s;user-select:none;text-decoration:none}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.12) 45%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.12) 55%,transparent 70%);background-size:300% 100%;background-position:100% 0;transition:background-position .5s;pointer-events:none}
+.btn:hover::after{background-position:0 0}
+.btn-primary{background:linear-gradient(135deg,#06b6d4 0%,#0891b2 50%,#6366f1 100%);color:#fff;box-shadow:0 4px 18px rgba(6,182,212,.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(6,182,212,.45)}
+.btn-ghost{background:rgba(255,255,255,.55);backdrop-filter:blur(8px);color:var(--muted);border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.btn-ghost:hover{transform:translateY(-2px);background:rgba(255,255,255,.8);border-color:rgba(6,182,212,.35);color:#06b6d4}
+.btn-ghost::after{display:none}
+.btn-success{background:linear-gradient(135deg,#34d399 0%,#10b981 50%,#059669 100%);color:#fff;box-shadow:0 4px 18px rgba(16,185,129,.3)}
+.btn-success:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(16,185,129,.45)}
 
 .flash-msg{padding:10px 16px;border-radius:8px;font-size:.8rem;font-weight:500;margin-bottom:14px;display:none}
 .flash-msg.success{display:block;background:rgba(16,185,129,.12);color:var(--accent-b);border:1px solid rgba(16,185,129,.25)}
@@ -80,9 +84,12 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
     <a href="/" class="nav-link">Game</a>
     <a href="/online" class="nav-link">Online</a>
     <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
     <a href="/profile" class="nav-link">Profile</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
     <a href="/customize" class="nav-link active">Customize</a>
     <span class="nav-user">{{ username }}</span>
     <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
@@ -596,5 +603,6 @@ function renderPreview(){
 syncFromInputs();
 renderPreview();
 </script>
+<script src="/static/feedback.js"></script>
 </body>
 </html>

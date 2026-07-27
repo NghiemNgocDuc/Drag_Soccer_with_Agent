@@ -150,17 +150,24 @@ main{max-width:1000px;margin:0 auto;padding:24px 16px;display:flex;flex-directio
 /* Controls */
 .controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px}
 .btn{
-  padding:7px 18px;border-radius:10px;border:none;cursor:pointer;
-  font-size:.82rem;font-weight:600;transition:all .15s;outline:none;
+  display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:8px 20px;border:none;border-radius:11px;cursor:pointer;
+  font-size:.84rem;font-weight:600;position:relative;overflow:hidden;
+  transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .25s,background .25s,border-color .25s;
+  text-decoration:none;user-select:none;
 }
-.btn-primary{background:rgba(59,130,246,.12);color:var(--accent-a);border:1px solid rgba(59,130,246,.25)}
-.btn-primary:hover{background:rgba(59,130,246,.22)}
-.btn-danger{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
-.btn-danger:hover{background:rgba(239,68,68,.2)}
-.btn-ghost{background:transparent;color:var(--muted);border:1px solid rgba(180,205,255,.5)}
-.btn-ghost:hover{background:rgba(180,205,255,.2)}
-.btn-success{background:rgba(16,185,129,.12);color:#059669;border:1px solid rgba(16,185,129,.25)}
-.btn-success:hover{background:rgba(16,185,129,.22)}
+.btn:active{transform:scale(.97)}
+.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.12) 45%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.12) 55%,transparent 70%);background-size:300% 100%;background-position:100% 0;transition:background-position .5s;pointer-events:none}
+.btn:hover::after{background-position:0 0}
+.btn-primary{background:linear-gradient(135deg,#06b6d4 0%,#0891b2 50%,#6366f1 100%);color:#fff;box-shadow:0 4px 18px rgba(6,182,212,.3)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(6,182,212,.45)}
+.btn-danger{background:linear-gradient(135deg,#f97316 0%,#ef4444 100%);color:#fff;box-shadow:0 4px 18px rgba(249,115,22,.3)}
+.btn-danger:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(249,115,22,.45)}
+.btn-ghost{background:rgba(255,255,255,.55);backdrop-filter:blur(8px);color:var(--muted);border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.btn-ghost:hover{transform:translateY(-2px);background:rgba(255,255,255,.8);border-color:rgba(6,182,212,.35);color:#06b6d4}
+.btn-ghost::after{display:none}
+.btn-success{background:linear-gradient(135deg,#34d399 0%,#10b981 50%,#059669 100%);color:#fff;box-shadow:0 4px 18px rgba(16,185,129,.3)}
+.btn-success:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(16,185,129,.45)}
 input[type=text],input[type=search]{
   padding:8px 14px;border-radius:10px;border:1px solid rgba(180,205,255,.5);
   background:rgba(255,255,255,.7);color:var(--text);font-size:.84rem;
@@ -216,9 +223,12 @@ input[type=text]:focus,input[type=search]:focus{border-color:rgba(59,130,246,.4)
     <a href="/" class="nav-link">Play</a>
     <a href="/online" class="nav-link active">Online</a>
     <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
     <a href="/profile" class="nav-link">Profile</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
     <a href="/customize" class="nav-link">Customize</a>
   </div>
   <span class="nav-user">{{ username }}</span>
@@ -547,10 +557,10 @@ function drawField() {
       const frontX = side === 'left' ? 20 : W - 20;
       const backX  = side === 'left' ? 20 - gd : W - 20 + gd;
       const netX   = side === 'left' ? frontX - gd : frontX;
-      ctx.fillStyle = 'rgba(255,255,255,.04)';
+      ctx.fillStyle = 'rgba(255,255,255,.12)';
       ctx.fillRect(netX, GOAL_Y1, gd, GOAL_Y2 - GOAL_Y1);
-      ctx.strokeStyle = 'rgba(255,255,255,.1)';
-      ctx.lineWidth = 0.6;
+      ctx.strokeStyle = 'rgba(255,255,255,.35)';
+      ctx.lineWidth = 1;
       for (let yy = GOAL_Y1 + 7; yy < GOAL_Y2; yy += 7) {
         ctx.beginPath(); ctx.moveTo(netX, yy); ctx.lineTo(frontX, yy); ctx.stroke();
       }
@@ -1200,17 +1210,19 @@ async function loadFriends() {
   } catch(e) {}
 }
 
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
 function renderFriendsList(friends) {
   const el = document.getElementById('friends-list');
   if (!friends.length) { el.innerHTML = '<p class="no-friends">No friends yet</p>'; return; }
   el.innerHTML = friends.map(f => `
     <div class="friend-item">
-      <span class="friend-name">${f.username}</span>
+      <span class="friend-name">${esc(f.username)}</span>
       <div style="display:flex;gap:6px">
         <button class="btn btn-primary" style="padding:4px 11px;font-size:.76rem"
-                onclick="inviteFriendToGame('${f.uid}','${f.username}')">Invite</button>
+                onclick="inviteFriendToGame('${esc(f.uid)}','${esc(f.username)}')">Invite</button>
         <button class="btn btn-ghost" style="padding:4px 10px;font-size:.76rem;color:#ef4444;border-color:#ef4444"
-                onclick="removeFriend('${f.uid}','${f.username}',this)">✕</button>
+                onclick="removeFriend('${esc(f.uid)}','${esc(f.username)}',this)">✕</button>
       </div>
     </div>`).join('');
 }
@@ -1219,13 +1231,13 @@ function renderFriendRequests(reqs) {
   const el = document.getElementById('friend-requests-list');
   if (!reqs.length) { el.innerHTML = '<p class="no-friends" style="color:var(--muted)">No requests</p>'; return; }
   el.innerHTML = reqs.map(r => `
-    <div class="friend-req-item" id="freq-${r.id}">
-      <span class="friend-req-from">From: <strong>${r.from_username}</strong></span>
+    <div class="friend-req-item" id="freq-${esc(r.id)}">
+      <span class="friend-req-from">From: <strong>${esc(r.from_username)}</strong></span>
       <div style="display:flex;gap:6px">
         <button class="btn btn-success" style="padding:4px 11px;font-size:.76rem"
-                onclick="acceptFriendReq('${r.id}',this)">Accept</button>
+                onclick="acceptFriendReq('${esc(r.id)}',this)">Accept</button>
         <button class="btn btn-ghost" style="padding:4px 10px;font-size:.76rem"
-                onclick="declineFriendReq('${r.id}',this)">Decline</button>
+                onclick="declineFriendReq('${esc(r.id)}',this)">Decline</button>
       </div>
     </div>`).join('');
 }
@@ -1333,7 +1345,7 @@ function searchPlayers(q) {
     data.forEach(u => {
       const div = document.createElement('div');
       div.className = 'search-result-item';
-      div.innerHTML = `<span>${u.username}</span><button class="btn btn-primary" style="padding:4px 12px;font-size:.78rem" onclick="sendInvite('${u.id}','${u.username}')">Invite</button>`;
+      div.innerHTML = `<span>${esc(u.username)}</span><button class="btn btn-primary" style="padding:4px 12px;font-size:.78rem" onclick="sendInvite('${esc(u.id)}','${esc(u.username)}')">Invite</button>`;
       box.appendChild(div);
     });
     box.style.display = '';
@@ -1372,10 +1384,10 @@ async function loadInvites() {
       const div = document.createElement('div');
       div.className = 'invite-item';
       div.innerHTML = `
-        <span class="invite-from">From: <strong>${inv.from_name}</strong></span>
+        <span class="invite-from">From: <strong>${esc(inv.from_name)}</strong></span>
         <div class="invite-actions">
-          <button class="btn btn-success" style="padding:5px 14px" onclick="acceptInvite('${inv.invite_id}','${inv.room_id}')">Accept</button>
-          <button class="btn btn-danger" style="padding:5px 14px" onclick="declineInvite('${inv.invite_id}',this)">Decline</button>
+          <button class="btn btn-success" style="padding:5px 14px" onclick="acceptInvite('${esc(inv.invite_id)}','${esc(inv.room_id)}')">Accept</button>
+          <button class="btn btn-danger" style="padding:5px 14px" onclick="declineInvite('${esc(inv.invite_id)}',this)">Decline</button>
         </div>`;
       list.appendChild(div);
     });
@@ -1518,5 +1530,6 @@ document.addEventListener('click', e => {
   }
 })();
 </script>
+<script src="/static/feedback.js"></script>
 </body>
 </html>
