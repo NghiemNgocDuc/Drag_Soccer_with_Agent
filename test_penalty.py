@@ -77,10 +77,10 @@ def test_angled_shot_scores():
     """Angled shot past the keeper should score."""
     st = make_penalty_state(is_player_a=True)
     space, kicker, ball, keeper = _build_penalty_space(st, True)
-    kicker.velocity = (math.cos(math.radians(-25)) * 100 * 10,
-                       math.sin(math.radians(-25)) * 100 * 10)
+    kicker.velocity = (math.cos(math.radians(-20)) * 100 * 10,
+                       math.sin(math.radians(-20)) * 100 * 10)
     traj, scored = _sim_penalty(space, kicker, ball, keeper, "center")
-    check("Angled -25deg scores", scored == True,
+    check("Angled -20deg scores", scored == True,
           f"end=({traj[-1]['x']:.0f},{traj[-1]['y']:.0f})")
 
 def test_straight_shot_blocked():
@@ -95,8 +95,8 @@ def test_team_b_scores():
     """Team B angled shot toward left goal should score."""
     st = make_penalty_state(is_player_a=False)
     space, kicker, ball, keeper = _build_penalty_space(st, False)
-    kicker.velocity = (math.cos(math.radians(205)) * 100 * 10,
-                       math.sin(math.radians(205)) * 100 * 10)
+    kicker.velocity = (math.cos(math.radians(200)) * 100 * 10,
+                       math.sin(math.radians(200)) * 100 * 10)
     traj, scored = _sim_penalty(space, kicker, ball, keeper, "center")
     check("Team B angled shot scores", scored == True,
           f"end=({traj[-1]['x']:.0f},{traj[-1]['y']:.0f})")
@@ -126,7 +126,7 @@ def test_keeper_dives_wrong_way():
 
 def test_apply_penalty_scored():
     st = make_penalty_state(is_player_a=True)
-    traj, scored, desc = apply_penalty_kick(st, 0, -25, 100, True)
+    traj, scored, desc = apply_penalty_kick(st, 0, -20, 100, True)
     check("apply scores with angled shot", scored == True)
     check("Penalty score updated", st["penalty_a_score"] == 1)
     check("Kick count incremented to 1", st["penalty_kick_num"] == 1)
@@ -145,16 +145,16 @@ def test_apply_penalty_saved():
 
 def test_penalty_trajectory_decimated():
     st = make_penalty_state(is_player_a=True)
-    traj, scored, desc = apply_penalty_kick(st, 0, -25, 100, True)
+    traj, scored, desc = apply_penalty_kick(st, 0, -20, 100, True)
     check("Trajectory decimated (<=80 pts)", len(traj) <= 80)
 
 # ── 5. Alternating kickers ──────────────────────────────────────────────────
 
 def test_alternating_kickers():
     st = make_penalty_state(is_player_a=True)
-    apply_penalty_kick(st, 0, -25, 100, True)
+    apply_penalty_kick(st, 0, -20, 100, True)
     check("After A kicks, next is B", st["is_player_a"] == False)
-    apply_penalty_kick(st, 0, 205, 100, False)
+    apply_penalty_kick(st, 0, -20, 100, False)
     check("After B kicks, next is A", st["is_player_a"] == True)
 
 # ── 6. Shootout end conditions ──────────────────────────────────────────────
@@ -163,7 +163,7 @@ def test_shootout_ends_when_winner_after_5_each():
     """After 5 rounds each with different scores, game should end."""
     st = make_penalty_state(is_player_a=True)
     for _ in range(5):
-        apply_penalty_kick(st, 0, -25, 100, True)   # A scores
+        apply_penalty_kick(st, 0, -20, 100, True)   # A scores
         apply_penalty_kick(st, 0, 0, 60, False)      # B misses (straight at keeper)
     check("A wins 5-0 after 5 rounds each",
           st["game_over"] and st["winner"] == "A",
@@ -173,8 +173,8 @@ def test_shootout_tied_after_5_each():
     """5-5 after 10 kicks should NOT end game (goes to sudden death)."""
     st = make_penalty_state(is_player_a=True)
     for _ in range(5):
-        apply_penalty_kick(st, 0, -25, 100, True)   # A scores
-        apply_penalty_kick(st, 0, 205, 100, False)   # B scores
+        apply_penalty_kick(st, 0, -20, 100, True)   # A scores
+        apply_penalty_kick(st, 0, 200, 100, False)   # B scores
     check("5-5 after 10 kicks, game continues",
           not st["game_over"],
           f"score={st['penalty_a_score']}-{st['penalty_b_score']}, over={st['game_over']}")
@@ -184,13 +184,13 @@ def test_sudden_death_both_must_kick():
     """SD: A scoring alone should NOT end game — B must respond."""
     st = make_penalty_state(is_player_a=True)
     for _ in range(5):
-        apply_penalty_kick(st, 0, -25, 100, True)
-        apply_penalty_kick(st, 0, 205, 100, False)
+        apply_penalty_kick(st, 0, -20, 100, True)
+        apply_penalty_kick(st, 0, 200, 100, False)
 
     check("Entering sudden death at 5-5", st["game_over"] == False)
 
     # SD kick 1: Team A scores
-    apply_penalty_kick(st, 0, -25, 100, True)
+    apply_penalty_kick(st, 0, -20, 100, True)
     check("A scores in SD, B still to kick — game continues",
           not st["game_over"],
           f"game_over={st['game_over']}, score={st['penalty_a_score']}-{st['penalty_b_score']}")
@@ -206,19 +206,19 @@ def test_sudden_death_multi_round():
     """Multiple sudden death rounds until one team leads."""
     st = make_penalty_state(is_player_a=True)
     for _ in range(5):
-        apply_penalty_kick(st, 0, -25, 100, True)
-        apply_penalty_kick(st, 0, 205, 100, False)
+        apply_penalty_kick(st, 0, -20, 100, True)
+        apply_penalty_kick(st, 0, 200, 100, False)
     # 5-5, sudden death
 
     # Round 1: both score
-    apply_penalty_kick(st, 0, -25, 100, True)
-    apply_penalty_kick(st, 0, 205, 100, False)
+    apply_penalty_kick(st, 0, -20, 100, True)
+    apply_penalty_kick(st, 0, 200, 100, False)
     check("Round 1 SD both score, game continues",
           not st["game_over"],
           f"score={st['penalty_a_score']}-{st['penalty_b_score']}")
 
     # Round 2: A scores, B misses
-    apply_penalty_kick(st, 0, -25, 100, True)
+    apply_penalty_kick(st, 0, -20, 100, True)
     apply_penalty_kick(st, 0, 0, 60, False)
     check("Round 2 SD: B misses, A wins",
           st["game_over"] and st["winner"] == "A",
@@ -228,14 +228,14 @@ def test_shootout_all_5_rounds_played():
     """Currently always plays 5 rounds each (early win not implemented)."""
     st = make_penalty_state(is_player_a=True)
     for _ in range(3):
-        apply_penalty_kick(st, 0, -25, 100, True)
+        apply_penalty_kick(st, 0, -20, 100, True)
         apply_penalty_kick(st, 0, 0, 60, False)
     check("A leads 3-0 after 3 each, game still continues (plays all 5 rounds)",
           not st["game_over"],
           f"game_over={st['game_over']}")
     # Play last 2 rounds each
     for _ in range(2):
-        apply_penalty_kick(st, 0, -25, 100, True)
+        apply_penalty_kick(st, 0, -20, 100, True)
         apply_penalty_kick(st, 0, 0, 60, False)
     check("After all 5 rounds, A wins 5-0",
           st["game_over"] and st["winner"] == "A",
@@ -336,13 +336,13 @@ def test_goalkeeper_move_reset():
     """Goalkeeper move should reset after each kick."""
     st = make_penalty_state(is_player_a=True, kick_num=0)
     st["penalty_goalkeeper_move"] = "left"
-    apply_penalty_kick(st, 0, -25, 100, True)
+    apply_penalty_kick(st, 0, -20, 100, True)
     check("Goalkeeper move reset for next kick",
           st["penalty_goalkeeper_move"] is None)
 
 def test_penalty_kick_history():
     st = make_penalty_state(is_player_a=True)
-    apply_penalty_kick(st, 0, -25, 100, True)
+    apply_penalty_kick(st, 0, -20, 100, True)
     check("Penalty kick recorded", len(st["penalty_kicks"]) == 1)
     entry = st["penalty_kicks"][0]
     check("Kick entry has team", "team" in entry)

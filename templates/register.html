@@ -5,106 +5,144 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Create Account — Agent Soccer</title>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --accent:#06b6d4;
-  --text:#0f172a;
-  --muted:#475569;
-  --dim:#94a3b8;
-  --red:#ef4444;
-  --glass-bg:rgba(255,255,255,.7);
-  --glass-border:rgba(255,255,255,.5);
+/* Remove the bad lines left behind by the clean script */
+body {
+  margin: 0; padding: 0;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 15%, #fecaca 30%, #fbcfe8 50%, #c7d2fe 70%, #bfdbfe 85%, #a7f3d0 100%);
+  background-size: 400% 400%;
+  animation: bg-flow 20s ease infinite;
+  display: flex;
+  font-family: 'Be Vietnam Pro', system-ui, sans-serif;
 }
-body{
-  font-family:'Be Vietnam Pro',system-ui,sans-serif;
-  font-size:14px;color:var(--text);
-  min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px;
-  background:linear-gradient(135deg,#fef3c7 0%,#fde68a 15%,#fecaca 30%,#fbcfe8 50%,#c7d2fe 70%,#bfdbfe 85%,#a7f3d0 100%);
-  background-size:400% 400%;
-  animation:bg-flow 20s ease infinite;
-  overflow:hidden;
-}
-@keyframes bg-flow{0%{background-position:0% 50%}25%{background-position:50% 0%}50%{background-position:100% 50%}75%{background-position:50% 100%}100%{background-position:0% 50%}}
-body::before{
-  content:'';position:fixed;
-  width:700px;height:700px;
-  background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);
-  top:-180px;left:-120px;pointer-events:none;
-  animation:drift 18s ease-in-out infinite alternate;
-}
-body::after{
-  content:'';position:fixed;
-  width:550px;height:500px;
-  background:radial-gradient(ellipse,rgba(249,115,22,.07) 0%,transparent 65%);
-  bottom:-100px;right:-60px;pointer-events:none;
-  animation:drift2 22s ease-in-out infinite alternate;
-}
-@keyframes drift {to{transform:translate(40px,-30px)}}
-@keyframes drift2{to{transform:translate(-30px,25px)}}
 
-.card{
-  position:relative;z-index:1;
-  background:var(--glass-bg);
-  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
-  border:1px solid var(--glass-border);
-  border-radius:18px;
-  box-shadow:0 24px 60px rgba(80,120,200,.12),inset 0 1px 0 rgba(255,255,255,.95);
-  padding:36px 32px;
-  width:100%;max-width:400px;
+.auth-layout {
+  display: flex;
+  width: 100%;
+  min-height: 100vh;
 }
-.logo{text-align:center;margin-bottom:28px}
-.logo h1{
-  font-size:1.6rem;font-weight:700;letter-spacing:-.03em;
-  background:linear-gradient(135deg,#06b6d4 0%,#f97316 100%);
-  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
-}
-.logo p{font-size:.75rem;color:var(--muted);margin-top:4px}
-h2{font-size:1rem;font-weight:600;color:var(--text);margin-bottom:22px}
 
-.field{margin-bottom:15px}
-label{display:block;font-size:.75rem;font-weight:500;color:var(--muted);margin-bottom:6px}
-input[type="email"],input[type="password"],input[type="text"]{
-  width:100%;padding:10px 13px;
-  background:rgba(255,255,255,.7);
-  border:1px solid var(--glass-border);
-  border-radius:9px;
-  font-family:inherit;font-size:.88rem;color:var(--text);
-  transition:border-color .15s,background .15s;
+/* Left Side: Animation & Info */
+.auth-visual {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+  border-right: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(10px);
 }
-input::placeholder{color:var(--dim)}
-input:focus{outline:none;border-color:rgba(6,182,212,.6);background:rgba(255,255,255,.9)}
-.hint{font-size:.68rem;color:var(--dim);margin-top:4px}
+#anim-canvas {
+  max-width: 100%;
+}
+.auth-info {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 1s ease, transform 1s ease;
+  text-align: center;
+  margin-top: 30px;
+  color: var(--text);
+}
+.auth-info.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.auth-info h1 {
+  font-size: 2.4rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, #0ea5e9, #8b5cf6, #ec4899);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.auth-info p {
+  font-size: 1.1rem;
+  color: var(--muted);
+  max-width: 400px;
+  line-height: 1.5;
+}
 
-.btn-submit{
-  width:100%;padding:11px;
-  background:var(--accent);color:#fff;
-  font-family:inherit;font-size:.88rem;font-weight:600;
-  border:none;border-radius:9px;cursor:pointer;margin-top:8px;
-  box-shadow:0 4px 16px rgba(6,182,212,.35);
-  transition:opacity .15s,transform .12s;
+/* Right Side: Form */
+.auth-form-wrap {
+  width: 500px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  background: rgba(255,255,255,0.4);
 }
-.btn-submit:hover{opacity:.88;transform:translateY(-1px)}
+@media (max-width: 900px) {
+  .auth-layout { flex-direction: column; }
+  .auth-visual { min-height: 400px; border-right: none; border-bottom: 1px solid rgba(255,255,255,0.4); }
+  .auth-form-wrap { width: 100%; }
+}
 
-.flash{
-  background:rgba(248,113,113,.12);
-  border:1px solid rgba(248,113,113,.35);
-  color:var(--red);
-  font-size:.78rem;padding:10px 13px;border-radius:8px;margin-bottom:16px;
+.card {
+  position: relative; z-index: 1;
+  background: var(--glass-bg);
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  border: 1px solid var(--glass-border);
+  border-radius: 18px;
+  box-shadow: 0 24px 60px rgba(80,120,200,.12), inset 0 1px 0 rgba(255,255,255,.95);
+  padding: 36px 32px;
+  width: 100%; max-width: 400px;
 }
-.footer{text-align:center;margin-top:22px;font-size:.75rem;color:var(--muted)}
-.footer a{color:var(--accent);text-decoration:none;font-weight:500}
-.footer a:hover{text-decoration:underline}
+.logo { text-align: center; margin-bottom: 28px; display: none; /* hidden since it's on left now */ }
+h2 { font-size: 1.2rem; font-weight: 700; color: var(--text); margin-bottom: 22px; text-align: center; }
+.field { margin-bottom: 15px; }
+label { display: block; font-size: .75rem; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+input[type="email"], input[type="password"], input[type="text"] {
+  width: 100%; padding: 10px 13px;
+  background: rgba(255,255,255,.7);
+  border: 1px solid var(--glass-border);
+  border-radius: 9px;
+  font-family: inherit; font-size: .88rem; color: var(--text);
+  transition: border-color .15s, background .15s;
+}
+input::placeholder { color: var(--dim); }
+input:focus { outline: none; border-color: rgba(6,182,212,.6); background: rgba(255,255,255,.9); }
+.btn-submit {
+  width: 100%; padding: 12px;
+  background: linear-gradient(135deg, #06b6d4, #8b5cf6);
+  color: #fff;
+  font-family: inherit; font-size: .95rem; font-weight: 700;
+  border: none; border-radius: 9px; cursor: pointer; margin-top: 10px;
+  box-shadow: 0 4px 16px rgba(6,182,212,.35);
+  transition: transform .15s, box-shadow .15s;
+}
+.btn-submit:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(6,182,212,.5); }
+.flash {
+  background: rgba(248,113,113,.12);
+  border: 1px solid rgba(248,113,113,.35);
+  color: var(--red);
+  font-size: .78rem; padding: 10px 13px; border-radius: 8px; margin-bottom: 16px;
+}
+.footer { text-align: center; margin-top: 22px; font-size: .8rem; color: var(--muted); }
+.footer a { color: #06b6d4; text-decoration: none; font-weight: 600; }
+.footer a:hover { text-decoration: underline; }
+.toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e2d4f; color: #fff; font-size: .78rem; padding: 10px 20px; border-radius: 8px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 999; }
+.toast.show { opacity: 1; }
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="logo">
-    <h1>Agent Soccer</h1>
-    <p>Vietnamese Mancala · AI Strategy Engine</p>
-  </div>
 
-  <h2>Create your account</h2>
+<div class="auth-layout">
+  <div class="auth-visual">
+    <canvas id="anim-canvas" width="600" height="400"></canvas>
+    <div class="auth-info" id="auth-info">
+      <h1>Agent Soccer</h1>
+      <p>Vietnamese Mancala meets AI Strategy. Compete against agents, train your models, and climb the leaderboard.</p>
+    </div>
+  </div>
+  
+  <div class="auth-form-wrap">
+    <div class="card">
+      <h2>Create your account</h2>
 
   {% with messages = get_flashed_messages() %}
     {% if messages %}
@@ -117,7 +155,7 @@ input:focus{outline:none;border-color:rgba(6,182,212,.6);background:rgba(255,255
   <form method="POST" action="/auth/register">
     <div class="field">
       <label for="username">Username</label>
-      <input type="text" id="username" name="username" placeholder="e.g. PlayerOne" required autofocus minlength="2" maxlength="30">
+      <input type="text" id="username" name="username" placeholder="coolplayer99" required autofocus>
     </div>
     <div class="field">
       <label for="email">Email</label>
@@ -126,18 +164,132 @@ input:focus{outline:none;border-color:rgba(6,182,212,.6);background:rgba(255,255
     <div class="field">
       <label for="password">Password</label>
       <input type="password" id="password" name="password" placeholder="••••••••" required minlength="6">
-      <div class="hint">At least 6 characters</div>
-    </div>
-    <div class="field">
-      <label for="confirm">Confirm Password</label>
-      <input type="password" id="confirm" name="confirm" placeholder="••••••••" required minlength="6">
+      <div class="hint">Minimum 6 characters</div>
     </div>
     <button type="submit" class="btn-submit">Create Account</button>
   </form>
 
   <div class="footer">
-    Already have an account? <a href="/login" class="nav-link">Sign in</a>
+    Already have an account? <a href="/login">Sign in</a>
+  </div>
+    </div>
   </div>
 </div>
+
+<div id="toast" class="toast"></div>
+
+<script>
+function copyToClipboard(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    var t = document.getElementById('toast');
+    t.textContent = 'Copied ' + (text.includes('@') ? 'email' : 'password') + '!';
+    t.className = 'toast show';
+    setTimeout(function(){ t.className = 'toast'; }, 1800);
+  });
+}
+
+// Canvas Animation
+const canvas = document.getElementById('anim-canvas');
+const ctx = canvas.getContext('2d');
+const info = document.getElementById('auth-info');
+
+// Animation State
+let state = {
+  striker: { x: -50, y: 300, radius: 25, color: '#06b6d4' },
+  ball: { x: 150, y: 310, radius: 10, color: '#ffffff', vx: 0, vy: 0 },
+  keeper: { x: 500, y: 300, radius: 25, color: '#f97316', startY: 300 },
+  goal: { x: 550, y: 200, width: 20, height: 120 },
+  phase: 'run_up', // run_up, kick, dive, goal, end
+  time: 0
+};
+
+function drawCircle(obj) {
+  ctx.beginPath();
+  ctx.arc(obj.x, obj.y, obj.radius, 0, Math.PI * 2);
+  ctx.fillStyle = obj.color;
+  ctx.fill();
+  
+  // glass effect reflection
+  ctx.beginPath();
+  ctx.arc(obj.x - obj.radius*0.3, obj.y - obj.radius*0.3, obj.radius*0.4, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.4)';
+  ctx.fill();
+}
+
+function drawGoal() {
+  ctx.fillStyle = 'rgba(255,255,255,0.3)';
+  ctx.fillRect(state.goal.x, state.goal.y, state.goal.width, state.goal.height);
+  // Net
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+  ctx.lineWidth = 2;
+  for(let i=0; i<state.goal.height; i+=10) {
+    ctx.beginPath(); ctx.moveTo(state.goal.x, state.goal.y + i); ctx.lineTo(state.goal.x + 40, state.goal.y + i); ctx.stroke();
+  }
+}
+
+function update() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Draw ground
+  ctx.fillStyle = 'rgba(255,255,255,0.1)';
+  ctx.fillRect(0, 320, canvas.width, 80);
+  
+  drawGoal();
+  drawCircle(state.striker);
+  drawCircle(state.ball);
+  drawCircle(state.keeper);
+  
+  state.time += 0.016; // rough dt
+  
+  if (state.phase === 'run_up') {
+    state.striker.x += 4;
+    // bouncing animation
+    state.striker.y = 300 - Math.abs(Math.sin(state.time * 10)) * 10;
+    
+    if (state.striker.x + state.striker.radius > state.ball.x - state.ball.radius) {
+      state.phase = 'kick';
+      state.striker.y = 300;
+    }
+  } 
+  else if (state.phase === 'kick') {
+    state.ball.vx = 12;
+    state.ball.vy = -3;
+    state.phase = 'dive';
+  }
+  else if (state.phase === 'dive') {
+    // Ball physics
+    state.ball.x += state.ball.vx;
+    state.ball.y += state.ball.vy;
+    state.ball.vy += 0.1; // gravity
+    
+    // Keeper dives (but misses)
+    state.keeper.x -= 2;
+    state.keeper.y = state.keeper.startY - Math.sin(state.time * 5) * 60;
+    
+    if (state.ball.x > state.goal.x) {
+      state.ball.vx = 0;
+      state.ball.vy = 0;
+      state.phase = 'goal';
+      
+      // trigger info fade in
+      setTimeout(() => {
+        info.classList.add('show');
+      }, 500);
+    }
+  }
+  else if (state.phase === 'goal') {
+    // Keeper falls to ground
+    if (state.keeper.y < 300) {
+      state.keeper.y += 4;
+    }
+  }
+  
+  requestAnimationFrame(update);
+}
+
+// Start animation loop
+update();
+
+</script>
 </body>
 </html>

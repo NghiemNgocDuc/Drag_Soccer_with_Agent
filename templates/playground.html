@@ -6,65 +6,14 @@
 <title>Playground — Drag Soccer</title>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="/static/style.css">
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --accent:#06b6d4;--accent-b:#f97316;--red:#ef4444;--amber:#d97706;
-  --text:#0f172a;--muted:#475569;--dim:#94a3b8;
-  --glass-bg:rgba(255,255,255,.7);--glass-border:rgba(255,255,255,.5);
-  --glass-shadow:0 8px 32px rgba(31,38,135,.07),inset 0 1px 0 rgba(255,255,255,.95);
-  --blur:16px;
-}
-body{
-  font-family:'Be Vietnam Pro',system-ui,sans-serif;font-size:14px;
-  color:var(--text);min-height:100vh;display:flex;flex-direction:column;
-  background:linear-gradient(135deg,#fef3c7 0%,#fde68a 15%,#fecaca 30%,#fbcfe8 50%,#c7d2fe 70%,#bfdbfe 85%,#a7f3d0 100%);
-  background-size:400% 400%;
-  animation:bg-flow 20s ease infinite;
-}
-@keyframes bg-flow{0%{background-position:0% 50%}25%{background-position:50% 0%}50%{background-position:100% 50%}75%{background-position:50% 100%}100%{background-position:0% 50%}}
-.nebula{position:fixed;inset:0;pointer-events:none;z-index:0;overflow:hidden}
-.nebula::before{
-  content:'';position:absolute;width:700px;height:700px;
-  background:radial-gradient(ellipse,rgba(139,92,246,.09) 0%,transparent 65%);
-  top:-200px;left:-100px;animation:drift 18s ease-in-out infinite alternate;
-}
-.nebula::after{
-  content:'';position:absolute;width:600px;height:500px;
-  background:radial-gradient(ellipse,rgba(249,115,22,.07) 0%,transparent 65%);
-  bottom:-100px;right:0;animation:drift2 22s ease-in-out infinite alternate;
-}
-@keyframes drift {to{transform:translate(40px,-30px)}}
-@keyframes drift2{to{transform:translate(-30px,25px)}}
-
-/* ── Nav ── */
-nav{
-  position:relative;z-index:2;
-  background:rgba(255,255,255,.7);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid rgba(255,255,255,.5);
-  padding:12px 20px;display:flex;align-items:center;gap:14px;flex-shrink:0;
-}
-.nav-brand{font-size:.9rem;font-weight:700;color:var(--text);text-decoration:none;letter-spacing:-.02em}
-.nav-links{display:flex;gap:12px;margin-left:auto;align-items:center}
-.nav-links a{font-size:.78rem;font-weight:500;color:var(--muted);text-decoration:none;transition:color .15s}
-.nav-links a:hover,.nav-links a.active{color:var(--text)}
-.nav-user{font-size:.75rem;color:var(--dim)}
-.btn-nav-logout{
-  font-family:inherit;font-size:.72rem;font-weight:500;
-  padding:5px 10px;border-radius:6px;
-  border:1px solid var(--glass-border);background:var(--glass-bg);
-  color:var(--muted);cursor:pointer;transition:all .15s;
-}
-.btn-nav-logout:hover{border-color:var(--accent);color:var(--accent)}
-
 /* ── Main split ── */
 .workspace{
   flex:1;position:relative;z-index:1;
   display:grid;grid-template-columns:minmax(340px,42%) 1fr;
   gap:0;min-height:0;overflow:hidden;
 }
-
 /* ── Editor pane ── */
 .editor-pane{
   display:flex;flex-direction:column;
@@ -92,7 +41,6 @@ nav{
 .ep-btn:hover{opacity:.82}
 .ep-btn-ghost{background:rgba(255,255,255,.08);color:#c9d1d9}
 .ep-btn-blue{background:var(--accent);color:#000}
-
 /* CodeMirror dark */
 .CodeMirror{
   flex:1;height:100%;
@@ -111,7 +59,6 @@ nav{
 .cm-builtin{color:#89b4fa !important}
 .cm-def{color:#89dceb !important}
 .cm-wrap{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-
 .ep-status{
   flex-shrink:0;padding:8px 14px;
   background:#16162a;border-top:1px solid rgba(255,255,255,.06);
@@ -120,14 +67,12 @@ nav{
 .status-ok  {color:#a6e3a1}
 .status-err {color:#f38ba8}
 .status-info{color:#89b4fa}
-
 /* ── Game pane ── */
 .game-pane{
   display:flex;flex-direction:column;overflow-y:auto;
   padding:16px;gap:12px;
   background:transparent;
 }
-
 /* shared glass card */
 .g-card{
   background:var(--glass-bg);
@@ -135,13 +80,11 @@ nav{
   border:1px solid var(--glass-border);border-radius:12px;
   box-shadow:var(--glass-shadow);
 }
-
 /* Config row */
 .config-card{
   padding:12px 16px;display:flex;flex-wrap:wrap;align-items:center;gap:10px;
 }
 .config-label{font-size:.7rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-
 .mode-seg{display:flex;border-radius:7px;overflow:hidden;border:1px solid var(--glass-border)}
 .mode-seg button{
   font-family:inherit;font-size:.75rem;font-weight:500;
@@ -150,9 +93,7 @@ nav{
 }
 .mode-seg button.active{background:var(--accent);color:#000}
 .mode-seg button:not(.active):hover{background:rgba(255,255,255,.07);color:var(--text)}
-
 .config-sep{width:1px;height:24px;background:var(--glass-border)}
-
 select.opp-sel{
   font-family:inherit;font-size:.78rem;padding:6px 10px;
   border:1px solid var(--glass-border);border-radius:7px;
@@ -160,22 +101,13 @@ select.opp-sel{
 }
 select.opp-sel:focus{outline:none;border-color:rgba(96,165,250,.6)}
 select.opp-sel option{background:#1a1a2e;color:var(--text)}
-
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;font-family:inherit;font-size:.82rem;font-weight:600;padding:8px 18px;border:none;border-radius:10px;cursor:pointer;position:relative;overflow:hidden;transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .25s,background .25s,border-color .25s;user-select:none;text-decoration:none}
-.btn:active{transform:scale(.97)}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
-.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.12) 45%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.12) 55%,transparent 70%);background-size:300% 100%;background-position:100% 0;transition:background-position .5s;pointer-events:none}
-.btn:hover::after{background-position:0 0}
 .btn-blue{background:linear-gradient(135deg,#06b6d4 0%,#0891b2 50%,#6366f1 100%);color:#fff;box-shadow:0 4px 16px rgba(6,182,212,.3)}
 .btn-blue:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(6,182,212,.45)}
 .btn-green{background:linear-gradient(135deg,#34d399 0%,#10b981 50%,#059669 100%);color:#fff;box-shadow:0 4px 16px rgba(16,185,129,.3)}
 .btn-green:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(16,185,129,.45)}
-.btn-ghost{background:rgba(255,255,255,.55);backdrop-filter:blur(8px);color:var(--muted);border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.04)}
-.btn-ghost:hover{transform:translateY(-2px);background:rgba(255,255,255,.8);border-color:rgba(6,182,212,.35);color:#06b6d4}
-.btn-ghost::after{display:none}
 .btn-amber{background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 50%,#d97706 100%);color:#fff;box-shadow:0 4px 16px rgba(245,158,11,.3)}
 .btn-amber:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(245,158,11,.45)}
-
 /* Turn banner */
 .turn-banner{
   padding:10px 14px;display:flex;align-items:center;gap:8px;
@@ -187,7 +119,6 @@ select.opp-sel option{background:#1a1a2e;color:var(--text)}
 .turn-banner.ai-turn   {border-color:var(--accent-b);color:var(--accent-b)}
 .turn-banner.game-over {border-color:var(--red);color:var(--red)}
 .turn-dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex-shrink:0}
-
 .think-indicator{display:none;align-items:center;gap:5px;margin-left:auto;font-size:.75rem}
 .think-indicator.show{display:flex}
 .think-dots span{
@@ -196,7 +127,6 @@ select.opp-sel option{background:#1a1a2e;color:var(--text)}
 }
 .think-dots span:nth-child(2){animation-delay:.2s}
 .think-dots span:nth-child(3){animation-delay:.4s}
-
 /* Score row */
 .score-row{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}
 .score-card{
@@ -210,13 +140,11 @@ select.opp-sel option{background:#1a1a2e;color:var(--text)}
 .score-card .s-total{font-size:1.4rem;font-weight:700;color:var(--accent);margin-top:2px;line-height:1}
 .score-card.player-b .s-total{color:var(--accent-b)}
 .vs-badge{font-size:.82rem;font-weight:600;color:var(--dim);text-align:center}
-
 /* Board */
 .board-wrap{padding:16px}
 .board-label{font-size:.65rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);text-align:center;margin-bottom:8px}
 .board-label.bottom{margin-top:8px;margin-bottom:0}
 .board-grid{display:grid;grid-template-columns:70px repeat(5,1fr) 70px;gap:5px;align-items:center}
-
 .pit{
   background:rgba(255,255,255,.05);
   border:1px solid var(--glass-border);border-radius:8px;
@@ -231,12 +159,10 @@ select.opp-sel option{background:#1a1a2e;color:var(--text)}
 .seed.dan {width:8px;height:8px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fcd34d,#d97706);box-shadow:0 1px 3px rgba(0,0,0,.4)}
 .seed.quan{width:14px;height:14px;border-radius:50%;background:radial-gradient(circle at 30% 25%,#c0c8d4,#1f2937);box-shadow:0 0 6px rgba(192,200,212,.5)}
 .pit-count{font-size:.62rem;font-weight:600;color:var(--muted);margin-top:2px}
-
 .pit.clickable{cursor:pointer;border-color:rgba(96,165,250,.4);animation:pit-pulse 2.2s ease-in-out infinite}
 .pit.clickable:hover{transform:translateY(-2px);box-shadow:0 4px 16px rgba(96,165,250,.2);border-color:var(--accent);background:rgba(96,165,250,.1);animation:none}
 .pit.selected {border-color:var(--accent);background:rgba(96,165,250,.12);box-shadow:0 0 0 3px rgba(96,165,250,.18)}
 .pit.last-move{border-color:var(--amber);box-shadow:0 0 0 2px rgba(251,191,36,.25)}
-
 .pit.quan-pit{
   background:rgba(15,20,40,.6);
   border:1px solid rgba(255,255,255,.15);
@@ -244,7 +170,6 @@ select.opp-sel option{background:#1a1a2e;color:var(--text)}
 }
 .pit.quan-pit .pit-num  {color:rgba(255,255,255,.5);opacity:1}
 .pit.quan-pit .pit-count{color:rgba(255,255,255,.75)}
-
 /* Direction panel */
 .direction-panel{
   display:none;padding:12px 16px;
@@ -253,7 +178,6 @@ select.opp-sel option{background:#1a1a2e;color:var(--text)}
 .direction-panel.visible{display:block;animation:slide-down .15s ease}
 .direction-panel .dp-label{font-size:.82rem;color:var(--muted);margin-bottom:10px}
 .dir-buttons{display:flex;gap:8px;justify-content:center}
-
 /* Autoplay */
 .autoplay-bar{
   display:none;padding:10px 14px;
@@ -262,7 +186,6 @@ select.opp-sel option{background:#1a1a2e;color:var(--text)}
 .autoplay-bar.visible{display:flex}
 .speed-label{font-size:.72rem;color:var(--muted);white-space:nowrap}
 input[type="range"]{flex:1;min-width:80px;cursor:pointer;accent-color:var(--accent)}
-
 /* Game over */
 .game-over-panel{
   display:none;padding:16px;text-align:center;
@@ -271,7 +194,6 @@ input[type="range"]{flex:1;min-width:80px;cursor:pointer;accent-color:var(--acce
 .game-over-panel.show{display:block;animation:fade-in .25s ease}
 .winner-text  {font-size:1.15rem;font-weight:700;color:var(--text);margin-bottom:4px}
 .final-scores {font-size:.8rem;color:var(--muted);margin-bottom:12px;line-height:1.8}
-
 /* Log */
 .log-card{padding:12px 14px}
 .log-title{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px}
@@ -286,7 +208,6 @@ input[type="range"]{flex:1;min-width:80px;cursor:pointer;accent-color:var(--acce
 .log-a{color:rgba(96,165,250,.85)}
 .log-b{color:rgba(251,191,36,.85)}
 .log-num{color:var(--dim);margin-right:4px}
-
 /* Animations */
 @keyframes seed-pop  {from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
 @keyframes slide-down{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
@@ -296,13 +217,11 @@ input[type="range"]{flex:1;min-width:80px;cursor:pointer;accent-color:var(--acce
   0%,100%{box-shadow:0 0 8px rgba(96,165,250,.15)}
   50%    {box-shadow:0 0 18px rgba(96,165,250,.35)}
 }
-
 @media(max-width:900px){
   .workspace{grid-template-columns:1fr}
   .editor-pane{min-height:380px;border-right:none;border-bottom:1px solid rgba(255,255,255,.07)}
   .CodeMirror{height:280px}
 }
-
 /* ── Instructions panel ── */
 .ins-card{padding:0;overflow:hidden}
 .ins-summary{
@@ -315,10 +234,7 @@ input[type="range"]{flex:1;min-width:80px;cursor:pointer;accent-color:var(--acce
 .ins-summary-title{font-size:.82rem;font-weight:600;color:var(--text);flex:1}
 .ins-toggle{font-size:.68rem;color:var(--muted);transition:transform .18s}
 details[open] .ins-toggle{transform:rotate(180deg)}
-.ins-body{
-  border-top:1px solid var(--glass-border);
-  padding:14px 16px;display:flex;flex-direction:column;gap:10px;
-}
+.ins-
 .ins-lead{font-size:.79rem;color:var(--muted);line-height:1.6}
 .ins-lead code{
   background:rgba(59,130,246,.1);color:var(--accent);

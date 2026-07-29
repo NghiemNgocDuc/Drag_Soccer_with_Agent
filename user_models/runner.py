@@ -28,6 +28,7 @@ _FORBIDDEN_CALLS = {
     "__import__", "open", "eval", "exec", "compile",
     "globals", "locals", "vars", "dir",
     "getattr", "setattr", "delattr",
+    "breakpoint",
 }
 
 # ── Static validation ─────────────────────────────────────────────────────────
@@ -54,6 +55,12 @@ def validate_code(code: str) -> tuple[bool, str]:
         elif isinstance(node, ast.Call):
             if isinstance(node.func, ast.Name) and node.func.id in _FORBIDDEN_CALLS:
                 return False, f"Call to '{node.func.id}()' is not allowed."
+        elif isinstance(node, ast.Attribute):
+            if node.attr.startswith("__") and node.attr.endswith("__"):
+                return False, f"Access to dunder attribute '{node.attr}' is not allowed."
+        elif isinstance(node, ast.Subscript):
+            if isinstance(node.value, ast.Attribute) and node.value.attr.startswith("__"):
+                return False, "Subscript access on dunder attribute is not allowed."
 
     has_fn = any(
         isinstance(n, ast.FunctionDef) and n.name == "get_ai_move"
@@ -77,7 +84,7 @@ def _safe_globals() -> dict:
             "sorted": sorted, "reversed": reversed,
             "enumerate": enumerate, "zip": zip, "map": map, "filter": filter,
             "any": any, "all": all, "print": print,
-            "isinstance": isinstance, "type": type,
+            "isinstance": isinstance,
             "None": None, "True": True, "False": False,
             "ValueError": ValueError, "TypeError": TypeError,
             "IndexError": IndexError, "KeyError": KeyError,

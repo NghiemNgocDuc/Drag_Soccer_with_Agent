@@ -8,7 +8,8 @@ create table if not exists public.profiles (
   id            uuid references auth.users on delete cascade primary key,
   username      text unique not null,
   created_at    timestamp with time zone default now(),
-  customization jsonb default '{}'::jsonb
+  customization jsonb default '{}'::jsonb,
+  plan          text default 'free'    -- 'free' | 'paid'
 );
 
 alter table public.profiles enable row level security;
@@ -141,3 +142,47 @@ create table if not exists public.tournament_matches (
 alter table public.tournament_matches enable row level security;
 create policy ""Anyone can read matches"" on public.tournament_matches for select using (true);
 create policy ""Service can update matches"" on public.tournament_matches for all using (true);
+
+-- 6. Saved game states (max 1 per free user)
+create table if not exists public.saved_states (
+  id         uuid default gen_random_uuid() primary key,
+  user_id    uuid references auth.users on delete cascade not null,
+  state      jsonb not null,
+  slot_index integer default 0,
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now(),
+  unique (user_id, slot_index)
+);
+
+alter table public.saved_states enable row level security;
+
+create policy "Users can manage own saved states"
+  on public.saved_states for all using (auth.uid() = user_id);
+
+create index if not exists saved_states_user_id_idx on public.saved_states (user_id);
+
+-- 7. Research papers library
+create table if not exists public.research_papers (
+  id             uuid default gen_random_uuid() primary key,
+  user_id        uuid references auth.users on delete cascade not null,
+  paper_id       text not null,               -- Semantic Scholar paperId
+  title          text not null,
+  authors        jsonb default '[]'::jsonb,
+  year           integer,
+  venue          text default '',
+  abstract       text default '',
+  url            text default '',
+  citation_count integer default 0,
+  external_ids   jsonb default '{}'::jsonb,
+  notes          text default '',
+  tags           jsonb default '[]'::jsonb,
+  saved_at       timestamp with time zone default now(),
+  unique (user_id, paper_id)
+);
+
+alter table public.research_papers enable row level security;
+
+create policy "Users can manage own research papers"
+  on public.research_papers for all using (auth.uid() = user_id);
+
+create index if not exists research_papers_user_id_idx on public.research_papers (user_id);

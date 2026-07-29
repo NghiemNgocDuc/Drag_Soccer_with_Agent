@@ -4,200 +4,69 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Agent Soccer</title>
+<link rel="stylesheet" href="/static/style.css">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
-:root{
-  --glass-bg:rgba(255,255,255,.7);
-  --glass-border:rgba(255,255,255,.5);
-  --glass-shadow:0 8px 32px rgba(31,38,135,.07),inset 0 1px 0 rgba(255,255,255,.95);
-  --blur:16px;
-  --accent-a:#06b6d4;
-  --accent-b:#f97316;
-  --text:#0f172a;
-  --muted:#475569;
-}
-*{box-sizing:border-box;margin:0;padding:0}
-body{
-  min-height:100vh;
-  background:linear-gradient(135deg,#fef3c7 0%,#fde68a 15%,#fecaca 30%,#fbcfe8 50%,#c7d2fe 70%,#bfdbfe 85%,#a7f3d0 100%);
-  background-size:400% 400%;
-  animation:bg-flow 20s ease infinite;
-  font-family:'Inter',system-ui,sans-serif;
-  color:var(--text);
-}
-@keyframes bg-flow{0%{background-position:0% 50%}25%{background-position:50% 0%}50%{background-position:100% 50%}75%{background-position:50% 100%}100%{background-position:0% 50%}}
-.glass{
-  background:var(--glass-bg);
-  border:1px solid var(--glass-border);
-  box-shadow:var(--glass-shadow);
-  backdrop-filter:blur(var(--blur));
-  -webkit-backdrop-filter:blur(var(--blur));
-  border-radius:18px;
-  transition:all .25s;
-}
-nav{
-  display:flex;align-items:center;gap:12px;padding:12px 24px;
-  background:rgba(255,255,255,.7);
-  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
-  border-bottom:1px solid rgba(255,255,255,.5);
-  position:sticky;top:0;z-index:100;
-}
-.nav-brand{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.15rem;background:linear-gradient(135deg,#06b6d4,#8b5cf6,#ec4899);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.nav-links{display:flex;gap:4px;margin-left:auto}
-.nav-link{
-  padding:6px 14px;border-radius:10px;font-size:.82rem;font-weight:500;
-  color:var(--muted);text-decoration:none;transition:all .15s;
-}
-.nav-link:hover,.nav-link.active{background:linear-gradient(135deg,rgba(6,182,212,.1),rgba(139,92,246,.1));color:#06b6d4}
-.nav-user{font-size:.82rem;color:var(--muted);font-weight:600;padding:6px 0 6px 12px;border-left:2px solid rgba(6,182,212,.15)}
-main{max-width:1200px;margin:0 auto;padding:24px 16px;display:flex;flex-direction:column;gap:16px}
 
-/* Score HUD */
-.hud{
-  display:flex;align-items:center;justify-content:space-between;
-  padding:14px 24px;
-}
-.team{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:110px}
-.team-name{font-size:.7rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-.team-score{font-size:2.4rem;font-weight:800;line-height:1}
-.team-a .team-score{color:var(--accent-a)}
-.team-b .team-score{color:var(--accent-b)}
-.hud-mid{display:flex;flex-direction:column;align-items:center;gap:6px}
-.kick-counter{font-size:1.6rem;color:#000;font-weight:700;line-height:1}
-.turn-badge{
-  padding:4px 14px;border-radius:20px;font-size:.78rem;font-weight:600;
-}
-.turn-badge.turn-a{background:rgba(59,130,246,.15);color:var(--accent-a)}
-.turn-badge.turn-b{background:rgba(239,68,68,.15);color:var(--accent-b)}
-.winner-banner{
-  display:none;padding:8px 20px;border-radius:12px;font-size:.9rem;font-weight:700;
-  background:rgba(16,185,129,.15);color:#059669;text-align:center;
-}
-
-/* Canvas */
+/* ── Index-specific overrides ── */
 .canvas-wrap{
-  border-radius:20px;overflow:hidden;
-  box-shadow:0 8px 32px rgba(0,0,0,.4);
+  border-radius:22px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(14,165,233,.12),0 0 0 1px rgba(255,255,255,.4);
   position:relative;cursor:default;
-  border:1px solid rgba(255,255,255,.1);
 }
 #game-canvas{display:block;width:100%;touch-action:none}
 .canvas-overlay{
   display:none;position:absolute;inset:0;
-  background:rgba(255,255,255,.7);
-  backdrop-filter:blur(4px);
+  background:rgba(15,23,42,.55);backdrop-filter:blur(6px);
   align-items:center;justify-content:center;
-  font-size:1.1rem;font-weight:600;color:var(--text);
+  font-size:1.1rem;font-weight:600;color:#fff;
 }
 .canvas-overlay.visible{display:flex}
-.spinner{
-  width:32px;height:32px;border:3px solid rgba(59,130,246,.2);
-  border-top-color:var(--accent-a);border-radius:50%;
-  animation:spin .7s linear infinite;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
 .fs-btn{
-  position:absolute;bottom:8px;left:8px;z-index:10;
-  width:32px;height:32px;border-radius:8px;border:none;
-  background:rgba(255,255,255,.2);color:#fff;
+  position:absolute;bottom:10px;left:10px;z-index:10;
+  width:34px;height:34px;border-radius:50%;border:none;
+  background:rgba(255,255,255,.25);backdrop-filter:blur(8px);color:#fff;
   font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
-  transition:background .15s;line-height:1;
+  transition:all .2s;line-height:1;
 }
-.fs-btn:hover{background:rgba(255,255,255,.4)}
+.fs-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
 .sound-btn{
-  position:absolute;top:8px;right:8px;z-index:10;
-  width:32px;height:32px;border-radius:8px;border:none;
-  background:rgba(255,255,255,.2);color:#fff;
+  position:absolute;top:10px;right:10px;z-index:10;
+  width:34px;height:34px;border-radius:50%;border:none;
+  background:rgba(255,255,255,.25);backdrop-filter:blur(8px);color:#fff;
   font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;
-  transition:background .15s;line-height:1;
+  transition:all .2s;line-height:1;
 }
-.sound-btn:hover{background:rgba(255,255,255,.4)}
+.sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
 #fs-wrap:fullscreen .fs-btn,#fs-wrap:-webkit-full-screen .fs-btn{
-  position:fixed;bottom:16px;left:16px;z-index:100;
-  background:rgba(0,0,0,.4);color:#fff;
+  position:fixed;bottom:16px;left:16px;z-index:100;background:rgba(0,0,0,.4);color:#fff;
 }
 #fs-wrap:fullscreen,#fs-wrap:-webkit-full-screen{
-  background:#000;display:flex;flex-direction:column;
+  background:#0f172a;display:flex;flex-direction:column;
   justify-content:center;align-items:center;gap:12px;
   padding:16px;width:100vw;height:100vh;
 }
-#fs-wrap:fullscreen .hud,#fs-wrap:-webkit-full-screen .hud{
-  max-width:960px;width:100%;flex-shrink:0;
-}
+#fs-wrap:fullscreen .hud,#fs-wrap:-webkit-full-screen .hud{max-width:960px;width:100%;flex-shrink:0}
 #fs-wrap:fullscreen .canvas-wrap,#fs-wrap:-webkit-full-screen .canvas-wrap{
-  flex:1 1 auto;width:100%;max-width:1200px;
-  display:flex;align-items:center;justify-content:center;
+  flex:1 1 auto;width:100%;max-width:1200px;display:flex;align-items:center;justify-content:center;
 }
-#fs-wrap:fullscreen #game-canvas,#fs-wrap:-webkit-full-screen #game-canvas{
-  max-height:100%;object-fit:contain;
-}
-
-/* Controls */
-.controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 18px}
-.btn{
-  display:inline-flex;align-items:center;justify-content:center;gap:6px;
-  padding:8px 20px;border:none;border-radius:11px;cursor:pointer;
-  font-size:.84rem;font-weight:600;position:relative;overflow:hidden;
-  transition:transform .2s cubic-bezier(.34,1.56,.64,1),box-shadow .25s,background .25s,border-color .25s;
-  text-decoration:none;user-select:none;
-}
-.btn:active{transform:scale(.97)}
-.btn::after{content:'';position:absolute;inset:0;background:linear-gradient(105deg,transparent 30%,rgba(255,255,255,.12) 45%,rgba(255,255,255,.18) 50%,rgba(255,255,255,.12) 55%,transparent 70%);background-size:300% 100%;background-position:100% 0;transition:background-position .5s;pointer-events:none}
-.btn:hover::after{background-position:0 0}
-.btn-primary{background:linear-gradient(135deg,#06b6d4 0%,#0891b2 50%,#6366f1 100%);color:#fff;box-shadow:0 4px 18px rgba(6,182,212,.3)}
-.btn-primary:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(6,182,212,.45)}
-.btn-danger{background:linear-gradient(135deg,#f97316 0%,#ef4444 100%);color:#fff;box-shadow:0 4px 18px rgba(249,115,22,.3)}
-.btn-danger:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(249,115,22,.45)}
-.btn-ghost{background:rgba(255,255,255,.55);backdrop-filter:blur(8px);color:var(--muted);border:1px solid rgba(255,255,255,.6);box-shadow:0 2px 8px rgba(0,0,0,.04)}
-.btn-ghost:hover{transform:translateY(-2px);background:rgba(255,255,255,.8);border-color:rgba(6,182,212,.35);color:#06b6d4}
-.btn-ghost::after{display:none}
-.btn-success{background:linear-gradient(135deg,#34d399 0%,#10b981 50%,#059669 100%);color:#fff;box-shadow:0 4px 18px rgba(16,185,129,.3)}
-.btn-success:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(16,185,129,.45)}
-.sep{width:1px;height:24px;background:rgba(180,205,255,.5);margin:0 4px}
-
-select{
-  padding:7px 12px;border-radius:10px;border:1px solid rgba(180,205,255,.5);
-  background:rgba(255,255,255,.7);color:var(--text);font-size:.82rem;
-  font-weight:500;cursor:pointer;outline:none;
-}
-.mode-label,.speed-label,.model-label{font-size:.72rem;font-weight:600;color:var(--muted);white-space:nowrap}
-.speed-wrap{display:flex;align-items:center;gap:8px}
-#speed-slider{width:80px;cursor:pointer;accent-color:var(--accent-a)}
-.controls-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+#fs-wrap:fullscreen #game-canvas,#fs-wrap:-webkit-full-screen #game-canvas{max-height:100%;object-fit:contain}
 
 /* Customize panel */
 .customize-toggle{
   display:inline-flex;align-items:center;gap:6px;cursor:pointer;
-  font-size:.78rem;font-weight:600;color:var(--muted);padding:4px 12px;
+  font-size:.78rem;font-weight:600;color:var(--text-muted);padding:4px 12px;
   border-radius:8px;transition:all .15s;
 }
-.customize-toggle:hover{background:rgba(59,130,246,.08);color:var(--accent-a)}
+.customize-toggle:hover{background:rgba(14,165,233,.06);color:var(--accent-a)}
 .customize-body{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 18px 14px}
 .customize-body.hidden{display:none}
 .cust-group{display:flex;align-items:center;gap:5px}
-.cust-group label{font-size:.72rem;font-weight:600;color:var(--muted);white-space:nowrap}
-.cust-group input[type=color]{width:28px;height:28px;border:2px solid rgba(180,205,255,.5);border-radius:6px;cursor:pointer;padding:0;background:none}
+.cust-group label{font-size:.72rem;font-weight:600;color:var(--text-muted);white-space:nowrap}
+.cust-group input[type=color]{width:28px;height:28px;border:2px solid rgba(14,165,233,.15);border-radius:8px;cursor:pointer;padding:0;background:none}
 .cust-group input[type=color]:hover{border-color:var(--accent-a)}
-.cust-preset{width:22px;height:22px;border-radius:50%;border:2px solid rgba(180,205,255,.4);cursor:pointer;transition:transform .12s}
+.cust-preset{width:22px;height:22px;border-radius:50%;border:2px solid rgba(14,165,233,.15);cursor:pointer;transition:transform .12s}
 .cust-preset:hover{transform:scale(1.15)}
-.log-panel{padding:12px 18px;max-height:120px;overflow-y:auto}
-.log-panel p{font-size:.76rem;color:var(--muted);margin:2px 0}
-.log-panel .log-goal{color:#059669;font-weight:600}
-
-/* Hint */
-.hint{
-  text-align:center;font-size:.78rem;color:var(--muted);padding:8px 16px;
-  background:rgba(59,130,246,.06);border-radius:10px;
-}
-.flash-msg{
-  position:fixed;top:70px;right:16px;z-index:999;
-  padding:10px 18px;border-radius:10px;font-size:.82rem;font-weight:600;
-  opacity:0;transform:translateY(-8px);transition:opacity .3s,transform .3s;
-  pointer-events:none;
-}
-.flash-msg.show{opacity:1;transform:translateY(0)}
-.flash-msg.success{background:rgba(16,185,129,.15);color:#059669;border:1px solid rgba(16,185,129,.25)}
-.flash-msg.error{background:rgba(239,68,68,.1);color:#ef4444;border:1px solid rgba(239,68,68,.2)}
 </style>
 <script src="/static/sound.js"></script>
 </head>
@@ -444,6 +313,7 @@ const commentator = {
 };
 
 // ── Crowd data (generated once) ──
+// Deterministic spectator data keeps the stadium stable between animation frames.
 let crowdDots = null;
 function genCrowd() {
   crowdDots = [];
@@ -456,7 +326,8 @@ function genCrowd() {
         const jx = Math.sin(x * 0.37 + y * 0.13) * 2;
         const jy = Math.cos(x * 0.23 + y * 0.41) * 1.5;
         const c = cp[Math.floor(Math.abs(Math.sin(x * 0.13 + y * 0.07 + row * 0.29)) * cp.length)];
-        crowdDots.push({x: x + jx, y: y + jy, c});
+        const skin = ['#f8d1b0','#d99a6c','#9a5b3f','#6f3f2d'][Math.floor(Math.abs(Math.sin(x * .17 + row)) * 4)];
+        crowdDots.push({x: x + jx, y: y + jy, c, skin, row, side: y < H / 2 ? 'top' : 'bottom'});
       }
     }
   }
@@ -467,13 +338,15 @@ function genCrowd() {
         const jx = Math.sin(x * 0.31 + y * 0.17) * 1.5;
         const jy = Math.cos(x * 0.19 + y * 0.43) * 2;
         const c = cp[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * cp.length)];
-        crowdDots.push({x: x + jx, y: y + jy, c});
+        const skin = ['#f8d1b0','#d99a6c','#9a5b3f','#6f3f2d'][Math.floor(Math.abs(Math.sin(y * .17 + row)) * 4)];
+        crowdDots.push({x: x + jx, y: y + jy, c, skin, row, side: x < W / 2 ? 'left' : 'right'});
       }
       for (let y = GOAL_Y2 + 4; y < H - 8; y += 8 + (row % 4)) {
         const jx = Math.sin(x * 0.31 + y * 0.17) * 1.5;
         const jy = Math.cos(x * 0.19 + y * 0.43) * 2;
         const c = cp[Math.floor(Math.abs(Math.sin(x * 0.11 + y * 0.17 + row * 0.23)) * cp.length)];
-        crowdDots.push({x: x + jx, y: y + jy, c});
+        const skin = ['#f8d1b0','#d99a6c','#9a5b3f','#6f3f2d'][Math.floor(Math.abs(Math.sin(y * .17 + row)) * 4)];
+        crowdDots.push({x: x + jx, y: y + jy, c, skin, row, side: x < W / 2 ? 'left' : 'right'});
       }
     }
   }
@@ -521,6 +394,7 @@ let _playerRocket = null;  // {playerIdx, team, fromX, fromY, toX, toY, startTim
 // Skips updating kicker in trajectory so rocket stays visible
 let _skipKickerIdx = -1;
 let _skipKickerTeam = '';
+let activeKickMotion = null; // visual pose only; never affects physics state
 
 let clockTimer = null;
 let _turnLostPending = false;
@@ -629,15 +503,36 @@ function drawField() {
   ctx.lineWidth = 8;
   ctx.strokeRect(20, 20, W-40, H-40);
 
-  // Crowd
+  // Stadium bowl and crowd.  These live outside the touchlines, so they frame
+  // the play instead of reading as coloured dots on the grass.
+  ctx.fillStyle = 'rgba(2,6,23,.78)';
+  ctx.fillRect(0, 0, W, 20); ctx.fillRect(0, H - 20, W, 20);
+  ctx.fillRect(0, 0, 20, H); ctx.fillRect(W - 20, 0, 20, H);
+  ctx.strokeStyle = 'rgba(226,232,240,.12)'; ctx.lineWidth = 1;
+  for (let lane = 3; lane < 20; lane += 5) {
+    ctx.beginPath(); ctx.moveTo(0, lane); ctx.lineTo(W, lane); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, H - lane); ctx.lineTo(W, H - lane); ctx.stroke();
+  }
   if (crowdDots) {
     for (const d of crowdDots) {
+      const depth = 1 - d.row * .12;
+      ctx.save();
+      ctx.globalAlpha = .72 + depth * .22;
+      // Shirt/body, head, and a small seat shadow make each mark read as a person.
+      ctx.fillStyle = 'rgba(0,0,0,.34)';
+      if (d.side === 'top' || d.side === 'bottom') ctx.fillRect(d.x - 3, d.y + (d.side === 'top' ? 3 : -5), 6, 2);
+      else ctx.fillRect(d.x + (d.side === 'left' ? 3 : -5), d.y - 3, 2, 6);
       ctx.fillStyle = d.c;
-      ctx.beginPath(); ctx.arc(d.x, d.y, 2, 0, Math.PI * 2); ctx.fill();
-      ctx.fillRect(d.x - 2.5, d.y + 2, 5, 5);
-      ctx.fillRect(d.x - 3, d.y + 6, 6, 2);
+      ctx.beginPath(); ctx.arc(d.x, d.y + (d.side === 'top' ? 2 : d.side === 'bottom' ? -2 : 0), 2.8, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = d.skin;
+      ctx.beginPath(); ctx.arc(d.x, d.y + (d.side === 'top' ? -2 : d.side === 'bottom' ? 2 : -2), 1.7, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
     }
   }
+  // Scarves and banners break up the rows and sell the match-day atmosphere.
+  ctx.fillStyle = 'rgba(255,255,255,.14)'; ctx.fillRect(W * .15, 3, W * .12, 3); ctx.fillRect(W * .72, H - 6, W * .13, 3);
+  ctx.fillStyle = CUST_TEAM_A; ctx.fillRect(W * .15, 3, W * .06, 3);
+  ctx.fillStyle = CUST_TEAM_B; ctx.fillRect(W * .79, H - 6, W * .06, 3);
 
   ctx.save();
 
@@ -716,9 +611,21 @@ function drawField() {
   ctx.restore();
 }
 
-function drawPlayer(x, y, team, label, highlight) {
+function getKickPose(team, playerIdx) {
+  if (!activeKickMotion || activeKickMotion.team !== team || activeKickMotion.playerIdx !== playerIdx) return null;
+  return activeKickMotion;
+}
+
+function drawPlayer(x, y, team, label, highlight, kickPose) {
   const col = team === 'a' ? CUST_TEAM_A : CUST_TEAM_B;
   ctx.save();
+  if (kickPose) {
+    // A slight lean and a forward boot turn the disc into an obvious kick,
+    // without changing its hit area or the server's physics position.
+    ctx.translate(x, y);
+    ctx.rotate(kickPose.angle);
+    x = 0; y = 0;
+  }
   ctx.shadowColor = 'rgba(0,0,0,.25)';
   ctx.shadowBlur  = 8;
   ctx.shadowOffsetY = 3;
@@ -747,6 +654,14 @@ function drawPlayer(x, y, team, label, highlight) {
   g2.addColorStop(0, lighten(col)); g2.addColorStop(1, col);
   ctx.fillStyle = g2; ctx.fill();
   ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 2; ctx.stroke();
+
+  if (kickPose) {
+    const leg = PLAYER_R - 3 + 10 * kickPose.strike;
+    ctx.strokeStyle = 'rgba(15,23,42,.78)'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(5, 7); ctx.lineTo(leg, 3); ctx.stroke();
+    ctx.strokeStyle = '#f8fafc'; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.moveTo(leg - 2, 3); ctx.lineTo(leg + 5, 3); ctx.stroke();
+  }
 
   // Number
   ctx.fillStyle = '#fff';
@@ -1013,7 +928,7 @@ function render(ballOverride) {
     const aiB = aiDragPreview && aiDragPreview.team === 'b' ? aiDragPreview.playerIdx : -1;
     gameState.players_b.forEach((p, i) => {
       if (i === 0) { drawKeeper(p.x, p.y, 'b'); return; }
-      drawPlayer(p.x, p.y, 'b', SHIRT[i], i === aiB);
+      drawPlayer(p.x, p.y, 'b', SHIRT[i], i === aiB, getKickPose('b', i));
     });
 
     // Players A — always drawn at home; dragged player highlighted; also AI-A preview
@@ -1022,7 +937,7 @@ function render(ballOverride) {
     gameState.players_a.forEach((p, i) => {
       if (i === 0) { drawKeeper(p.x, p.y, 'a'); return; }
       const hl = (canSelectA && dragPlayer === null) || i === dragPlayer || i === aiA;
-      drawPlayer(p.x, p.y, 'a', SHIRT[i], hl);
+      drawPlayer(p.x, p.y, 'a', SHIRT[i], hl, getKickPose('a', i));
       if (turnFraction < 1) drawShotClockRing(p.x, p.y, PLAYER_R, turnFraction, CUST_TEAM_A);
     });
   }
@@ -1270,23 +1185,56 @@ function animateTrajectory(trajectory, onDone) {
   requestAnimationFrame(frame);
 }
 
-// Rocket player from fromPos to toPos, stays there permanently.
+// A kick has a short load-up, a decisive drive, then a little follow-through.
+// This creates a readable cause/effect with the ball instead of a linear rocket.
 function animatePlayerMove(playerIdx, team, fromPos, toPos, onDone) {
   const players = team === 'a' ? gameState.players_a : gameState.players_b;
   const p = players[playerIdx];
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    p.x = toPos.x; p.y = toPos.y;
+    onDone();
+    return;
+  }
   p.x = fromPos.x; p.y = fromPos.y;
-  const duration = Math.max(60, 192 / animSpeed); // ms
+  const dx = toPos.x - fromPos.x, dy = toPos.y - fromPos.y;
+  const distance = Math.hypot(dx, dy) || 1;
+  const ux = dx / distance, uy = dy / distance;
+  const angle = Math.atan2(dy, dx);
+  const loadBack = Math.min(8, distance * .08);
+  const load = {x: fromPos.x - ux * loadBack, y: fromPos.y - uy * loadBack};
+  const overshoot = {x: toPos.x + ux * Math.min(7, distance * .035), y: toPos.y + uy * Math.min(7, distance * .035)};
+  const duration = Math.max(150, 310 / animSpeed); // includes anticipation + follow-through
   let startTime = null;
 
   function tick(timestamp) {
     if (!startTime) startTime = timestamp;
     const t = Math.min((timestamp - startTime) / duration, 1.0);
-    const ease = 1 - Math.pow(1 - t, 2);  // ease-out
-    p.x = fromPos.x + (toPos.x - fromPos.x) * ease;
-    p.y = fromPos.y + (toPos.y - fromPos.y) * ease;
+    if (t < .16) {
+      const q = t / .16;
+      const ease = q * q;
+      p.x = lerp(fromPos.x, load.x, ease);
+      p.y = lerp(fromPos.y, load.y, ease);
+      activeKickMotion = {team, playerIdx, angle, strike: 0};
+    } else if (t < .72) {
+      const q = (t - .16) / .56;
+      const ease = 1 - Math.pow(1 - q, 3);
+      p.x = lerp(load.x, overshoot.x, ease);
+      p.y = lerp(load.y, overshoot.y, ease);
+      activeKickMotion = {team, playerIdx, angle, strike: Math.sin(q * Math.PI * .9)};
+    } else {
+      const q = (t - .72) / .28;
+      const ease = 1 - Math.pow(1 - q, 2);
+      p.x = lerp(overshoot.x, toPos.x, ease);
+      p.y = lerp(overshoot.y, toPos.y, ease);
+      activeKickMotion = {team, playerIdx, angle, strike: Math.max(0, 1 - q)};
+    }
     render();
     if (t < 1.0) requestAnimationFrame(tick);
-    else { p.x = toPos.x; p.y = toPos.y; onDone(); }
+    else {
+      p.x = toPos.x; p.y = toPos.y;
+      activeKickMotion = null;
+      onDone();
+    }
   }
   requestAnimationFrame(tick);
 }

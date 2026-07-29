@@ -169,7 +169,7 @@ def test_penalty_shootout():
         test("period is penalties", st["period"] == "penalties")
         test("ball at penalty spot A", abs(st["ball"]["x"] - 790) < 1)
 
-    traj, scored, desc = apply_penalty_kick(st, 0, -25, 100, True)
+    traj, scored, desc = apply_penalty_kick(st, 0, -20, 100, True)
     test("penalty scored", scored == True)
     test("penalty_a_score incremented", st["penalty_a_score"] == 1)
     test("penalty_kick_num incremented", st["penalty_kick_num"] == 1)

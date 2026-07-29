@@ -26,7 +26,7 @@ _GOAL_DEPTH: float = 50.0
 _PENALTY_SPOT_X_A  = FIELD_W * 0.79     # ~788
 _PENALTY_SPOT_X_B  = FIELD_W * 0.21     # ~212
 _PENALTY_SPOT_Y    = FIELD_H * 0.5      # ~312
-_PENALTY_KICKER_BEHIND = 45.0
+_PENALTY_KICKER_BEHIND = 60.0
 _PENALTY_KEEPER_X_A    = FIELD_W * 0.95  # ~945
 _PENALTY_KEEPER_X_B    = FIELD_W * 0.05  # ~56
 _PENALTY_KEEPER_DIVE_VEL = 700.0
@@ -62,7 +62,7 @@ def _home_positions(count: int, side: str) -> list[tuple[float, float]]:
     formations = {
         1:  (0, 0, 1),
         2:  (1, 0, 1),
-        3:  (1, 1, 1),
+        3:  (1, 0, 2),
         4:  (2, 0, 2),
         5:  (2, 1, 2),
         6:  (3, 1, 2),
@@ -181,6 +181,7 @@ def new_soccer_state(
         "penalty_goalkeeper_move": None,
         "referee":       {"x": REFEREE_POS[0], "y": REFEREE_POS[1]},
         "_finalized":    False,
+        "turn_start_time": time.time(),
     }
 
 
@@ -290,7 +291,11 @@ def _build_space(state: dict):
 # ── Penalty shootout ──────────────────────────────────────────────────────────
 
 def _setup_penalty_positions(state: dict, is_player_a: bool) -> None:
-    """Place ball and players for a penalty kick."""
+    """Place ball and players for a penalty kick.
+
+    Outfield players (index > 0) stand in a single line at midfield.
+    The kicker is near the ball, the keeper on the goal line.
+    """
     if is_player_a:
         spot_x = _PENALTY_SPOT_X_A
         kicker_x = spot_x - _PENALTY_KICKER_BEHIND
@@ -304,14 +309,26 @@ def _setup_penalty_positions(state: dict, is_player_a: bool) -> None:
     keeper_cy = _PENALTY_KEEPER_DIVE_TARGETS.get("center", _PENALTY_SPOT_Y)
     if is_player_a:
         state["players_a"][0] = {"x": kicker_x, "y": _PENALTY_SPOT_Y}
-        _reset_outfield(state, "a")
         state["players_b"][0] = {"x": keeper_x, "y": keeper_cy}
-        _reset_outfield(state, "b")
     else:
         state["players_b"][0] = {"x": kicker_x, "y": _PENALTY_SPOT_Y}
-        _reset_outfield(state, "b")
         state["players_a"][0] = {"x": keeper_x, "y": keeper_cy}
-        _reset_outfield(state, "a")
+
+    # All outfield players (index > 0) stand in a line at midfield
+    center_x = FIELD_W / 2
+    total_outfield = 0
+    for side in ("a", "b"):
+        players = state["players_a"] if side == "a" else state["players_b"]
+        total_outfield += max(0, len(players) - 1)
+    y_spacing = FIELD_H / (total_outfield + 1) if total_outfield else FIELD_H / 2
+    outfield_pos = 1
+    for side, x_off in (("a", -12), ("b", 12)):
+        players = state["players_a"] if side == "a" else state["players_b"]
+        for i in range(1, len(players)):
+            players[i] = {"x": center_x + x_off, "y": y_spacing * outfield_pos}
+            outfield_pos += 1
+
+    state["referee"] = {"x": -100, "y": -100}
     state["penalty_goalkeeper_move"] = None
 
 
@@ -484,7 +501,7 @@ def apply_penalty_kick(
 
     Returns (trajectory, scored, description).
     """
-    player_idx = max(0, min(2, player_idx))
+    player_idx = max(0, min(len(state["players_a"]) - 1, player_idx))
     keeper_move = state.get("penalty_goalkeeper_move") or "center"
 
     space, kicker_body, ball_body, keeper_body = _build_penalty_space(state, is_player_a)
@@ -724,6 +741,7 @@ def apply_kick(
 
     state["kick_count"] = state.get("kick_count", 0) + 1
     state["is_player_a"] = not is_player_a
+    state["turn_start_time"] = time.time()
     state["_finalized"] = False
 
     state["move_history"].append({
@@ -756,7 +774,6 @@ def apply_kick(
             state["penalty_a_score"] = 0
             state["penalty_b_score"] = 0
             state["penalty_kicks"] = []
-            state["penalty_goalkeeper_move"] = None
             state["is_player_a"] = True
             _setup_penalty_positions(state, True)
         else:
