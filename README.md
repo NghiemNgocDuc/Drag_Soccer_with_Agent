@@ -1,16 +1,16 @@
 # Agent Soccer
 
-[![Live](https://img.shields.io/badge/Live-drag--soccer--with--agent.onrender.com-blue)](https://drag-soccer-with-agent.onrender.com/)
+[![Live](https://img.shields.io/badge/Live--agent.onrender.com-blue)](https://drag-soccer-with-agent.onrender.com/)
 
 A top-down slingshot soccer game where you code your own AI to play against built-in agents, challenge friends online, or watch AIs battle each other in real time.
 
-Built with Flask, HTML5 Canvas, Redis, and Supabase.
+Built with Flask, HTML5 Canvas, Redis, Supabase, and a growing ecosystem of services.
 
 ---
 
 ## How it works
 
-Each turn you drag a player **backward** from their body — like a slingshot — then release. The player rockets forward, hits the ball on contact, and the ball flies across the 800×500 field. First team to 5 goals wins, or whoever leads after 60 kicks.
+Each turn you drag a player **backward** from their body — like a slingshot — then release. The player rockets forward, hits the ball on contact, and the ball flies across the field. First team to 5 goals wins, or whoever leads after 60 kicks.
 
 Physics include wall bounces, player-player collisions (with billiard-style push), friction, and goal-tunnel detection so the ball only scores if it reaches the back wall through the goal opening.
 
@@ -24,11 +24,15 @@ Physics include wall bounces, player-player collisions (with billiard-style push
 - **Online multiplayer** — real-time 1v1 via invite link or username search, no account needed to join
 - **Friend system** — send/accept friend requests, invite friends to games directly from the lobby
 - **Tournaments** — create and join single-elimination tournaments; AI vs AI matches auto-advance
+- **AI Arena** — benchmark custom models against built-in agents with win rates, shot accuracy, heatmaps, and head-to-head matrix
 - **Replays** — watch recorded match replays with playback controls
 - **AI Playground** — write a custom Python AI in the browser, import a `.py` file from disk, validate and test it live against any built-in agent
 - **My Models** — save, edit, and publish your custom AIs; use them as opponents in the main game
+- **Research Hub** — browse and search academic papers on multi-agent systems, game theory, and RL via Semantic Scholar
+- **Feedback system** — in-app feedback widget powered by ProductBridge
 - **Leaderboard & Profile** — win/loss stats tracked per user
-- **Auth** — email/password via Supabase; guests can join online rooms without an account
+- **Auth** — email/password via Supabase or Clerk
+- **Friends & invites** — add friends by username, invite directly from the lobby
 
 ---
 
@@ -79,11 +83,16 @@ def get_ai_move(state, is_player_a):
 
 | Layer | Technology |
 |---|---|
-| Backend | Python 3.11, Flask 3 |
+| Backend | Python 3.11+, Flask 3 |
 | Game state | Upstash Redis (rooms, sessions, friends, tournaments) |
-| Auth & DB | Supabase (profiles, games, user models) |
+| Auth & DB | Supabase (profiles, games, user models) + Clerk (optional auth) |
+| Vector DB | Pinecone (research paper embeddings) |
 | Frontend | Vanilla JS, HTML5 Canvas, CSS glass-morphism theme |
 | Code editor | CodeMirror 5 |
+| Email | Resend (transactional) |
+| Analytics | PostHog (product analytics) |
+| Error tracking | Sentry |
+| Feedback | ProductBridge |
 | Deployment | Render (`render.yaml` included) |
 
 ---
@@ -91,14 +100,14 @@ def get_ai_move(state, is_player_a):
 ## Project Structure
 
 ```
-├── app.py                   # Flask routes (game, online, playground, friends, auth, tournaments)
-├── config.py                # Environment variable loading
+├── app.py                   # Flask routes (game, online, playground, friends, auth, tournaments, research, arena)
+├── config.py                # Environment variable loading (dev-mode fallback for production safety)
 ├── render.yaml              # Render deployment config
 ├── requirements.txt
 ├── supabase_schema.sql      # Run once in Supabase SQL Editor to create tables
 │
 ├── models/
-│   ├── soccer_logic.py      # Physics engine (kicks, collisions, goals)
+│   ├── soccer_logic.py      # Physics engine (kicks, collisions, goals, penalties)
 │   ├── minimax.py
 │   ├── monte_carlo.py
 │   ├── q_learning.py
@@ -115,13 +124,26 @@ def get_ai_move(state, is_player_a):
 │   ├── supabase_client.py   # Supabase anon + service clients
 │   ├── games.py             # Save results, leaderboard queries
 │   ├── user_models.py       # CRUD for user-uploaded AI models
-│   └── tournaments.py       # Tournament creation, bracket generation, match results
+│   ├── tournaments.py       # Tournament creation, bracket generation, match results
+│   ├── research_papers.py   # DB layer for saved research papers
+│   └── saved_states.py      # Persist/load game states
+│
+├── services/
+│   ├── clerk.py             # Clerk JWT verification
+│   ├── resend.py            # Transactional email
+│   ├── posthog.py           # Product analytics
+│   ├── sentry.py            # Error monitoring
+│   ├── productbridge.py     # Feedback collection
+│   ├── pinecone.py          # Vector database for paper search
+│   └── paper_search.py      # Semantic Scholar API integration
 │
 ├── user_models/
 │   └── runner.py            # Sandboxed Python execution for custom AI (AST scan + timeout)
 │
 ├── static/
-│   └── style.css            # Glass-morphism theme, light mode
+│   ├── style.css            # Glass-morphism theme, light mode
+│   ├── sound.js             # Game sound effects
+│   └── feedback.js          # In-app feedback widget
 │
 └── templates/
     ├── index.html           # Main game (slingshot canvas)
@@ -132,9 +154,12 @@ def get_ai_move(state, is_player_a):
     ├── profile.html
     ├── login.html
     ├── register.html
+    ├── customize.html       # Match customization (players, colors, field)
     ├── tournaments.html     # Tournament listings
     ├── tournament_view.html # Tournament bracket view
-    └── replay.html          # Match replay viewer
+    ├── replay.html          # Match replay viewer
+    ├── arena.html           # AI Arena benchmarking
+    └── research.html        # Research hub
 ```
 
 ---
@@ -163,7 +188,6 @@ SUPABASE_SERVICE_KEY=...
 
 # Upstash Redis (create a database at upstash.com)
 UPSTASH_REDIS_URL=rediss://...
-UPSTASH_REDIS_TOKEN=...
 ```
 
 Run the schema once in your Supabase SQL Editor:
@@ -179,7 +203,7 @@ python app.py
 # opens http://localhost:5000
 ```
 
-The game runs fully without Supabase/Redis in offline dev mode — auth is bypassed and state is held in-memory.
+Set `DEV_MODE=1` to run without Supabase/Redis — auth is bypassed and state is held in-memory.
 
 ---
 
@@ -200,14 +224,21 @@ Create a tournament at `/tournaments`, invite participants, and generate a singl
 
 ---
 
+## AI Arena
+
+Visit `/arena` to benchmark any custom model against the 7 built-in agents. Results are shown as a head-to-head win-rate matrix with shot accuracy stats and position heatmaps.
+
+---
+
+## Research Hub
+
+Visit `/research` to search academic papers from Semantic Scholar on multi-agent systems, game theory, and reinforcement learning. Save papers for later, rate them, and get AI-generated summaries.
+
+---
+
 ## Deployment
 
-The repo includes `render.yaml` for one-click deploy on [Render](https://render.com):
-
-```bash
-# Just connect the repo in Render and set your environment variables.
-# The start command is: gunicorn app:app
-```
+The repo includes `render.yaml` for one-click deploy on [Render](https://render.com). Set all environment variables from `.env.example` in the Render dashboard.
 
 ---
 
