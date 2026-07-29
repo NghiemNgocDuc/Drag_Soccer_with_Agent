@@ -334,6 +334,19 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
     </div>
   </div>
 
+  <!-- Player Stats (Point-Buy) -->
+  <details class="glass-card" style="margin-top:18px">
+    <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;padding:8px 0">Player Stats ⚙️ <span style="font-weight:400;font-size:.8rem;color:var(--muted)">200 pts per player, 20–80 per stat</span></summary>
+    <div id="stat-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+      <div><h3 style="margin:0 0 8px 0">Team A</h3><div id="team-a-stats"></div></div>
+      <div><h3 style="margin:0 0 8px 0">Team B</h3><div id="team-b-stats"></div></div>
+    </div>
+    <p style="font-size:.78rem;color:var(--muted);margin-top:8px">
+      <strong>Size</strong> = radius (12–28px) · <strong>Power</strong> = kick velocity (5–15x) · 
+      <strong>Weight</strong> = mass (3–7) · <strong>Agility</strong> = friction (1000–2000)
+    </p>
+  </details>
+
   <!-- Preview -->
   <div class="glass-card">
     <h2>Preview</h2>
@@ -373,10 +386,69 @@ function syncFromInputs(){
   document.getElementById('player_count_val').textContent=current.player_count;
   document.getElementById('stadium_vignette_val').textContent=Math.round(current.stadium_vignette);
   document.getElementById('power_cap_val').textContent=current.power_cap;
+  // Read player stats from sliders
+  var ps = {a:[],b:[]};
+  ['a','b'].forEach(function(t){
+    for(var i=0;i<3;i++){
+      var o = {};
+      STAT_NAMES.forEach(function(s){
+        var el = document.getElementById('stat-'+t+i+'_'+s);
+        o[s] = el ? parseInt(el.value,10) : 50;
+      });
+      ps[t].push(o);
+    }
+  });
+  current.player_stats = ps;
 }
 document.querySelectorAll('input[type=color]').forEach(function(el){el.addEventListener('input',function(){syncFromInputs();updateHex(el.id);renderPreview()})});
 document.querySelectorAll('select').forEach(function(el){el.addEventListener('change',function(){syncFromInputs();renderPreview()})});
 document.querySelectorAll('input[type=range]').forEach(function(el){el.addEventListener('input',function(){syncFromInputs();renderPreview()})});
+
+// ── Player stats point-buy ───────────────────────────────────────────────────
+var STAT_NAMES = ['size','power','weight','agility'];
+var STAT_LABELS = {size:'Size',power:'Power',weight:'Weight',agility:'Agility'};
+
+function buildStatSliders(team, containerId) {
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  var html = '';
+  for (var i = 0; i < 3; i++) {
+    var stats = (CUST.player_stats && CUST.player_stats[team] && CUST.player_stats[team][i])
+      || {size:50, power:50, weight:50, agility:50};
+    html += '<div class="stat-player-card" style="background:rgba(255,255,255,.04);border-radius:10px;padding:10px;margin-bottom:10px">';
+    html += '<div style="font-weight:600;font-size:.85rem;margin-bottom:6px">Player ' + i + ' <span id="total-' + team + i + '" style="font-weight:400;color:var(--muted)">200/200</span></div>';
+    STAT_NAMES.forEach(function(s) {
+      var val = stats[s] !== undefined ? stats[s] : 50;
+      html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0">';
+      html += '<label for="stat-' + team + i + '_' + s + '" style="width:55px;font-size:.78rem;color:var(--muted)">' + STAT_LABELS[s] + '</label>';
+      html += '<input type="range" id="stat-' + team + i + '_' + s + '" min="20" max="80" value="' + val + '" style="flex:1;height:4px" oninput="updateStatTotal(\'' + team + '\',' + i + ')">';
+      html += '<span id="stat-val-' + team + i + '_' + s + '" style="width:22px;text-align:right;font-size:.8rem">' + val + '</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+  container.innerHTML = html;
+  // init totals
+  for (var j = 0; j < 3; j++) updateStatTotal(team, j);
+}
+
+function updateStatTotal(team, idx) {
+  var total = 0;
+  STAT_NAMES.forEach(function(s) {
+    var el = document.getElementById('stat-' + team + idx + '_' + s);
+    if (!el) return;
+    var v = parseInt(el.value, 10);
+    document.getElementById('stat-val-' + team + idx + '_' + s).textContent = v;
+    total += v;
+  });
+  var span = document.getElementById('total-' + team + idx);
+  if (!span) return;
+  span.textContent = total + '/200';
+  span.style.color = total === 200 ? 'var(--muted)' : (total > 200 ? '#ef4444' : '#f59e0b');
+}
+
+buildStatSliders('a', 'team-a-stats');
+buildStatSliders('b', 'team-b-stats');
 
 function resetDefaults(){
   Object.keys(DEFAULTS).forEach(function(key){
@@ -387,6 +459,16 @@ function resetDefaults(){
       else if(RANGE_KEYS.indexOf(key)!==-1){el.value=DEFAULTS[key]}
     }
     updateHex(key);
+  });
+  // Reset stats to default (50)
+  ['a','b'].forEach(function(t){
+    for(var i=0;i<3;i++){
+      STAT_NAMES.forEach(function(s){
+        var el=document.getElementById('stat-'+t+i+'_'+s);
+        if(el) el.value=50;
+      });
+      updateStatTotal(t,i);
+    }
   });
   syncFromInputs();renderPreview();
   showFlash('Reset to defaults (not saved yet)','success');

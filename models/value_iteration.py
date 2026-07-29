@@ -8,14 +8,18 @@ MODEL_NAME  = "Value Iteration"
 DESCRIPTION = "Position-value player selection with fine-grained goal-corner angle search."
 
 
-def _player_value(px: float, py: float, bx: float, by: float, is_player_a: bool) -> float:
+def _player_value(p: dict, bx: float, by: float, is_player_a: bool) -> float:
+    px, py = p["x"], p["y"]
     goal_angle = abs(math.degrees(math.atan2(
         ((FIELD_W if is_player_a else 0) - px),
         ((GOAL_Y1 + GOAL_Y2) / 2 - py)
     )))
     dist_to_ball = math.hypot(px - bx, py - by)
     centrality = -abs(py - FIELD_H / 2)
-    return centrality - dist_to_ball * 0.3 - goal_angle * 2
+    # Speed-reachability: a farther player with higher Power can cover more ground
+    power_stat = (p.get("stats") or {}).get("power", 50)
+    reachability = dist_to_ball * 0.3 / max(0.5, power_stat / 50.0)
+    return centrality - reachability - goal_angle * 2
 
 
 def get_ai_move(state: dict, is_player_a: bool) -> tuple[int, float, float]:
@@ -25,8 +29,8 @@ def get_ai_move(state: dict, is_player_a: bool) -> tuple[int, float, float]:
     defensive = needs_clear(state, is_player_a)
     goal_tgts = goal_targets(is_player_a)
 
-    # Score each player
-    scored_players = [(i, _player_value(p["x"], p["y"], bx, by, is_player_a)) for i, p in enumerate(players)]
+    # Score each player with speed-reachability awareness
+    scored_players = [(i, _player_value(p, bx, by, is_player_a)) for i, p in enumerate(players)]
     best_pidx = max(scored_players, key=lambda x: x[1])[0]
 
     p = players[best_pidx]

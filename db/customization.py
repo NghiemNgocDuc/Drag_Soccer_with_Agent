@@ -1,6 +1,12 @@
 """Supabase operations for user customization settings."""
 from __future__ import annotations
 
+_DEFAULT_PLAYER_STATS = [
+    {"size": 50, "power": 50, "weight": 50, "agility": 50},
+    {"size": 50, "power": 50, "weight": 50, "agility": 50},
+    {"size": 50, "power": 50, "weight": 50, "agility": 50},
+]
+
 DEFAULT_CUSTOMIZATION = {
     "team_a_color": "#3b82f6",
     "team_b_color": "#ef4444",
@@ -27,6 +33,10 @@ DEFAULT_CUSTOMIZATION = {
     "half_length": 45,
     "power_cap": 100,
     "win_goal_limit": 5,
+    "player_stats": {
+        "a": _DEFAULT_PLAYER_STATS,
+        "b": _DEFAULT_PLAYER_STATS,
+    },
 }
 
 _ALLOWED = set(DEFAULT_CUSTOMIZATION.keys())

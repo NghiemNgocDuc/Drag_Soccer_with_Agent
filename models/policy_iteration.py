@@ -8,13 +8,17 @@ MODEL_NAME  = "Policy Iteration"
 DESCRIPTION = "Lane-optimal player with fine angle sweep and goal-corner targeting."
 
 
-def _lane_score(px: float, py: float, bx: float, by: float, is_player_a: bool) -> float:
+def _lane_score(p: dict, bx: float, by: float, is_player_a: bool) -> float:
+    px, py = p["x"], p["y"]
     dist = math.hypot(px - bx, py - by)
     angle_to_goal = abs(math.degrees(math.atan2(
         bx - px,
         by - py
     )))
-    return -dist - angle_to_goal * 1.5
+    # Speed-reachability: higher Power players cover more ground per kick
+    power_stat = (p.get("stats") or {}).get("power", 50)
+    reachability = dist / max(0.5, power_stat / 50.0)
+    return -reachability - angle_to_goal * 1.5
 
 
 def get_ai_move(state: dict, is_player_a: bool) -> tuple[int, float, float]:
@@ -25,7 +29,7 @@ def get_ai_move(state: dict, is_player_a: bool) -> tuple[int, float, float]:
     goal_tgts = goal_targets(is_player_a)
 
     best_pidx = max(range(len(players)), key=lambda i: _lane_score(
-        players[i]["x"], players[i]["y"], bx, by, is_player_a
+        players[i], bx, by, is_player_a
     ))
     p = players[best_pidx]
     dist = dist_to_goal(p["x"], p["y"], is_player_a)

@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Replay 3D — Agent Soccer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
+.replay-controls { display:flex; justify-content:center; gap:15px; margin-top:20px; }
+.btn-play { font-size:1.1rem; padding:10px 25px; }
+.canvas-wrap{
+  border-radius:22px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(14,165,233,.12),0 0 0 1px rgba(255,255,255,.4);
+  position:relative;cursor:default;background:#020617;
+}
+#three-container{display:block;width:100%;height:100%;min-height:500px;touch-action:none}
+</style>
+</head>
+<body>
+<nav>
+  <a class="nav-brand title-gradient" href="/">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/" class="nav-link">Game</a>
+    <a href="/play3d" class="nav-link">3D</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/tournaments" class="nav-link active">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="/customize" class="nav-link">Customize</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+  </div>
+</nav>
+
+<main>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <h1>Match Replay <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></h1>
+    <div>
+      <a href="/tournaments/{{ t.id }}" class="btn btn-ghost" style="margin-right:8px">Back to Bracket</a>
+      <a href="/tournaments/{{ t.id }}/watch/{{ match.id }}" class="btn btn-ghost">2D Replay</a>
+    </div>
+  </div>
+
+  <div class="glass-card">
+    <div class="hud">
+      <div class="team team-a">
+        <div class="team-name">Player A</div>
+        <div class="team-score" id="score-a">0</div>
+      </div>
+      <div class="hud-mid">
+        <div class="kick-counter">Move <span id="kick-count">0</span> / {{ match.replay_data|length }}</div>
+        <div class="turn-badge turn-a" id="turn-badge">Ready</div>
+      </div>
+      <div class="team team-b">
+        <div class="team-name">Player B</div>
+        <div class="team-score" id="score-b">0</div>
+      </div>
+    </div>
+
+    <div class="stadium">
+      <div class="canvas-wrap">
+        <div id="three-container"></div>
+      </div>
+    </div>
+
+    <div class="replay-controls">
+      <button class="btn btn-primary btn-play" id="btn-next" onclick="playNextMove3D()">Next Move</button>
+      <button class="btn btn-ghost btn-play" id="btn-auto" onclick="toggleAutoPlay3D()">Auto Play</button>
+    </div>
+  </div>
+</main>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Constants ────────────────────────────────────────────────────────────────
+const W = 1000, H = 625;
+const PLAYER_R = 20, BALL_R = 12;
+const GOAL_Y1 = 231, GOAL_Y2 = 394, GOAL_DEPTH = 50;
+
+// ── Coordinate mapping ───────────────────────────────────────────────────────
+function serverToWorld(sx, sy, sz) {
+  if (sz === undefined) sz = 0;
+  return new THREE.Vector3(sx - 500, sz, -(sy - 312.5));
+}
+function worldToServer(v) {
+  return { x: v.x + 500, y: -v.z + 312.5, z: v.y };
+}
+
+// ── Replay data ──────────────────────────────────────────────────────────────
+const replayData = {{ match.replay_data | tojson }};
+let currentMove = 0;
+let isAnimating = false;
+let autoPlayOn = false;
+
+// ── Renderer ─────────────────────────────────────────────────────────────────
+const container = document.getElementById('three-container');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+container.appendChild(renderer.domElement);
+function resizeRenderer() {
+  const r = container.getBoundingClientRect();
+  renderer.setSize(r.width || 1200, r.height || 700);
+}
+resizeRenderer();
+window.addEventListener('resize', resizeRenderer);
+
+// ── Scene & Camera ─────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f172a);
+scene.fog = new THREE.Fog(0x0f172a, 800, 1400);
+
+const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 1, 3000);
+camera.position.set(-450, 300, 150);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minPolarAngle = 0.1;
+controls.maxPolarAngle = Math.PI / 2.05;
+controls.minDistance = 200;
+controls.maxDistance = 1600;
+controls.update();
+
+// ── Lights ──────────────────────────────────────────────────────────────────
+scene.add(new THREE.AmbientLight(0x8899bb, 0.6));
+scene.add(new THREE.HemisphereLight(0x87ceeb, 0x362d1e, 0.8));
+const sunLight = new THREE.DirectionalLight(0xffeedd, 2.2);
+sunLight.position.set(200, 600, 400);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 1024;
+sunLight.shadow.mapSize.height = 1024;
+sunLight.shadow.camera.near = 200;
+sunLight.shadow.camera.far = 1200;
+sunLight.shadow.camera.left = -600;
+sunLight.shadow.camera.right = 600;
+sunLight.shadow.camera.top = 600;
+sunLight.shadow.camera.bottom = -600;
+scene.add(sunLight);
+const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
+fillLight.position.set(-200, 300, -300);
+scene.add(fillLight);
+
+// ── Field ───────────────────────────────────────────────────────────────────
+const fieldGroup = new THREE.Group();
+scene.add(fieldGroup);
+
+const grassMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.9, metalness: 0.0 });
+const grass = new THREE.Mesh(new THREE.PlaneGeometry(1000, 625), grassMat);
+grass.rotation.x = -Math.PI / 2;
+grass.position.set(0, 0, 0);
+grass.receiveShadow = true;
+fieldGroup.add(grass);
+
+const subMat = new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 1 });
+const sub = new THREE.Mesh(new THREE.PlaneGeometry(1000, 625), subMat);
+sub.rotation.x = -Math.PI / 2;
+sub.position.set(0, -0.5, 0);
+fieldGroup.add(sub);
+
+function line2d(sx1, sy1, sx2, sy2, color = 0xffffff, width = 2) {
+  const a = serverToWorld(sx1, sy1);
+  const b = serverToWorld(sx2, sy2);
+  const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+  const mat = new THREE.LineBasicMaterial({ color, linewidth: width, transparent: true, opacity: 0.6 });
+  const line = new THREE.Line(geo, mat);
+  line.position.y = 0.3;
+  return line;
+}
+
+function arc2d(sx, sy, radius, startAngle, endAngle, segments = 32) {
+  const pts = [];
+  for (let i = 0; i <= segments; i++) {
+    const t = startAngle + (endAngle - startAngle) * (i / segments);
+    pts.push(serverToWorld(sx + Math.cos(t) * radius, sy + Math.sin(t) * radius));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.6 });
+  const line = new THREE.Line(geo, mat);
+  line.position.y = 0.3;
+  return line;
+}
+
+fieldGroup.add(line2d(0, 0, W, 0));
+fieldGroup.add(line2d(W, 0, W, H));
+fieldGroup.add(line2d(W, H, 0, H));
+fieldGroup.add(line2d(0, H, 0, 0));
+fieldGroup.add(line2d(W / 2, 0, W / 2, H));
+fieldGroup.add(arc2d(W / 2, H / 2, 60, 0, Math.PI * 2));
+
+const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const dot = new THREE.Mesh(new THREE.CircleGeometry(3, 16), dotMat);
+dot.rotation.x = -Math.PI / 2;
+dot.position.copy(serverToWorld(W / 2, H / 2));
+dot.position.y = 0.3;
+fieldGroup.add(dot);
+
+const PA_OFF = 20, PA_W = 100, PA_H = 180;
+fieldGroup.add(line2d(PA_OFF, (H - PA_H) / 2, PA_OFF, (H + PA_H) / 2));
+fieldGroup.add(line2d(PA_OFF, (H - PA_H) / 2, PA_OFF + PA_W, (H - PA_H) / 2));
+fieldGroup.add(line2d(PA_OFF + PA_W, (H - PA_H) / 2, PA_OFF + PA_W, (H + PA_H) / 2));
+fieldGroup.add(line2d(PA_OFF, (H + PA_H) / 2, PA_OFF + PA_W, (H + PA_H) / 2));
+fieldGroup.add(line2d(W - PA_OFF, (H - PA_H) / 2, W - PA_OFF, (H + PA_H) / 2));
+fieldGroup.add(line2d(W - PA_OFF, (H - PA_H) / 2, W - PA_OFF - PA_W, (H - PA_H) / 2));
+fieldGroup.add(line2d(W - PA_OFF - PA_W, (H - PA_H) / 2, W - PA_OFF - PA_W, (H + PA_H) / 2));
+fieldGroup.add(line2d(W - PA_OFF, (H + PA_H) / 2, W - PA_OFF - PA_W, (H + PA_H) / 2));
+
+const GA_W = 50, GA_D = 36;
+fieldGroup.add(line2d(20, GOAL_Y1 - GA_W, 20 + GA_D, GOAL_Y1 - GA_W));
+fieldGroup.add(line2d(20 + GA_D, GOAL_Y1 - GA_W, 20 + GA_D, GOAL_Y2 + GA_W));
+fieldGroup.add(line2d(20 + GA_D, GOAL_Y2 + GA_W, 20, GOAL_Y2 + GA_W));
+fieldGroup.add(line2d(W - 20, GOAL_Y1 - GA_W, W - 20 - GA_D, GOAL_Y1 - GA_W));
+fieldGroup.add(line2d(W - 20 - GA_D, GOAL_Y1 - GA_W, W - 20 - GA_D, GOAL_Y2 + GA_W));
+fieldGroup.add(line2d(W - 20 - GA_D, GOAL_Y2 + GA_W, W - 20, GOAL_Y2 + GA_W));
+
+const spotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+const spot = new THREE.Mesh(new THREE.CircleGeometry(3, 12), spotMat);
+spot.rotation.x = -Math.PI / 2;
+spot.position.copy(serverToWorld(120, H / 2));
+spot.position.y = 0.3;
+fieldGroup.add(spot);
+const spot2 = spot.clone();
+spot2.position.copy(serverToWorld(W - 120, H / 2));
+spot2.position.y = 0.3;
+fieldGroup.add(spot2);
+
+// Penalty arcs
+for (const cx of [120, W - 120]) {
+  const pts = [];
+  const aOff = cx < W / 2 ? -0.55 : Math.PI - 0.55;
+  const aEnd = cx < W / 2 ? 0.55 : Math.PI + 0.55;
+  for (let i = 0; i <= 16; i++) {
+    const t = aOff + (aEnd - aOff) * (i / 16);
+    pts.push(serverToWorld(cx + Math.cos(t) * 32, H / 2 + Math.sin(t) * 32));
+  }
+  const g = new THREE.BufferGeometry().setFromPoints(pts);
+  const m = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+  const l = new THREE.Line(g, m);
+  l.position.y = 0.3;
+  fieldGroup.add(l);
+}
+
+// Corner arcs
+for (const [cx, cy] of [[0,0],[W,0],[0,H],[W,H]]) {
+  const segs = [];
+  const aOff = cx === 0 && cy === 0 ? 0 : cx === W && cy === 0 ? Math.PI / 2 : cx === 0 && cy === H ? -Math.PI / 2 : Math.PI;
+  for (let i = 0; i <= 12; i++) {
+    const t = (i / 12) * Math.PI / 2 + aOff;
+    const px = cx + Math.cos(t) * 10;
+    const py = cy + Math.sin(t) * 10;
+    if (px >= 0 && px <= W && py >= 0 && py <= H) segs.push(serverToWorld(px, py));
+  }
+  if (segs.length > 1) {
+    const g = new THREE.BufferGeometry().setFromPoints(segs);
+    const m = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+    const l = new THREE.Line(g, m);
+    l.position.y = 0.3;
+    fieldGroup.add(l);
+  }
+}
+
+// ── Goals ───────────────────────────────────────────────────────────────────
+const goalGroup = new THREE.Group();
+scene.add(goalGroup);
+const POST_R = 4, CROSSBAR_R = 4, goalColor = 0xf8fafc;
+
+function buildGoal(side) {
+  const g = new THREE.Group();
+  const isLeft = side === 'left';
+  const frontX = isLeft ? 20 : W - 20;
+  const backX = isLeft ? 20 - GOAL_DEPTH : W - 20 + GOAL_DEPTH;
+  const d = GOAL_DEPTH * 1.2;
+  const postMat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+  for (const sy of [GOAL_Y1, GOAL_Y2]) {
+    for (const x of [frontX, backX]) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(POST_R, POST_R, d, 8), postMat);
+      const w = serverToWorld(x, sy);
+      p.position.set(w.x, d / 2, w.z);
+      p.castShadow = true; g.add(p);
+    }
+  }
+  const cbMat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+  for (const x of [frontX, backX]) {
+    const a = serverToWorld(x, GOAL_Y1);
+    const b = serverToWorld(x, GOAL_Y2);
+    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+    const len = a.distanceTo(b);
+    const cb = new THREE.Mesh(new THREE.CylinderGeometry(CROSSBAR_R, CROSSBAR_R, len, 8), cbMat);
+    cb.position.set(mid.x, d, mid.z);
+    cb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3().subVectors(b, a).normalize());
+    g.add(cb);
+  }
+  for (const sy of [GOAL_Y1, GOAL_Y2]) {
+    const a = serverToWorld(frontX, sy);
+    const b = serverToWorld(backX, sy);
+    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+    const len = a.distanceTo(b);
+    const cb = new THREE.Mesh(new THREE.CylinderGeometry(CROSSBAR_R * 0.8, CROSSBAR_R * 0.8, len, 6), cbMat);
+    cb.position.set(mid.x, d, mid.z);
+    cb.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3().subVectors(b, a).normalize());
+    g.add(cb);
+  }
+  const netMat = new THREE.MeshBasicMaterial({ color: 0xaabbcc, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false });
+  const net = new THREE.Mesh(new THREE.PlaneGeometry(GOAL_DEPTH, GOAL_Y2 - GOAL_Y1), netMat);
+  const nc = serverToWorld((frontX + backX) / 2, (GOAL_Y1 + GOAL_Y2) / 2);
+  net.position.set(nc.x, d / 2, nc.z);
+  net.rotation.y = isLeft ? Math.PI / 2 : -Math.PI / 2;
+  g.add(net);
+  return g;
+}
+goalGroup.add(buildGoal('left'));
+goalGroup.add(buildGoal('right'));
+
+// ── Ball ────────────────────────────────────────────────────────────────────
+const ballMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, metalness: 0.1 });
+const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 24), ballMat);
+ballMesh.castShadow = true;
+ballMesh.position.copy(serverToWorld(W / 2, H / 2));
+scene.add(ballMesh);
+
+const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false });
+const shadowMesh = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.5, 16), shadowMat);
+shadowMesh.rotation.x = -Math.PI / 2;
+shadowMesh.position.set(0, 0.1, 0);
+scene.add(shadowMesh);
+
+// ── Players ─────────────────────────────────────────────────────────────────
+const playerMeshesA = [];
+const playerMeshesB = [];
+const TEAM_A_COLOR = '#3b82f6';
+const TEAM_B_COLOR = '#ef4444';
+
+function hexToThree(c) { return new THREE.Color(c); }
+
+function createPlayerMesh(teamColor, isKeeper = false, stats) {
+  const sizeStat = stats ? (stats.size || 50) : 50;
+  const r = 12 + (sizeStat / 100) * 16;
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: teamColor, roughness: 0.6, metalness: 0.1 });
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.8 });
+  const bodyH = isKeeper ? 14 : 18;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r * 0.9, bodyH, 12), bodyMat);
+  body.position.y = bodyH / 2;
+  body.castShadow = true; group.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r * 0.4, 10, 10), headMat);
+  head.position.y = bodyH + r * 0.35;
+  head.castShadow = true; group.add(head);
+  const pShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(r * 0.8, 12),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.15, depthWrite: false })
+  );
+  pShadow.rotation.x = -Math.PI / 2;
+  pShadow.position.y = 0.05;
+  group.add(pShadow);
+  return group;
+}
+
+function rebuildPlayers(playerDataA, playerDataB) {
+  for (const m of playerMeshesA) scene.remove(m);
+  for (const m of playerMeshesB) scene.remove(m);
+  playerMeshesA.length = 0;
+  playerMeshesB.length = 0;
+  for (let i = 0; i < playerDataA.length; i++) {
+    const p = playerDataA[i];
+    const mesh = createPlayerMesh(hexToThree(TEAM_A_COLOR), i === 0, p.stats);
+    mesh.position.copy(serverToWorld(p.x, p.y));
+    playerMeshesA.push(mesh); scene.add(mesh);
+  }
+  for (let i = 0; i < playerDataB.length; i++) {
+    const p = playerDataB[i];
+    const mesh = createPlayerMesh(hexToThree(TEAM_B_COLOR), i === 0, p.stats);
+    mesh.position.copy(serverToWorld(p.x, p.y));
+    playerMeshesB.push(mesh); scene.add(mesh);
+  }
+}
+
+function updatePlayerPositions(playerDataA, playerDataB) {
+  for (let i = 0; i < playerMeshesA.length && i < playerDataA.length; i++) {
+    playerMeshesA[i].position.copy(serverToWorld(playerDataA[i].x, playerDataA[i].y));
+  }
+  for (let i = 0; i < playerMeshesB.length && i < playerDataB.length; i++) {
+    playerMeshesB[i].position.copy(serverToWorld(playerDataB[i].x, playerDataB[i].y));
+  }
+}
+
+// ── State ───────────────────────────────────────────────────────────────────
+let state = {
+  ball: { x: 500, y: 312 },
+  players_a: [],
+  players_b: [],
+  score_a: 0, score_b: 0
+};
+
+function applyMoveToState(move) {
+  const traj = move.trajectory;
+  if (!traj || traj.length === 0) return;
+  const last = traj[traj.length - 1];
+  state.ball = { x: last.x, y: last.y, z: last.z || 0 };
+  if (last.a) state.players_a = last.a.map(p => ({ x: p.x, y: p.y }));
+  if (last.b) state.players_b = last.b.map(p => ({ x: p.x, y: p.y }));
+  if (move.scored === 'A') state.score_a++;
+  else if (move.scored === 'B') state.score_b++;
+}
+
+function updateUI() {
+  document.getElementById('score-a').textContent = state.score_a;
+  document.getElementById('score-b').textContent = state.score_b;
+  document.getElementById('kick-count').textContent = currentMove;
+}
+
+// ── Animation (reuses same signature as index_3d.html) ──────────────────────
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+let _skipKickerIdx = -1;
+let _skipKickerTeam = '';
+
+function animateTrajectory3D(trajectory, onDone) {
+  if (!trajectory || trajectory.length === 0) { onDone(); return; }
+  if (trajectory.length === 1) {
+    const pt = trajectory[0];
+    ballMesh.position.copy(serverToWorld(pt.x, pt.y, pt.z || 0));
+    if (pt.a) state.players_a = pt.a.map(p => ({ x: p.x, y: p.y }));
+    if (pt.b) state.players_b = pt.b.map(p => ({ x: p.x, y: p.y }));
+    updatePlayerPositions(state.players_a, state.players_b);
+    onDone(); return;
+  }
+  const msPerSegment = Math.max(8, 24);
+  const totalSegments = trajectory.length - 1;
+  let startTime = null;
+  function frame(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const elapsed = timestamp - startTime;
+    const progress = Math.min(elapsed / msPerSegment, totalSegments);
+    const segIdx = Math.min(Math.floor(progress), totalSegments - 1);
+    const segFrac = progress - segIdx;
+    const ptA = trajectory[segIdx], ptB = trajectory[segIdx + 1];
+    const bx = lerp(ptA.x, ptB.x, segFrac);
+    const by = lerp(ptA.y, ptB.y, segFrac);
+    const bz = lerp(ptA.z || 0, ptB.z || 0, segFrac);
+    ballMesh.position.copy(serverToWorld(bx, by, bz));
+    const sp = serverToWorld(bx, by);
+    shadowMesh.position.set(sp.x, 0.1, sp.z);
+    const hr = Math.max(0.2, 1 - bz / 200);
+    shadowMesh.scale.set(hr, hr, 1);
+    if (ptA.a && ptB.a) {
+      for (let k = 0; k < ptA.a.length; k++) {
+        if (ptA.a[k] && ptB.a[k]) {
+          state.players_a[k] = {
+            x: lerp(ptA.a[k].x, ptB.a[k].x, segFrac),
+            y: lerp(ptA.a[k].y, ptB.a[k].y, segFrac),
+          };
+        }
+      }
+    }
+    if (ptA.b && ptB.b) {
+      for (let k = 0; k < ptA.b.length; k++) {
+        if (ptA.b[k] && ptB.b[k]) {
+          state.players_b[k] = {
+            x: lerp(ptA.b[k].x, ptB.b[k].x, segFrac),
+            y: lerp(ptA.b[k].y, ptB.b[k].y, segFrac),
+          };
+        }
+      }
+    }
+    updatePlayerPositions(state.players_a, state.players_b);
+    if (progress < totalSegments) {
+      requestAnimationFrame(frame);
+    } else {
+      const last = trajectory[trajectory.length - 1];
+      if (last.a) state.players_a = last.a.map(p => ({ x: p.x, y: p.y }));
+      if (last.b) state.players_b = last.b.map(p => ({ x: p.x, y: p.y }));
+      updatePlayerPositions(state.players_a, state.players_b);
+      onDone();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+function animatePlayerMove3D(playerIdx, team, fromPos, toPos, onDone) {
+  const meshes = team === 'a' ? playerMeshesA : playerMeshesB;
+  const mesh = meshes[playerIdx];
+  if (!mesh) { onDone(); return; }
+  const fromW = serverToWorld(fromPos.x, fromPos.y);
+  const toW = serverToWorld(toPos.x, toPos.y);
+  const duration = 310;
+  let startTime = null;
+  function tick(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const t = Math.min((timestamp - startTime) / duration, 1.0);
+    if (t < 0.16) {
+      mesh.position.lerpVectors(fromW, toW, (t / 0.16) ** 2 * 0.3);
+    } else if (t < 0.72) {
+      mesh.position.lerpVectors(fromW, toW, 1 - Math.pow(1 - (t - 0.16) / 0.56, 3));
+    } else {
+      mesh.position.lerpVectors(toW, fromW, 1 - Math.pow(1 - (t - 0.72) / 0.28, 2));
+    }
+    if (t < 1.0) requestAnimationFrame(tick);
+    else { mesh.position.copy(toW); onDone(); }
+  }
+  requestAnimationFrame(tick);
+}
+
+// ── Playback ────────────────────────────────────────────────────────────────
+window.playNextMove3D = function() {
+  if (isAnimating || currentMove >= replayData.length) return;
+  const move = replayData[currentMove];
+  const raw = move.trajectory;
+  if (!raw || raw.length === 0) { currentMove++; updateUI(); return; }
+
+  isAnimating = true;
+  document.getElementById('btn-next').disabled = true;
+  const badge = document.getElementById('turn-badge');
+  badge.textContent = move.mover === 'a' ? "Player A's Move" : "Player B's Move";
+  badge.className = "turn-badge " + (move.mover === 'a' ? "turn-a" : "turn-b");
+
+  const _preA = raw[0].a ? raw[0].a.map(p => ({ x: p.x, y: p.y })) : [];
+  const _preB = raw[0].b ? raw[0].b.map(p => ({ x: p.x, y: p.y })) : [];
+  const HOME_A = [{x:62,y:312},{x:400,y:244},{x:400,y:381}];
+  const HOME_B = [{x:938,y:312},{x:600,y:244},{x:600,y:381}];
+
+  function finish() {
+    applyMoveToState(move);
+    currentMove++;
+    isAnimating = false;
+    document.getElementById('btn-next').disabled = false;
+    ballMesh.position.copy(serverToWorld(state.ball.x, state.ball.y, state.ball.z || 0));
+    const sp = serverToWorld(state.ball.x, state.ball.y);
+    shadowMesh.position.set(sp.x, 0.1, sp.z);
+    updatePlayerPositions(state.players_a, state.players_b);
+    updateUI();
+    if (autoPlayOn && currentMove < replayData.length) {
+      setTimeout(window.playNextMove3D, 500);
+    }
+  }
+
+  if (move.scored && raw.length > 0) {
+    // Animate trajectory, then slide back to kickoff positions
+    animateTrajectory3D(raw, () => {
+      state.players_a = _preA.map(p => ({ x: p.x, y: p.y }));
+      state.players_b = _preB.map(p => ({ x: p.x, y: p.y }));
+      updatePlayerPositions(state.players_a, state.players_b);
+      const dur = 200;
+      let st = null;
+      function slide(ts) {
+        if (!st) st = ts;
+        const t = Math.min((ts - st) / dur, 1);
+        const e = 1 - Math.pow(1 - t, 2);
+        for (let i = 0; i < state.players_a.length; i++) {
+          state.players_a[i].x = _preA[i].x + (HOME_A[i].x - _preA[i].x) * e;
+          state.players_a[i].y = _preA[i].y + (HOME_A[i].y - _preA[i].y) * e;
+        }
+        for (let i = 0; i < state.players_b.length; i++) {
+          state.players_b[i].x = _preB[i].x + (HOME_B[i].x - _preB[i].x) * e;
+          state.players_b[i].y = _preB[i].y + (HOME_B[i].y - _preB[i].y) * e;
+        }
+        updatePlayerPositions(state.players_a, state.players_b);
+        if (t < 1) requestAnimationFrame(slide);
+        else finish();
+      }
+      requestAnimationFrame(slide);
+    });
+  } else {
+    animateTrajectory3D(raw, finish);
+  }
+};
+
+window.toggleAutoPlay3D = function() {
+  const btn = document.getElementById('btn-auto');
+  if (autoPlayOn) {
+    autoPlayOn = false;
+    btn.textContent = "Auto Play";
+    btn.className = "btn btn-ghost btn-play";
+  } else {
+    autoPlayOn = true;
+    btn.textContent = "Stop Auto";
+    btn.className = "btn btn-primary btn-play";
+    window.playNextMove3D();
+  }
+};
+
+// ── Render loop ─────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ── Init ────────────────────────────────────────────────────────────────────
+(async () => {
+  if (replayData.length > 0) {
+    const first = replayData[0];
+    const traj = first.trajectory;
+    if (traj && traj[0]) {
+      state.ball = { x: traj[0].x, y: traj[0].y, z: traj[0].z || 0 };
+      if (traj[0].a) state.players_a = traj[0].a.map(p => ({ x: p.x, y: p.y }));
+      if (traj[0].b) state.players_b = traj[0].b.map(p => ({ x: p.x, y: p.y }));
+    }
+  }
+  rebuildPlayers(state.players_a, state.players_b);
+  ballMesh.position.copy(serverToWorld(state.ball.x, state.ball.y, state.ball.z || 0));
+  shadowMesh.position.copy(serverToWorld(state.ball.x, state.ball.y));
+  shadowMesh.position.y = 0.1;
+  updateUI();
+})();
+</script>
+</body>
+</html>

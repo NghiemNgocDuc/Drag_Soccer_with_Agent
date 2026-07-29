@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Soccer 3D</title>
+<link rel="stylesheet" href="/static/style.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
+
+.canvas-wrap{
+  border-radius:22px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(14,165,233,.12),0 0 0 1px rgba(255,255,255,.4);
+  position:relative;cursor:default;background:#020617;
+}
+#three-container{display:block;width:100%;height:100%;min-height:500px;touch-action:none}
+.canvas-overlay{
+  display:none;position:absolute;inset:0;
+  background:rgba(15,23,42,.55);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:600;color:#fff;
+}
+.canvas-overlay.visible{display:flex}
+</style>
+</head>
+<body>
+<div class="flash-msg" id="flash-msg"></div>
+<nav>
+  <span class="nav-brand">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></span>
+  <div class="nav-links">
+    <a href="/" class="nav-link">2D</a>
+    <a href="/play3d" class="nav-link active">3D</a>
+    <a href="/online" class="nav-link">Online</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="/customize" class="nav-link">Customize</a>
+  </div>
+  <span class="nav-user">{{ username }}</span>
+  <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+</nav>
+
+<main>
+  <div id="fs-wrap">
+    <div class="glass hud">
+      <div class="team team-a">
+        <div class="team-name">You</div>
+        <div class="team-score" id="score-a">0</div>
+      </div>
+      <div class="hud-mid">
+        <div class="turn-badge turn-a" id="turn-badge">Your turn</div>
+        <div class="kick-counter" id="game-clock">00:00</div>
+        <div class="winner-banner" id="winner-banner"></div>
+      </div>
+      <div class="team team-b">
+        <div class="team-name">AI</div>
+        <div class="team-score" id="score-b">0</div>
+      </div>
+    </div>
+
+    <div class="canvas-wrap" id="canvas-wrap">
+      <div id="three-container"></div>
+      <div class="canvas-overlay" id="canvas-overlay">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+          <div class="spinner" id="overlay-spinner"></div>
+          <span id="overlay-text">AI thinking…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="glass controls" style="justify-content:center;gap:12px">
+    <span class="mode-label">Mode</span>
+    <select id="mode-select" onchange="setMode(this.value)">
+      <option value="hvai">Human vs AI</option>
+      <option value="hvh">Human vs Human</option>
+      <option value="aivai">AI vs AI</option>
+    </select>
+    <div class="sep"></div>
+    <select id="model-select" onchange="switchModel(this.value)">
+      <option value="greedy">Greedy Striker</option>
+      <option value="minimax">Minimax</option>
+      <option value="monte_carlo">Monte Carlo</option>
+      <option value="bayesian">Bayesian</option>
+      <option value="value_iteration">Value Iteration</option>
+      <option value="policy_iteration">Policy Iteration</option>
+      <option value="q_learning">Q-Learning</option>
+    </select>
+    <div class="sep"></div>
+    <button class="btn btn-primary" onclick="resetGame()">New Game</button>
+    <button class="btn btn-ghost" onclick="undoMove()">Undo</button>
+    <div class="sep"></div>
+    <div class="speed-wrap">
+      <span class="speed-label">Speed</span>
+      <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1" oninput="setAnimSpeed(+this.value)">
+    </div>
+    <button class="btn btn-ghost" id="aivai-btn" style="display:none" onclick="triggerAI()">Run AI</button>
+  </div>
+
+  <div class="glass log-panel" id="log-panel"></div>
+
+  <!-- Penalty shootout UI -->
+  <div id="penalty-ui" style="display:none">
+    <div id="penalty-keeper-btns" style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+      <button class="btn btn-primary" onclick="chooseKeeperDir('left')">&larr; Left</button>
+      <button class="btn btn-primary" onclick="chooseKeeperDir('center')">Center</button>
+      <button class="btn btn-primary" onclick="chooseKeeperDir('right')">Right &rarr;</button>
+    </div>
+    <div id="penalty-keeper-timer" style="text-align:center;font-size:1.2rem;font-weight:700;color:var(--accent-a);margin-top:4px"></div>
+    <div id="penalty-score" style="text-align:center;font-size:.9rem;font-weight:600;color:var(--muted);margin-top:4px"></div>
+  </div>
+</main>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+// ── Imports ─────────────────────────────────────────────────────────────────
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── Constants (server-space) ────────────────────────────────────────────────
+const W = 1000, H = 625;
+const PLAYER_R = 20, BALL_R = 12;
+const GOAL_Y1 = 231, GOAL_Y2 = 394, GOAL_DEPTH = 50;
+const MAX_DRAG = 138;
+const PLAYER_TRAVEL = 8.0;
+
+// ── Coordinate mapping (the ONE place axis-swap lives) ───────────────────────
+// Server space: x 0-1000 (left-right), y 0-625 (top-left origin, y-down), z 0+ (height)
+// Three.js: right-handed, y-up. Field centered at origin.
+function serverToWorld(sx, sy, sz) {
+  if (sz === undefined) sz = 0;
+  return new THREE.Vector3(sx - 500, sz, -(sy - 312.5));
+}
+function worldToServer(v) {
+  return { x: v.x + 500, y: -v.z + 312.5, z: v.y };
+}
+
+// ── Renderer setup ──────────────────────────────────────────────────────────
+const container = document.getElementById('three-container');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+container.appendChild(renderer.domElement);
+
+function resizeRenderer() {
+  const r = container.getBoundingClientRect();
+  const w = r.width || 1200;
+  const h = r.height || 700;
+  renderer.setSize(w, h);
+}
+resizeRenderer();
+window.addEventListener('resize', resizeRenderer);
+
+// ── Scene & Camera ─────────────────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f172a);
+scene.fog = new THREE.Fog(0x0f172a, 800, 1400);
+
+const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 1, 3000);
+camera.position.set(-450, 300, 150);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minPolarAngle = 0.1;
+controls.maxPolarAngle = Math.PI / 2.05;
+controls.minDistance = 200;
+controls.maxDistance = 1600;
+controls.update();
+
+// ── Lights ──────────────────────────────────────────────────────────────────
+const ambientLight = new THREE.AmbientLight(0x8899bb, 0.6);
+scene.add(ambientLight);
+
+const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x362d1e, 0.8);
+scene.add(hemiLight);
+
+const sunLight = new THREE.DirectionalLight(0xffeedd, 2.2);
+sunLight.position.set(200, 600, 400);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 1024;
+sunLight.shadow.mapSize.height = 1024;
+sunLight.shadow.camera.near = 200;
+sunLight.shadow.camera.far = 1200;
+sunLight.shadow.camera.left = -600;
+sunLight.shadow.camera.right = 600;
+sunLight.shadow.camera.top = 600;
+sunLight.shadow.camera.bottom = -600;
+scene.add(sunLight);
+
+const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
+fillLight.position.set(-200, 300, -300);
+scene.add(fillLight);
+
+// ── Field ───────────────────────────────────────────────────────────────────
+const fieldGroup = new THREE.Group();
+scene.add(fieldGroup);
+
+// Grass plane
+const grassGeo = new THREE.PlaneGeometry(1000, 625);
+const grassMat = new THREE.MeshStandardMaterial({
+  color: 0x22c55e,
+  roughness: 0.9,
+  metalness: 0.0,
+});
+const grass = new THREE.Mesh(grassGeo, grassMat);
+grass.rotation.x = -Math.PI / 2;
+grass.position.set(0, 0, 0);
+grass.receiveShadow = true;
+fieldGroup.add(grass);
+
+// Sub-surface (slightly darker, slightly below)
+const subMat = new THREE.MeshStandardMaterial({
+  color: 0x16a34a,
+  roughness: 1,
+});
+const sub = new THREE.Mesh(grassGeo.clone(), subMat);
+sub.rotation.x = -Math.PI / 2;
+sub.position.set(0, -0.5, 0);
+fieldGroup.add(sub);
+
+// Field lines helper
+function line2d(sx1, sy1, sx2, sy2, color = 0xffffff, width = 2) {
+  const a = serverToWorld(sx1, sy1);
+  const b = serverToWorld(sx2, sy2);
+  const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+  const mat = new THREE.LineBasicMaterial({ color, linewidth: width, transparent: true, opacity: 0.6 });
+  const line = new THREE.Line(geo, mat);
+  line.position.y = 0.3; // slightly above grass
+  return line;
+}
+
+function arc2d(sx, sy, radius, startAngle, endAngle, segments = 32, color = 0xffffff) {
+  const pts = [];
+  const center = serverToWorld(sx, sy);
+  for (let i = 0; i <= segments; i++) {
+    const t = startAngle + (endAngle - startAngle) * (i / segments);
+    // Arc in server space has radius on the y-up plane, map to z in 3D
+    const px = sx + Math.cos(t) * radius;
+    const py = sy + Math.sin(t) * radius;
+    pts.push(serverToWorld(px, py));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 });
+  const line = new THREE.Line(geo, mat);
+  line.position.y = 0.3;
+  return line;
+}
+
+// Touchlines
+fieldGroup.add(line2d(0, 0, W, 0));
+fieldGroup.add(line2d(W, 0, W, H));
+fieldGroup.add(line2d(W, H, 0, H));
+fieldGroup.add(line2d(0, H, 0, 0));
+
+// Halfway line
+fieldGroup.add(line2d(W / 2, 0, W / 2, H));
+
+// Center circle
+fieldGroup.add(arc2d(W / 2, H / 2, 60, 0, Math.PI * 2));
+
+// Center dot
+const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const dotGeo = new THREE.CircleGeometry(3, 16);
+const dot = new THREE.Mesh(dotGeo, dotMat);
+dot.rotation.x = -Math.PI / 2;
+dot.position.copy(serverToWorld(W / 2, H / 2));
+dot.position.y = 0.3;
+fieldGroup.add(dot);
+
+// Penalty areas
+const PA_W = 100, PA_H = 180, PA_OFF = 20;
+fieldGroup.add(line2d(PA_OFF, (H - PA_H) / 2, PA_OFF, (H + PA_H) / 2));
+fieldGroup.add(line2d(PA_OFF, (H - PA_H) / 2, PA_OFF + PA_W, (H - PA_H) / 2));
+fieldGroup.add(line2d(PA_OFF + PA_W, (H - PA_H) / 2, PA_OFF + PA_W, (H + PA_H) / 2));
+fieldGroup.add(line2d(PA_OFF, (H + PA_H) / 2, PA_OFF + PA_W, (H + PA_H) / 2));
+
+fieldGroup.add(line2d(W - PA_OFF, (H - PA_H) / 2, W - PA_OFF, (H + PA_H) / 2));
+fieldGroup.add(line2d(W - PA_OFF, (H - PA_H) / 2, W - PA_OFF - PA_W, (H - PA_H) / 2));
+fieldGroup.add(line2d(W - PA_OFF - PA_W, (H - PA_H) / 2, W - PA_OFF - PA_W, (H + PA_H) / 2));
+fieldGroup.add(line2d(W - PA_OFF, (H + PA_H) / 2, W - PA_OFF - PA_W, (H + PA_H) / 2));
+
+// Goal areas
+const GA_W = 50, GA_D = 36;
+fieldGroup.add(line2d(20, GOAL_Y1 - GA_W, 20 + GA_D, GOAL_Y1 - GA_W));
+fieldGroup.add(line2d(20 + GA_D, GOAL_Y1 - GA_W, 20 + GA_D, GOAL_Y2 + GA_W));
+fieldGroup.add(line2d(20 + GA_D, GOAL_Y2 + GA_W, 20, GOAL_Y2 + GA_W));
+fieldGroup.add(line2d(W - 20, GOAL_Y1 - GA_W, W - 20 - GA_D, GOAL_Y1 - GA_W));
+fieldGroup.add(line2d(W - 20 - GA_D, GOAL_Y1 - GA_W, W - 20 - GA_D, GOAL_Y2 + GA_W));
+fieldGroup.add(line2d(W - 20 - GA_D, GOAL_Y2 + GA_W, W - 20, GOAL_Y2 + GA_W));
+
+// Penalty spots
+const spotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
+const spotGeo = new THREE.CircleGeometry(3, 12);
+for (const sx of [120, W - 120]) {
+  const m = new THREE.Mesh(spotGeo, spotMat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.copy(serverToWorld(sx, H / 2));
+  m.position.y = 0.3;
+  fieldGroup.add(m);
+}
+
+// Penalty arcs
+const arcSegs = (start, end) => {
+  const pts = [];
+  const center = serverToWorld(120, H / 2);
+  for (let i = 0; i <= 16; i++) {
+    const t = start + (end - start) * (i / 16);
+    const px = 120 + Math.cos(t) * 32;
+    const py = H / 2 + Math.sin(t) * 32;
+    pts.push(serverToWorld(px, py));
+  }
+  return pts;
+};
+let aPts = arcSegs(-0.55, 0.55);
+let geo = new THREE.BufferGeometry().setFromPoints(aPts);
+let mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+let l = new THREE.Line(geo, mat);
+l.position.y = 0.3; fieldGroup.add(l);
+
+aPts = arcSegs(Math.PI - 0.55, Math.PI + 0.55);
+geo = new THREE.BufferGeometry().setFromPoints(aPts.map(p => {
+  p.x = -p.x; // mirror
+  return new THREE.Vector3(-p.x, p.y, p.z);
+}));
+// Simpler: just compute mirrored
+const aPts2 = [];
+for (let i = 0; i <= 16; i++) {
+  const t = (Math.PI - 0.55) + (0.55 * 2) * (i / 16);
+  const px = W - 120 + Math.cos(t) * 32;
+  const py = H / 2 + Math.sin(t) * 32;
+  aPts2.push(serverToWorld(px, py));
+}
+geo = new THREE.BufferGeometry().setFromPoints(aPts2);
+l = new THREE.Line(geo, mat.clone());
+l.position.y = 0.3; fieldGroup.add(l);
+
+// Corner arcs
+for (const [cx, cy] of [[0,0],[W,0],[0,H],[W,H]]) {
+  const segs = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = (i / 12) * Math.PI / 2;
+    const aOff = (cx === 0 && cy === 0) ? 0 : (cx === W && cy === 0) ? Math.PI / 2 : (cx === 0 && cy === H) ? -Math.PI / 2 : Math.PI;
+    const px = cx + Math.cos(t + aOff) * 10;
+    const py = cy + Math.sin(t + aOff) * 10;
+    if (px >= 0 && px <= W && py >= 0 && py <= H) segs.push(serverToWorld(px, py));
+  }
+  if (segs.length > 1) {
+    const g = new THREE.BufferGeometry().setFromPoints(segs);
+    const m = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+    const ll = new THREE.Line(g, m);
+    ll.position.y = 0.3; fieldGroup.add(ll);
+  }
+}
+
+// ── Goals ───────────────────────────────────────────────────────────────────
+const goalGroup = new THREE.Group();
+scene.add(goalGroup);
+const POST_R = 4;
+const CROSSBAR_R = 4;
+const goalColor = 0xf8fafc;
+
+function makePost(sx, sy) {
+  const p = serverToWorld(sx, sy);
+  const geo = new THREE.CylinderGeometry(POST_R, POST_R, GOAL_DEPTH * 1.2, 8);
+  const mat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+  const mesh = new THREE.Mesh(geo, mat);
+  const center = serverToWorld(sx, sy);
+  mesh.position.set(center.x, GOAL_DEPTH * 0.6, center.z);
+  mesh.castShadow = true;
+  return mesh;
+}
+
+function makeCrossbar(sx1, sy1, sx2, sy2) {
+  const a = serverToWorld(sx1, sy1);
+  const b = serverToWorld(sx2, sy2);
+  const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+  const len = a.distanceTo(b);
+  const geo = new THREE.CylinderGeometry(CROSSBAR_R, CROSSBAR_R, len, 8);
+  const mat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(mid.x, GOAL_DEPTH * 1.2, mid.z);
+  mesh.rotation.x = Math.PI / 2;
+  const dir = new THREE.Vector3().subVectors(b, a).normalize();
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
+  mesh.castShadow = true;
+  return mesh;
+}
+
+function makeNet(side) {
+  const isLeft = side === 'left';
+  const frontX = isLeft ? 20 : W - 20;
+  const backX = isLeft ? 20 - GOAL_DEPTH : W - 20 + GOAL_DEPTH;
+  const y1 = GOAL_Y1, y2 = GOAL_Y2;
+  const netShape = new THREE.Shape();
+  const tl = serverToWorld(backX, y1);
+  const tr = serverToWorld(frontX, y1);
+  const br = serverToWorld(frontX, y2);
+  const bl = serverToWorld(backX, y2);
+  netShape.moveTo(tl.x, tl.z);
+  netShape.lineTo(tr.x, tr.z);
+  netShape.lineTo(br.x, br.z);
+  netShape.lineTo(bl.x, bl.z);
+  netShape.closePath();
+  const geo = new THREE.ShapeGeometry(netShape);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.12,
+    side: THREE.DoubleSide,
+    wireframe: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  // Net is vertical (y-up is height in Three.js)
+  // The shape is in x-z plane, so we need to extrude or rotate
+  // Actually, the goal net is vertical, so it stands up in y
+  // Let's use a plane geometry instead
+  return mesh;
+}
+
+// Box-style goal: two posts + crossbar + back net
+function buildGoal(side) {
+  const g = new THREE.Group();
+  const isLeft = side === 'left';
+  const frontX = isLeft ? 20 : W - 20;
+  const backX = isLeft ? 20 - GOAL_DEPTH : W - 20 + GOAL_DEPTH;
+  const d = GOAL_DEPTH * 1.2; // visual height of posts
+
+  const postMat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+
+  // Four corner posts
+  for (const sy of [GOAL_Y1, GOAL_Y2]) {
+    for (const x of [frontX, backX]) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(POST_R, POST_R, d, 8), postMat);
+      const w = serverToWorld(x, sy);
+      p.position.set(w.x, d / 2, w.z);
+      p.castShadow = true;
+      g.add(p);
+    }
+  }
+
+  const cbMat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+
+  // Front and back crossbars (horizontal along goal width)
+  for (const x of [frontX, backX]) {
+    const a = serverToWorld(x, GOAL_Y1);
+    const b = serverToWorld(x, GOAL_Y2);
+    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+    const len = a.distanceTo(b);
+    const cb = new THREE.Mesh(new THREE.CylinderGeometry(CROSSBAR_R, CROSSBAR_R, len, 8), cbMat);
+    cb.position.set(mid.x, d, mid.z);
+    const dir = new THREE.Vector3().subVectors(b, a).normalize();
+    cb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
+    g.add(cb);
+  }
+
+  // Top crossbars (front to back)
+  for (const sy of [GOAL_Y1, GOAL_Y2]) {
+    const a = serverToWorld(frontX, sy);
+    const b = serverToWorld(backX, sy);
+    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+    const len = a.distanceTo(b);
+    const cb = new THREE.Mesh(new THREE.CylinderGeometry(CROSSBAR_R * 0.8, CROSSBAR_R * 0.8, len, 6), cbMat);
+    cb.position.set(mid.x, d, mid.z);
+    cb.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3().subVectors(b, a).normalize());
+    g.add(cb);
+  }
+
+  // Back net (semi-transparent rectangle)
+  const nh = GOAL_Y2 - GOAL_Y1;
+  const nw = GOAL_DEPTH;
+  const netMat = new THREE.MeshBasicMaterial({
+    color: 0xaabbcc, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false
+  });
+  const netGeo = new THREE.PlaneGeometry(nw, nh);
+  const net = new THREE.Mesh(netGeo, netMat);
+  const nc = serverToWorld((frontX + backX) / 2, (GOAL_Y1 + GOAL_Y2) / 2);
+  net.position.set(nc.x, d / 2, nc.z);
+  net.rotation.y = isLeft ? Math.PI / 2 : -Math.PI / 2;
+  g.add(net);
+
+  return g;
+}
+
+goalGroup.add(buildGoal('left'));
+goalGroup.add(buildGoal('right'));
+
+// ── Ball ────────────────────────────────────────────────────────────────────
+const ballMat = new THREE.MeshStandardMaterial({
+  color: 0xf8fafc,
+  roughness: 0.3,
+  metalness: 0.1,
+});
+const ballGeo = new THREE.SphereGeometry(BALL_R, 24, 24);
+const ballMesh = new THREE.Mesh(ballGeo, ballMat);
+ballMesh.castShadow = true;
+ballMesh.position.copy(serverToWorld(W / 2, H / 2));
+scene.add(ballMesh);
+
+// Ball shadow (small blob on ground directly below)
+const shadowMat = new THREE.MeshBasicMaterial({
+  color: 0x000000,
+  transparent: true,
+  opacity: 0.25,
+  depthWrite: false,
+});
+const shadowGeo = new THREE.CircleGeometry(BALL_R * 1.5, 16);
+const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+shadowMesh.rotation.x = -Math.PI / 2;
+shadowMesh.position.set(0, 0.1, 0);
+scene.add(shadowMesh);
+
+// ── Players ─────────────────────────────────────────────────────────────────
+const playerMeshesA = [];
+const playerMeshesB = [];
+
+function createPlayerMesh(teamColor, isKeeper = false, stats) {
+  const sizeStat = stats ? (stats.size || 50) : 50;
+  const r = 12 + (sizeStat / 100) * 16;
+  const group = new THREE.Group();
+  const bodyColor = teamColor;
+  const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor, roughness: 0.6, metalness: 0.1 });
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.8 });
+
+  const bodyH = isKeeper ? 14 : 18;
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r * 0.9, bodyH, 12), bodyMat);
+  body.position.y = bodyH / 2;
+  body.castShadow = true;
+  group.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r * 0.4, 10, 10), headMat);
+  head.position.y = bodyH + r * 0.35;
+  head.castShadow = true;
+  group.add(head);
+
+  // Player shadow
+  const pShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(r * 0.8, 12),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.15, depthWrite: false })
+  );
+  pShadow.rotation.x = -Math.PI / 2;
+  pShadow.position.y = 0.05;
+  pShadow.name = 'shadow';
+  group.add(pShadow);
+
+  return group;
+}
+
+// ── Game State ──────────────────────────────────────────────────────────────
+let gameState = null;
+let isAnimating = false;
+let animSpeed = 1.0;
+let _skipKickerIdx = -1;
+let _skipKickerTeam = '';
+
+let CUST_TEAM_A = '#3b82f6';
+let CUST_TEAM_B = '#ef4444';
+
+// Penalty timer refs
+let keepTimer = null;
+let penaltyShootTimer = null;
+
+// Drag state
+let dragPlayer = null;
+let dragWorldPos = new THREE.Vector3();
+let dragVisuals = []; // lines/arrows in scene
+
+// Animated ball position
+let animBall = null;
+
+function hexToThree(c) {
+  return new THREE.Color(c);
+}
+
+function getTeamColor(team) {
+  return team === 'a' ? hexToThree(CUST_TEAM_A) : hexToThree(CUST_TEAM_B);
+}
+
+function rebuildPlayers() {
+  for (const m of playerMeshesA) { scene.remove(m); }
+  for (const m of playerMeshesB) { scene.remove(m); }
+  playerMeshesA.length = 0;
+  playerMeshesB.length = 0;
+
+  if (!gameState) return;
+  const count = Math.max(gameState.players_a.length, gameState.players_b.length);
+
+  for (let i = 0; i < gameState.players_a.length; i++) {
+    const p = gameState.players_a[i];
+    const mesh = createPlayerMesh(hexToThree(CUST_TEAM_A), i === 0, p.stats);
+    mesh.position.copy(serverToWorld(p.x, p.y));
+    playerMeshesA.push(mesh);
+    scene.add(mesh);
+  }
+  for (let i = 0; i < gameState.players_b.length; i++) {
+    const p = gameState.players_b[i];
+    const mesh = createPlayerMesh(hexToThree(CUST_TEAM_B), i === 0, p.stats);
+    mesh.position.copy(serverToWorld(p.x, p.y));
+    playerMeshesB.push(mesh);
+    scene.add(mesh);
+  }
+}
+
+function updatePlayerPositions() {
+  if (!gameState) return;
+  for (let i = 0; i < playerMeshesA.length && i < gameState.players_a.length; i++) {
+    const p = gameState.players_a[i];
+    if (_skipKickerTeam === 'a' && _skipKickerIdx === i) continue;
+    playerMeshesA[i].position.copy(serverToWorld(p.x, p.y));
+  }
+  for (let i = 0; i < playerMeshesB.length && i < gameState.players_b.length; i++) {
+    const p = gameState.players_b[i];
+    if (_skipKickerTeam === 'b' && _skipKickerIdx === i) continue;
+    playerMeshesB[i].position.copy(serverToWorld(p.x, p.y));
+  }
+}
+
+// ── Render loop ─────────────────────────────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ── HUD helpers ─────────────────────────────────────────────────────────────
+function updateHUD(st) {
+  document.getElementById('score-a').textContent = st.score_a;
+  document.getElementById('score-b').textContent = st.score_b;
+  const tb = document.getElementById('turn-badge');
+  const wb = document.getElementById('winner-banner');
+  const over = st.game_over;
+
+  const pUI = document.getElementById('penalty-ui');
+  const keeperBtns = document.getElementById('penalty-keeper-btns');
+  const keeperTimer = document.getElementById('penalty-keeper-timer');
+  const pScore = document.getElementById('penalty-score');
+
+  if (st.penalty_shootout && !over) {
+    pUI.style.display = 'block';
+    const isA = st.is_player_a;
+    const m = st.game_mode;
+    pScore.textContent = 'Penalty ' + (st.penalty_kick_num + 1) + '/' + (st.penalty_kicks.length || 5) +
+      ' — A: ' + st.penalty_a_score + ' / B: ' + st.penalty_b_score;
+    if (m === 'hvai' && !isA) {
+      keeperBtns.style.display = 'flex';
+      startKeeperTimer();
+    } else if (m === 'hvai' && isA) {
+      keeperBtns.style.display = 'none';
+      if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+      startPenaltyShootTimer();
+    } else {
+      keeperBtns.style.display = 'none';
+      keeperTimer.textContent = '';
+      if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+      if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
+    }
+  } else {
+    pUI.style.display = 'none';
+    if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+    if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
+  }
+
+  if (over) {
+    wb.style.display = 'block';
+    wb.textContent = st.winner === 'A' ? 'You win!' : st.winner === 'B' ? 'AI wins!' : "It's a draw!";
+    wb.style.color = st.winner === 'A' ? '#059669' : st.winner === 'B' ? '#ef4444' : '#6b7fa3';
+    tb.style.display = 'none';
+  } else {
+    wb.style.display = 'none';
+    tb.style.display = '';
+    const isA = st.is_player_a;
+    if (st.penalty_shootout) {
+      tb.textContent = isA ? 'Your penalty kick!' : 'Choose goalkeeper direction…';
+      tb.className = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+    } else {
+      tb.textContent = isA ? 'Your turn' : 'AI thinking…';
+      tb.className = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+    }
+  }
+  const aiBtn = document.getElementById('aivai-btn');
+  aiBtn.style.display = (st.game_mode === 'aivai' || (st.game_mode === 'hvh' && !st.is_player_a)) ? '' : 'none';
+}
+
+function logMove(text, isGoal) {
+  const panel = document.getElementById('log-panel');
+  const p = document.createElement('p');
+  if (isGoal) p.className = 'log-goal';
+  p.textContent = text;
+  panel.prepend(p);
+  while (panel.children.length > 20) panel.lastChild.remove();
+}
+
+// ── Penalty Shootout ──────────────────────────────────────────────────────
+async function chooseKeeperDir(dir) {
+  if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+  document.getElementById('penalty-keeper-btns').style.display = 'none';
+  document.getElementById('penalty-keeper-timer').textContent = '';
+  await fetch('/goalkeeper_move', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ direction: dir }),
+  });
+  triggerAI();
+}
+
+function startKeeperTimer() {
+  if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+  let sec = 5;
+  document.getElementById('penalty-keeper-timer').textContent = 'Goalkeeper: ' + sec + 's';
+  keepTimer = setInterval(() => {
+    sec--;
+    document.getElementById('penalty-keeper-timer').textContent = 'Goalkeeper: ' + sec + 's';
+    if (sec <= 0) {
+      clearInterval(keepTimer); keepTimer = null;
+      document.getElementById('penalty-keeper-btns').style.display = 'none';
+      document.getElementById('penalty-keeper-timer').textContent = '';
+      autoPenaltyKick();
+    }
+  }, 1000);
+}
+
+function startPenaltyShootTimer() {
+  if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
+  let sec = 10;
+  document.getElementById('penalty-keeper-timer').textContent = 'Shoot! ' + sec + 's';
+  penaltyShootTimer = setInterval(() => {
+    sec--;
+    document.getElementById('penalty-keeper-timer').textContent = 'Shoot! ' + sec + 's';
+    if (sec <= 0) {
+      clearInterval(penaltyShootTimer); penaltyShootTimer = null;
+      document.getElementById('penalty-keeper-timer').textContent = '';
+      autoPenaltyKick();
+    }
+  }, 1000);
+}
+
+async function autoPenaltyKick() {
+  if (isAnimating || (gameState && gameState.game_over)) return;
+  isAnimating = true;
+  const resp = await fetch('/ai_move', { method: 'POST' });
+  const data = await resp.json();
+
+  if (data.ai_result) {
+    const ai = data.ai_result;
+    await new Promise(r => animateTrajectory3D(ai.trajectory, r));
+    syncBall(ai.trajectory, ai.scored);
+    logMove(ai.desc, !!ai.scored);
+    if (ai.scored) {
+      gameState.ball = { x: 500, y: 312, z: 0 };
+      ballMesh.position.copy(serverToWorld(500, 312));
+      shadowMesh.position.copy(serverToWorld(500, 312));
+      shadowMesh.position.y = 0.1;
+    }
+  }
+
+  gameState = data;
+  isAnimating = false;
+  updatePlayerPositions();
+  updateHUD(data);
+}
+
+// ── Drag / Slingshot (3D raycast to y=0 ground plane) ──────────────────────
+const raycaster = new THREE.Raycaster();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const mouse = new THREE.Vector2();
+
+function getGroundPoint(clientX, clientY) {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((clientX - r.left) / r.width) * 2 - 1;
+  mouse.y = -((clientY - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const target = new THREE.Vector3();
+  const ray = raycaster.ray;
+  const denom = ray.direction.dot(groundPlane.normal);
+  if (Math.abs(denom) < 0.0001) return null;
+  const t = -(ray.origin.dot(groundPlane.normal) + groundPlane.constant) / denom;
+  if (t < 0) return null;
+  target.copy(ray.origin).addScaledVector(ray.direction, t);
+  return target;
+}
+
+// calcPull in server space — same math as 2D version
+function calcPull(homeServer) {
+  const dragServer = worldToServer(dragWorldPos);
+  const ddx = dragServer.x - homeServer.x;
+  const ddy = dragServer.y - homeServer.y;
+  const dist = Math.sqrt(ddx * ddx + ddy * ddy);
+  const effectiveMax = MAX_DRAG;
+  const capped = Math.min(effectiveMax, dist);
+  const ratio = dist > 0 ? capped / dist : 0;
+  const pullX = homeServer.x + ddx * ratio;
+  const pullY = homeServer.y + ddy * ratio;
+  return {
+    pullX, pullY,
+    power: dist > 0 ? capped / effectiveMax * 100 : 0,
+    kickAngle: Math.atan2(homeServer.y - pullY, homeServer.x - pullX),
+  };
+}
+
+// Remove old drag visuals
+function clearDragVisuals() {
+  for (const v of dragVisuals) { scene.remove(v); if (v.geometry) v.geometry.dispose(); if (v.material) v.material.dispose(); }
+  dragVisuals = [];
+}
+
+function updateDragVisuals(homeServer, pull) {
+  clearDragVisuals();
+  const home = serverToWorld(homeServer.x, homeServer.y);
+  const pullPt = serverToWorld(pull.pullX, pull.pullY);
+  pullPt.y = 0.5;
+
+  // Rubber band lines
+  const perpAngle = pull.kickAngle + Math.PI / 2;
+  const spread = 11;
+  for (const sign of [-1, 1]) {
+    const bx = home.x + Math.cos(perpAngle + (sign > 0 ? 0 : Math.PI)) * spread;
+    const bz = home.z + Math.sin(perpAngle + (sign > 0 ? 0 : Math.PI)) * spread;
+    // But perp is in server space, convert to 3D
+    const bxS = homeServer.x + Math.cos(perpAngle) * spread * sign;
+    const byS = homeServer.y + Math.sin(perpAngle) * spread * sign;
+    const bp = serverToWorld(bxS, byS);
+    bp.y = 0.5;
+    const geo = new THREE.BufferGeometry().setFromPoints([bp, pullPt]);
+    const mat = new THREE.LineBasicMaterial({ color: 0xfb9236, linewidth: 2 });
+    const line = new THREE.Line(geo, mat);
+    scene.add(line);
+    dragVisuals.push(line);
+  }
+
+  // Kick direction arrow
+  const arrowLen = 46 + pull.power * 0.72;
+  const tipX = home.x + Math.cos(pull.kickAngle) * arrowLen;
+  const tipZ = home.z + Math.sin(pull.kickAngle) * arrowLen;
+  const tip = new THREE.Vector3(tipX, 0.5, tipZ);
+  const dashGeo = new THREE.BufferGeometry().setFromPoints([home, tip]);
+  const dashMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.88 });
+  const dashLine = new THREE.Line(dashGeo, dashMat);
+  scene.add(dashLine);
+  dragVisuals.push(dashLine);
+
+  // Ball update for penalty mode
+  if (dragPlayer === 'ball' && gameState && gameState.ball) {
+    const dp = worldToServer(dragWorldPos);
+    gameState.ball.x = Math.max(BALL_R, Math.min(W - BALL_R, dp.x));
+    gameState.ball.y = Math.max(BALL_R, Math.min(H - BALL_R, dp.y));
+    ballMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  }
+}
+
+// ── Input handlers ─────────────────────────────────────────────────────────
+function getHoveredPlayer(sx, sy) {
+  if (!gameState || gameState.game_over || isAnimating) return null;
+  const isA = gameState.is_player_a;
+  const mode = gameState.game_mode;
+  if (gameState.penalty_shootout) {
+    if (gameState.ball) {
+      const d = Math.hypot(gameState.ball.x - sx, gameState.ball.y - sy);
+      if (d < BALL_R + 12) return 'ball';
+    }
+    return null;
+  }
+  const players = (isA || mode === 'hvh') ? gameState.players_a : null;
+  if (!players) return null;
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    const d = Math.hypot(p.x - sx, p.y - sy);
+    if (d < PLAYER_R + 8) return i;
+  }
+  return null;
+}
+
+renderer.domElement.addEventListener('mousedown', e => {
+  const gp = getGroundPoint(e.clientX, e.clientY);
+  if (!gp) return;
+  const sp = worldToServer(gp);
+  const idx = getHoveredPlayer(sp.x, sp.y);
+  if (idx !== null) {
+    dragPlayer = idx;
+    dragWorldPos.copy(gp);
+    e.preventDefault();
+  }
+});
+
+renderer.domElement.addEventListener('mousemove', e => {
+  const gp = getGroundPoint(e.clientX, e.clientY);
+  if (!gp) return;
+  if (dragPlayer !== null) {
+    dragWorldPos.copy(gp);
+    const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
+    const pull = calcPull(home);
+    updateDragVisuals(home, pull);
+    e.preventDefault();
+  }
+});
+
+renderer.domElement.addEventListener('mouseup', e => {
+  if (dragPlayer === null) return;
+  const gp = getGroundPoint(e.clientX, e.clientY);
+  if (gp) dragWorldPos.copy(gp);
+  const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
+  const { pullX, pullY, power, kickAngle } = calcPull(home);
+  const idx = dragPlayer === 'ball' ? 0 : dragPlayer;
+  clearDragVisuals();
+  dragPlayer = null;
+  if (power > 5) {
+    submitKick(idx, kickAngle * 180 / Math.PI, power);
+  }
+});
+
+// Touch
+renderer.domElement.addEventListener('touchstart', e => {
+  const t = e.touches[0];
+  const gp = getGroundPoint(t.clientX, t.clientY);
+  if (!gp) return;
+  const sp = worldToServer(gp);
+  const idx = getHoveredPlayer(sp.x, sp.y);
+  if (idx !== null) { dragPlayer = idx; dragWorldPos.copy(gp); e.preventDefault(); }
+}, { passive: false });
+
+renderer.domElement.addEventListener('touchmove', e => {
+  if (dragPlayer !== null) {
+    const t = e.touches[0];
+    const gp = getGroundPoint(t.clientX, t.clientY);
+    if (gp) {
+      dragWorldPos.copy(gp);
+      const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
+      const pull = calcPull(home);
+      updateDragVisuals(home, pull);
+    }
+    if (e.cancelable) e.preventDefault();
+  }
+}, { passive: false });
+
+renderer.domElement.addEventListener('touchend', e => {
+  if (dragPlayer === null) return;
+  const t = e.changedTouches[0];
+  const gp = getGroundPoint(t.clientX, t.clientY);
+  if (gp) dragWorldPos.copy(gp);
+  const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
+  const { pullX, pullY, power, kickAngle } = calcPull(home);
+  const idx = dragPlayer === 'ball' ? 0 : dragPlayer;
+  clearDragVisuals();
+  dragPlayer = null;
+  if (power > 5) submitKick(idx, kickAngle * 180 / Math.PI, power);
+}, { passive: false });
+
+// ── Trajectory animation (3D) ──────────────────────────────────────────────
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function animateTrajectory3D(trajectory, onDone) {
+  if (!trajectory || trajectory.length === 0) { animBall = null; onDone(); return; }
+  if (trajectory.length === 1) {
+    const pt = trajectory[0];
+    animBall = { x: pt.x, y: pt.y, z: pt.z || 0 };
+    ballMesh.position.copy(serverToWorld(pt.x, pt.y, pt.z || 0));
+    updatePlayerPositions();
+    if (pt.a && pt.b && gameState) {
+      // Update player positions from trajectory data
+      for (let k = 0; k < gameState.players_a.length; k++) {
+        if (_skipKickerTeam === 'a' && _skipKickerIdx === k) continue;
+        if (pt.a[k]) { gameState.players_a[k].x = pt.a[k].x; gameState.players_a[k].y = pt.a[k].y; }
+      }
+      for (let k = 0; k < gameState.players_b.length; k++) {
+        if (_skipKickerTeam === 'b' && _skipKickerIdx === k) continue;
+        if (pt.b[k]) { gameState.players_b[k].x = pt.b[k].x; gameState.players_b[k].y = pt.b[k].y; }
+      }
+    }
+    animBall = null;
+    onDone();
+    return;
+  }
+
+  const msPerSegment = Math.max(8, 24 / animSpeed);
+  const totalSegments = trajectory.length - 1;
+  let startTime = null;
+
+  function frame(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const elapsed = timestamp - startTime;
+    const progress = Math.min(elapsed / msPerSegment, totalSegments);
+    const segIdx = Math.min(Math.floor(progress), totalSegments - 1);
+    const segFrac = progress - segIdx;
+
+    const ptA = trajectory[segIdx];
+    const ptB = trajectory[segIdx + 1];
+
+    // Interpolate ball position (handle missing z for old replays)
+    const zA = ptA.z || 0;
+    const zB = ptB.z || 0;
+    const bx = lerp(ptA.x, ptB.x, segFrac);
+    const by = lerp(ptA.y, ptB.y, segFrac);
+    const bz = lerp(zA, zB, segFrac);
+    ballMesh.position.copy(serverToWorld(bx, by, bz));
+    // Shadow follows ball on ground
+    const shadowPos = serverToWorld(bx, by);
+    shadowMesh.position.set(shadowPos.x, 0.1, shadowPos.z);
+    // Scale shadow by height
+    const heightRatio = Math.max(0.2, 1 - bz / 200);
+    shadowMesh.scale.set(heightRatio, heightRatio, 1);
+
+    // Interpolate player positions
+    if (ptA.a && ptB.a && ptA.b && ptB.b && gameState) {
+      for (let k = 0; k < gameState.players_a.length; k++) {
+        if (_skipKickerTeam === 'a' && _skipKickerIdx === k) continue;
+        if (ptA.a[k] && ptB.a[k]) {
+          gameState.players_a[k].x = lerp(ptA.a[k].x, ptB.a[k].x, segFrac);
+          gameState.players_a[k].y = lerp(ptA.a[k].y, ptB.a[k].y, segFrac);
+        }
+      }
+      for (let k = 0; k < gameState.players_b.length; k++) {
+        if (_skipKickerTeam === 'b' && _skipKickerIdx === k) continue;
+        if (ptA.b[k] && ptB.b[k]) {
+          gameState.players_b[k].x = lerp(ptA.b[k].x, ptB.b[k].x, segFrac);
+          gameState.players_b[k].y = lerp(ptA.b[k].y, ptB.b[k].y, segFrac);
+        }
+      }
+    }
+    updatePlayerPositions();
+
+    if (progress < totalSegments) {
+      requestAnimationFrame(frame);
+    } else {
+      const last = trajectory[trajectory.length - 1];
+      if (last.a && last.b && gameState) {
+        for (let k = 0; k < gameState.players_a.length; k++) {
+          if (_skipKickerTeam === 'a' && _skipKickerIdx === k) continue;
+          if (last.a[k]) { gameState.players_a[k].x = last.a[k].x; gameState.players_a[k].y = last.a[k].y; }
+        }
+        for (let k = 0; k < gameState.players_b.length; k++) {
+          if (_skipKickerTeam === 'b' && _skipKickerIdx === k) continue;
+          if (last.b[k]) { gameState.players_b[k].x = last.b[k].x; gameState.players_b[k].y = last.b[k].y; }
+        }
+      }
+      animBall = null;
+      updatePlayerPositions();
+      onDone();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// ── Kicker launch animation ────────────────────────────────────────────────
+function animatePlayerMove3D(playerIdx, team, fromPos, toPos, onDone) {
+  const meshes = team === 'a' ? playerMeshesA : playerMeshesB;
+  const mesh = meshes[playerIdx];
+  if (!mesh) { onDone(); return; }
+
+  const fromW = serverToWorld(fromPos.x, fromPos.y);
+  const toW = serverToWorld(toPos.x, toPos.y);
+  const duration = Math.max(150, 310 / animSpeed);
+  let startTime = null;
+
+  function tick(timestamp) {
+    if (!startTime) startTime = timestamp;
+    const t = Math.min((timestamp - startTime) / duration, 1.0);
+    let ease;
+    if (t < 0.16) {
+      const q = t / 0.16;
+      ease = q * q;
+      mesh.position.lerpVectors(fromW, toW, ease * 0.3);
+    } else if (t < 0.72) {
+      const q = (t - 0.16) / 0.56;
+      ease = 1 - Math.pow(1 - q, 3);
+      mesh.position.lerpVectors(fromW, toW, ease);
+    } else {
+      const q = (t - 0.72) / 0.28;
+      ease = 1 - Math.pow(1 - q, 2);
+      mesh.position.lerpVectors(toW, fromW, 1 - ease);
+    }
+    if (t < 1.0) requestAnimationFrame(tick);
+    else {
+      mesh.position.copy(toW);
+      onDone();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
+// ── Move submission ─────────────────────────────────────────────────────────
+function kickEndpoint(from, angleDeg, power) {
+  const rad = angleDeg * Math.PI / 180;
+  const travel = power * PLAYER_TRAVEL;
+  return {
+    x: Math.max(PLAYER_R, Math.min(W - PLAYER_R, from.x + Math.cos(rad) * travel)),
+    y: Math.max(PLAYER_R, Math.min(H - PLAYER_R, from.y + Math.sin(rad) * travel)),
+  };
+}
+
+function syncBall(trajectory, scored) {
+  if (!trajectory || trajectory.length === 0) return;
+  const last = trajectory[trajectory.length - 1];
+  gameState.ball = scored ? { x: 500, y: 312, z: 0 } : { x: last.x, y: last.y, z: last.z || 0 };
+}
+
+async function submitKick(playerIdx, angleDeg, power) {
+  isAnimating = true;
+  setOverlay(false);
+
+  const isPenalty = gameState.penalty_shootout === true;
+
+  const resp = await fetch('/move', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player_idx: playerIdx, angle: angleDeg, power }),
+  });
+  const data = await resp.json();
+
+  if (data.move_result) {
+    const mr = data.move_result;
+
+    if (isPenalty) {
+      await new Promise(r => animateTrajectory3D(mr.trajectory, r));
+    } else {
+      const fromPosA = { x: gameState.players_a[playerIdx].x, y: gameState.players_a[playerIdx].y };
+      const kickEndA = mr.kick_endpoint || kickEndpoint(fromPosA, angleDeg, power);
+      _skipKickerIdx = playerIdx;
+      _skipKickerTeam = 'a';
+      await Promise.all([
+        new Promise(r => animateTrajectory3D(mr.trajectory, r)),
+        new Promise(r => animatePlayerMove3D(playerIdx, 'a', fromPosA, kickEndA, r)),
+      ]);
+      _skipKickerIdx = -1;
+      _skipKickerTeam = '';
+    }
+
+    syncBall(mr.trajectory, mr.scored);
+    logMove(mr.desc, !!mr.scored);
+
+    if (mr.scored) {
+      gameState.ball = { x: 500, y: 312, z: 0 };
+      ballMesh.position.copy(serverToWorld(500, 312));
+      shadowMesh.position.copy(serverToWorld(500, 312));
+      shadowMesh.position.y = 0.1;
+    }
+  }
+
+  // AI response
+  if (!data.game_over && data.game_mode === 'hvai' && !data.is_player_a) {
+    const aiResp = await fetch('/ai_move', { method: 'POST' });
+    const aiData = await aiResp.json();
+    if (aiData.ai_result) {
+      const ai = aiData.ai_result;
+      const aiTeam = aiData.is_player_a ? 'b' : 'a';
+      const aiPlayers = aiTeam === 'a' ? aiData.players_a : aiData.players_b;
+
+      if (isPenalty) {
+        await new Promise(r => animateTrajectory3D(ai.trajectory, r));
+      } else {
+        const aiTraj0 = ai.trajectory && ai.trajectory[0];
+        const aiFrom = aiTraj0 && aiTraj0[aiTeam]
+          ? { x: aiTraj0[aiTeam][ai.player_idx].x, y: aiTraj0[aiTeam][ai.player_idx].y }
+          : { x: aiPlayers[ai.player_idx].x, y: aiPlayers[ai.player_idx].y };
+        const aiKickEnd = ai.kick_endpoint || kickEndpoint(aiFrom, ai.angle, ai.power);
+        _skipKickerIdx = ai.player_idx;
+        _skipKickerTeam = aiTeam;
+        await Promise.all([
+          new Promise(r => animateTrajectory3D(ai.trajectory, r)),
+          new Promise(r => animatePlayerMove3D(ai.player_idx, aiTeam, aiFrom, aiKickEnd, r)),
+        ]);
+        _skipKickerIdx = -1;
+        _skipKickerTeam = '';
+      }
+      syncBall(ai.trajectory, ai.scored);
+      logMove(ai.desc, !!ai.scored);
+      if (ai.scored) {
+        gameState.ball = { x: 500, y: 312, z: 0 };
+        ballMesh.position.copy(serverToWorld(500, 312));
+        shadowMesh.position.copy(serverToWorld(500, 312));
+        shadowMesh.position.y = 0.1;
+      }
+    }
+    gameState = aiData;
+    isAnimating = false;
+    updatePlayerPositions();
+    updateHUD(aiData);
+  } else {
+    gameState = data;
+    isAnimating = false;
+    updatePlayerPositions();
+    updateHUD(data);
+  }
+}
+
+async function triggerAI() {
+  if (isAnimating || (gameState && gameState.game_over)) return;
+  isAnimating = true;
+  const resp = await fetch('/ai_move', { method: 'POST' });
+  const data = await resp.json();
+
+  const isPenalty = data.penalty_shootout === true;
+
+  if (data.ai_result) {
+    const ai = data.ai_result;
+    const aiTeam = data.is_player_a ? 'b' : 'a';
+    const aiPlayers = aiTeam === 'a' ? data.players_a : data.players_b;
+
+    if (isPenalty) {
+      await new Promise(r => animateTrajectory3D(ai.trajectory, r));
+    } else {
+      const aiTraj0 = ai.trajectory && ai.trajectory[0];
+      const aiFrom = aiTraj0 && aiTraj0[aiTeam]
+        ? { x: aiTraj0[aiTeam][ai.player_idx].x, y: aiTraj0[aiTeam][ai.player_idx].y }
+        : { x: aiPlayers[ai.player_idx].x, y: aiPlayers[ai.player_idx].y };
+      const aiKickEnd = ai.kick_endpoint || kickEndpoint(aiFrom, ai.angle, ai.power);
+      _skipKickerIdx = ai.player_idx;
+      _skipKickerTeam = aiTeam;
+      await Promise.all([
+        new Promise(r => animateTrajectory3D(ai.trajectory, r)),
+        new Promise(r => animatePlayerMove3D(ai.player_idx, aiTeam, aiFrom, aiKickEnd, r)),
+      ]);
+      _skipKickerIdx = -1;
+      _skipKickerTeam = '';
+    }
+    syncBall(ai.trajectory, ai.scored);
+    logMove(ai.desc, !!ai.scored);
+    if (ai.scored) {
+      gameState.ball = { x: 500, y: 312, z: 0 };
+      ballMesh.position.copy(serverToWorld(500, 312));
+      shadowMesh.position.copy(serverToWorld(500, 312));
+      shadowMesh.position.y = 0.1;
+    }
+  }
+
+  gameState = data;
+  isAnimating = false;
+  updatePlayerPositions();
+  updateHUD(data);
+
+  if (data.game_mode === 'aivai' && !data.game_over) {
+    setTimeout(triggerAI, 80);
+  }
+}
+
+// ── Controls ────────────────────────────────────────────────────────────────
+window.resetGame = async function() {
+  if (isAnimating) return;
+  const body = { player_count: 3 };
+  const data = await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+  gameState = data;
+  rebuildPlayers();
+  ballMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.y = 0.1;
+  document.getElementById('log-panel').innerHTML = '';
+  updateHUD(data);
+};
+
+window.undoMove = async function() {
+  if (isAnimating) return;
+  const data = await fetch('/undo', { method: 'POST' }).then(r => r.json());
+  gameState = data;
+  rebuildPlayers();
+  ballMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.y = 0.1;
+  updateHUD(data);
+};
+
+window.setMode = async function(mode) {
+  if (isAnimating) return;
+  await fetch('/set_mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+  const data = await fetch('/state').then(r => r.json());
+  gameState = data;
+  rebuildPlayers();
+  ballMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.y = 0.1;
+  updateHUD(data);
+};
+
+window.switchModel = async function(name) {
+  await fetch('/switch_model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name, target: 'b' }) });
+};
+
+window.setAnimSpeed = function(v) { animSpeed = v; };
+
+function setOverlay(show, text) {
+  const el = document.getElementById('canvas-overlay');
+  el.classList.toggle('visible', show);
+  if (show) document.getElementById('overlay-text').textContent = text || 'AI thinking…';
+}
+
+// ── Init ────────────────────────────────────────────────────────────────────
+(async () => {
+  // Load customization
+  try {
+    const cust = await fetch('/api/customization').then(r => r.json());
+    if (cust.team_a_color) CUST_TEAM_A = cust.team_a_color;
+    if (cust.team_b_color) CUST_TEAM_B = cust.team_b_color;
+  } catch (e) {}
+
+  const data = await fetch('/state').then(r => r.json());
+  document.getElementById('mode-select').value = data.game_mode || 'hvai';
+  gameState = data;
+  rebuildPlayers();
+  ballMesh.position.copy(serverToWorld(data.ball.x, data.ball.y, data.ball.z || 0));
+  shadowMesh.position.copy(serverToWorld(data.ball.x, data.ball.y));
+  shadowMesh.position.y = 0.1;
+  updateHUD(data);
+
+  // Fill model selector
+  try {
+    const models = await fetch('/models').then(r => r.json());
+    const sel = document.getElementById('model-select');
+    sel.innerHTML = '';
+    models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id; opt.textContent = m.name;
+      if (m.id === data.ai_model) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

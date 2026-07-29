@@ -389,6 +389,12 @@ def index():
     return render_template("index.html", username=session.get("username", "Player"))
 
 
+@app.route("/play3d")
+@login_required
+def index_3d():
+    return render_template("index_3d.html", username=session.get("username", "Player"))
+
+
 
 
 
@@ -580,6 +586,9 @@ def reset_game():
             win_goal_limit = wl,
             power_cap = pcap,
         )
+        from models.soccer_logic import inject_player_stats
+        pstats = cust.get("player_stats", {})
+        inject_player_stats(state, pstats.get("a"), pstats.get("b"))
     _auto_clear_state(user_id)
     save_game(user_id, state)
     _ph.track_game_start(uid(), state.get("game_mode", "hvai"), state.get("model_name_b", ""))
@@ -1414,6 +1423,18 @@ def tournament_watch(tid, match_id):
         flash("Match not available for replay")
         return redirect(url_for("tournament_view", tid=tid))
     return render_template("replay.html", username=session.get("username", "Player"), t=t, match=m)
+
+
+@app.route("/replay3d/<tid>/<match_id>")
+@login_required
+def tournament_watch_3d(tid, match_id):
+    from db.tournaments import get_tournament, get_match
+    t = get_tournament(tid)
+    m = get_match(tid, match_id)
+    if not t or not m or m["status"] != "completed":
+        flash("Match not available for replay")
+        return redirect(url_for("tournament_view", tid=tid))
+    return render_template("replay_3d.html", username=session.get("username", "Player"), t=t, match=m)
 
 # ── Clerk — verify session ────────────────────────────────────────────────
 @app.route("/api/auth/clerk/verify", methods=["POST"])
