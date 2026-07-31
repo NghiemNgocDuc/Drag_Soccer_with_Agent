@@ -37,8 +37,9 @@ body {
   background: rgba(255,255,255,0.1);
   backdrop-filter: blur(10px);
 }
-#anim-canvas {
-  max-width: 100%;
+.auth-info {
+  opacity: 1;
+  transform: none;
 }
 .auth-info {
   opacity: 0;
@@ -133,8 +134,7 @@ input:focus { outline: none; border-color: rgba(6,182,212,.6); background: rgba(
 
 <div class="auth-layout">
   <div class="auth-visual">
-    <canvas id="anim-canvas" width="600" height="400"></canvas>
-    <div class="auth-info" id="auth-info">
+    <div class="auth-info" id="auth-info" style="opacity:1;transform:none">
       <h1>Agent Soccer</h1>
       <p>Vietnamese Mancala meets AI Strategy. Compete against agents, train your models, and climb the leaderboard.</p>
     </div>
@@ -188,107 +188,8 @@ function copyToClipboard(text, btn) {
   });
 }
 
-// Canvas Animation
-const canvas = document.getElementById('anim-canvas');
-const ctx = canvas.getContext('2d');
 const info = document.getElementById('auth-info');
-
-// Animation State
-let state = {
-  striker: { x: -50, y: 300, radius: 25, color: '#06b6d4' },
-  ball: { x: 150, y: 310, radius: 10, color: '#ffffff', vx: 0, vy: 0 },
-  keeper: { x: 500, y: 300, radius: 25, color: '#f97316', startY: 300 },
-  goal: { x: 550, y: 200, width: 20, height: 120 },
-  phase: 'run_up', // run_up, kick, dive, goal, end
-  time: 0
-};
-
-function drawCircle(obj) {
-  ctx.beginPath();
-  ctx.arc(obj.x, obj.y, obj.radius, 0, Math.PI * 2);
-  ctx.fillStyle = obj.color;
-  ctx.fill();
-  
-  // glass effect reflection
-  ctx.beginPath();
-  ctx.arc(obj.x - obj.radius*0.3, obj.y - obj.radius*0.3, obj.radius*0.4, 0, Math.PI * 2);
-  ctx.fillStyle = 'rgba(255,255,255,0.4)';
-  ctx.fill();
-}
-
-function drawGoal() {
-  ctx.fillStyle = 'rgba(255,255,255,0.3)';
-  ctx.fillRect(state.goal.x, state.goal.y, state.goal.width, state.goal.height);
-  // Net
-  ctx.strokeStyle = 'rgba(255,255,255,0.15)';
-  ctx.lineWidth = 2;
-  for(let i=0; i<state.goal.height; i+=10) {
-    ctx.beginPath(); ctx.moveTo(state.goal.x, state.goal.y + i); ctx.lineTo(state.goal.x + 40, state.goal.y + i); ctx.stroke();
-  }
-}
-
-function update() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  // Draw ground
-  ctx.fillStyle = 'rgba(255,255,255,0.1)';
-  ctx.fillRect(0, 320, canvas.width, 80);
-  
-  drawGoal();
-  drawCircle(state.striker);
-  drawCircle(state.ball);
-  drawCircle(state.keeper);
-  
-  state.time += 0.016; // rough dt
-  
-  if (state.phase === 'run_up') {
-    state.striker.x += 4;
-    // bouncing animation
-    state.striker.y = 300 - Math.abs(Math.sin(state.time * 10)) * 10;
-    
-    if (state.striker.x + state.striker.radius > state.ball.x - state.ball.radius) {
-      state.phase = 'kick';
-      state.striker.y = 300;
-    }
-  } 
-  else if (state.phase === 'kick') {
-    state.ball.vx = 12;
-    state.ball.vy = -3;
-    state.phase = 'dive';
-  }
-  else if (state.phase === 'dive') {
-    // Ball physics
-    state.ball.x += state.ball.vx;
-    state.ball.y += state.ball.vy;
-    state.ball.vy += 0.1; // gravity
-    
-    // Keeper dives (but misses)
-    state.keeper.x -= 2;
-    state.keeper.y = state.keeper.startY - Math.sin(state.time * 5) * 60;
-    
-    if (state.ball.x > state.goal.x) {
-      state.ball.vx = 0;
-      state.ball.vy = 0;
-      state.phase = 'goal';
-      
-      // trigger info fade in
-      setTimeout(() => {
-        info.classList.add('show');
-      }, 500);
-    }
-  }
-  else if (state.phase === 'goal') {
-    // Keeper falls to ground
-    if (state.keeper.y < 300) {
-      state.keeper.y += 4;
-    }
-  }
-  
-  requestAnimationFrame(update);
-}
-
-// Start animation loop
-update();
+info.classList.add('show');
 
 </script>
 </body>

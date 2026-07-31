@@ -21,16 +21,21 @@
   font-size:1.1rem;font-weight:600;color:#fff;
 }
 .canvas-overlay.visible{display:flex}
+.sound-btn{
+  background:rgba(255,255,255,.3);border:none;
+  font-size:22px;line-height:1;padding:4px 8px;cursor:pointer;
+  border-radius:8px;transition:background .2s;color:#fff;
+}
+.sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
 </style>
+<script src="/static/sound.js"></script>
 </head>
 <body>
 <div class="flash-msg" id="flash-msg"></div>
 <nav>
   <span class="nav-brand">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></span>
   <div class="nav-links">
-    <a href="/" class="nav-link">2D</a>
-    <a href="/play3d" class="nav-link active">3D</a>
-    <a href="/online" class="nav-link">Online</a>
+    <a href="/play3d" class="nav-link active">Play</a>
     <a href="/playground" class="nav-link">Playground</a>
     <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/tournaments" class="nav-link">Tournaments</a>
@@ -99,6 +104,8 @@
       <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1" oninput="setAnimSpeed(+this.value)">
     </div>
     <button class="btn btn-ghost" id="aivai-btn" style="display:none" onclick="triggerAI()">Run AI</button>
+    <div class="sep"></div>
+    <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
   </div>
 
   <div class="glass log-panel" id="log-panel"></div>
@@ -183,7 +190,47 @@ controls.minPolarAngle = 0.1;
 controls.maxPolarAngle = Math.PI / 2.05;
 controls.minDistance = 200;
 controls.maxDistance = 1600;
+controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
 controls.update();
+
+// ── Audio: synthesized SoundManager (zero assets) + 3D positional sound ─────
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+SoundManager.attach(audioCtx);
+const listener = new THREE.AudioListener(audioCtx);
+camera.add(listener);
+const _kickBuf = SoundManager.makeKickBuffer();
+const _bounceBuf = SoundManager.makeBounceBuffer();
+
+function playPositional(buf, worldPos, opts) {
+  if (SoundManager.isMuted()) return;
+  if (!buf) return;
+  SoundManager.resume();
+  const obj = new THREE.Object3D();
+  obj.position.copy(worldPos);
+  scene.add(obj);
+  const s = new THREE.PositionalAudio(listener);
+  s.setBuffer(buf);
+  s.setRefDistance(250);
+  s.setRolloffFactor(1.2);
+  if (opts && opts.volume) s.setVolume(opts.volume);
+  if (opts && opts.detune) s.setDetune(opts.detune);
+  obj.add(s);
+  s.onEnded = () => { obj.remove(s); scene.remove(obj); };
+  s.play();
+}
+
+// Browsers suspend AudioContext until a user gesture — unlock on first one
+(function unlockAudio() {
+  const unlock = () => {
+    SoundManager.resume();
+    try { SoundManager.crowdAmbient(); } catch (_) {}
+    if (!window._whistlePlayed) { window._whistlePlayed = true; SoundManager.whistle(); }
+  };
+  for (const ev of ['pointerdown', 'keydown', 'touchstart']) {
+    window.addEventListener(ev, unlock, { once: true });
+  }
+})();
 
 // ── Lights ──────────────────────────────────────────────────────────────────
 const ambientLight = new THREE.AmbientLight(0x8899bb, 0.6);
@@ -502,6 +549,133 @@ function buildGoal(side) {
 goalGroup.add(buildGoal('left'));
 goalGroup.add(buildGoal('right'));
 
+// ── Crowd ────────────────────────────────────────────────────────────────────
+const CROWD_PALETTES = {
+  classic:['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc','#6366f1','#14b8a6','#f97316'],
+  team_a:null, team_b:null,
+  rainbow:['#ef4444','#f97316','#f59e0b','#22c55e','#3b82f6','#8b5cf6','#ec4899'],
+  mono:['#6b7280','#9ca3af','#d1d5db','#4b5563'],
+};
+let crowdData = null;
+
+function _genCrowdPalette(baseHex, n) {
+  const p = [];
+  for (let i = 0; i < n; i++) {
+    const c = new THREE.Color(baseHex);
+    c.offsetHSL((Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.15, (Math.random() - 0.5) * 0.15);
+    p.push('#' + c.getHexString());
+  }
+  return p;
+}
+
+function _genSpriteSheet() {
+  const c = document.createElement('canvas'), sw = 24, sh = 36, n = 4;
+  c.width = sw * n; c.height = sh;
+  const x = c.getContext('2d');
+  for (let s = 0; s < n; s++) {
+    const ox = s * sw;
+    x.fillStyle = '#fff';
+    x.beginPath(); x.arc(ox + sw/2, 9, 5, 0, Math.PI*2); x.fill();
+    const bw = 8, bh = s === 1 ? 16 : 12, by = 14;
+    x.fillRect(ox + (sw - bw)/2, by, bw, bh);
+    if (s === 2) {
+      x.fillRect(ox + 2, by + 2, 3, 2); x.fillRect(ox + sw - 5, by + 2, 3, 2);
+    } else if (s === 3) {
+      x.fillRect(ox + 3, by - 4, 2, 5); x.fillRect(ox + sw - 5, by - 4, 2, 5);
+    }
+    x.fillRect(ox + sw/2 - 3, by + bh - 2, 2, 4); x.fillRect(ox + sw/2 + 1, by + bh - 2, 2, 4);
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+function createCrowd(paletteArr) {
+  const tex = _genSpriteSheet();
+  const stands = [
+    { z0:335, zStep:14, zRows:3, x0:-460, xStep:18 },
+    { z0:-335, zStep:-14, zRows:3, x0:-460, xStep:18 },
+    { x0:515, xStep:14, xRows:3, z0:-260, zStep:16 },
+    { x0:-515, xStep:-14, xRows:3, z0:-260, zStep:16 },
+  ];
+  let n = 0;
+  for (const st of stands) {
+    if (st.zRows) { for (let r = 0; r < st.zRows; r++) for (let x = st.x0; x <= -st.x0; x += st.xStep) n++; }
+    else { for (let r = 0; r < st.xRows; r++) for (let z = st.z0; z <= -st.z0; z += st.zStep) n++; }
+  }
+  const geo = new THREE.PlaneGeometry(20, 30);
+  const si = new Float32Array(n), bo = new Float32Array(n);
+  const c = new THREE.Color(), d = new THREE.Object3D();
+  const mesh = new THREE.InstancedMesh(geo, null, n);
+  mesh.frustumCulled = false;
+  let idx = 0;
+  for (const st of stands) {
+    if (st.zRows) {
+      for (let r = 0; r < st.zRows; r++)
+        for (let x = st.x0; x <= -st.x0 && idx < n; x += st.xStep) {
+          d.position.set(x + (Math.random() - 0.5) * 4, 0, st.z0 + r * st.zStep + (Math.random() - 0.5) * 4);
+          const s = 0.7 + Math.random() * 0.6; d.scale.set(s, s, 1); d.updateMatrix();
+          mesh.setMatrixAt(idx, d.matrix);
+          si[idx] = Math.floor(Math.random() * 3); bo[idx] = Math.random() * Math.PI * 2;
+          c.set(paletteArr[Math.floor(Math.random() * paletteArr.length)]); mesh.setColorAt(idx, c);
+          idx++;
+        }
+    } else {
+      for (let r = 0; r < st.xRows; r++)
+        for (let z = st.z0; z <= -st.z0 && idx < n; z += st.zStep) {
+          d.position.set(st.x0 + r * st.xStep + (Math.random() - 0.5) * 4, 0, z + (Math.random() - 0.5) * 4);
+          const s = 0.7 + Math.random() * 0.6; d.scale.set(s, s, 1); d.updateMatrix();
+          mesh.setMatrixAt(idx, d.matrix);
+          si[idx] = Math.floor(Math.random() * 3); bo[idx] = Math.random() * Math.PI * 2;
+          c.set(paletteArr[Math.floor(Math.random() * paletteArr.length)]); mesh.setColorAt(idx, c);
+          idx++;
+        }
+    }
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  mesh.instanceColor.needsUpdate = true;
+  geo.setAttribute('aSpriteIndex', new THREE.BufferAttribute(si, 1, false, 1));
+  geo.setAttribute('aBobOffset', new THREE.BufferAttribute(bo, 1, false, 1));
+  const u = { uSpriteSheet: { value: tex }, uNumSprites: { value: 4 }, uTime: { value: 0 }, uCheerPhase: { value: 0 }, uCamRight: { value: new THREE.Vector3(1, 0, 0) }, uCamUp: { value: new THREE.Vector3(0, 1, 0) } };
+  mesh.material = new THREE.ShaderMaterial({
+    uniforms: u,
+    vertexShader: `
+      attribute float aSpriteIndex; attribute float aBobOffset;
+      uniform float uTime; uniform float uNumSprites; uniform float uCheerPhase;
+      uniform vec3 uCamRight; uniform vec3 uCamUp;
+      varying vec2 vUv; varying vec3 vColor;
+      void main() {
+        vec4 wp = modelMatrix * instanceMatrix * vec4(0.0, 0.0, 0.0, 1.0);
+        float sx = length(vec3(instanceMatrix[0])), sy = length(vec3(instanceMatrix[1]));
+        float sp = aSpriteIndex;
+        if (uCheerPhase > 0.01 && fract(aBobOffset * 1.7) > 0.6) sp = 3.0;
+        vUv = vec2((uv.x + sp) / uNumSprites, uv.y);
+        vColor = instanceColor;
+        float amp = 0.7 + uCheerPhase * 3.5;
+        wp.y += sin(uTime * 1.5 + aBobOffset) * amp;
+        gl_Position = projectionMatrix * viewMatrix * vec4(wp.xyz + position.x * uCamRight * sx + position.y * uCamUp * sy, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform sampler2D uSpriteSheet;
+      varying vec2 vUv; varying vec3 vColor;
+      void main() {
+        vec4 t = texture2D(uSpriteSheet, vUv);
+        gl_FragColor = vec4(t.rgb * vColor, t.a);
+      }
+    `,
+    transparent: true, depthWrite: false,
+  });
+  return { mesh, uniforms: u };
+}
+
+function triggerCrowdCheer() {
+  if (!crowdData) return;
+  crowdData.uniforms.uCheerPhase.value = 1;
+  SoundManager.crowdCheer();
+  setTimeout(() => {
+    if (crowdData) crowdData.uniforms.uCheerPhase.value = 0;
+  }, 3000);
+}
+
 // ── Ball ────────────────────────────────────────────────────────────────────
 const ballMat = new THREE.MeshStandardMaterial({
   color: 0xf8fafc,
@@ -572,6 +746,7 @@ let _skipKickerTeam = '';
 
 let CUST_TEAM_A = '#3b82f6';
 let CUST_TEAM_B = '#ef4444';
+let CUST_CROWD_PALETTE = 'classic';
 
 // Penalty timer refs
 let keepTimer = null;
@@ -584,6 +759,69 @@ let dragVisuals = []; // lines/arrows in scene
 
 // Animated ball position
 let animBall = null;
+
+// Goal celebration particles (Three.js Points)
+let goalParticles = null;
+let goalParticlesMesh = null;
+
+function triggerGoalEffect3D(team) {
+  if (goalParticlesMesh) { scene.remove(goalParticlesMesh); goalParticlesMesh = null; }
+  const color = team === 'a' ? hexToThree(CUST_TEAM_A) : hexToThree(CUST_TEAM_B);
+  const count = 80;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const vel = [];
+  const life = [];
+  const decay = [];
+  const goalWorld = serverToWorld(team === 'a' ? 980 : 20, 312);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = goalWorld.x + (Math.random() - 0.5) * 160;
+    positions[i * 3 + 1] = Math.random() * 100 + 30;
+    positions[i * 3 + 2] = goalWorld.z + (Math.random() - 0.5) * 160;
+    const c = color.clone().lerp(new THREE.Color(0xffffff), Math.random() * 0.5);
+    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+    vel.push({ x: (Math.random() - 0.5) * 8, y: Math.random() * 6 + 2, z: (Math.random() - 0.5) * 8 });
+    life.push(1);
+    decay.push(0.006 + Math.random() * 0.012);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 5, vertexColors: true, transparent: true, opacity: 1,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  goalParticlesMesh = new THREE.Points(geo, mat);
+  scene.add(goalParticlesMesh);
+  goalParticles = { positions, colors, vel, life, decay, count, startTime: performance.now(), active: true };
+}
+
+function tickGoalParticles() {
+  if (!goalParticles || !goalParticles.active || !goalParticlesMesh) return;
+  const p = goalParticles;
+  let alive = false;
+  const pos = p.positions;
+  for (let i = 0; i < p.count; i++) {
+    if (p.life[i] <= 0) continue;
+    pos[i * 3] += p.vel[i].x;
+    p.vel[i].y -= 0.15;
+    pos[i * 3 + 1] += p.vel[i].y;
+    pos[i * 3 + 2] += p.vel[i].z;
+    p.vel[i].x *= 0.99;
+    p.vel[i].z *= 0.99;
+    p.life[i] -= p.decay[i];
+    if (p.life[i] > 0) alive = true;
+  }
+  goalParticlesMesh.material.opacity = Math.min(1, (performance.now() - p.startTime) < 200 ? 1 : 1 - (performance.now() - p.startTime - 200) / 2000);
+  goalParticlesMesh.geometry.attributes.position.needsUpdate = true;
+  if (alive && goalParticlesMesh.material.opacity > 0) {
+    requestAnimationFrame(tickGoalParticles);
+  } else {
+    scene.remove(goalParticlesMesh);
+    goalParticlesMesh = null;
+    goalParticles = null;
+  }
+}
 
 function hexToThree(c) {
   return new THREE.Color(c);
@@ -636,11 +874,24 @@ function updatePlayerPositions() {
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+  if (crowdData) {
+    crowdData.uniforms.uTime.value = performance.now() / 1000;
+    const ce = camera.matrixWorld.elements;
+    crowdData.uniforms.uCamRight.value.set(ce[0], ce[1], ce[2]);
+    crowdData.uniforms.uCamUp.value.set(ce[4], ce[5], ce[6]);
+  }
   renderer.render(scene, camera);
 }
 animate();
 
 // ── HUD helpers ─────────────────────────────────────────────────────────────
+function showThinking() {
+  const tb = document.getElementById('turn-badge');
+  if (!tb) return;
+  tb.textContent = 'AI thinking…';
+  tb.className = 'turn-badge turn-b turn-thinking';
+}
+
 function updateHUD(st) {
   document.getElementById('score-a').textContent = st.score_a;
   document.getElementById('score-b').textContent = st.score_b;
@@ -760,10 +1011,16 @@ async function autoPenaltyKick() {
 
   if (data.ai_result) {
     const ai = data.ai_result;
+    // Kick sound for auto-penalty kicker
+    const apKicker = (data.is_player_a ? data.players_a : data.players_b)[ai.player_idx];
+    if (apKicker) playPositional(_kickBuf, serverToWorld(apKicker.x, apKicker.y), { volume: 0.7 });
     await new Promise(r => animateTrajectory3D(ai.trajectory, r));
     syncBall(ai.trajectory, ai.scored);
     logMove(ai.desc, !!ai.scored);
     if (ai.scored) {
+      SoundManager.goal();
+      triggerGoalEffect3D(data.is_player_a ? 'b' : 'a');
+      triggerCrowdCheer();
       gameState.ball = { x: 500, y: 312, z: 0 };
       ballMesh.position.copy(serverToWorld(500, 312));
       shadowMesh.position.copy(serverToWorld(500, 312));
@@ -845,16 +1102,23 @@ function updateDragVisuals(homeServer, pull) {
     dragVisuals.push(line);
   }
 
-  // Kick direction arrow
+  // Kick direction arrow (dashed line + cone arrowhead)
   const arrowLen = 46 + pull.power * 0.72;
-  const tipX = home.x + Math.cos(pull.kickAngle) * arrowLen;
-  const tipZ = home.z + Math.sin(pull.kickAngle) * arrowLen;
-  const tip = new THREE.Vector3(tipX, 0.5, tipZ);
+  const dir = new THREE.Vector3(Math.cos(pull.kickAngle), 0, Math.sin(pull.kickAngle));
+  const tip = home.clone().addScaledVector(dir, arrowLen);
   const dashGeo = new THREE.BufferGeometry().setFromPoints([home, tip]);
   const dashMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.88 });
   const dashLine = new THREE.Line(dashGeo, dashMat);
   scene.add(dashLine);
   dragVisuals.push(dashLine);
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(5, 12, 8),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  cone.position.copy(tip).sub(dir.clone().multiplyScalar(6));
+  cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+  scene.add(cone);
+  dragVisuals.push(cone);
 
   // Ball update for penalty mode
   if (dragPlayer === 'ball' && gameState && gameState.ball) {
@@ -1002,6 +1266,12 @@ function animateTrajectory3D(trajectory, onDone) {
     const ptA = trajectory[segIdx];
     const ptB = trajectory[segIdx + 1];
 
+    // Bounce sound (bounce frames are flagged b:true; b is a player array otherwise)
+    if (ptA.b === true) {
+      const bw = serverToWorld(ptA.x, ptA.y);
+      playPositional(_bounceBuf, bw, { volume: 0.45 });
+    }
+
     // Interpolate ball position (handle missing z for old replays)
     const zA = ptA.z || 0;
     const zB = ptB.z || 0;
@@ -1114,6 +1384,10 @@ async function submitKick(playerIdx, angleDeg, power) {
   isAnimating = true;
   setOverlay(false);
 
+  // Kick sound at kicker position
+  const kickerPos = gameState.players_a[playerIdx];
+  if (kickerPos) playPositional(_kickBuf, serverToWorld(kickerPos.x, kickerPos.y), { volume: 0.7 });
+
   const isPenalty = gameState.penalty_shootout === true;
 
   const resp = await fetch('/move', {
@@ -1145,6 +1419,9 @@ async function submitKick(playerIdx, angleDeg, power) {
     logMove(mr.desc, !!mr.scored);
 
     if (mr.scored) {
+      SoundManager.goal();
+      triggerGoalEffect3D('a');
+      triggerCrowdCheer();
       gameState.ball = { x: 500, y: 312, z: 0 };
       ballMesh.position.copy(serverToWorld(500, 312));
       shadowMesh.position.copy(serverToWorld(500, 312));
@@ -1154,6 +1431,7 @@ async function submitKick(playerIdx, angleDeg, power) {
 
   // AI response
   if (!data.game_over && data.game_mode === 'hvai' && !data.is_player_a) {
+    showThinking();
     const aiResp = await fetch('/ai_move', { method: 'POST' });
     const aiData = await aiResp.json();
     if (aiData.ai_result) {
@@ -1181,6 +1459,9 @@ async function submitKick(playerIdx, angleDeg, power) {
       syncBall(ai.trajectory, ai.scored);
       logMove(ai.desc, !!ai.scored);
       if (ai.scored) {
+        SoundManager.goal();
+        triggerGoalEffect3D('b');
+        triggerCrowdCheer();
         gameState.ball = { x: 500, y: 312, z: 0 };
         ballMesh.position.copy(serverToWorld(500, 312));
         shadowMesh.position.copy(serverToWorld(500, 312));
@@ -1202,6 +1483,7 @@ async function submitKick(playerIdx, angleDeg, power) {
 async function triggerAI() {
   if (isAnimating || (gameState && gameState.game_over)) return;
   isAnimating = true;
+  showThinking();
   const resp = await fetch('/ai_move', { method: 'POST' });
   const data = await resp.json();
 
@@ -1211,6 +1493,10 @@ async function triggerAI() {
     const ai = data.ai_result;
     const aiTeam = data.is_player_a ? 'b' : 'a';
     const aiPlayers = aiTeam === 'a' ? data.players_a : data.players_b;
+
+    // Kick sound for AI kicker
+    const aiKickerPos = aiPlayers[ai.player_idx];
+    if (aiKickerPos) playPositional(_kickBuf, serverToWorld(aiKickerPos.x, aiKickerPos.y), { volume: 0.7 });
 
     if (isPenalty) {
       await new Promise(r => animateTrajectory3D(ai.trajectory, r));
@@ -1232,6 +1518,9 @@ async function triggerAI() {
     syncBall(ai.trajectory, ai.scored);
     logMove(ai.desc, !!ai.scored);
     if (ai.scored) {
+      SoundManager.goal();
+      triggerGoalEffect3D(data.is_player_a ? 'b' : 'a');
+      triggerCrowdCheer();
       gameState.ball = { x: 500, y: 312, z: 0 };
       ballMesh.position.copy(serverToWorld(500, 312));
       shadowMesh.position.copy(serverToWorld(500, 312));
@@ -1305,7 +1594,21 @@ function setOverlay(show, text) {
     const cust = await fetch('/api/customization').then(r => r.json());
     if (cust.team_a_color) CUST_TEAM_A = cust.team_a_color;
     if (cust.team_b_color) CUST_TEAM_B = cust.team_b_color;
+    if (cust.crowd_palette) {
+      CUST_CROWD_PALETTE = cust.crowd_palette;
+    }
   } catch (e) {}
+
+  // Ambient crowd noise starts on first user gesture (unlockAudio above)
+
+  // Build the crowd (existing createCrowd was never wired into init)
+  try {
+    let pal = CROWD_PALETTES[CUST_CROWD_PALETTE] || CROWD_PALETTES.classic;
+    if (CUST_CROWD_PALETTE === 'team_a') pal = _genCrowdPalette(CUST_TEAM_A, 10);
+    else if (CUST_CROWD_PALETTE === 'team_b') pal = _genCrowdPalette(CUST_TEAM_B, 10);
+    crowdData = createCrowd(pal);
+    scene.add(crowdData.mesh);
+  } catch (e) { console.warn('Crowd init failed:', e); }
 
   const data = await fetch('/state').then(r => r.json());
   document.getElementById('mode-select').value = data.game_mode || 'hvai';

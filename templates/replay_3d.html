@@ -15,14 +15,20 @@
   position:relative;cursor:default;background:#020617;
 }
 #three-container{display:block;width:100%;height:100%;min-height:500px;touch-action:none}
+.sound-btn{
+  background:rgba(255,255,255,.3);border:none;
+  font-size:22px;line-height:1;padding:4px 8px;cursor:pointer;
+  border-radius:8px;transition:background .2s;color:#fff;
+}
+.sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
 </style>
+<script src="{{ url_for('static', filename='sound.js') }}"></script>
 </head>
 <body>
 <nav>
-  <a class="nav-brand title-gradient" href="/">Agent Soccer</a>
+  <a class="nav-brand title-gradient" href="/play3d">Agent Soccer</a>
   <div class="nav-links">
-    <a href="/" class="nav-link">Game</a>
-    <a href="/play3d" class="nav-link">3D</a>
+    <a href="/play3d" class="nav-link">Game</a>
     <a href="/playground" class="nav-link">Playground</a>
     <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/my-models" class="nav-link">My Models</a>
@@ -71,6 +77,7 @@
     <div class="replay-controls">
       <button class="btn btn-primary btn-play" id="btn-next" onclick="playNextMove3D()">Next Move</button>
       <button class="btn btn-ghost btn-play" id="btn-auto" onclick="toggleAutoPlay3D()">Auto Play</button>
+      <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
     </div>
   </div>
 </main>
@@ -141,7 +148,100 @@ controls.minPolarAngle = 0.1;
 controls.maxPolarAngle = Math.PI / 2.05;
 controls.minDistance = 200;
 controls.maxDistance = 1600;
+controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
 controls.update();
+
+// ── Audio: synthesized SoundManager (zero assets) + 3D positional sound ─────
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+SoundManager.attach(audioCtx);
+const listener = new THREE.AudioListener(audioCtx);
+camera.add(listener);
+const _kickBuf = SoundManager.makeKickBuffer();
+const _bounceBuf = SoundManager.makeBounceBuffer();
+
+function playPositional(buf, worldPos, opts) {
+  if (SoundManager.isMuted()) return;
+  if (!buf) return;
+  SoundManager.resume();
+  const obj = new THREE.Object3D();
+  obj.position.copy(worldPos);
+  scene.add(obj);
+  const s = new THREE.PositionalAudio(listener);
+  s.setBuffer(buf);
+  s.setRefDistance(250);
+  s.setRolloffFactor(1.2);
+  if (opts && opts.volume) s.setVolume(opts.volume);
+  obj.add(s);
+  s.onEnded = () => { obj.remove(s); scene.remove(obj); };
+  s.play();
+}
+
+// Browsers suspend AudioContext until a user gesture — resume on first one
+window.addEventListener('pointerdown', () => SoundManager.resume(), { once: true });
+
+// ── Goal celebration particles ──────────────────────────────────────────────
+let goalParticles = null;
+let goalParticlesMesh = null;
+
+function triggerGoalEffect3D(team) {
+  if (goalParticlesMesh) { scene.remove(goalParticlesMesh); goalParticlesMesh = null; }
+  const color = team === 'a' ? hexToThree(TEAM_A_COLOR) : hexToThree(TEAM_B_COLOR);
+  const count = 80;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const vel = [];
+  const life = [];
+  const decay = [];
+  const goalWorld = serverToWorld(team === 'a' ? 980 : 20, 312);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = goalWorld.x + (Math.random() - 0.5) * 160;
+    positions[i * 3 + 1] = Math.random() * 100 + 30;
+    positions[i * 3 + 2] = goalWorld.z + (Math.random() - 0.5) * 160;
+    const c = color.clone().lerp(new THREE.Color(0xffffff), Math.random() * 0.5);
+    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+    vel.push({ x: (Math.random() - 0.5) * 8, y: Math.random() * 6 + 2, z: (Math.random() - 0.5) * 8 });
+    life.push(1);
+    decay.push(0.006 + Math.random() * 0.012);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 5, vertexColors: true, transparent: true, opacity: 1,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  goalParticlesMesh = new THREE.Points(geo, mat);
+  scene.add(goalParticlesMesh);
+  goalParticles = { positions, colors, vel, life, decay, count, startTime: performance.now(), active: true };
+}
+
+function tickGoalParticles() {
+  if (!goalParticles || !goalParticles.active || !goalParticlesMesh) return;
+  const p = goalParticles;
+  let alive = false;
+  const pos = p.positions;
+  for (let i = 0; i < p.count; i++) {
+    if (p.life[i] <= 0) continue;
+    pos[i * 3] += p.vel[i].x;
+    p.vel[i].y -= 0.15;
+    pos[i * 3 + 1] += p.vel[i].y;
+    pos[i * 3 + 2] += p.vel[i].z;
+    p.vel[i].x *= 0.99;
+    p.vel[i].z *= 0.99;
+    p.life[i] -= p.decay[i];
+    if (p.life[i] > 0) alive = true;
+  }
+  goalParticlesMesh.material.opacity = Math.min(1, (performance.now() - p.startTime) < 200 ? 1 : 1 - (performance.now() - p.startTime - 200) / 2000);
+  goalParticlesMesh.geometry.attributes.position.needsUpdate = true;
+  if (alive && goalParticlesMesh.material.opacity > 0) {
+    requestAnimationFrame(tickGoalParticles);
+  } else {
+    scene.remove(goalParticlesMesh);
+    goalParticlesMesh = null;
+    goalParticles = null;
+  }
+}
 
 // ── Lights ──────────────────────────────────────────────────────────────────
 scene.add(new THREE.AmbientLight(0x8899bb, 0.6));
@@ -455,6 +555,12 @@ function animateTrajectory3D(trajectory, onDone) {
     const segIdx = Math.min(Math.floor(progress), totalSegments - 1);
     const segFrac = progress - segIdx;
     const ptA = trajectory[segIdx], ptB = trajectory[segIdx + 1];
+
+    // Bounce sound (bounce frames are flagged b:true; b is a player array otherwise)
+    if (ptA.b === true) {
+      playPositional(_bounceBuf, serverToWorld(ptA.x, ptA.y), { volume: 0.5 });
+    }
+
     const bx = lerp(ptA.x, ptB.x, segFrac);
     const by = lerp(ptA.y, ptB.y, segFrac);
     const bz = lerp(ptA.z || 0, ptB.z || 0, segFrac);
@@ -536,9 +642,9 @@ window.playNextMove3D = function() {
 
   const _preA = raw[0].a ? raw[0].a.map(p => ({ x: p.x, y: p.y })) : [];
   const _preB = raw[0].b ? raw[0].b.map(p => ({ x: p.x, y: p.y })) : [];
-  const HOME_A = [{x:62,y:312},{x:400,y:244},{x:400,y:381}];
-  const HOME_B = [{x:938,y:312},{x:600,y:244},{x:600,y:381}];
+  const HOME_A = [{x:62,y:312},{x:405,y:244},{x:405,y:381}];
 
+  const HOME_B = [{x:938,y:312},{x:595,y:244},{x:595,y:381}];
   function finish() {
     applyMoveToState(move);
     currentMove++;
@@ -555,6 +661,12 @@ window.playNextMove3D = function() {
   }
 
   if (move.scored && raw.length > 0) {
+    // Kick sound at kicker position
+    const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
+    if (kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
+    // Goal sound + particles
+    SoundManager.goal();
+    triggerGoalEffect3D(move.mover === 'a' ? 'a' : 'b');
     // Animate trajectory, then slide back to kickoff positions
     animateTrajectory3D(raw, () => {
       state.players_a = _preA.map(p => ({ x: p.x, y: p.y }));
@@ -581,6 +693,9 @@ window.playNextMove3D = function() {
       requestAnimationFrame(slide);
     });
   } else {
+    // Kick sound at kicker position
+    const kickerSrv2 = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
+    if (kickerSrv2) playPositional(_kickBuf, serverToWorld(kickerSrv2.x, kickerSrv2.y), { volume: 0.7 });
     animateTrajectory3D(raw, finish);
   }
 };

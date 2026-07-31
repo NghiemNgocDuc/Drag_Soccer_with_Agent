@@ -47,10 +47,9 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
 <body>
 <div class="nebula"></div>
 <nav>
-  <a class="nav-brand" href="/">Agent Soccer</a>
+  <a class="nav-brand" href="/play3d">Agent Soccer</a>
   <div class="nav-links">
-    <a href="/" class="nav-link">Game</a>
-    <a href="/online" class="nav-link">Online</a>
+    <a href="/play3d" class="nav-link">Game</a>
     <a href="/playground" class="nav-link">Playground</a>
     <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/tournaments" class="nav-link">Tournaments</a>
@@ -358,7 +357,7 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
   <div class="btn-row">
     <button class="btn btn-success" id="save-btn" onclick="saveSettings()">Save All Settings</button>
     <button class="btn btn-ghost" onclick="resetDefaults()">Reset to Defaults</button>
-    <a href="/" class="btn btn-primary">Back to Game</a>
+    <a href="/play3d" class="btn btn-primary">Back to Game</a>
   </div>
 </main>
 
@@ -579,7 +578,7 @@ function renderPreview(){
   });
 
   // Players
-  var ha=[{x:62,y:312},{x:400,y:244},{x:400,y:381}],hb=[{x:938,y:312},{x:600,y:244},{x:600,y:381}],sh=[1,7,10];
+  var ha=[{x:62,y:312},{x:405,y:244},{x:405,y:381}],hb=[{x:938,y:312},{x:595,y:244},{x:595,y:381}],sh=[1,7,10];
   var fonts={default:'bold 12px Inter,sans-serif',bold:'bold 14px Inter,sans-serif',narrow:'500 12px Inter,sans-serif',retro:'bold 11px monospace'};
   var fnt=fonts[gc.shirt_font]||fonts.default;
   function drawP(x,y,col,num,hl){

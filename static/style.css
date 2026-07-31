@@ -628,6 +628,13 @@ tbody td {
   color: var(--accent-b-dark);
   border: 1px solid rgba(249, 115, 22, 0.25);
 }
+.turn-badge.turn-thinking {
+  animation: thinking-pulse 1.1s ease-in-out infinite;
+}
+@keyframes thinking-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
 
 .winner-banner {
   display: none;

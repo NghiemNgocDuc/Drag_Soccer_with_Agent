@@ -138,24 +138,33 @@ def test_heavy_vs_light_collision():
 
 
 def test_high_agility_stops_faster():
-    """Higher agility (friction) -> kicker decelerates faster, covers less ground."""
+    """Higher agility (friction) -> target player slides less when hit by ball."""
+    bx, by = 500.0, 312.0
     st_high = new_soccer_state(player_count=3)
+    st_high["players_a"] = [{"x": bx - 30.0, "y": by}, {"x": 100.0, "y": 0.0}, {"x": 100.0, "y": 0.0}]
+    st_high["players_b"] = [{"x": bx, "y": by}, {"x": 900.0, "y": 0.0}, {"x": 900.0, "y": 0.0}]
+    st_high["ball"] = {"x": bx, "y": by, "z": 0.0}
     inject_player_stats(st_high, [
+        {"size": 50, "power": 80, "weight": 50, "agility": 50},
+    ] * 3, [
         {"size": 50, "power": 50, "weight": 50, "agility": 80},
-    ] * 3, None)
-    traj_high, _ = simulate_kick(st_high, 2, 0, 95, True)
-    end_v_high = traj_high[-1]["a"][2]
-    dx_high = abs(end_v_high["x"] - 281.0)
+    ] * 3)
+    apply_kick(st_high, 0, 0, 100, True)
+    dx_high = abs(st_high["players_b"][0]["x"] - bx)
 
     st_low = new_soccer_state(player_count=3)
+    st_low["players_a"] = [{"x": bx - 30.0, "y": by}, {"x": 100.0, "y": 0.0}, {"x": 100.0, "y": 0.0}]
+    st_low["players_b"] = [{"x": bx, "y": by}, {"x": 900.0, "y": 0.0}, {"x": 900.0, "y": 0.0}]
+    st_low["ball"] = {"x": bx, "y": by, "z": 0.0}
     inject_player_stats(st_low, [
+        {"size": 50, "power": 80, "weight": 50, "agility": 50},
+    ] * 3, [
         {"size": 50, "power": 50, "weight": 50, "agility": 20},
-    ] * 3, None)
-    traj_low, _ = simulate_kick(st_low, 2, 0, 95, True)
-    end_v_low = traj_low[-1]["a"][2]
-    dx_low = abs(end_v_low["x"] - 281.0)
+    ] * 3)
+    apply_kick(st_low, 0, 0, 100, True)
+    dx_low = abs(st_low["players_b"][0]["x"] - bx)
 
-    assert dx_high < dx_low, f"High agility moved {dx_high}, low agility moved {dx_low}"
+    assert dx_high < dx_low, f"High agility moved {dx_high:.0f}px, low agility moved {dx_low:.0f}px"
 
 
 def test_no_stats_backward_compat():

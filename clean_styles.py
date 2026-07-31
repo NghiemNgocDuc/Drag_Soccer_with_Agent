@@ -73,8 +73,8 @@ for filename in os.listdir(templates_dir):
     if not filename.endswith(".html"):
         continue
         
-    # skip index.html and online.html as we manually fixed them
-    if filename in ["index.html", "online.html"]:
+    # skip deleted templates
+    if filename in ["index.html", "online.html", "replay.html"]:
         continue
         
     filepath = os.path.join(templates_dir, filename)

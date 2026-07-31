@@ -386,7 +386,7 @@ def auth_logout():
 @app.route("/")
 @login_required
 def index():
-    return render_template("index.html", username=session.get("username", "Player"))
+    return redirect(url_for("index_3d"))
 
 
 @app.route("/play3d")
@@ -972,18 +972,12 @@ def _save_room(room_id, room):
 @app.route("/online")
 @login_required
 def online_page():
-    return render_template("online.html", username=session.get("username", "Player"))
+    return redirect(url_for("index_3d"))
 
 
 @app.route("/join/<room_id>")
 def join_room_page(room_id):
-    if "user_id" not in session:
-        import uuid
-        session["user_id"]  = f"guest:{uuid.uuid4().hex[:12]}"
-        session["username"] = "Guest"
-    return render_template("online.html",
-                           username=session.get("username", "Guest"),
-                           auto_join_room=room_id)
+    return redirect(url_for("index_3d"))
 
 
 @app.route("/online/create", methods=["POST"])
@@ -1416,13 +1410,7 @@ def tournament_simulate(tid, match_id):
 @app.route("/tournaments/<tid>/watch/<match_id>")
 @login_required
 def tournament_watch(tid, match_id):
-    from db.tournaments import get_tournament, get_match
-    t = get_tournament(tid)
-    m = get_match(tid, match_id)
-    if not t or not m or m["status"] != "completed":
-        flash("Match not available for replay")
-        return redirect(url_for("tournament_view", tid=tid))
-    return render_template("replay.html", username=session.get("username", "Player"), t=t, match=m)
+    return redirect(url_for("tournament_watch_3d", tid=tid, match_id=match_id))
 
 
 @app.route("/replay3d/<tid>/<match_id>")

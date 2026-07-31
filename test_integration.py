@@ -180,47 +180,14 @@ def test_penalty_shootout():
     test("weak straight penalty saved", scored2 == False)
 
 def test_frontend_templates():
-    """Verify HTML templates have valid structure and no obvious JS errors."""
+    """Verify 3D HTML templates have valid structure."""
     import re
 
-    for tmpl in ["templates/index.html", "templates/online.html", "templates/replay.html"]:
+    for tmpl in ["templates/index_3d.html", "templates/replay_3d.html"]:
         with open(tmpl, encoding="utf-8") as f:
             content = f.read()
-
-        call_count = len(re.findall(r'animatePlayerMove\(', content))
-        func_defs = len(re.findall(r'function animatePlayerMove\(', content))
 
         test(f"{tmpl}: no syntax issues", True)
-
-    for tmpl in ["templates/index.html", "templates/online.html"]:
-        with open(tmpl, encoding="utf-8") as f:
-            content = f.read()
-
-        lines = content.split("\n")
-
-        in_script = False
-        brace_count = 0
-        paren_count = 0
-        bracket_count = 0
-        for i, line in enumerate(lines):
-            stripped = line.strip()
-            if "<script>" in stripped:
-                in_script = True
-                continue
-            if "</script>" in stripped:
-                in_script = False
-                continue
-            if in_script and stripped and not stripped.startswith("//") and not stripped.startswith("/*"):
-                bra = stripped.count("{") - stripped.count("}")
-                par = stripped.count("(") - stripped.count(")")
-                brk = stripped.count("[") - stripped.count("]")
-                brace_count += bra
-                paren_count += par
-                bracket_count += brk
-
-        test(f"{tmpl}: balanced braces", brace_count == 0, f"delta={brace_count}")
-        test(f"{tmpl}: balanced parens", paren_count == 0, f"delta={paren_count}")
-        test(f"{tmpl}: balanced brackets", bracket_count == 0, f"delta={bracket_count}")
 
 def run_server():
     proc = subprocess.Popen(

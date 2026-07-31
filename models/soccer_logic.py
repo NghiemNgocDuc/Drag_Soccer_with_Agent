@@ -131,12 +131,12 @@ def _home_positions(count: int, side: str) -> list[tuple[float, float]]:
         gk_x = FIELD_W * 0.062  # ~62
         def_x = FIELD_W * 0.162  # ~162
         mid_x = FIELD_W * 0.281  # ~281
-        atk_x = FIELD_W * 0.3    # ~300
+        atk_x = FIELD_W * 0.405  # ~405 (95px from ball at 500)
     else:
         gk_x = FIELD_W * 0.938  # ~938
         def_x = FIELD_W * 0.838  # ~838
         mid_x = FIELD_W * 0.719  # ~719
-        atk_x = FIELD_W * 0.7    # ~700
+        atk_x = FIELD_W * 0.595  # ~595 (95px from ball at 500)
     positions = [(gk_x, center_y)]
     if count < 2:
         return positions[:count]
