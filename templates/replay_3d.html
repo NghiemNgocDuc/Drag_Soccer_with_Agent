@@ -493,6 +493,7 @@ function rebuildPlayers(playerDataA, playerDataB) {
     mesh.position.copy(serverToWorld(p.x, p.y));
     playerMeshesB.push(mesh); scene.add(mesh);
   }
+  if (state.referee) updateRefereeMesh(state.referee.x, state.referee.y);
 }
 
 function updatePlayerPositions(playerDataA, playerDataB) {
@@ -504,11 +505,41 @@ function updatePlayerPositions(playerDataA, playerDataB) {
   }
 }
 
+// ── Referee (cosmetic, driven by trajectory "ref" frames) ───────────────────
+const refereeMesh = (() => {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(5.5, 12, 4, 10), new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.1 }));
+  body.position.y = 9;
+  body.castShadow = true;
+  group.add(body);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(5.9, 5.9, 3.4, 10), new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.6 }));
+  band.position.y = 7.5;
+  group.add(band);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(3.4, 10, 10), new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.8 }));
+  head.position.y = 20.5;
+  head.castShadow = true;
+  group.add(head);
+  const rShadow = new THREE.Mesh(new THREE.CircleGeometry(6.5, 12), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.15, depthWrite: false }));
+  rShadow.rotation.x = -Math.PI / 2;
+  rShadow.position.y = 0.05;
+  group.add(rShadow);
+  group.visible = false;
+  scene.add(group);
+  return group;
+})();
+
+function updateRefereeMesh(sx, sy) {
+  const hidden = sx === undefined || sx === null || sx < -50; // off-field (penalty shootout)
+  refereeMesh.visible = !hidden;
+  if (!hidden) refereeMesh.position.copy(serverToWorld(sx, sy));
+}
+
 // ── State ───────────────────────────────────────────────────────────────────
 let state = {
   ball: { x: 500, y: 312 },
   players_a: [],
   players_b: [],
+  referee: null,
   score_a: 0, score_b: 0
 };
 
@@ -519,6 +550,7 @@ function applyMoveToState(move) {
   state.ball = { x: last.x, y: last.y, z: last.z || 0 };
   if (last.a) state.players_a = last.a.map(p => ({ x: p.x, y: p.y }));
   if (last.b) state.players_b = last.b.map(p => ({ x: p.x, y: p.y }));
+  if (last.ref) state.referee = { x: last.ref.x, y: last.ref.y };
   if (move.scored === 'A') state.score_a++;
   else if (move.scored === 'B') state.score_b++;
 }
@@ -542,6 +574,10 @@ function animateTrajectory3D(trajectory, onDone) {
     ballMesh.position.copy(serverToWorld(pt.x, pt.y, pt.z || 0));
     if (pt.a) state.players_a = pt.a.map(p => ({ x: p.x, y: p.y }));
     if (pt.b) state.players_b = pt.b.map(p => ({ x: p.x, y: p.y }));
+    if (pt.ref) {
+      state.referee = { x: pt.ref.x, y: pt.ref.y };
+      updateRefereeMesh(pt.ref.x, pt.ref.y);
+    }
     updatePlayerPositions(state.players_a, state.players_b);
     onDone(); return;
   }
@@ -590,12 +626,25 @@ function animateTrajectory3D(trajectory, onDone) {
       }
     }
     updatePlayerPositions(state.players_a, state.players_b);
+
+    // Interpolate referee position (trajectory frames carry ref)
+    if (ptA.ref && ptB.ref) {
+      const refX = lerp(ptA.ref.x, ptB.ref.x, segFrac);
+      const refY = lerp(ptA.ref.y, ptB.ref.y, segFrac);
+      state.referee = { x: refX, y: refY };
+      refereeMesh.position.copy(serverToWorld(refX, refY));
+    }
+
     if (progress < totalSegments) {
       requestAnimationFrame(frame);
     } else {
       const last = trajectory[trajectory.length - 1];
       if (last.a) state.players_a = last.a.map(p => ({ x: p.x, y: p.y }));
       if (last.b) state.players_b = last.b.map(p => ({ x: p.x, y: p.y }));
+      if (last.ref) {
+        state.referee = { x: last.ref.x, y: last.ref.y };
+        updateRefereeMesh(last.ref.x, last.ref.y);
+      }
       updatePlayerPositions(state.players_a, state.players_b);
       onDone();
     }
@@ -632,7 +681,12 @@ window.playNextMove3D = function() {
   if (isAnimating || currentMove >= replayData.length) return;
   const move = replayData[currentMove];
   const raw = move.trajectory;
-  if (!raw || raw.length === 0) { currentMove++; updateUI(); return; }
+  if (!raw || raw.length === 0) {
+    currentMove++;
+    updateUI();
+    if (autoPlayOn && currentMove < replayData.length) setTimeout(window.playNextMove3D, 200);
+    return;
+  }
 
   isAnimating = true;
   document.getElementById('btn-next').disabled = true;
@@ -654,6 +708,7 @@ window.playNextMove3D = function() {
     const sp = serverToWorld(state.ball.x, state.ball.y);
     shadowMesh.position.set(sp.x, 0.1, sp.z);
     updatePlayerPositions(state.players_a, state.players_b);
+    if (state.referee) updateRefereeMesh(state.referee.x, state.referee.y);
     updateUI();
     if (autoPlayOn && currentMove < replayData.length) {
       setTimeout(window.playNextMove3D, 500);
@@ -714,6 +769,17 @@ window.toggleAutoPlay3D = function() {
   }
 };
 
+window.__refereePos = () => refereeMesh.visible ? { x: refereeMesh.position.x, y: refereeMesh.position.z, vis: true } : { vis: false };
+window.__replayMeta = () => ({
+  n: replayData.length,
+  firstTrajLen: replayData.length && replayData[0].trajectory ? replayData[0].trajectory.length : -1,
+  firstRef: replayData.length && replayData[0].trajectory && replayData[0].trajectory[0] ? Boolean(replayData[0].trajectory[0].ref) : false,
+  movesWithRef: replayData.filter(m => m.trajectory && m.trajectory.length > 0 && m.trajectory[0].ref).length,
+  hasRefFrames: replayData.some(m => m.trajectory && m.trajectory.length > 0 && m.trajectory[0].ref),
+  hasStateRef: state.referee !== null,
+  stateRef: state.referee
+});
+
 // ── Render loop ─────────────────────────────────────────────────────────────
 function animate() {
   requestAnimationFrame(animate);
@@ -724,13 +790,14 @@ animate();
 
 // ── Init ────────────────────────────────────────────────────────────────────
 (async () => {
-  if (replayData.length > 0) {
-    const first = replayData[0];
+  const first = replayData.find(m => m.trajectory && m.trajectory.length > 0);
+  if (first) {
     const traj = first.trajectory;
     if (traj && traj[0]) {
       state.ball = { x: traj[0].x, y: traj[0].y, z: traj[0].z || 0 };
       if (traj[0].a) state.players_a = traj[0].a.map(p => ({ x: p.x, y: p.y }));
       if (traj[0].b) state.players_b = traj[0].b.map(p => ({ x: p.x, y: p.y }));
+      if (traj[0].ref) state.referee = { x: traj[0].ref.x, y: traj[0].ref.y };
     }
   }
   rebuildPlayers(state.players_a, state.players_b);

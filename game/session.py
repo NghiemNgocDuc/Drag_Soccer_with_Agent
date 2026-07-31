@@ -51,6 +51,7 @@ def push_snapshot(state: dict) -> None:
         "ball":        copy.deepcopy(state["ball"]),
         "players_a":   copy.deepcopy(state["players_a"]),
         "players_b":   copy.deepcopy(state["players_b"]),
+        "referee":     copy.deepcopy(state.get("referee")),
         "score_a":     state["score_a"],
         "score_b":     state["score_b"],
         "is_player_a": state["is_player_a"],

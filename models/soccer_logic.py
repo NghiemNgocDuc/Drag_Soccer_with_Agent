@@ -213,6 +213,20 @@ _PLAYER_TRAVEL = 3.0
 _CONTACT = float(PLAYER_R + BALL_R)
 _P2P     = float(PLAYER_R * 2)
 
+# ── Referee (cosmetic) motion ────────────────────────────────────────────────
+# The referee has no collision shape — position is driven directly each step,
+# so it can never affect the ball, players, or scoring.
+_REF_WANDER_SPEED   = 75.0    # px/s ambient patrol speed (human jog)
+_REF_DODGE_SPEED    = 300.0   # px/s evasion sidestep
+_REF_PATH_TRIGGER   = 75.0    # dodge when the ball's path comes within this many px
+_REF_NEAR           = 60.0    # dodge radially when the ball is this close and stopped
+_REF_XMIN           = _MARGIN + 20.0
+_REF_XMAX           = FIELD_W - _MARGIN - 20.0
+_REF_YMIN           = _MARGIN + 15.0
+_REF_YMAX           = FIELD_H - _MARGIN - 15.0
+_REF_GOAL_SAFE_X    = 70.0    # near a goal mouth: keep out of the goal band
+_REF_GOAL_SAFE_PAD  = 12.0    # px outside the goal band the ref keeps
+
 # ── Pymunk physics parameters ────────────────────────────────────────────────
 _PM_DT        = 1.0 / 60.0
 _PM_DAMPING   = 1.0
@@ -371,9 +385,12 @@ def _build_space(state: dict):
     bodies_a = [_make_player(p["x"], p["y"], p.get("stats")) for p in state["players_a"]]
     bodies_b = [_make_player(p["x"], p["y"], p.get("stats")) for p in state["players_b"]]
 
-    # Referee — use default stats
+    # Referee — cosmetic only: body WITHOUT a collision shape and no pivot,
+    # so the ball and players pass straight through it (no physics presence).
     ref_pos = state.get("referee", {"x": REFEREE_POS[0], "y": REFEREE_POS[1]})
-    ref_body = _make_player(ref_pos["x"], ref_pos["y"])
+    ref_body = pymunk.Body(_PM_MASS_P, pymunk.moment_for_circle(_PM_MASS_P, 0, PLAYER_R))
+    ref_body.position = (float(ref_pos["x"]), float(ref_pos["y"]))
+    space.add(ref_body)
 
     ball_body = pymunk.Body(_PM_MASS_B, pymunk.moment_for_circle(_PM_MASS_B, 0, BALL_R))
     ball_body.position = (float(state["ball"]["x"]), float(state["ball"]["y"]))
@@ -689,6 +706,72 @@ def _loft_angle(power: float) -> float:
     return min((power - 40.0) * 0.5, 30.0)
 
 
+def _referee_step(ref_body, ball_body, dt: float) -> None:
+    """Deterministic ambient referee motion: flow-field patrol + ball dodging.
+
+    Purely cosmetic — the referee body has no collision shape, so its
+    position only affects rendering (via trajectory ``ref`` frames and the
+    game-state ``referee`` field). Movement is a deterministic function of
+    (referee position, ball position/velocity), so AI lookahead via
+    ``simulate_kick`` stays reproducible.
+    """
+    rx, ry = ref_body.position.x, ref_body.position.y
+    bx, by = ball_body.position.x, ball_body.position.y
+    bvx, bvy = ball_body.velocity.x, ball_body.velocity.y
+    ball_speed = math.hypot(bvx, bvy)
+
+    vx = vy = 0.0
+    dodging = False
+
+    # 1) Ball stopped very close: move directly away from it.
+    dx, dy = rx - bx, ry - by
+    dist_ball = math.hypot(dx, dy)
+    if dist_ball > 1e-6 and dist_ball < _REF_NEAR and ball_speed < 1.0:
+        vx, vy = dx / dist_ball * _REF_DODGE_SPEED, dy / dist_ball * _REF_DODGE_SPEED
+        dodging = True
+
+    # 2) Moving ball whose path will pass near the referee: sidestep
+    #    perpendicular to the path, on the side that moves away from it.
+    if not dodging and ball_speed > 1.0:
+        cross = dx * bvy - dy * bvx  # signed distance * speed (2D cross)
+        path_dist = abs(cross) / ball_speed
+        if path_dist < _REF_PATH_TRIGGER:
+            approaching = dx * bvx + dy * bvy > 0.0
+            if approaching:
+                nx, ny = -bvy / ball_speed, bvx / ball_speed
+                if cross > 0.0:
+                    vx, vy = -nx * _REF_DODGE_SPEED, -ny * _REF_DODGE_SPEED
+                elif cross < 0.0:
+                    vx, vy = nx * _REF_DODGE_SPEED, ny * _REF_DODGE_SPEED
+                else:  # dead on the path: pick a deterministic side
+                    vx, vy = (-nx * _REF_DODGE_SPEED, -ny * _REF_DODGE_SPEED) if ry > by else (nx * _REF_DODGE_SPEED, ny * _REF_DODGE_SPEED)
+                dodging = True
+
+    # 3) Ambient flow-field patrol (position-only, smooth, no RNG).
+    if not dodging:
+        fx = math.sin(ry * 0.02)
+        fy = math.cos(rx * 0.02)
+        fn = math.hypot(fx, fy) or 1.0
+        vx, vy = fx / fn * _REF_WANDER_SPEED, fy / fn * _REF_WANDER_SPEED
+
+    # Integrate, reflecting off the bounds so the flow can't pin the ref
+    # against a wall, then clamp.
+    nx, ny = rx + vx * dt, ry + vy * dt
+    if nx <= _REF_XMIN and vx < 0.0: vx = -vx
+    elif nx >= _REF_XMAX and vx > 0.0: vx = -vx
+    if ny <= _REF_YMIN and vy < 0.0: vy = -vy
+    elif ny >= _REF_YMAX and vy > 0.0: vy = -vy
+    nx, ny = rx + vx * dt, ry + vy * dt
+    nx = max(_REF_XMIN, min(_REF_XMAX, nx))
+    ny = max(_REF_YMIN, min(_REF_YMAX, ny))
+
+    # Keep out of the goal-mouth band when hugging the goal line.
+    if (nx < _REF_GOAL_SAFE_X or nx > FIELD_W - _REF_GOAL_SAFE_X) and GOAL_Y1 <= ny <= GOAL_Y2:
+        ny = GOAL_Y1 - _REF_GOAL_SAFE_PAD if ny < (GOAL_Y1 + GOAL_Y2) / 2 else GOAL_Y2 + _REF_GOAL_SAFE_PAD
+
+    ref_body.position = (round(nx, 1), round(ny, 1))
+
+
 def _sim(space, bodies_a, bodies_b, ball_body, ref_body, kicker_idx, is_player_a, max_steps=_PM_MAX_STEPS, vz0=0.0, ball_pivot=None):
     """Run pymunk simulation and record results.
 
@@ -735,6 +818,9 @@ def _sim(space, bodies_a, bodies_b, ball_body, ref_body, kicker_idx, is_player_a
                     ball_pivot.max_force = _PM_MASS_B * _BALL_AIR_FRICTION
                 else:
                     ball_pivot.max_force = _PM_MASS_B * _PM_LINEAR_FRICTION_B
+
+        # Ambient referee motion (wander + dodge) — cosmetic only
+        _referee_step(ref_body, ball_body, _PM_DT)
 
         bx = ball_body.position.x
         by = ball_body.position.y

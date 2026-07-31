@@ -40,6 +40,14 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - **Restored (was never wired)**: `createCrowd()` was defined but never called — `crowdData` stayed `null`, so the crowd never rendered. Now called in init after customization load; `frustumCulled = false` set (instances far from the small plane geometry).
 - **Billboard shader fix**: original shader computed billboard axes with `normalize(cross(cameraPosition - wp.xyz, vec3(0,1,0)))` in the vertex shader — compiles/links with all uniforms bound but rasterizes ZERO fragments (reproduced headless on SwiftShader; CPU replica of the same math puts 1329/2040 vertices in-frustum). Fixed by feeding camera right/up axes as `uCamRight`/`uCamUp` uniforms (updated per-frame in `animate()` from `camera.matrixWorld` columns) — standard pattern, verified rendering (12k+ pixel A/B diff).
 
+### Cosmetic Referee (wandering, ball-dodging, zero physics)
+- **Server motion** (`models/soccer_logic.py`): `_referee_step(ref_body, ball_body, dt)` — deterministic (no RNG, so `simulate_kick` lookahead stays reproducible): (1) ball stopped within 60px → radial dodge away at 300px/s; (2) moving ball → perpendicular sidestep away from ball's path (dead-center → deterministic side by `ry > by`); (3) else flow patrol `(sin(ry*0.02), cos(rx*0.02))` at 75px/s. Bounces off `_REF_*MIN/MAX` bounds, goal-mouth band guard pulls it out, clamp after each step. Constants: `_REF_WANDER_SPEED=75`, `_REF_DODGE_SPEED=300`, `_REF_PATH_TRIGGER=75`, `_REF_NEAR=60`, `_REF_GOAL_SAFE_X=70`, `_REF_GOAL_SAFE_PAD=12`.
+- **No physics presence**: referee is a shape-less `pymunk.Body` (no Circle shape, no pivot) — the ball/players can never collide with it (previously built via `_make_player` so the ball could bounce off the invisible referee).
+- **Trajectory sync**: every trajectory frame carries `"ref": {x, y}` (init frame + per-step); `_sim` steps the referee after each 3×`space.step`; state synced in `apply_kick`; sent off-field `(-100,-100)` during penalty shootouts; `game/session.py::push_snapshot` snapshots it (undo/restore).
+- **Rendering**: dark slate capsule + white chest band + head + soft shadow, rendered in both `index_3d.html` and `replay_3d.html`. Live game: positioned from `/state` referee (init/reset/undo/setMode/post-move) and lerped from `ref` frames during trajectory animation. Replay: positioned from `ref` frames (init scans for the first *real* trajectory — tournament sims interleave empty placeholder moves — and autoplay now continues past empty moves, a pre-existing bug).
+- **Testability hooks** (module-scope is invisible to CDP): `window.triggerAI` (also fixes the latent aivai-button bug — inline `onclick` can't see module-scope functions), `window.__refereePos()`, `window.__replayMeta()`.
+- Verified headless (CDP): mesh exists + positioned == `serverToWorld(state.referee)`, wanders during AI-vs-AI and replay autoplay, hidden during penalties, zero console exceptions.
+
 ### Routes (`app.py`)
 - `/` — redirects to `/play3d`
 - `/play3d` — Main 3D game (Three.js)
@@ -53,8 +61,8 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - All API routes (move, ai_move, state, etc.) unchanged
 
 ### Templates
-- `index_3d.html` — Three.js 3D game view (human vs AI), stat-aware mesh rendering, spatial audio, goal particles
-- `replay_3d.html` — Three.js 3D replay viewer, same rendering + audio/particles
+- `index_3d.html` — Three.js 3D game view (human vs AI), stat-aware mesh rendering, spatial audio, goal particles, cosmetic referee
+- `replay_3d.html` — Three.js 3D replay viewer, same rendering + audio/particles + referee
 - `customize.html` — Point-buy allocator with player cards, color picker, save button
 - `login.html` / `register.html` — Auth pages (canvas animations removed, static CSS backgrounds)
 
@@ -68,6 +76,7 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - `test_pymunk.py` — 5 pymunk baseline tests
 - `test_penalty.py` — 27 penalty shootout tests
 - `test_vertical.py` — 5 vertical/loft tests
+- `referee_test.py` — 8 referee checks (temp file: `%TEMP%\opencode\referee_test.py`) — determinism, wandering, dodge, zero physics, bounds, state sync
 - `balance_test.py` — Balance test script (not pytest — run directly: `python balance_test.py`)
 
 ## Key physics constants
@@ -102,6 +111,8 @@ All linear, 1.5–1.86× range from min(20) to max(80).
 3. **3D view uses player radius from stats** — confirmed working in both 3D templates.
 4. **Referee is created with default stats** (not per-player) — intentional, referee doesn't kick.
 5. **Online multiplayer removed** — `/online` and `/join/<room>` redirect to `/play3d`. Backend API endpoints kept for potential 3D online rebuild.
+6. **Module-scope vs inline handlers**: game scripts are `<script type="module">`, so inline `onclick` attributes cannot call module functions (the aivai button relied on this). Fixed by `window.triggerAI` export; other inline handlers were audited.
+7. **Tournament replays interleave empty placeholder moves** (no trajectory) — replay init scans for the first real trajectory and autoplay skips/continues past empties (fixed).
 
 ## Deleted files
 - `templates/index.html` — old 2D Canvas game

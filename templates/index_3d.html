@@ -854,10 +854,11 @@ function rebuildPlayers() {
     playerMeshesB.push(mesh);
     scene.add(mesh);
   }
+  if (gameState.referee) updateRefereeMesh(gameState.referee.x, gameState.referee.y);
 }
 
 function updatePlayerPositions() {
-  if (!gameState) return;
+  if (!gameState || !gameState.players_a || !gameState.players_b) return;
   for (let i = 0; i < playerMeshesA.length && i < gameState.players_a.length; i++) {
     const p = gameState.players_a[i];
     if (_skipKickerTeam === 'a' && _skipKickerIdx === i) continue;
@@ -868,6 +869,45 @@ function updatePlayerPositions() {
     if (_skipKickerTeam === 'b' && _skipKickerIdx === i) continue;
     playerMeshesB[i].position.copy(serverToWorld(p.x, p.y));
   }
+}
+
+// ── Referee (cosmetic, driven by server state / trajectory "ref" frames) ────
+const refereeMesh = (() => {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.1 });
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(5.5, 12, 4, 10), bodyMat);
+  body.position.y = 9;
+  body.castShadow = true;
+  group.add(body);
+  const band = new THREE.Mesh(
+    new THREE.CylinderGeometry(5.9, 5.9, 3.4, 10),
+    new THREE.MeshStandardMaterial({ color: 0xf1f5f9, roughness: 0.6 })
+  );
+  band.position.y = 7.5;
+  group.add(band);
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(3.4, 10, 10),
+    new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.8 })
+  );
+  head.position.y = 20.5;
+  head.castShadow = true;
+  group.add(head);
+  const rShadow = new THREE.Mesh(
+    new THREE.CircleGeometry(6.5, 12),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.15, depthWrite: false })
+  );
+  rShadow.rotation.x = -Math.PI / 2;
+  rShadow.position.y = 0.05;
+  group.add(rShadow);
+  group.visible = false;
+  scene.add(group);
+  return group;
+})();
+
+function updateRefereeMesh(sx, sy) {
+  const hidden = sx === undefined || sx === null || sx < -50; // off-field (penalty shootout)
+  refereeMesh.visible = !hidden;
+  if (!hidden) refereeMesh.position.copy(serverToWorld(sx, sy));
 }
 
 // ── Render loop ─────────────────────────────────────────────────────────────
@@ -1235,6 +1275,10 @@ function animateTrajectory3D(trajectory, onDone) {
     const pt = trajectory[0];
     animBall = { x: pt.x, y: pt.y, z: pt.z || 0 };
     ballMesh.position.copy(serverToWorld(pt.x, pt.y, pt.z || 0));
+    if (pt.ref) {
+      gameState.referee = { x: pt.ref.x, y: pt.ref.y };
+      updateRefereeMesh(pt.ref.x, pt.ref.y);
+    }
     updatePlayerPositions();
     if (pt.a && pt.b && gameState) {
       // Update player positions from trajectory data
@@ -1305,6 +1349,14 @@ function animateTrajectory3D(trajectory, onDone) {
     }
     updatePlayerPositions();
 
+    // Interpolate referee position (trajectory frames carry ref)
+    if (ptA.ref && ptB.ref) {
+      const refX = lerp(ptA.ref.x, ptB.ref.x, segFrac);
+      const refY = lerp(ptA.ref.y, ptB.ref.y, segFrac);
+      gameState.referee = { x: refX, y: refY };
+      refereeMesh.position.copy(serverToWorld(refX, refY));
+    }
+
     if (progress < totalSegments) {
       requestAnimationFrame(frame);
     } else {
@@ -1321,6 +1373,10 @@ function animateTrajectory3D(trajectory, onDone) {
       }
       animBall = null;
       updatePlayerPositions();
+      if (last.ref) {
+        gameState.referee = { x: last.ref.x, y: last.ref.y };
+        updateRefereeMesh(last.ref.x, last.ref.y);
+      }
       onDone();
     }
   }
@@ -1473,10 +1529,11 @@ async function submitKick(playerIdx, angleDeg, power) {
     updatePlayerPositions();
     updateHUD(aiData);
   } else {
-    gameState = data;
-    isAnimating = false;
-    updatePlayerPositions();
-    updateHUD(data);
+  gameState = data;
+  isAnimating = false;
+  updatePlayerPositions();
+  if (gameState.referee) updateRefereeMesh(gameState.referee.x, gameState.referee.y);
+  updateHUD(data);
   }
 }
 
@@ -1580,6 +1637,10 @@ window.switchModel = async function(name) {
 };
 
 window.setAnimSpeed = function(v) { animSpeed = v; };
+
+window.triggerAI = async function() { await triggerAI(); };
+
+window.__refereePos = () => refereeMesh.visible ? { x: refereeMesh.position.x, y: refereeMesh.position.z, vis: true } : { vis: false };
 
 function setOverlay(show, text) {
   const el = document.getElementById('canvas-overlay');
