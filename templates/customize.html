@@ -492,13 +492,13 @@ async function saveSettings(){
 // ── Preview Render ──────────────────────────────────────────────────
 function renderPreview(){
   syncFromInputs();
-  var c=document.getElementById('preview-canvas'),ctx=c.getContext('2d'),W=1000,H=625;
+  var c=document.getElementById('preview-canvas'),ctx=c.getContext('2d'),W=1400,H=875;
   var gc=current;
 
   // Background scene
   var sceneColors={night:['#0f172a','#020617'],sunset:['#f97316','#7c2d12'],cloudy:['#94a3b8','#475569'],day:['#87ceeb','#38bdf8'],cyber:['#2e1065','#000000']};
   var sc=sceneColors[gc.bg_scene]||sceneColors.night;
-  var bgG=ctx.createRadialGradient(500,312,60,500,312,700);
+  var bgG=ctx.createRadialGradient(W/2,H/2,60,W/2,H/2,980);
   bgG.addColorStop(0,gc.bg_color);bgG.addColorStop(1,sc[1]);
   ctx.fillStyle=bgG;ctx.fillRect(0,0,W,H);
 
@@ -518,7 +518,7 @@ function renderPreview(){
     for(var x=0;x<W;x+=40)ctx.fillRect(x,0,20,H);
   }else if(gc.pitch_pattern==='diagonal'){
     ctx.strokeStyle=lc;ctx.lineWidth=20;
-    for(var i=-20;i<40;i++){ctx.beginPath();ctx.moveTo(i*40,0);ctx.lineTo(i*40+500,H);ctx.stroke()}
+    for(var i=-20;i<40;i++){ctx.beginPath();ctx.moveTo(i*40,0);ctx.lineTo(i*40+W/2,H);ctx.stroke()}
   }else if(gc.pitch_pattern==='checker'){
     ctx.fillStyle=lc;
     for(var x=0;x<W;x+=80)for(var y=0;y<H;y+=80)ctx.fillRect(x+(y%160?0:40),y,40,40);
@@ -530,7 +530,7 @@ function renderPreview(){
 
   // Vignette
   var v=parseFloat(gc.stadium_vignette)||0.6;
-  var vig=ctx.createRadialGradient(W/2,H/2,100,W/2,H/2,350);
+  var vig=ctx.createRadialGradient(W/2,H/2,100,W/2,H/2,490);
   vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,'+v+')');
   ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
 
@@ -554,7 +554,7 @@ function renderPreview(){
   ctx.beginPath();ctx.arc(W/2,H/2,60,0,Math.PI*2);ctx.stroke();
   ctx.strokeRect(20,(H-180)/2,100,180);ctx.strokeRect(W-120,(H-180)/2,100,180);
   // Goal areas
-  ctx.strokeRect(20,231-50,36,394-231+100);ctx.strokeRect(W-56,231-50,36,394-231+100);
+  ctx.strokeRect(20,356-50,36,519-356+100);ctx.strokeRect(W-56,356-50,36,519-356+100);
   ctx.fillStyle=lc;ctx.globalAlpha=0.5;
   ctx.beginPath();ctx.arc(120,H/2,4,0,Math.PI*2);ctx.fill();
   ctx.beginPath();ctx.arc(W-120,H/2,4,0,Math.PI*2);ctx.fill();
@@ -563,10 +563,10 @@ function renderPreview(){
 
   // Goals
   ctx.fillStyle='rgba(255,255,255,.04)';
-  ctx.fillRect(20-50,231,50,163);ctx.fillRect(W-20,231,50,163);
+  ctx.fillRect(20-50,356,50,163);ctx.fillRect(W-20,356,50,163);
   ctx.strokeStyle='rgba(255,255,255,.85)';ctx.lineWidth=3;
-  ctx.beginPath();ctx.moveTo(20,231);ctx.lineTo(20,394);ctx.stroke();
-  ctx.beginPath();ctx.moveTo(W-20,231);ctx.lineTo(W-20,394);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(20,356);ctx.lineTo(20,519);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(W-20,356);ctx.lineTo(W-20,519);ctx.stroke();
 
   // Corner flags
   var cfColor=gc.corner_flag_style==='normal'?'#ef4444':gc.corner_flag_style==='team_a'?gc.team_a_color:gc.corner_flag_style==='team_b'?gc.team_b_color:'#ffffff';
@@ -578,7 +578,7 @@ function renderPreview(){
   });
 
   // Players
-  var ha=[{x:62,y:312},{x:405,y:244},{x:405,y:381}],hb=[{x:938,y:312},{x:595,y:244},{x:595,y:381}],sh=[1,7,10];
+  var ha=[{x:86.8,y:437.5},{x:605,y:405},{x:605,y:470}],hb=[{x:1313.2,y:437.5},{x:795,y:405},{x:795,y:470}],sh=[1,7,10];
   var fonts={default:'bold 12px Inter,sans-serif',bold:'bold 14px Inter,sans-serif',narrow:'500 12px Inter,sans-serif',retro:'bold 11px monospace'};
   var fnt=fonts[gc.shirt_font]||fonts.default;
   function drawP(x,y,col,num,hl){
@@ -599,18 +599,18 @@ function renderPreview(){
     ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
     ctx.fillStyle='#fff';ctx.font='bold 11px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('GK',x,y);
   }
-  drawK(62,272,gc.keeper_color_a);drawK(938,352,gc.keeper_color_b);
+  drawK(86.8,372.5,gc.keeper_color_a);drawK(1313.2,502.5,gc.keeper_color_b);
 
   // Ref
-  ctx.beginPath();ctx.arc(400,420,16,0,Math.PI*2);
-  var rg=ctx.createRadialGradient(397,416,2,400,420,16);
+  ctx.beginPath();ctx.arc(560,588,16,0,Math.PI*2);
+  var rg=ctx.createRadialGradient(557,584,2,560,588,16);
   rg.addColorStop(0,gc.ref_color);rg.addColorStop(1,'#00000033');
   ctx.fillStyle=rg;ctx.fill();
   ctx.strokeStyle='rgba(255,255,255,.7)';ctx.lineWidth=1.5;ctx.stroke();
-  ctx.fillStyle='#fff';ctx.font='bold 9px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('REF',400,420);
+  ctx.fillStyle='#fff';ctx.font='bold 9px Inter,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('REF',560,588);
 
   // Ball
-  drawBall(500,312);
+  drawBall(W/2,H/2);
 
   function drawBall(x,y){
     ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fillStyle=gc.ball_color;ctx.fill();

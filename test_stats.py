@@ -75,6 +75,11 @@ def test_inject_player_stats():
 def test_high_power_kicks_farther():
     """Higher Power stat -> ball travels farther for same power input."""
     st = new_soccer_state(player_count=3)
+    # Kick from the gameplay kick spot (95px gap) so both builds reach the ball
+    st["players_a"][1]["x"] = FIELD_W / 2 - 95
+    st["players_a"][1]["y"] = FIELD_H / 2
+    st["ball"]["x"] = FIELD_W / 2
+    st["ball"]["y"] = FIELD_H / 2
     # Set player 1 of team A to high power
     inject_player_stats(st, [
         {"size": 50, "power": 80, "weight": 50, "agility": 50},
@@ -87,6 +92,10 @@ def test_high_power_kicks_farther():
 
     # Same player with low power
     st2 = new_soccer_state(player_count=3)
+    st2["players_a"][1]["x"] = FIELD_W / 2 - 95
+    st2["players_a"][1]["y"] = FIELD_H / 2
+    st2["ball"]["x"] = FIELD_W / 2
+    st2["ball"]["y"] = FIELD_H / 2
     inject_player_stats(st2, [
         {"size": 50, "power": 20, "weight": 50, "agility": 50},
         {"size": 50, "power": 20, "weight": 50, "agility": 50},

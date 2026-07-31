@@ -141,8 +141,8 @@ TEMPLATE = '''\
 # ─────────────────────────────────────────────────────────────────────
 #  Soccer AI — write your strategy below!
 #
-#  Field: 1000 × 625  (Team A → RIGHT, goal at x=1000, y=231–394)
-#                    (Team B → LEFT,  goal at x=0,    y=231–394)
+#  Field: 1400 × 875  (Team A → RIGHT, goal at x=1400, y=356–519)
+#                    (Team B → LEFT,  goal at x=0,    y=356–519)
 #
 #  state["ball"]       = {"x": float, "y": float}
 #  state["players_a"]  = [{"x": float, "y": float}, ...]  # 3 players
@@ -175,8 +175,8 @@ def get_ai_move(state, is_player_a):
     ))
 
     # Aim at center of opponent\'s goal
-    goal_x = 1000.0 if is_player_a else 0.0
-    goal_y = 312.0
+    goal_x = 1400.0 if is_player_a else 0.0
+    goal_y = 437.5
     angle  = math.degrees(math.atan2(goal_y - by, goal_x - bx))
 
     return best_idx, angle, 80.0

@@ -20,7 +20,7 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - Recoil formula: `recoil_vx = -cos(angle) * power * 1.2 * (power_stat/50)`
 - Loft/vertical: `_loft_angle(power)` → 0 deg below power=40, (power-40)*0.5 capped at 30 deg above
 - **Airborne friction fix (Path B)**: `ball_pivot.max_force` reduced to 10% (1000→100) while `ball_z > 0`, restores on touchdown. This lets lofted passes cover full field distance.
-- **Formation push (Path B)**: Team A FWD at x=405, Team B FWD at x=595 (re-tuned from x=300/700). Ball at center has ~95 px clear space — Power=20 can now reach the ball (max travel ~95 px), creating a smooth Power gradient instead of a cliff.
+- **Formation push (Path B→C→resize)**: Team A FWD at x=605, Team B FWD at x=795 — **absolute 95px from center** (`FIELD_W/2 ∓ 95`), NOT a width ratio, so the tuned kicker-to-ball gap survives the 1400-wide field. GK/DEF/MID remain width ratios (0.062/0.162/0.281 etc.) and auto-widened with the field — the gap between lines grew (more open space) while the kicker gap stayed 95px (Power=20 floor preserved). Power=20 can still reach the ball (max travel ~95px).
 
 ### Formation system
 - `_home_positions(count, side)` generates realistic soccer formations with GK, DEF, MID, FWD rows
@@ -36,7 +36,7 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - Verified headless (CDP + `--autoplay-policy=no-user-gesture-required`): unlock flow, buffer durations, whistle-once, ambient gain 0.10, cheer duck/restore, mute behavior, and full playthroughs on both pages — zero console exceptions.
 
 ### Stadium Crowd (3D)
-- `index_3d.html` — 510-instance InstancedMesh crowd ring around the pitch (billboard sprites on a sprite-sheet shader), palette-driven (`CUST_CROWD_PALETTE`: classic/rainbow/mono/team_a/team_b), bob animation, goal cheer (`triggerCrowdCheer` + `SoundManager.crowdCheer()`), ambient noise via `crowdAmbient()`.
+- `index_3d.html` — InstancedMesh crowd ring around the pitch (**instance count derived from field size — ~726 on 1400×875**, was 510 on 1000×625; billboard sprites on a sprite-sheet shader), palette-driven (`CUST_CROWD_PALETTE`: classic/rainbow/mono/team_a/team_b), bob animation, goal cheer (`triggerCrowdCheer` + `SoundManager.crowdCheer()`), ambient noise via `crowdAmbient()`.
 - **Restored (was never wired)**: `createCrowd()` was defined but never called — `crowdData` stayed `null`, so the crowd never rendered. Now called in init after customization load; `frustumCulled = false` set (instances far from the small plane geometry).
 - **Billboard shader fix**: original shader computed billboard axes with `normalize(cross(cameraPosition - wp.xyz, vec3(0,1,0)))` in the vertex shader — compiles/links with all uniforms bound but rasterizes ZERO fragments (reproduced headless on SwiftShader; CPU replica of the same math puts 1329/2040 vertices in-frustum). Fixed by feeding camera right/up axes as `uCamRight`/`uCamUp` uniforms (updated per-frame in `animate()` from `camera.matrixWorld` columns) — standard pattern, verified rendering (12k+ pixel A/B diff).
 
@@ -83,9 +83,11 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 
 | Constant | Value | Notes |
 |----------|-------|-------|
-| FIELD_W | 1000 px | Field width |
-| FIELD_H | 625 px | Field height |
-| _MARGIN | 20 px | Wall inset (goal at 20 and 980) |
+| FIELD_W | 1400 px | Field width (was 1000; resized 40% in "field enlarge" task) |
+| FIELD_H | 875 px | Field height (was 625; same 1.6:1 aspect) |
+| _MARGIN | 20 px | Wall inset (goal at 20 and 1380) |
+| _GOAL_H | 163.0 px | **Absolute** goal aperture (frozen when field grew — was `FIELD_H*0.26`; GOAL_Y1=356, GOAL_Y2=519) |
+| _GOAL_DEPTH | 50 px | Absolute (unchanged) |
 | _PM_LINEAR_FRICTION_P | 1500 | Player friction (Agility-derived: 1000 + stat/100*1000) |
 | _PM_LINEAR_FRICTION_B | 1000 | Ball ground friction |
 | _BALL_AIR_FRICTION | 100 | Ball airborne friction (10% of ground) |
@@ -106,13 +108,14 @@ All linear, 1.5–1.86× range from min(20) to max(80).
 
 ## Known issues / edges
 
-1. **Formation gap re-tuned (Path C)**: atk_x moved from 300→405 / 700→595, reducing kicker-to-ball gap from 200→95 px. Power=20 now makes contact with the ball (max travel ~95 px). Verified: all Power levels (20–100) from that position reach near goal (max_x ~957–962). The gradient is now continuous rather than a cliff.
+1. **Formation gap re-tuned (Path C→resize)**: atk_x held at an absolute 95px from center (605/795 on the 1400-wide field; was 405/595 on 1000) — the kicker-to-ball gap stays 95px so the Power=20 "can reach the ball" floor survives the field enlargement. GK/DEF/MID are width ratios and widened with the field. Verify note: the "max_x ~957–962" figure from the old 1000-wide field no longer applies; re-verified on 1400 (see field-resize task: Power=20 from atk_x still makes contact, travel unchanged ~95px+).
 2. **Angles ≥10° miss the ball** at all power levels — kicker moves too diagonally, collision normal is vertical, no horizontal momentum transfers to ball.
 3. **3D view uses player radius from stats** — confirmed working in both 3D templates.
 4. **Referee is created with default stats** (not per-player) — intentional, referee doesn't kick.
 5. **Online multiplayer removed** — `/online` and `/join/<room>` redirect to `/play3d`. Backend API endpoints kept for potential 3D online rebuild.
 6. **Module-scope vs inline handlers**: game scripts are `<script type="module">`, so inline `onclick` attributes cannot call module functions (the aivai button relied on this). Fixed by `window.triggerAI` export; other inline handlers were audited.
 7. **Tournament replays interleave empty placeholder moves** (no trajectory) — replay init scans for the first real trajectory and autoplay skips/continues past empties (fixed).
+8. **Field resized 1000×625 → 1400×875 (40%, 1.6:1 kept)**: goal aperture frozen to absolute 163px (GOAL_Y1/Y2 now 356/519, was `FIELD_H*0.26`), atk_x frozen to absolute 95px from center (605/795) so the Power=20 floor survives; GK/DEF/MID, penalty spots, referee bounds, crowd ring are width/height-derived and widened automatically. Camera fixed independently: FOV 65, default pos (-1500, 790, 320), fog 1500–4500, shadow ±900, min/max distance 300/2600 (old camera had near touchline ~8.5× outside frame). `serverToWorld`/`worldToServer` derive from W/2, H/2. **User-model sandbox**: `user_models/runner.py` TEMPLATE + `my_models.html` tutorial updated to 1400×875/goals 356–519/center 700,437.5 — but user-submitted models that hardcoded 1000/312 aim at the old goal line and will miss on the new field (documented, unfixable without user updates).
 
 ## Deleted files
 - `templates/index.html` — old 2D Canvas game

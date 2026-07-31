@@ -96,17 +96,17 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ── Constants ────────────────────────────────────────────────────────────────
-const W = 1000, H = 625;
+const W = 1400, H = 875;
 const PLAYER_R = 20, BALL_R = 12;
-const GOAL_Y1 = 231, GOAL_Y2 = 394, GOAL_DEPTH = 50;
+const GOAL_Y1 = 356, GOAL_Y2 = 519, GOAL_DEPTH = 50;
 
 // ── Coordinate mapping ───────────────────────────────────────────────────────
 function serverToWorld(sx, sy, sz) {
   if (sz === undefined) sz = 0;
-  return new THREE.Vector3(sx - 500, sz, -(sy - 312.5));
+  return new THREE.Vector3(sx - W / 2, sz, -(sy - H / 2));
 }
 function worldToServer(v) {
-  return { x: v.x + 500, y: -v.z + 312.5, z: v.y };
+  return { x: v.x + W / 2, y: -v.z + H / 2, z: v.y };
 }
 
 // ── Replay data ──────────────────────────────────────────────────────────────
@@ -134,10 +134,10 @@ window.addEventListener('resize', resizeRenderer);
 // ── Scene & Camera ─────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f172a);
-scene.fog = new THREE.Fog(0x0f172a, 800, 1400);
+scene.fog = new THREE.Fog(0x0f172a, 1500, 4500);
 
-const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 1, 3000);
-camera.position.set(-450, 300, 150);
+const camera = new THREE.PerspectiveCamera(65, container.clientWidth / container.clientHeight, 1, 6000);
+camera.position.set(-1500, 790, 320);
 camera.lookAt(0, 0, 0);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -146,8 +146,8 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minPolarAngle = 0.1;
 controls.maxPolarAngle = Math.PI / 2.05;
-controls.minDistance = 200;
-controls.maxDistance = 1600;
+controls.minDistance = 300;
+controls.maxDistance = 2600;
 controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
 controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
 controls.update();
@@ -193,7 +193,7 @@ function triggerGoalEffect3D(team) {
   const vel = [];
   const life = [];
   const decay = [];
-  const goalWorld = serverToWorld(team === 'a' ? 980 : 20, 312);
+  const goalWorld = serverToWorld(team === 'a' ? W - 20 : 20, H / 2);
   for (let i = 0; i < count; i++) {
     positions[i * 3] = goalWorld.x + (Math.random() - 0.5) * 160;
     positions[i * 3 + 1] = Math.random() * 100 + 30;
@@ -252,11 +252,11 @@ sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 1024;
 sunLight.shadow.mapSize.height = 1024;
 sunLight.shadow.camera.near = 200;
-sunLight.shadow.camera.far = 1200;
-sunLight.shadow.camera.left = -600;
-sunLight.shadow.camera.right = 600;
-sunLight.shadow.camera.top = 600;
-sunLight.shadow.camera.bottom = -600;
+sunLight.shadow.camera.far = 1600;
+sunLight.shadow.camera.left = -900;
+sunLight.shadow.camera.right = 900;
+sunLight.shadow.camera.top = 900;
+sunLight.shadow.camera.bottom = -900;
 scene.add(sunLight);
 const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
 fillLight.position.set(-200, 300, -300);
@@ -267,14 +267,14 @@ const fieldGroup = new THREE.Group();
 scene.add(fieldGroup);
 
 const grassMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.9, metalness: 0.0 });
-const grass = new THREE.Mesh(new THREE.PlaneGeometry(1000, 625), grassMat);
+const grass = new THREE.Mesh(new THREE.PlaneGeometry(W, H), grassMat);
 grass.rotation.x = -Math.PI / 2;
 grass.position.set(0, 0, 0);
 grass.receiveShadow = true;
 fieldGroup.add(grass);
 
 const subMat = new THREE.MeshStandardMaterial({ color: 0x16a34a, roughness: 1 });
-const sub = new THREE.Mesh(new THREE.PlaneGeometry(1000, 625), subMat);
+const sub = new THREE.Mesh(new THREE.PlaneGeometry(W, H), subMat);
 sub.rotation.x = -Math.PI / 2;
 sub.position.set(0, -0.5, 0);
 fieldGroup.add(sub);
@@ -536,7 +536,7 @@ function updateRefereeMesh(sx, sy) {
 
 // ── State ───────────────────────────────────────────────────────────────────
 let state = {
-  ball: { x: 500, y: 312 },
+  ball: { x: W / 2, y: H / 2 },
   players_a: [],
   players_b: [],
   referee: null,
@@ -696,9 +696,9 @@ window.playNextMove3D = function() {
 
   const _preA = raw[0].a ? raw[0].a.map(p => ({ x: p.x, y: p.y })) : [];
   const _preB = raw[0].b ? raw[0].b.map(p => ({ x: p.x, y: p.y })) : [];
-  const HOME_A = [{x:62,y:312},{x:405,y:244},{x:405,y:381}];
+  const HOME_A = [{x:86.8,y:437.5},{x:605,y:405},{x:605,y:470}];
 
-  const HOME_B = [{x:938,y:312},{x:595,y:244},{x:595,y:381}];
+  const HOME_B = [{x:1313.2,y:437.5},{x:795,y:405},{x:795,y:470}];
   function finish() {
     applyMoveToState(move);
     currentMove++;
@@ -770,6 +770,18 @@ window.toggleAutoPlay3D = function() {
 };
 
 window.__refereePos = () => refereeMesh.visible ? { x: refereeMesh.position.x, y: refereeMesh.position.z, vis: true } : { vis: false };
+window.__camInfo = () => {
+  const corners = [[0, 0], [W, 0], [0, H], [W, H]].map(([sx, sy]) => {
+    const v = serverToWorld(sx, sy).project(camera);
+    return [v.x, v.y];
+  });
+  return {
+    fov: camera.fov, aspect: camera.aspect,
+    pos: [camera.position.x, camera.position.y, camera.position.z],
+    tgt: [controls.target.x, controls.target.y, controls.target.z],
+    ndc: corners, viewport: [container.clientWidth, container.clientHeight],
+  };
+};
 window.__replayMeta = () => ({
   n: replayData.length,
   firstTrajLen: replayData.length && replayData[0].trajectory ? replayData[0].trajectory.length : -1,

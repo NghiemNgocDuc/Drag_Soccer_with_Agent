@@ -4,14 +4,14 @@ import math
 import time
 import pymunk
 
-FIELD_W: int   = 1000
-FIELD_H: int   = 625
+FIELD_W: int   = 1400
+FIELD_H: int   = 875
 BALL_R: int    = 12
 PLAYER_R: int  = 20
-# Goal centered on field, ~26% of field height
-_GOAL_H: float = FIELD_H * 0.26
-GOAL_Y1: float  = (FIELD_H - _GOAL_H) / 2  # ~231
-GOAL_Y2: float  = (FIELD_H + _GOAL_H) / 2  # ~394
+# Goal centered on field, absolute aperture (was FIELD_H * 0.26 — frozen so goal size stays 231-394-equivalent on larger fields)
+_GOAL_H: float = 163.0
+GOAL_Y1: float  = (FIELD_H - _GOAL_H) / 2  # ~356
+GOAL_Y2: float  = (FIELD_H + _GOAL_H) / 2  # ~519
 POWER_SCALE: float = 0.55
 # Default engine constants (can be overridden by state)
 _HALF_DEFAULT   = 45  # minutes
@@ -23,22 +23,22 @@ def _time_th(hl: int) -> tuple:
 _GOAL_DEPTH: float = 50.0
 
 # Penaly shootout constants — proportional to field
-_PENALTY_SPOT_X_A  = FIELD_W * 0.79     # ~788
-_PENALTY_SPOT_X_B  = FIELD_W * 0.21     # ~212
-_PENALTY_SPOT_Y    = FIELD_H * 0.5      # ~312
+_PENALTY_SPOT_X_A  = FIELD_W * 0.79     # ~1106
+_PENALTY_SPOT_X_B  = FIELD_W * 0.21     # ~294
+_PENALTY_SPOT_Y    = FIELD_H * 0.5      # ~437.5
 _PENALTY_KICKER_BEHIND = 60.0
-_PENALTY_KEEPER_X_A    = FIELD_W * 0.95  # ~945
-_PENALTY_KEEPER_X_B    = FIELD_W * 0.05  # ~56
+_PENALTY_KEEPER_X_A    = FIELD_W * 0.95  # ~1330
+_PENALTY_KEEPER_X_B    = FIELD_W * 0.05  # ~70
 _PENALTY_KEEPER_DIVE_VEL = 700.0
 _PENALTY_KEEPER_DIVE_TARGETS = {
-    "left":   _PENALTY_SPOT_Y - FIELD_H * 0.11,  # ~243
-    "center": _PENALTY_SPOT_Y,                    # ~312
-    "right":  _PENALTY_SPOT_Y + FIELD_H * 0.11,   # ~381
+    "left":   _PENALTY_SPOT_Y - FIELD_H * 0.11,  # ~341
+    "center": _PENALTY_SPOT_Y,                    # ~437.5
+    "right":  _PENALTY_SPOT_Y + FIELD_H * 0.11,   # ~534
 }
 _PENALTY_MAX_KICKS = 10  # 5 each
 PLAYER_COUNT: int = 3  # default, override via game state
 
-REFEREE_POS: tuple[float, float] = (FIELD_W / 2, FIELD_H - 80.0)  # (~500, ~545)
+REFEREE_POS: tuple[float, float] = (FIELD_W / 2, FIELD_H - 80.0)  # (~700, ~795)
 
 # ── 3D vertical-axis physics constants ────────────────────────────────────────
 G: float = 980.0                 # px/s² gravity (approximates real 9.8 m/s² in pixel world)
@@ -127,16 +127,19 @@ def inject_player_stats(state: dict, team_a_stats: list[dict] | None = None, tea
 def _home_positions(count: int, side: str) -> list[tuple[float, float]]:
     """Generate realistic soccer formation. Index 0 = GK."""
     center_y = FIELD_H / 2
+    # gk/def/mid are ratios of FIELD_W (auto-widen with the field);
+    # atk is an ABSOLUTE 95px from center — the tuned kicker-to-ball gap
+    # must stay 95px so Power=20 builds can reach the ball (95px max travel).
     if side == "a":
-        gk_x = FIELD_W * 0.062  # ~62
-        def_x = FIELD_W * 0.162  # ~162
-        mid_x = FIELD_W * 0.281  # ~281
-        atk_x = FIELD_W * 0.405  # ~405 (95px from ball at 500)
+        gk_x = FIELD_W * 0.062  # ~87
+        def_x = FIELD_W * 0.162  # ~227
+        mid_x = FIELD_W * 0.281  # ~393
+        atk_x = FIELD_W / 2 - 95  # ~605 (95px from ball at 700)
     else:
-        gk_x = FIELD_W * 0.938  # ~938
-        def_x = FIELD_W * 0.838  # ~838
-        mid_x = FIELD_W * 0.719  # ~719
-        atk_x = FIELD_W * 0.595  # ~595 (95px from ball at 500)
+        gk_x = FIELD_W * 0.938  # ~1313
+        def_x = FIELD_W * 0.838  # ~1173
+        mid_x = FIELD_W * 0.719  # ~1007
+        atk_x = FIELD_W / 2 + 95  # ~795 (95px from ball at 700)
     positions = [(gk_x, center_y)]
     if count < 2:
         return positions[:count]

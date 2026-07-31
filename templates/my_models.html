@@ -260,24 +260,24 @@ state["win_goal_limit"] = int  # goals to win (default 5)</pre>
       </div>
 
       <div class="ref-section">
-        <h4>⚽ Field layout (1000 × 625)</h4>
-        <pre class="ref-code">  (0,0) ─────────────────────────────── (1000,0)
+        <h4>⚽ Field layout (1400 × 875)</h4>
+        <pre class="ref-code">  (0,0) ─────────────────────────────── (1400,0)
     │  ┌──────────┐         ┌──────────┐  │
     │  │ GOAL_B   │         │ GOAL_A   │  │
-    │  │ x=0      │         │ x=1000   │  │
-    │  │ y=231-394│         │ y=231-394│  │
+    │  │ x=0      │         │ x=1400   │  │
+    │  │ y=356-519│         │ y=356-519│  │
     │  └──────────┘         └──────────┘  │
     │        ═══  ════════  ═══          │
     │         ⚽     ║        ║           │
     │        ═══     ║        ║           │
     │  ┌──────────┘         └──────────┐  │
     │  │ GOAL_B   │         │ GOAL_A   │  │
-    │  │ x=0      │         │ x=1000   │  │
-  (0,625) ───────────────────────────── (1000,625)
+    │  │ x=0      │         │ x=1400   │  │
+  (0,875) ───────────────────────────── (1400,875)
 
-  Centre spot:  (500, 312)
-  Goals: width=50, height ≈ 163 (y 231 → 394)
-  Kick-off spots: Team A ~(790,250), Team B ~(210,250)</pre>
+  Centre spot:  (700, 437.5)
+  Goals: width=50, height ≈ 163 (y 356 → 519)
+  Kick-off spots: Team A ~(1106, 350), Team B ~(294, 350)</pre>
       </div>
 
       <div class="ref-section">
@@ -333,8 +333,8 @@ def get_ai_move(state, is_player_a):
     ))
 
     # Aim at center of opponent goal with some randomness
-    goal_x = 1000.0 if is_player_a else 0.0
-    goal_y = 312.0 + (random.random() - 0.5) * 80
+    goal_x = 1400.0 if is_player_a else 0.0
+    goal_y = 437.5 + (random.random() - 0.5) * 80
     angle = math.degrees(math.atan2(goal_y - by, goal_x - bx))
 
     return idx, angle, 85.0</pre>
@@ -357,7 +357,7 @@ def get_ai_move(state, is_player_a):
     ))
 
     # Find the furthest-forward teammate to pass to
-    target_x = 0 if is_player_a else 1000  # opposite direction
+    target_x = 0 if is_player_a else 1400  # opposite direction
     target = max(players, key=lambda p: p["x"] if is_player_a else -p["x"])
     dx = target["x"] - bx
     dy = target["y"] - by
@@ -365,8 +365,8 @@ def get_ai_move(state, is_player_a):
 
     if dist < 150:
         # Close enough — shoot
-        goal_x = 1000.0 if is_player_a else 0.0
-        angle = math.degrees(math.atan2(312 - by, goal_x - bx))
+        goal_x = 1400.0 if is_player_a else 0.0
+        angle = math.degrees(math.atan2(437.5 - by, goal_x - bx))
         return idx, angle, 90.0
     else:
         # Pass forward

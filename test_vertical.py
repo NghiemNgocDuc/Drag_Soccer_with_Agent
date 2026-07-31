@@ -1,7 +1,16 @@
 """Test vertical-axis (z) ball physics extension in soccer_logic.py"""
 from models.soccer_logic import (
-    new_soccer_state, simulate_kick, apply_kick, _loft_angle, G, _VZ_MIN
+    new_soccer_state, simulate_kick, apply_kick, _loft_angle, G, _VZ_MIN,
+    FIELD_W, FIELD_H,
 )
+
+
+def _kick_spot(s, pidx=1):
+    """Position kicker at the gameplay kick spot: 95px left of ball center."""
+    s["players_a"][pidx]["x"] = FIELD_W / 2 - 95
+    s["players_a"][pidx]["y"] = FIELD_H / 2
+    s["ball"]["x"] = FIELD_W / 2
+    s["ball"]["y"] = FIELD_H / 2
 
 
 def test_new_state_has_z():
@@ -29,6 +38,7 @@ def test_low_power_stays_on_ground():
 
 def test_high_power_has_loft():
     s = new_soccer_state()
+    _kick_spot(s)
     traj, _ = simulate_kick(s, 1, 0.0, 90.0, True)
     max_z = max(pt["z"] for pt in traj)
     assert max_z > 0.0

@@ -137,21 +137,21 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // ── Constants (server-space) ────────────────────────────────────────────────
-const W = 1000, H = 625;
+const W = 1400, H = 875;
 const PLAYER_R = 20, BALL_R = 12;
-const GOAL_Y1 = 231, GOAL_Y2 = 394, GOAL_DEPTH = 50;
+const GOAL_Y1 = 356, GOAL_Y2 = 519, GOAL_DEPTH = 50;
 const MAX_DRAG = 138;
 const PLAYER_TRAVEL = 8.0;
 
 // ── Coordinate mapping (the ONE place axis-swap lives) ───────────────────────
-// Server space: x 0-1000 (left-right), y 0-625 (top-left origin, y-down), z 0+ (height)
+// Server space: x 0-W (left-right), y 0-H (top-left origin, y-down), z 0+ (height)
 // Three.js: right-handed, y-up. Field centered at origin.
 function serverToWorld(sx, sy, sz) {
   if (sz === undefined) sz = 0;
-  return new THREE.Vector3(sx - 500, sz, -(sy - 312.5));
+  return new THREE.Vector3(sx - W / 2, sz, -(sy - H / 2));
 }
 function worldToServer(v) {
-  return { x: v.x + 500, y: -v.z + 312.5, z: v.y };
+  return { x: v.x + W / 2, y: -v.z + H / 2, z: v.y };
 }
 
 // ── Renderer setup ──────────────────────────────────────────────────────────
@@ -176,10 +176,10 @@ window.addEventListener('resize', resizeRenderer);
 // ── Scene & Camera ─────────────────────────────────────────────────────────
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f172a);
-scene.fog = new THREE.Fog(0x0f172a, 800, 1400);
+scene.fog = new THREE.Fog(0x0f172a, 1500, 4500);
 
-const camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 1, 3000);
-camera.position.set(-450, 300, 150);
+const camera = new THREE.PerspectiveCamera(65, container.clientWidth / container.clientHeight, 1, 6000);
+camera.position.set(-1500, 790, 320);
 camera.lookAt(0, 0, 0);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -188,8 +188,8 @@ controls.enableDamping = true;
 controls.dampingFactor = 0.08;
 controls.minPolarAngle = 0.1;
 controls.maxPolarAngle = Math.PI / 2.05;
-controls.minDistance = 200;
-controls.maxDistance = 1600;
+controls.minDistance = 300;
+controls.maxDistance = 2600;
 controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
 controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
 controls.update();
@@ -245,11 +245,11 @@ sunLight.castShadow = true;
 sunLight.shadow.mapSize.width = 1024;
 sunLight.shadow.mapSize.height = 1024;
 sunLight.shadow.camera.near = 200;
-sunLight.shadow.camera.far = 1200;
-sunLight.shadow.camera.left = -600;
-sunLight.shadow.camera.right = 600;
-sunLight.shadow.camera.top = 600;
-sunLight.shadow.camera.bottom = -600;
+sunLight.shadow.camera.far = 1600;
+sunLight.shadow.camera.left = -900;
+sunLight.shadow.camera.right = 900;
+sunLight.shadow.camera.top = 900;
+sunLight.shadow.camera.bottom = -900;
 scene.add(sunLight);
 
 const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
@@ -261,7 +261,7 @@ const fieldGroup = new THREE.Group();
 scene.add(fieldGroup);
 
 // Grass plane
-const grassGeo = new THREE.PlaneGeometry(1000, 625);
+const grassGeo = new THREE.PlaneGeometry(W, H);
 const grassMat = new THREE.MeshStandardMaterial({
   color: 0x22c55e,
   roughness: 0.9,
@@ -590,11 +590,15 @@ function _genSpriteSheet() {
 
 function createCrowd(paletteArr) {
   const tex = _genSpriteSheet();
+  // Stands derived from field size: end stands sit 22.5px outside the touchlines
+  // (world z), side stands 15px outside the goal lines (world x).
+  const endZ = H / 2 + 22.5, endX = W / 2 - 56;
+  const sideX = W / 2 + 15, sideZ = H / 2 - 52.5;
   const stands = [
-    { z0:335, zStep:14, zRows:3, x0:-460, xStep:18 },
-    { z0:-335, zStep:-14, zRows:3, x0:-460, xStep:18 },
-    { x0:515, xStep:14, xRows:3, z0:-260, zStep:16 },
-    { x0:-515, xStep:-14, xRows:3, z0:-260, zStep:16 },
+    { z0: endZ, zStep: 14, zRows: 3, x0: -endX, xStep: 18 },
+    { z0: -endZ, zStep: -14, zRows: 3, x0: -endX, xStep: 18 },
+    { x0: sideX, xStep: 14, xRows: 3, z0: -sideZ, zStep: 16 },
+    { x0: -sideX, xStep: -14, xRows: 3, z0: -sideZ, zStep: 16 },
   ];
   let n = 0;
   for (const st of stands) {
@@ -773,7 +777,7 @@ function triggerGoalEffect3D(team) {
   const vel = [];
   const life = [];
   const decay = [];
-  const goalWorld = serverToWorld(team === 'a' ? 980 : 20, 312);
+  const goalWorld = serverToWorld(team === 'a' ? W - 20 : 20, H / 2);
   for (let i = 0; i < count; i++) {
     positions[i * 3] = goalWorld.x + (Math.random() - 0.5) * 160;
     positions[i * 3 + 1] = Math.random() * 100 + 30;
@@ -1061,9 +1065,9 @@ async function autoPenaltyKick() {
       SoundManager.goal();
       triggerGoalEffect3D(data.is_player_a ? 'b' : 'a');
       triggerCrowdCheer();
-      gameState.ball = { x: 500, y: 312, z: 0 };
-      ballMesh.position.copy(serverToWorld(500, 312));
-      shadowMesh.position.copy(serverToWorld(500, 312));
+      gameState.ball = { x: W / 2, y: H / 2, z: 0 };
+      ballMesh.position.copy(serverToWorld(W / 2, H / 2));
+      shadowMesh.position.copy(serverToWorld(W / 2, H / 2));
       shadowMesh.position.y = 0.1;
     }
   }
@@ -1433,7 +1437,7 @@ function kickEndpoint(from, angleDeg, power) {
 function syncBall(trajectory, scored) {
   if (!trajectory || trajectory.length === 0) return;
   const last = trajectory[trajectory.length - 1];
-  gameState.ball = scored ? { x: 500, y: 312, z: 0 } : { x: last.x, y: last.y, z: last.z || 0 };
+  gameState.ball = scored ? { x: W / 2, y: H / 2, z: 0 } : { x: last.x, y: last.y, z: last.z || 0 };
 }
 
 async function submitKick(playerIdx, angleDeg, power) {
@@ -1478,9 +1482,9 @@ async function submitKick(playerIdx, angleDeg, power) {
       SoundManager.goal();
       triggerGoalEffect3D('a');
       triggerCrowdCheer();
-      gameState.ball = { x: 500, y: 312, z: 0 };
-      ballMesh.position.copy(serverToWorld(500, 312));
-      shadowMesh.position.copy(serverToWorld(500, 312));
+      gameState.ball = { x: W / 2, y: H / 2, z: 0 };
+      ballMesh.position.copy(serverToWorld(W / 2, H / 2));
+      shadowMesh.position.copy(serverToWorld(W / 2, H / 2));
       shadowMesh.position.y = 0.1;
     }
   }
@@ -1518,9 +1522,9 @@ async function submitKick(playerIdx, angleDeg, power) {
         SoundManager.goal();
         triggerGoalEffect3D('b');
         triggerCrowdCheer();
-        gameState.ball = { x: 500, y: 312, z: 0 };
-        ballMesh.position.copy(serverToWorld(500, 312));
-        shadowMesh.position.copy(serverToWorld(500, 312));
+        gameState.ball = { x: W / 2, y: H / 2, z: 0 };
+        ballMesh.position.copy(serverToWorld(W / 2, H / 2));
+        shadowMesh.position.copy(serverToWorld(W / 2, H / 2));
         shadowMesh.position.y = 0.1;
       }
     }
@@ -1578,9 +1582,9 @@ async function triggerAI() {
       SoundManager.goal();
       triggerGoalEffect3D(data.is_player_a ? 'b' : 'a');
       triggerCrowdCheer();
-      gameState.ball = { x: 500, y: 312, z: 0 };
-      ballMesh.position.copy(serverToWorld(500, 312));
-      shadowMesh.position.copy(serverToWorld(500, 312));
+      gameState.ball = { x: W / 2, y: H / 2, z: 0 };
+      ballMesh.position.copy(serverToWorld(W / 2, H / 2));
+      shadowMesh.position.copy(serverToWorld(W / 2, H / 2));
       shadowMesh.position.y = 0.1;
     }
   }
@@ -1641,6 +1645,21 @@ window.setAnimSpeed = function(v) { animSpeed = v; };
 window.triggerAI = async function() { await triggerAI(); };
 
 window.__refereePos = () => refereeMesh.visible ? { x: refereeMesh.position.x, y: refereeMesh.position.z, vis: true } : { vis: false };
+
+window.__camInfo = () => {
+  const corners = [[0, 0], [W, 0], [0, H], [W, H]].map(([sx, sy]) => {
+    const v = serverToWorld(sx, sy).project(camera);
+    return [v.x, v.y];
+  });
+  return {
+    fov: camera.fov, aspect: camera.aspect,
+    pos: [camera.position.x, camera.position.y, camera.position.z],
+    tgt: [controls.target.x, controls.target.y, controls.target.z],
+    ndc: corners, viewport: [container.clientWidth, container.clientHeight],
+  };
+};
+
+window.__crowdInfo = () => crowdData ? { count: crowdData.mesh.count, uniformCam: !!crowdData.uniforms.uCamRight } : null;
 
 function setOverlay(show, text) {
   const el = document.getElementById('canvas-overlay');
