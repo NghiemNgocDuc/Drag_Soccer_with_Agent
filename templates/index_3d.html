@@ -451,38 +451,7 @@ function makeCrossbar(sx1, sy1, sx2, sy2) {
   return mesh;
 }
 
-function makeNet(side) {
-  const isLeft = side === 'left';
-  const frontX = isLeft ? 20 : W - 20;
-  const backX = isLeft ? 20 - GOAL_DEPTH : W - 20 + GOAL_DEPTH;
-  const y1 = GOAL_Y1, y2 = GOAL_Y2;
-  const netShape = new THREE.Shape();
-  const tl = serverToWorld(backX, y1);
-  const tr = serverToWorld(frontX, y1);
-  const br = serverToWorld(frontX, y2);
-  const bl = serverToWorld(backX, y2);
-  netShape.moveTo(tl.x, tl.z);
-  netShape.lineTo(tr.x, tr.z);
-  netShape.lineTo(br.x, br.z);
-  netShape.lineTo(bl.x, bl.z);
-  netShape.closePath();
-  const geo = new THREE.ShapeGeometry(netShape);
-  const mat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.12,
-    side: THREE.DoubleSide,
-    wireframe: false,
-  });
-  const mesh = new THREE.Mesh(geo, mat);
-  // Net is vertical (y-up is height in Three.js)
-  // The shape is in x-z plane, so we need to extrude or rotate
-  // Actually, the goal net is vertical, so it stands up in y
-  // Let's use a plane geometry instead
-  return mesh;
-}
-
-// Box-style goal: two posts + crossbar + back net
+// Box-style goal: two posts + crossbar + 3-panel net with baked-in sag
 function buildGoal(side) {
   const g = new THREE.Group();
   const isLeft = side === 'left';
@@ -530,24 +499,133 @@ function buildGoal(side) {
     g.add(cb);
   }
 
-  // Back net (semi-transparent rectangle)
-  const nh = GOAL_Y2 - GOAL_Y1;
-  const nw = GOAL_DEPTH;
-  const netMat = new THREE.MeshBasicMaterial({
-    color: 0xaabbcc, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false
-  });
-  const netGeo = new THREE.PlaneGeometry(nw, nh);
-  const net = new THREE.Mesh(netGeo, netMat);
-  const nc = serverToWorld((frontX + backX) / 2, (GOAL_Y1 + GOAL_Y2) / 2);
-  net.position.set(nc.x, d / 2, nc.z);
-  net.rotation.y = isLeft ? Math.PI / 2 : -Math.PI / 2;
-  g.add(net);
+  // ── Net: back + top + 2 side panels, static sag (baked once at build) ─────
+  // Real-net shape: back panel + sloped top panel (crossbar → lower back edge)
+  // + side panels. Vertices are displaced once to a fixed sag curve — zero
+  // per-frame cost, no physics involvement.
+  const backH  = d * 0.7;           // back top edge (top net slopes down)
+  const outDir = isLeft ? -1 : 1;   // outward = away from field center
+  const CELL   = 13;                // world px per netting square
+
+  // Procedural rope-grid texture (same no-asset convention as the crowd sheet)
+  function makeNetTexture(w, h) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d');
+    x.strokeStyle = '#fff'; x.lineWidth = 3.5; x.lineCap = 'round';
+    for (let i = 0; i <= 128; i += 16) {
+      x.beginPath(); x.moveTo(i + 0.5, 0); x.lineTo(i + 0.5, 128); x.stroke();
+      x.beginPath(); x.moveTo(0, i + 0.5); x.lineTo(128, i + 0.5); x.stroke();
+    }
+    x.fillStyle = '#fff';
+    for (let i = 0; i <= 128; i += 16) {
+      for (let j = 0; j <= 128; j += 16) {
+        x.beginPath(); x.arc(i, j, 2.2, 0, Math.PI * 2); x.fill();
+      }
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(Math.max(1, w / CELL), Math.max(1, h / CELL));
+    return t;
+  }
+
+  // Quad panel with bilinear corner interpolation + per-vertex sag offset.
+  // p00/p10 span u (0→1), p00/p01 span v (0→1); sagFn(u,v) → [dx,dy,dz].
+  function makeNetPanel(p00, p10, p01, p11, segU, segV, sagFn) {
+    const pos = [], uv = [], idx = [];
+    for (let v = 0; v <= segV; v++) {
+      for (let u = 0; u <= segU; u++) {
+        const tu = u / segU, tv = v / segV;
+        const bx = (1-tu)*(1-tv)*p00.x + tu*(1-tv)*p10.x + (1-tu)*tv*p01.x + tu*tv*p11.x;
+        const by = (1-tu)*(1-tv)*p00.y + tu*(1-tv)*p10.y + (1-tu)*tv*p01.y + tu*tv*p11.y;
+        const bz = (1-tu)*(1-tv)*p00.z + tu*(1-tv)*p10.z + (1-tu)*tv*p01.z + tu*tv*p11.z;
+        const s = sagFn(tu, tv);
+        pos.push(bx + s[0], by + s[1], bz + s[2]);
+        uv.push(tu, tv);
+        if (u < segU && v < segV) {
+          const a = v * (segU + 1) + u, b = a + 1, c = a + segU + 1, dd = c + 1;
+          idx.push(a, c, b, b, c, dd);
+        }
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  function addNetPanel(name, p00, p10, p01, p11, segU, segV, w, h, sagFn) {
+    const mesh = new THREE.Mesh(makeNetPanel(p00, p10, p01, p11, segU, segV, sagFn), new THREE.MeshBasicMaterial({
+      color: 0xf8fafc, map: makeNetTexture(w, h),
+      transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false,
+    }));
+    mesh.userData = { net: true, panel: name };
+    g.add(mesh);
+  }
+
+  // Back panel — u along goal width, v along height. Bulges outward, taut at
+  // the anchored top/side edges, loosest at bottom-center.
+  const bwA = serverToWorld(backX, GOAL_Y2), bwB = serverToWorld(backX, GOAL_Y1);
+  addNetPanel('back',
+    new THREE.Vector3(bwA.x, 0, bwA.z), new THREE.Vector3(bwB.x, 0, bwB.z),
+    new THREE.Vector3(bwA.x, backH, bwA.z), new THREE.Vector3(bwB.x, backH, bwB.z),
+    14, 10, GOAL_Y2 - GOAL_Y1, backH,
+    (u, v) => [outDir * 14 * Math.sin(Math.PI * u) * (1 - v), 0, 0]);
+
+  // Top panel — u front→back, v along width. Slopes down from the crossbar to
+  // the lower back edge and droops in the middle (all 4 edges anchored).
+  const tfA = serverToWorld(frontX, GOAL_Y1), tbA = serverToWorld(backX, GOAL_Y1);
+  const tfB = serverToWorld(frontX, GOAL_Y2), tbB = serverToWorld(backX, GOAL_Y2);
+  addNetPanel('top',
+    new THREE.Vector3(tfB.x, d, tfB.z), new THREE.Vector3(tfA.x, d, tfA.z),
+    new THREE.Vector3(tbB.x, backH, tbB.z), new THREE.Vector3(tbA.x, backH, tbA.z),
+    8, 10, GOAL_DEPTH, GOAL_Y2 - GOAL_Y1,
+    (u, v) => [0, -5 * Math.sin(Math.PI * u) * Math.sin(Math.PI * v), 0]);
+
+  // Side panels — u front→back, v along height. Billow outward (z) between
+  // the side post and the back panel, slight droop toward the bottom.
+  for (const sy of [GOAL_Y1, GOAL_Y2]) {
+    const s = serverToWorld(frontX, sy), b = serverToWorld(backX, sy);
+    const zSign = s.z > 0 ? 1 : -1;
+    addNetPanel('side',
+      new THREE.Vector3(s.x, 0, s.z), new THREE.Vector3(b.x, 0, b.z),
+      new THREE.Vector3(s.x, d, s.z), new THREE.Vector3(b.x, backH, b.z),
+      8, 8, GOAL_DEPTH, d,
+      (u, v) => {
+        const f = Math.sin(Math.PI * u) * (1 - v);
+        return [0, -2 * f, zSign * 4 * f];
+      });
+  }
 
   return g;
 }
 
 goalGroup.add(buildGoal('left'));
 goalGroup.add(buildGoal('right'));
+
+// Testability hook (headless CDP): net geometry stats — panels, vertex counts,
+// world-space extents. ?netinfo also echoes them into document.title.
+window.__netInfo = () => {
+  const stats = [];
+  goalGroup.traverse(o => {
+    if (o.isMesh && o.userData && o.userData.net) {
+      const arr = o.geometry.attributes.position.array;
+      let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, minZ = 1e9, maxZ = -1e9;
+      for (let i = 0; i < arr.length; i += 3) {
+        minX = Math.min(minX, arr[i]); maxX = Math.max(maxX, arr[i]);
+        minY = Math.min(minY, arr[i + 1]); maxY = Math.max(maxY, arr[i + 1]);
+        minZ = Math.min(minZ, arr[i + 2]); maxZ = Math.max(maxZ, arr[i + 2]);
+      }
+      stats.push({ panel: o.userData.panel, verts: arr.length / 3, minX, maxX, minY, maxY, minZ, maxZ });
+    }
+  });
+  return stats;
+};
+if (new URLSearchParams(location.search).has('netinfo')) {
+  document.title = JSON.stringify(window.__netInfo());
+}
 
 // ── Crowd ────────────────────────────────────────────────────────────────────
 const CROWD_PALETTES = {

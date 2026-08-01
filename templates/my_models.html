@@ -46,6 +46,13 @@ nav,div.page{position:relative;z-index:1}
   font-size:.58rem;font-weight:600;padding:2px 8px;border-radius:100px;
   background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.25);
 }
+.outdated-warning{
+  margin-top:8px;padding:8px 10px;border-radius:8px;
+  font-size:.66rem;line-height:1.45;color:#fbbf24;
+  background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.25);
+}
+.outdated-warning code{font-family:ui-monospace,Consolas,monospace;font-size:.62rem;color:#fde68a}
+.validate-result.warn{display:block;background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.25)}
 .empty-state{text-align:center;padding:40px 16px;color:var(--muted);font-size:.82rem;background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--glass-border);border-radius:12px}
 .empty-state strong{display:block;font-size:1rem;font-weight:600;color:var(--text);margin-bottom:6px}
 /* ── Buttons ── */
@@ -202,6 +209,11 @@ pre.ref-code{
         <div class="model-card" id="card-{{ m.id }}" onclick="openEdit('{{ m.id }}')">
           <div class="mc-name">{{ m.name }}</div>
           <div class="mc-desc">{{ m.description or 'No description' }}</div>
+          {% if m.maybe_outdated %}
+          <div class="outdated-warning" title="Detected numeric constants matching the old 1000×625 field dimensions in this model's code">
+            ⚠ May reference field coordinates from before the pitch was resized to 1400×875 and could underperform — consider using <code>state['field']</code> instead of hardcoded values.
+          </div>
+          {% endif %}
           <div class="mc-meta">
             {% if m.is_public %}<span class="public-badge">Public</span>{% endif %}
             <span>{{ m.updated_at[:10] if m.updated_at else '' }}</span>
@@ -234,7 +246,7 @@ pre.ref-code{
         <h4>🎯 Required function</h4>
         <pre class="ref-code">def get_ai_move(state, is_player_a):
     # state        — dict describing the full game state (see below)
-    # is_player_a  — True → you control Team A (attacks RIGHT toward x=1000)
+    # is_player_a  — True → you control Team A (attacks RIGHT toward the far goal)
     #                 False → you control Team B (attacks LEFT toward x=0)
     return player_idx, angle_deg, power
     # player_idx   — 0, 1, or 2 (which of your 3 players kicks)
@@ -247,6 +259,8 @@ pre.ref-code{
         <pre class="ref-code">state["ball"]       = {"x": float, "y": float}   # ball position
 state["players_a"]  = [{"x":float,"y":float}, ...]  # Team A (3 players)
 state["players_b"]  = [{"x":float,"y":float}, ...]  # Team B (3 players)
+state["field"]      = {"width": int, "height": int} # REAL field size —
+                                                    # read this, don't hardcode!
 state["score_a"]    = int   # Team A goals
 state["score_b"]    = int   # Team B goals
 state["kick_count"] = int   # total kicks so far
@@ -277,7 +291,10 @@ state["win_goal_limit"] = int  # goals to win (default 5)</pre>
 
   Centre spot:  (700, 437.5)
   Goals: width=50, height ≈ 163 (y 356 → 519)
-  Kick-off spots: Team A ~(1106, 350), Team B ~(294, 350)</pre>
+  Kick-off spots: Team A ~(1106, 350), Team B ~(294, 350)
+
+  ⚠ These numbers are the CURRENT field — they may change again.
+    In code, always use state["field"]["width"] / state["field"]["height"].</pre>
       </div>
 
       <div class="ref-section">
@@ -298,7 +315,8 @@ state["win_goal_limit"] = int  # goals to win (default 5)</pre>
 #    Use a different player to intercept / position defensively.
 
 # 2. Aim smartly
-#    Shoot at goal when close (x > 700 for Team A, x < 300 for Team B).
+#    Shoot at goal when close — e.g. bx > state["field"]["width"] * 0.85
+#    for Team A (mirror for Team B). Never hardcode the field size!
 #    Vary y-coordinate of target so keeper can't always save.
 #    Pass to teammates when far from goal.
 
@@ -326,6 +344,8 @@ DESCRIPTION = "Kicks toward opponent's goal"
 def get_ai_move(state, is_player_a):
     bx, by = state["ball"]["x"], state["ball"]["y"]
     players = state["players_a"] if is_player_a else state["players_b"]
+    fw = state["field"]["width"]
+    fh = state["field"]["height"]
 
     # Closest player to ball
     idx = min(range(3), key=lambda i: math.hypot(
@@ -333,8 +353,8 @@ def get_ai_move(state, is_player_a):
     ))
 
     # Aim at center of opponent goal with some randomness
-    goal_x = 1400.0 if is_player_a else 0.0
-    goal_y = 437.5 + (random.random() - 0.5) * 80
+    goal_x = fw if is_player_a else 0.0
+    goal_y = fh / 2 + (random.random() - 0.5) * 80
     angle = math.degrees(math.atan2(goal_y - by, goal_x - bx))
 
     return idx, angle, 85.0</pre>
@@ -350,6 +370,8 @@ DESCRIPTION = "Passes to forward players"
 def get_ai_move(state, is_player_a):
     bx, by = state["ball"]["x"], state["ball"]["y"]
     players = state["players_a"] if is_player_a else state["players_b"]
+    fw = state["field"]["width"]
+    fh = state["field"]["height"]
 
     # Kick with whichever player is closest
     idx = min(range(3), key=lambda i: math.hypot(
@@ -357,7 +379,7 @@ def get_ai_move(state, is_player_a):
     ))
 
     # Find the furthest-forward teammate to pass to
-    target_x = 0 if is_player_a else 1400  # opposite direction
+    target_x = 0 if is_player_a else fw  # opposite direction
     target = max(players, key=lambda p: p["x"] if is_player_a else -p["x"])
     dx = target["x"] - bx
     dy = target["y"] - by
@@ -365,8 +387,8 @@ def get_ai_move(state, is_player_a):
 
     if dist < 150:
         # Close enough — shoot
-        goal_x = 1400.0 if is_player_a else 0.0
-        angle = math.degrees(math.atan2(437.5 - by, goal_x - bx))
+        goal_x = fw if is_player_a else 0.0
+        angle = math.degrees(math.atan2(fh / 2 - by, goal_x - bx))
         return idx, angle, 90.0
     else:
         # Pass forward
@@ -494,8 +516,10 @@ async function validateCode() {
   });
   const data = await r.json();
   if (data.ok) {
-    el.className = 'validate-result ok';
-    el.textContent = `✓ Valid — test move: ${data.test_move}`;
+    el.className = data.warning ? 'validate-result warn' : 'validate-result ok';
+    el.textContent = data.warning
+      ? `✓ Valid — test move: ${data.test_move}\n⚠ ${data.warning}`
+      : `✓ Valid — test move: ${data.test_move}`;
   } else {
     el.className = 'validate-result err';
     el.textContent = `✗ ${data.error}`;
@@ -522,6 +546,7 @@ async function saveModel() {
   });
   const data = await r.json();
   if (data.error) { alert(data.error); return; }
+  if (data.warning) { alert(data.warning); }
   location.reload();
 }
 

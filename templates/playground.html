@@ -67,6 +67,7 @@
 .status-ok  {color:#a6e3a1}
 .status-err {color:#f38ba8}
 .status-info{color:#89b4fa}
+.status-warn{color:#f9e2af}
 /* ── Game pane ── */
 .game-pane{
   display:flex;flex-direction:column;overflow-y:auto;
@@ -659,7 +660,12 @@ async function validateCode() {
   });
   const data = await r.json();
   if (data.ok) {
-    setStatus('✓ Valid — test move: ' + data.test_move, 'ok');
+    const msg = '✓ Valid — test move: ' + data.test_move;
+    if (data.warning) {
+      setStatus(msg + '\n⚠ ' + data.warning, 'warn');
+    } else {
+      setStatus(msg, 'ok');
+    }
   } else {
     setStatus('✗ ' + data.error, 'err');
   }
@@ -679,6 +685,7 @@ async function saveToMyModels() {
   });
   const data = await r.json();
   if (data.error) { alert(data.error); return; }
+  if (data.warning) { alert(data.warning); }
   setStatus(`✓ Saved as "${name}" — visible in My Models and game AI selector.`, 'ok');
 }
 

@@ -4,9 +4,19 @@ import copy
 import json
 
 from db.redis_client import r
-from models.soccer_logic import new_soccer_state
+from models.soccer_logic import new_soccer_state, FIELD_W, FIELD_H
 
 GAME_TTL = 86_400 * 7  # 7 days
+
+
+def _backfill_field(state: dict) -> dict:
+    """Add the `field` key to states saved before it existed (additive).
+
+    Legacy Redis/DB states lack ``state["field"]``; user models may read it.
+    """
+    if "field" not in state:
+        state["field"] = {"width": FIELD_W, "height": FIELD_H}
+    return state
 
 
 def new_game_state(
@@ -32,7 +42,7 @@ def get_game(user_id: str) -> dict:
     if raw:
         data = json.loads(raw)
         if "ball" in data:   # valid soccer state
-            return data
+            return _backfill_field(data)
     state = new_game_state()
     save_game(user_id, state)
     return state
@@ -83,7 +93,9 @@ def new_pg_state(pg_mode: str = "human_vs_code", opponent: str = "greedy") -> di
 
 def get_pg(user_id: str) -> dict | None:
     raw = r.get(f"pg:{user_id}")
-    return json.loads(raw) if raw else None
+    if raw:
+        return _backfill_field(json.loads(raw))
+    return None
 
 
 def save_pg(user_id: str, state: dict) -> None:

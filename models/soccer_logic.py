@@ -267,6 +267,7 @@ def new_soccer_state(
     home_b = _home_positions(player_count, "b")
     return {
         "ball":          {"x": FIELD_W / 2, "y": FIELD_H / 2, "z": 0.0},
+        "field":         {"width": FIELD_W, "height": FIELD_H},
         "players_a":     [{"x": x, "y": y} for x, y in home_a],
         "players_b":     [{"x": x, "y": y} for x, y in home_b],
         "score_a":       0,

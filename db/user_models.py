@@ -14,7 +14,7 @@ def get_user_models(user_id: str) -> list[dict]:
         return []
     rows = (
         svc.table("user_models")
-        .select("id, name, description, is_public, created_at, updated_at")
+        .select("id, name, description, code, is_public, created_at, updated_at")
         .eq("user_id", user_id)
         .order("created_at")
         .execute()

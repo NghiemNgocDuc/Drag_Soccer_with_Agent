@@ -33,6 +33,43 @@ _FORBIDDEN_CALLS = {
 
 # ── Static validation ─────────────────────────────────────────────────────────
 
+# Numeric literals from the pre-resize field (1000x625, goal line y=312/312.5,
+# goal aperture y=231-394). Best-effort heads-up — NOT a correctness guarantee.
+_OLD_FIELD_LITERALS = frozenset((1000.0, 625.0, 312.0, 312.5, 231.0, 394.0))
+
+
+def detect_old_field_literals(code: str) -> list[float]:
+    """Return pre-resize field-dimension literals found in `code`.
+
+    AST-based, cheap, never raises. `range(...)` arguments are ignored
+    (a `range(1000)` loop is not a field reference).
+    """
+    if not code or not code.strip():
+        return []
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return []
+    range_arg_ids = {
+        id(arg)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "range"
+        for arg in node.args
+    }
+    hits: list[float] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Constant) or id(node) in range_arg_ids:
+            continue
+        if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
+            continue
+        value = float(node.value)
+        if value in _OLD_FIELD_LITERALS and value not in hits:
+            hits.append(value)
+    return sorted(hits)
+
+
 def validate_code(code: str) -> tuple[bool, str]:
     if not code.strip():
         return False, "Code cannot be empty."
@@ -144,9 +181,13 @@ TEMPLATE = '''\
 #  Field: 1400 × 875  (Team A → RIGHT, goal at x=1400, y=356–519)
 #                    (Team B → LEFT,  goal at x=0,    y=356–519)
 #
+#  ⚠ IMPORTANT: always read the real field size from the state —
+#    don\'t hardcode these numbers in your code!
+#
 #  state["ball"]       = {"x": float, "y": float}
 #  state["players_a"]  = [{"x": float, "y": float}, ...]  # 3 players
 #  state["players_b"]  = [{"x": float, "y": float}, ...]  # 3 players
+#  state["field"]      = {"width": int, "height": int}   # real field size
 #  state["score_a"]    = int
 #  state["score_b"]    = int
 #  state["kick_count"] = int
@@ -174,9 +215,9 @@ def get_ai_move(state, is_player_a):
         players[i]["x"] - bx, players[i]["y"] - by
     ))
 
-    # Aim at center of opponent\'s goal
-    goal_x = 1400.0 if is_player_a else 0.0
-    goal_y = 437.5
+    # Aim at center of opponent\'s goal (read the field size from state)
+    goal_x = state["field"]["width"] if is_player_a else 0.0
+    goal_y = state["field"]["height"] / 2
     angle  = math.degrees(math.atan2(goal_y - by, goal_x - bx))
 
     return best_idx, angle, 80.0
