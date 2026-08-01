@@ -64,6 +64,14 @@ def get_leaderboard(limit: int = 20) -> list[dict]:
     if not svc:
         return []
     try:
-        return svc.rpc("get_leaderboard", {"limit_count": limit}).execute().data or []
+        rows = svc.rpc("get_leaderboard", {"limit_count": limit}).execute().data or []
+        ids = [r["id"] for r in rows if r.get("id")]
+        if ids:
+            avatars = (svc.table("profiles").select("id,avatar_url")
+                       .in_("id", ids).execute().data or [])
+            avatar_map = {a["id"]: a.get("avatar_url") for a in avatars}
+            for r in rows:
+                r["avatar_url"] = avatar_map.get(r.get("id"))
+        return rows
     except Exception:
         return []

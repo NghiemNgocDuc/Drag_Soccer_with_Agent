@@ -11,7 +11,7 @@ from flask import (
     request, session, url_for, flash,
 )
 
-from config import SECRET_KEY
+from config import SECRET_KEY, SITE_URL
 from game.session import (
     get_game, save_game, new_game_state, push_snapshot, pop_snapshot,
     new_pg_state, get_pg, save_pg,
@@ -99,6 +99,8 @@ def _load_user_model(model_id: str) -> _UserModelWrapper:
 _RATE_LIMITS: dict[str, tuple[int, int]] = {
     "/auth/login":    (5, 60),     # 5 requests per 60 seconds
     "/auth/register": (3, 300),    # 3 registrations per 5 minutes
+    "/api/auth/forgot-password": (3, 300),   # 3 reset emails per 5 minutes
+    "/api/auth/reset-password":  (10, 300),  # token-gated, but still bounded
 }
 
 
@@ -381,6 +383,74 @@ def auth_login():
 def auth_logout():
     session.clear()
     return redirect(url_for("index"))
+
+
+# ── Password reset (Supabase Auth recovery link flow) ─────────────────────
+
+_EMAIL_RE = r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
+
+
+@app.route("/forgot-password")
+def forgot_password_page():
+    if "user_id" in session:
+        return redirect(url_for("index"))
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset-password")
+def reset_password_page():
+    return render_template("reset_password.html")
+
+
+@app.route("/api/auth/forgot-password", methods=["POST"])
+@rate_limited
+def api_forgot_password():
+    import re
+    from db.supabase_client import anon
+    data  = request.get_json(silent=True) or {}
+    email = (data.get("email") or "").strip().lower()
+    if not re.match(_EMAIL_RE, email):
+        return jsonify({"error": "Enter a valid email address."}), 400
+    if anon is None:
+        return jsonify({"error": "Password reset is not available in dev mode."}), 503
+    try:
+        anon.auth.reset_password_for_email(email, {"redirect_to": f"{SITE_URL}/reset-password"})
+    except Exception as exc:
+        logging.warning("reset_password_for_email failed: %s", exc)
+        return jsonify({"error": "Could not send the reset email. Try again later."}), 502
+    # Always succeed on the surface — never reveal whether the address exists.
+    return jsonify({"ok": True})
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+@rate_limited
+def api_reset_password():
+    from config import SUPABASE_ANON_KEY, SUPABASE_URL
+    data     = request.get_json(silent=True) or {}
+    at       = (data.get("access_token") or "").strip()
+    rt       = (data.get("refresh_token") or "").strip()
+    password = data.get("password") or ""
+    if not at or not rt:
+        return jsonify({"error": "Invalid or expired reset link. Request a new one."}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters."}), 400
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        return jsonify({"error": "Password reset is not available in dev mode."}), 503
+    from supabase import create_client
+    client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)  # fresh client: token owns the session
+    try:
+        client.auth.set_session(at, rt)  # validates the token against Supabase
+    except Exception:
+        return jsonify({"error": "Invalid or expired reset link. Request a new one."}), 400
+    try:
+        client.auth.update_user({"password": password})
+    except Exception as exc:
+        msg = str(exc).lower()
+        if "weak" in msg or "password" in msg:
+            return jsonify({"error": "Password does not meet the requirements (at least 6 characters)."}), 400
+        logging.warning("reset update_user failed: %s", exc)
+        return jsonify({"error": "Could not update the password. Try again."}), 502
+    return jsonify({"ok": True})
 
 
 @app.route("/")
@@ -709,10 +779,93 @@ def benchmark():
 @login_required
 def profile():
     from db.games import get_user_stats
+    from db.profiles import get_avatar_url
     stats = get_user_stats(uid())
     username = session.get("username", "Player")
     joined_days = session.get("joined_at")
-    return render_template("profile.html", username=username, stats=stats, joined_days=joined_days)
+    avatar_url = get_avatar_url(uid())
+    return render_template("profile.html", username=username, stats=stats,
+                           joined_days=joined_days, avatar_url=avatar_url)
+
+
+# ── Profile photo (Supabase Storage, per-user scoped) ─────────────────────
+
+@app.route("/api/profile/photo", methods=["POST"])
+@login_required
+def api_upload_photo():
+    import re
+    from db.profile_photos import ALLOWED_EXTENSIONS, MAX_AVATAR_BYTES, upload_avatar
+    from db.profiles import set_avatar_url
+    user_id = uid()
+    if user_id.startswith("clerk:") or user_id.startswith("dev:"):
+        return jsonify({"error": "Profile photos are not available for this account type."}), 400
+    file = request.files.get("photo")
+    if not file or not file.filename:
+        return jsonify({"error": "No file selected."}), 400
+    ext = (file.filename.rsplit(".", 1)[-1] if "." in file.filename else "").lower()
+    if ext not in ALLOWED_EXTENSIONS:
+        return jsonify({"error": "Only JPG, PNG or WebP images are allowed."}), 400
+    data = file.read(MAX_AVATAR_BYTES + 1)
+    if len(data) > MAX_AVATAR_BYTES:
+        return jsonify({"error": "Image must be 5 MB or smaller."}), 400
+    url = upload_avatar(user_id, data, ext)  # path scoped to this user's session
+    if not url:
+        return jsonify({"error": "Photo upload failed. Storage may not be configured."}), 503
+    if not set_avatar_url(user_id, url):
+        return jsonify({"error": "Photo uploaded but saving it to your profile failed."}), 502
+    _ph.capture(user_id, "profile_photo_upload")
+    return jsonify({"ok": True, "avatar_url": url})
+
+
+@app.route("/api/profile/photo", methods=["DELETE"])
+@login_required
+def api_remove_photo():
+    from db.profile_photos import remove_avatar
+    from db.profiles import set_avatar_url
+    user_id = uid()
+    remove_avatar(user_id)
+    set_avatar_url(user_id, None)
+    return jsonify({"ok": True, "avatar_url": None})
+
+
+# ── Change email (confirmation sent to the new address) ───────────────────
+
+@app.route("/api/account/change-email", methods=["POST"])
+@login_required
+def api_change_email():
+    import re
+    from db.supabase_client import anon, service
+    user_id = uid()
+    if user_id.startswith("clerk:") or user_id.startswith("dev:"):
+        return jsonify({"error": "Email changes are not available for this account type."}), 400
+    data = request.get_json(silent=True) or {}
+    current_password = data.get("current_password") or ""
+    new_email = (data.get("new_email") or "").strip().lower()
+    if not current_password:
+        return jsonify({"error": "Enter your current password to confirm the change."}), 400
+    if not re.match(_EMAIL_RE, new_email):
+        return jsonify({"error": "Enter a valid new email address."}), 400
+    if not anon or not service:
+        return jsonify({"error": "Account changes are not available in dev mode."}), 503
+    try:
+        user = service.auth.admin.get_user_by_id(user_id)
+        current_email = (user.user.email or "").lower()
+    except Exception as exc:
+        logging.warning("get_user_by_id failed: %s", exc)
+        return jsonify({"error": "Could not look up your account."}), 502
+    if current_email == new_email:
+        return jsonify({"error": "That is already your email address."}), 400
+    try:
+        res = anon.auth.sign_in_with_password({"email": current_email, "password": current_password})
+    except Exception:
+        return jsonify({"error": "Current password is incorrect."}), 401
+    if not (res.user and res.session):
+        return jsonify({"error": "Current password is incorrect."}), 401
+    # No email_confirm: Supabase emails a confirmation link to the new address,
+    # and the email only changes once it is clicked.
+    service.auth.admin.update_user_by_id(user_id, {"email": new_email})
+    _ph.capture(user_id, "email_change_requested", {"pending_email": new_email})
+    return jsonify({"ok": True, "pending_email": new_email})
 
 
 @app.route("/leaderboard")
@@ -754,15 +907,17 @@ def api_customization():
 @login_required
 def my_models_page():
     from db.user_models import get_user_models
-    from user_models.runner import TEMPLATE
+    from user_models.runner import TEMPLATE, detect_old_field_literals
     models = get_user_models(uid())
+    for m in models:
+        m["maybe_outdated"] = bool(detect_old_field_literals(m.get("code") or ""))
     return render_template("my_models.html", username=session.get("username", "Player"), models=models, template_code=TEMPLATE)
 
 
 @app.route("/api/models/user/validate", methods=["POST"])
 @login_required
 def api_validate_model():
-    from user_models.runner import validate_code, execute_user_model
+    from user_models.runner import validate_code, execute_user_model, detect_old_field_literals
     from models.soccer_logic import new_soccer_state
     code = (request.get_json(silent=True) or {}).get("code", "")
     ok, msg = validate_code(code)
@@ -771,7 +926,14 @@ def api_validate_model():
     try:
         st = new_soccer_state()
         pidx, ang, pwr = execute_user_model(code, st, True, timeout_s=5.0)
-        return jsonify({"ok": True, "test_move": f"player {pidx}, angle {round(ang)}, power {round(pwr)}"})
+        resp = {"ok": True, "test_move": f"player {pidx}, angle {round(ang)}, power {round(pwr)}"}
+        hits = detect_old_field_literals(code)
+        if hits:
+            resp["warning"] = (
+                f"Code contains {', '.join(str(h) for h in hits)} — a field coordinate from "
+                "before the pitch was resized to 1400×875. Read the size from state['field'] instead."
+            )
+        return jsonify(resp)
     except RuntimeError as exc:
         return jsonify({"ok": False, "error": str(exc)})
 
@@ -779,7 +941,7 @@ def api_validate_model():
 @app.route("/api/models/user", methods=["POST"])
 @login_required
 def api_create_model():
-    from user_models.runner import validate_code
+    from user_models.runner import validate_code, detect_old_field_literals
     from db.user_models import create_model
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "").strip()
@@ -791,13 +953,20 @@ def api_create_model():
     if not ok:
         return jsonify({"error": f"Code error: {msg}"}), 400
     model = create_model(uid(), name, desc, code)
-    return jsonify({"ok": True, "model": model}), 201
+    resp = {"ok": True, "model": model}
+    hits = detect_old_field_literals(code)
+    if hits:
+        resp["warning"] = (
+            f"Code contains {', '.join(str(h) for h in hits)} — a field coordinate from "
+            "before the pitch was resized to 1400×875. Read the size from state['field'] instead."
+        )
+    return jsonify(resp), 201
 
 
 @app.route("/api/models/user/<model_id>", methods=["PUT"])
 @login_required
 def api_update_model(model_id: str):
-    from user_models.runner import validate_code
+    from user_models.runner import validate_code, detect_old_field_literals
     from db.user_models import update_model
     data = request.get_json(silent=True) or {}
     fields: dict = {}
@@ -818,7 +987,15 @@ def api_update_model(model_id: str):
     updated = update_model(model_id, uid(), **fields)
     if not updated:
         return jsonify({"error": "Model not found or access denied."}), 404
-    return jsonify({"ok": True})
+    resp = {"ok": True}
+    if "code" in fields:
+        hits = detect_old_field_literals(fields["code"])
+        if hits:
+            resp["warning"] = (
+                f"Code contains {', '.join(str(h) for h in hits)} — a field coordinate from "
+                "before the pitch was resized to 1400×875. Read the size from state['field'] instead."
+            )
+    return jsonify(resp)
 
 
 @app.route("/api/models/user/<model_id>/code")

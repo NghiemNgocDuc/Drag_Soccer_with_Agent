@@ -18,6 +18,9 @@ SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 UPSTASH_REDIS_URL = os.environ.get("UPSTASH_REDIS_URL", "redis://localhost:6379")
 
+# Absolute base URL for auth emails (password reset / email change links)
+SITE_URL = os.environ.get("SITE_URL", "http://localhost:5000")
+
 # Resend — transactional email
 RESEND_API_KEY    = os.environ.get("RESEND_API_KEY", "")
 RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "noreply@socceragent.dev")

@@ -34,9 +34,52 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
   background:linear-gradient(135deg,#06b6d4,#8b5cf6);
   display:flex;align-items:center;justify-content:center;
   font-size:1.8rem;font-weight:800;color:#fff;
-  flex-shrink:0;position:relative;
+  flex-shrink:0;position:relative;overflow:hidden;
   box-shadow:0 0 0 3px rgba(255,255,255,.6),0 8px 24px rgba(6,182,212,.25);
 }
+.avatar-img{width:100%;height:100%;border-radius:50%;object-fit:cover;display:block}
+/* ── Account Settings ── */
+.settings-card{
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);
+  padding:24px;margin-bottom:20px;
+}
+.settings-row{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.photo-preview{
+  width:84px;height:84px;border-radius:50%;overflow:hidden;flex-shrink:0;
+  background:linear-gradient(135deg,rgba(6,182,212,.25),rgba(139,92,246,.25));
+  border:1px solid var(--glass-border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:2rem;font-weight:800;color:var(--accent);
+}
+.photo-preview img{width:100%;height:100%;object-fit:cover;display:block}
+.photo-actions{display:flex;gap:10px;flex-wrap:wrap}
+.settings-field{margin-bottom:14px}
+.settings-field label{display:block;font-size:.72rem;font-weight:600;color:var(--muted);margin-bottom:6px}
+.settings-input{
+  width:100%;max-width:340px;padding:10px 13px;
+  background:rgba(255,255,255,.7);
+  border:1px solid var(--glass-border);border-radius:9px;
+  font-family:inherit;font-size:.88rem;color:var(--text);
+  transition:border-color .15s,background .15s;
+}
+.settings-input:focus{outline:none;border-color:rgba(6,182,212,.6);background:rgba(255,255,255,.9)}
+.btn{
+  padding:9px 18px;border-radius:9px;border:none;cursor:pointer;
+  font-family:inherit;font-size:.82rem;font-weight:700;
+  transition:transform .15s,box-shadow .15s,opacity .15s;
+}
+.btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.btn-primary{background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;box-shadow:0 4px 16px rgba(6,182,212,.3)}
+.btn-primary:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 24px rgba(6,182,212,.45)}
+.btn-ghost{background:rgba(255,255,255,.55);border:1px solid var(--glass-border);color:var(--text)}
+.btn-ghost:hover:not(:disabled){background:rgba(255,255,255,.85)}
+.btn-danger{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.4);color:var(--red)}
+.btn-danger:hover:not(:disabled){background:rgba(248,113,113,.22)}
+.form-status{font-size:.78rem;margin-top:10px;line-height:1.45;display:none}
+.form-status.ok{display:block;color:var(--green)}
+.form-status.err{display:block;color:var(--red)}
+.hint{font-size:.7rem;color:var(--dim);margin-top:4px}
 .hero-info{position:relative}
 .hero-info h1{font-size:1.6rem;font-weight:800;letter-spacing:-.03em;color:var(--text)}
 .hero-info .tagline{font-size:.78rem;color:var(--muted);margin-top:2px}
@@ -177,7 +220,7 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
 
   <!-- Hero -->
   <div class="hero">
-    <div class="avatar">{{ username[0].upper() }}</div>
+    <div class="avatar">{% if avatar_url %}<img class="avatar-img" src="{{ avatar_url }}" alt="{{ username }}">{% else %}{{ username[0].upper() }}{% endif %}</div>
     <div class="hero-info">
       <h1>{{ username }}</h1>
       <p class="tagline">Player · Agent Soccer</p>
@@ -186,6 +229,45 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
       <div class="val">{{ gp }}</div>
       <div class="lbl">Total Games</div>
     </div>
+  </div>
+
+  <!-- Account Settings -->
+  <div class="section-title">Account Settings</div>
+  <div class="settings-card">
+    <div class="settings-row">
+      <div class="photo-preview" id="photo-preview">
+        {% if avatar_url %}<img src="{{ avatar_url }}" alt="">{% else %}{{ username[0].upper() }}{% endif %}
+      </div>
+      <div>
+        <div class="settings-row" style="gap:10px">
+          <label class="btn btn-ghost" for="photo-input" style="cursor:pointer;margin:0">Choose Photo</label>
+          <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp" style="display:none">
+          <button type="button" class="btn btn-primary" id="photo-upload-btn">Upload</button>
+          <button type="button" class="btn btn-danger" id="photo-remove-btn">Remove Photo</button>
+        </div>
+        <div class="hint">JPG, PNG or WebP · max 5 MB. Your photo shows on your profile and the leaderboard.</div>
+        <div class="form-status" id="photo-status"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-card">
+    <div class="section-title" style="margin-bottom:14px">Change Email</div>
+    <div class="settings-field">
+      <label for="current-password">Current password (required to confirm)</label>
+      <input type="password" id="current-password" class="settings-input" autocomplete="current-password">
+    </div>
+    <div class="settings-field">
+      <label for="new-email">New email address</label>
+      <input type="email" id="new-email" class="settings-input" autocomplete="email">
+    </div>
+    <div class="settings-field">
+      <label for="confirm-email">Confirm new email</label>
+      <input type="email" id="confirm-email" class="settings-input" autocomplete="email">
+    </div>
+    <button type="button" class="btn btn-primary" id="email-change-btn">Request Email Change</button>
+    <div class="hint">A confirmation link is emailed to the new address — your email only changes once you click it.</div>
+    <div class="form-status" id="email-status"></div>
   </div>
 
   <!-- Stats Grid -->
@@ -317,6 +399,161 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
   </div>
   {% endif %}
 </main>
+<script>
+const AVATAR_URL = {{ avatar_url | tojson }};
+const avatarChar = {{ username[0] | upper | tojson }};
+let pendingPhoto = null;
+let hasPhoto = !!AVATAR_URL;
+
+const photoInput    = document.getElementById('photo-input');
+const photoPreview  = document.getElementById('photo-preview');
+const uploadBtn     = document.getElementById('photo-upload-btn');
+const removeBtn     = document.getElementById('photo-remove-btn');
+const photoStatus   = document.getElementById('photo-status');
+const heroAvatar    = document.querySelector('.hero .avatar');
+
+function showStatus(el, text, ok) {
+  el.textContent = text;
+  el.className = 'form-status ' + (ok ? 'ok' : 'err');
+}
+
+function renderPreview(url) {
+  photoPreview.innerHTML = '';
+  if (url) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '';
+    photoPreview.appendChild(img);
+  } else {
+    photoPreview.textContent = avatarChar;
+  }
+}
+
+function renderHeroAvatar(url) {
+  heroAvatar.innerHTML = '';
+  if (url) {
+    const img = document.createElement('img');
+    img.className = 'avatar-img';
+    img.src = url;
+    img.alt = '';
+    heroAvatar.appendChild(img);
+  } else {
+    heroAvatar.textContent = avatarChar;
+  }
+}
+
+photoInput.addEventListener('change', () => {
+  const f = photoInput.files && photoInput.files[0];
+  photoStatus.className = 'form-status';
+  if (!f) { pendingPhoto = null; renderPreview(AVATAR_URL); return; }
+  const okType = ['image/jpeg', 'image/png', 'image/webp'].includes(f.type);
+  if (!okType) {
+    showStatus(photoStatus, 'Only JPG, PNG or WebP images are allowed.', false);
+    photoInput.value = '';
+    pendingPhoto = null;
+    renderPreview(AVATAR_URL);
+    return;
+  }
+  if (f.size > 5 * 1024 * 1024) {
+    showStatus(photoStatus, 'Image must be 5 MB or smaller.', false);
+    photoInput.value = '';
+    pendingPhoto = null;
+    renderPreview(AVATAR_URL);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => { pendingPhoto = reader.result; renderPreview(pendingPhoto); };
+  reader.readAsDataURL(f);
+});
+
+uploadBtn.addEventListener('click', async () => {
+  if (!pendingPhoto) { showStatus(photoStatus, 'Choose a photo first.', false); return; }
+  uploadBtn.disabled = true;
+  showStatus(photoStatus, 'Uploading…', true);
+  try {
+    const blob = await (await fetch(pendingPhoto)).blob();
+    const fd = new FormData();
+    fd.append('photo', blob, 'photo.' + (blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'));
+    const r = await fetch('/api/profile/photo', { method: 'POST', body: fd });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      showStatus(photoStatus, 'Photo updated.', true);
+      renderHeroAvatar(data.avatar_url);
+      renderPreview(data.avatar_url);
+      pendingPhoto = null;
+      hasPhoto = true;
+      photoInput.value = '';
+    } else {
+      showStatus(photoStatus, data.error || 'Upload failed. Try again.', false);
+    }
+  } catch (e) {
+    showStatus(photoStatus, 'Network error — upload failed. Try again.', false);
+  } finally {
+    uploadBtn.disabled = false;
+  }
+});
+
+removeBtn.addEventListener('click', async () => {
+  if (!hasPhoto && !pendingPhoto) { showStatus(photoStatus, 'No photo to remove.', false); return; }
+  if (!confirm('Remove your profile photo?')) return;
+  removeBtn.disabled = true;
+  showStatus(photoStatus, 'Removing…', true);
+  try {
+    const r = await fetch('/api/profile/photo', { method: 'DELETE' });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      showStatus(photoStatus, 'Photo removed.', true);
+      renderHeroAvatar(null);
+      renderPreview(null);
+      pendingPhoto = null;
+      hasPhoto = false;
+      photoInput.value = '';
+    } else {
+      showStatus(photoStatus, data.error || 'Could not remove photo. Try again.', false);
+    }
+  } catch (e) {
+    showStatus(photoStatus, 'Network error — could not remove photo.', false);
+  } finally {
+    removeBtn.disabled = false;
+  }
+});
+
+const emailBtn  = document.getElementById('email-change-btn');
+const emailStat = document.getElementById('email-status');
+
+emailBtn.addEventListener('click', async () => {
+  const cur  = document.getElementById('current-password').value;
+  const newE = document.getElementById('new-email').value.trim().toLowerCase();
+  const conf = document.getElementById('confirm-email').value.trim().toLowerCase();
+  if (!cur) { showStatus(emailStat, 'Enter your current password.', false); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(newE)) { showStatus(emailStat, 'Enter a valid new email address.', false); return; }
+  if (newE !== conf) { showStatus(emailStat, 'The new email addresses do not match.', false); return; }
+  emailBtn.disabled = true;
+  showStatus(emailStat, 'Requesting…', true);
+  try {
+    const r = await fetch('/api/account/change-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password: cur, new_email: newE }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      showStatus(emailStat,
+        'Confirmation email sent to ' + data.pending_email + ' — check your inbox and click the link to complete the change.',
+        true);
+      document.getElementById('current-password').value = '';
+      document.getElementById('new-email').value = '';
+      document.getElementById('confirm-email').value = '';
+    } else {
+      showStatus(emailStat, data.error || 'Could not request the change. Try again.', false);
+    }
+  } catch (e) {
+    showStatus(emailStat, 'Network error — could not request the change.', false);
+  } finally {
+    emailBtn.disabled = false;
+  }
+});
+</script>
 <script src="/static/feedback.js"></script>
 </body>
 </html>

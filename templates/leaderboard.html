@@ -45,6 +45,7 @@ tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
 .rank-2{color:#6b7280}
 .rank-3{color:#92400e}
 .username-cell{font-weight:600}
+.lb-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px}
 .you-badge{
   display:inline-block;font-size:.62rem;font-weight:600;
   padding:2px 7px;border-radius:100px;
@@ -97,6 +98,7 @@ tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
         <tr>
           <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
           <td class="username-cell">
+            {% if e.avatar_url %}<img class="lb-avatar" src="{{ e.avatar_url }}" alt="">{% endif %}
             {{ e.username }}
             {% if e.username == username %}<span class="you-badge">You</span>{% endif %}
           </td>
