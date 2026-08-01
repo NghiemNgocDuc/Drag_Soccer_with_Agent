@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Soccer — Drag Soccer with AI Agents</title>
+<meta name="description" content="A turn-based drag soccer game where you build and train your own AI agents, then watch them compete in 3D.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>
+/* ══ Landing page only — hero, features grid, pitch illustration ══ */
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  align-items: center;
+  gap: var(--space-7);
+  padding: var(--space-8) 0 var(--space-7);
+}
+.hero-eyebrow { margin-bottom: var(--space-4); }
+.hero h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-bottom: var(--space-4);
+}
+.hero h1 .grad {
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-sub {
+  font-size: 1.125rem;
+  line-height: 1.65;
+  color: var(--text-secondary);
+  max-width: 480px;
+  margin-bottom: var(--space-6);
+}
+.hero-cta { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.hero-stats {
+  display: flex;
+  gap: var(--space-6);
+  margin-top: var(--space-7);
+  flex-wrap: wrap;
+}
+.hero-stat { font-family: var(--font-display); }
+.hero-stat b {
+  display: block;
+  font-size: 1.5rem;
+  font-weight: 700;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-stat span { font-size: 0.8125rem; color: var(--text-muted); font-weight: 500; }
+
+/* ── Pitch illustration (pure SVG, night scene — matches the 3D sky system) ── */
+.pitch-wrap {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  animation: pitch-float 6s ease-in-out infinite;
+}
+@keyframes pitch-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+.pitch-card {
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-lg), 0 0 60px rgba(14, 165, 233, 0.18);
+  width: 100%;
+  max-width: 520px;
+}
+.pitch-card svg { width: 100%; height: auto; }
+
+/* ── Features ── */
+.features {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-5);
+}
+.feature {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-600);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.10), rgba(139, 92, 246, 0.10));
+  border: 1px solid rgba(14, 165, 233, 0.20);
+}
+.feature h3 { margin-bottom: 0; }
+.feature p { font-size: 0.875rem; color: var(--text-muted); line-height: 1.6; margin: 0; }
+
+/* ── CTA band ── */
+.cta-band {
+  text-align: center;
+  padding: var(--space-7) var(--space-5);
+  margin-top: var(--space-6);
+}
+.cta-band h2 { margin-bottom: var(--space-2); }
+.cta-band p { color: var(--text-muted); margin-bottom: var(--space-5); }
+
+/* ── Responsive ── */
+@media (max-width: 1024px) {
+  .features { grid-template-columns: repeat(2, 1fr); }
+  .hero { gap: var(--space-6); }
+}
+@media (max-width: 640px) {
+  .features { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .hero { grid-template-columns: 1fr; padding-top: var(--space-6); gap: var(--space-6); }
+  .hero-sub { font-size: 1rem; }
+  .hero-stats { gap: var(--space-5); margin-top: var(--space-6); }
+  .cta-band { padding: var(--space-6) var(--space-4); }
+}
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="nav-brand" href="/" aria-label="Agent Soccer home">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 7l2 3 4 1-3 2 1 4-4-2-4 2 1-4-3-2 4-1z"/></svg>
+    Agent Soccer
+  </a>
+  <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-label="Toggle menu" aria-controls="nav-links">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+  </button>
+  <div class="nav-links" id="nav-links">
+    <a class="nav-link" href="#features">Features</a>
+    <a class="nav-link" href="/leaderboard">Leaderboard</a>
+    {% if username %}
+      <a class="nav-link" href="/play3d">Play</a>
+      <div class="nav-user">
+        <span class="nav-avatar">{{ username[0] | upper }}</span>
+        <span>{{ username }}</span>
+      </div>
+    {% else %}
+      <a class="nav-link" href="/login">Log in</a>
+      <a class="btn btn-primary btn-sm" href="/register">Sign up free</a>
+    {% endif %}
+  </div>
+</nav>
+
+<main class="container">
+
+  <!-- HERO -->
+  <section class="hero">
+    <div>
+      <div class="hero-eyebrow">
+        <span class="badge badge-brand"><span class="badge-dot"></span>Drag &amp; drop · Custom AI agents · 3D matches</span>
+      </div>
+      <h1>Build an AI.<br>Teach it to <span class="grad">score goals.</span></h1>
+      <p class="hero-sub">Agent Soccer is a turn-based drag-soccer game where you pull back and release to shoot — and where your own trained AI agents learn the sport beside you, from friendly matches to full tournaments.</p>
+      <div class="hero-cta">
+        {% if username %}
+          <a class="btn btn-primary btn-lg" href="/play3d">Play Now</a>
+          <a class="btn btn-secondary btn-lg" href="/customize">Tune Your Team</a>
+        {% else %}
+          <a class="btn btn-primary btn-lg" href="/login">Play Now</a>
+          <a class="btn btn-secondary btn-lg" href="/register">Create Account</a>
+        {% endif %}
+      </div>
+      <div class="hero-stats">
+        <div class="hero-stat"><b>7</b><span>built-in AI agents</span></div>
+        <div class="hero-stat"><b>3D</b><span>match simulation</span></div>
+        <div class="hero-stat"><b>4</b><span>player stats to tune</span></div>
+      </div>
+    </div>
+
+    <div class="pitch-wrap" aria-hidden="true">
+      <div class="pitch-card">
+        <!-- Night-scene mini pitch: stars, floodlights, crowd, players, ball -->
+        <svg viewBox="0 0 520 340" role="img">
+          <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#0b1020"/>
+              <stop offset="100%" stop-color="#0f172a"/>
+            </linearGradient>
+            <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0%" stop-color="#ffd9a0" stop-opacity="0"/>
+              <stop offset="100%" stop-color="#ffd9a0" stop-opacity="0.16"/>
+            </linearGradient>
+            <linearGradient id="pitch" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#16a34a"/>
+              <stop offset="100%" stop-color="#22c55e"/>
+            </linearGradient>
+            <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+              <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.5"/>
+              <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+            </radialGradient>
+          </defs>
+
+          <rect width="520" height="340" fill="url(#sky)"/>
+          <circle cx="70" cy="46" r="1.6" fill="#e2e8f0" opacity="0.8"/>
+          <circle cx="130" cy="24" r="1.2" fill="#e2e8f0" opacity="0.6"/>
+          <circle cx="210" cy="52" r="1.4" fill="#e2e8f0" opacity="0.7"/>
+          <circle cx="300" cy="30" r="1.8" fill="#fbbf24" opacity="0.9"/>
+          <circle cx="380" cy="58" r="1.2" fill="#e2e8f0" opacity="0.6"/>
+          <circle cx="455" cy="36" r="1.5" fill="#e2e8f0" opacity="0.8"/>
+          <circle cx="500" cy="80" r="1.2" fill="#e2e8f0" opacity="0.5"/>
+
+          <!-- floodlight masts -->
+          <g>
+            <rect x="48" y="60" width="6" height="110" rx="3" fill="#334155"/>
+            <rect x="41" y="48" width="20" height="16" rx="3" fill="#1e293b"/>
+            <rect x="43" y="50" width="16" height="8" rx="2" fill="#ffd9a0" opacity="0.9"/>
+            <polygon points="26,58 76,58 60,180 42,180" fill="url(#beam)"/>
+          </g>
+          <g>
+            <rect x="466" y="60" width="6" height="110" rx="3" fill="#334155"/>
+            <rect x="459" y="48" width="20" height="16" rx="3" fill="#1e293b"/>
+            <rect x="461" y="50" width="16" height="8" rx="2" fill="#ffd9a0" opacity="0.9"/>
+            <polygon points="444,58 494,58 478,180 460,180" fill="url(#beam)"/>
+          </g>
+
+          <!-- pitch -->
+          <rect x="60" y="150" width="400" height="170" rx="14" fill="url(#pitch)" stroke="#e2e8f0" stroke-opacity="0.35" stroke-width="2"/>
+          <line x1="260" y1="150" x2="260" y2="320" stroke="#e2e8f0" stroke-opacity="0.45" stroke-width="2"/>
+          <circle cx="260" cy="235" r="22" fill="none" stroke="#e2e8f0" stroke-opacity="0.45" stroke-width="2"/>
+          <rect x="60" y="212" width="34" height="46" rx="4" fill="none" stroke="#e2e8f0" stroke-opacity="0.45" stroke-width="2"/>
+          <rect x="426" y="212" width="34" height="46" rx="4" fill="none" stroke="#e2e8f0" stroke-opacity="0.45" stroke-width="2"/>
+
+          <!-- goals -->
+          <rect x="54" y="216" width="8" height="38" rx="3" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+          <rect x="458" y="216" width="8" height="38" rx="3" fill="#e2e8f0" stroke="#94a3b8" stroke-width="1.5"/>
+
+          <!-- crowd dots -->
+          <g fill="#334155" opacity="0.85">
+            <circle cx="86" cy="164" r="3"/><circle cx="100" cy="161" r="3"/><circle cx="114" cy="165" r="3"/>
+            <circle cx="128" cy="160" r="3"/><circle cx="142" cy="166" r="3"/><circle cx="156" cy="161" r="3"/>
+            <circle cx="176" cy="164" r="3"/><circle cx="192" cy="160" r="3"/><circle cx="208" cy="165" r="3"/>
+            <circle cx="228" cy="161" r="3"/><circle cx="244" cy="164" r="3"/><circle cx="262" cy="160" r="3"/>
+            <circle cx="278" cy="165" r="3"/><circle cx="294" cy="161" r="3"/><circle cx="312" cy="164" r="3"/>
+            <circle cx="330" cy="160" r="3"/><circle cx="348" cy="165" r="3"/><circle cx="364" cy="161" r="3"/>
+            <circle cx="382" cy="164" r="3"/><circle cx="398" cy="160" r="3"/><circle cx="414" cy="165" r="3"/>
+            <circle cx="430" cy="161" r="3"/><circle cx="446" cy="164" r="3"/><circle cx="90" cy="306" r="3"/>
+            <circle cx="106" cy="309" r="3"/><circle cx="122" cy="305" r="3"/><circle cx="140" cy="309" r="3"/>
+            <circle cx="158" cy="306" r="3"/><circle cx="178" cy="310" r="3"/><circle cx="196" cy="306" r="3"/>
+            <circle cx="216" cy="309" r="3"/><circle cx="236" cy="305" r="3"/><circle cx="256" cy="309" r="3"/>
+            <circle cx="276" cy="306" r="3"/><circle cx="296" cy="310" r="3"/><circle cx="316" cy="306" r="3"/>
+            <circle cx="336" cy="309" r="3"/><circle cx="356" cy="305" r="3"/><circle cx="376" cy="309" r="3"/>
+            <circle cx="396" cy="306" r="3"/><circle cx="414" cy="310" r="3"/><circle cx="432" cy="306" r="3"/>
+          </g>
+
+          <!-- team A (blue) -->
+          <g>
+            <circle cx="150" cy="230" r="9" fill="#0ea5e9" stroke="#bae6fd" stroke-width="1.5"/>
+            <circle cx="196" cy="196" r="9" fill="#0ea5e9" stroke="#bae6fd" stroke-width="1.5"/>
+            <circle cx="222" cy="264" r="9" fill="#0ea5e9" stroke="#bae6fd" stroke-width="1.5"/>
+          </g>
+          <!-- team B (orange) -->
+          <g>
+            <circle cx="370" cy="230" r="9" fill="#f97316" stroke="#fed7aa" stroke-width="1.5"/>
+            <circle cx="324" cy="196" r="9" fill="#f97316" stroke="#fed7aa" stroke-width="1.5"/>
+            <circle cx="298" cy="264" r="9" fill="#f97316" stroke="#fed7aa" stroke-width="1.5"/>
+          </g>
+
+          <!-- ball + kick arrow -->
+          <circle cx="292" cy="232" r="5" fill="#f8fafc" stroke="#94a3b8" stroke-width="1"/>
+          <path d="M 300 224 L 330 196" stroke="#fbbf24" stroke-width="3" stroke-linecap="round" fill="none" opacity="0.9"/>
+          <circle cx="330" cy="196" r="3" fill="#fbbf24"/>
+
+          <!-- vignette glow -->
+          <circle cx="260" cy="235" r="190" fill="url(#glow)"/>
+        </svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section id="features" class="section">
+    <div class="section-head">
+      <h2>Everything a soccer AI needs</h2>
+      <p>Build, train, tune, and compete — all in your browser.</p>
+    </div>
+    <div class="features">
+
+      <div class="glass-card feature">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+        </div>
+        <h3>Build Your Own AI</h3>
+        <p>Write Python agents in the playground, battle-test them against 7 built-in strategies, and pick a champion for every match.</p>
+      </div>
+
+      <div class="glass-card feature">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+        </div>
+        <h3>3D Match Simulation</h3>
+        <p>Every kick is simulated with real physics — pymunk-powered trajectories, crowd reactions, sound, and full replay view.</p>
+      </div>
+
+      <div class="glass-card feature">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v2a5 5 0 0 1-10 0z"/><path d="M7 6H5a3 3 0 0 0 3 3"/><path d="M17 6h2a3 3 0 0 1-3 3"/></svg>
+        </div>
+        <h3>Compete in Tournaments</h3>
+        <p>Run AI-vs-AI brackets, watch the action live in 3D, and climb the global leaderboard.</p>
+      </div>
+
+      <div class="glass-card feature">
+        <div class="feature-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        </div>
+        <h3>Custom Player Stats</h3>
+        <p>Spend a point budget on Size, Power, Weight, and Agility — every stat visibly changes how your team plays.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- CTA BAND -->
+  <section class="glass-card cta-band">
+    <h2>Ready for kickoff?</h2>
+    <p>Create an account, pick your stats, and drag your way to victory.</p>
+    {% if username %}
+      <a class="btn btn-primary btn-lg" href="/play3d">Back to the pitch</a>
+    {% else %}
+      <a class="btn btn-primary btn-lg" href="/register">Create free account</a>
+      <a class="btn btn-ghost btn-lg" href="/login">I already have one</a>
+    {% endif %}
+  </section>
+
+</main>
+
+<footer class="footer">
+  <nav class="footer-links">
+    <a href="#features">Features</a>
+    <a href="/login">Sign in</a>
+    <a href="/register">Create account</a>
+    <a href="/leaderboard">Leaderboard</a>
+  </nav>
+  <p class="footer-credit">Agent Soccer © 2026 · Built with Flask · Three.js · pymunk</p>
+</footer>
+
+<script>
+document.getElementById('nav-toggle').addEventListener('click', function () {
+  var links = document.getElementById('nav-links');
+  var open = links.classList.toggle('open');
+  this.setAttribute('aria-expanded', open ? 'true' : 'false');
+});
+</script>
+</body>
+</html>

@@ -454,9 +454,10 @@ def api_reset_password():
 
 
 @app.route("/")
-@login_required
 def index():
-    return redirect(url_for("index_3d"))
+    if "user_id" in session:
+        return redirect(url_for("index_3d"))
+    return render_template("landing.html", username=session.get("username", "Player"))
 
 
 @app.route("/play3d")

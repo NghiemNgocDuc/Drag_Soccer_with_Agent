@@ -56,7 +56,7 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - **Known follow-up (orphaned customization fields still ignored by 3D)**: `grass_shade`, `pitch_pattern`, `field_line_color`, `corner_flag_style`, `stadium_vignette`, `bg_color`, `ball_color`, `ref_color`, `keeper_color_a/b`, `ball_design`, `highlight_style`, `shirt_font`, `goal_effect`, `trail_color`, `power_bar_style` — all saved/settable but unconsumed by the 3D renderer (2D-era fields).
 
 ### Routes (`app.py`)
-- `/` — redirects to `/play3d`
+- `/` — **landing page for logged-out visitors** (Phase 0 redesign); redirects logged-in users to `/play3d` (was `@login_required` redirect only)
 - `/play3d` — Main 3D game (Three.js)
 - `/replay3d/<tid>/<match_id>` — 3D match replay
 - `/tournaments/<tid>/watch/<match_id>` — redirects to `/replay3d/...`
@@ -71,7 +71,16 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - `index_3d.html` — Three.js 3D game view (human vs AI), stat-aware mesh rendering, spatial audio, goal particles, cosmetic referee
 - `replay_3d.html` — Three.js 3D replay viewer, same rendering + audio/particles + referee
 - `customize.html` — Point-buy allocator with player cards, color picker, save button
+- `landing.html` / `login.html` / `register.html` — **Phase 0 redesign**: built only on `static/design-system.css` (drop-in replacement for style.css on these pages); auth pages still use the old inline-styled layout classes only where the system didn't replace them
 - `login.html` / `register.html` — Auth pages (canvas animations removed, static CSS backgrounds)
+
+### Frontend redesign Phase 0 (design system)
+- `static/design-system.css` — single source of truth for the visual language: tokens (brand sky `#0ea5e9` / orange / purple / slate neutrals / semantic colors), one glass recipe (`rgba(255,255,255,.72)` + 20px blur + border `rgba(255,255,255,.65)` + diffused shadows), type scale (Be Vietnam Pro body + Space Grotesk display; **Inter import dropped**), 8px spacing scale, 5 radii, components: `.btn` (primary/secondary/ghost/danger/success/warning, sm/lg/block, shine sweep on solid), `.glass-card`, `.input` + `.input-error`/`.field-error`, `.navbar` + mobile hamburger (`.nav-toggle`/`.nav-links.open`), `.badge` variants, `.modal-overlay`/`.modal`, `.flash` (error/success/info), `.toast`, `.footer`, `.auth-layout` (visual panel + centered card, stacks on mobile).
+- Landing page: hero (headline + CTAs + **pure-SVG night-scene mini pitch** — stars, floodlight masts with warm panels, crowd dots, team A/B dots, ball + kick arrow; matches the 3D sky system), 4 feature glass cards (Build Your Own AI / 3D Match Simulation / Tournaments / Custom Stats — inline SVG icons), CTA band, minimal footer. Nav shows Log in/Sign up for guests, Play + avatar for logged-in (route passes `username`).
+- Auth pages rebuilt on the system, **all functionality preserved**: login (email/password POST `/auth/login`, demo-account box with copy buttons + toast, `/register` + `/forgot-password` links, flash errors); register (username/email/password/confirm POST `/auth/register`, min-6 hint).
+- **Bug fixed (pre-existing)**: register form had no `confirm` field but the server requires it (`if password != confirm: "Passwords do not match."`) — registration could never succeed via the form. Added `<input id="confirm" name="confirm">` (markup-only, no backend change).
+- Verified headless (Playwright, port 5090): 34 checks — guest landing, all form fields/actions/links preserved, demo copy toast, register + login flows redirect to `/play3d`, logged-in `/` → `/play3d`, empty-cred login flash renders, nav guest/logged-in branches, hamburger open + aria-expanded, breakpoints (2-col features at 768, 1-col ≤640, hero stacks), zero console errors. Screenshots in `%TEMP%\opencode\redesign_verify\`.
+- **Known follow-up**: `forgot_password.html` / `reset_password.html` still use style.css + inline styles (same broken `--text`/`--muted` vars); later phases migrate remaining 11 templates onto design-system.css.
 
 ### AI agents
 - All 7 agents use `simulate_kick(state, pidx, angle, power)` to evaluate outcomes
