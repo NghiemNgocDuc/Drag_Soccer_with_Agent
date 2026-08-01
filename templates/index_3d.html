@@ -256,6 +256,195 @@ const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
 fillLight.position.set(-200, 300, -300);
 scene.add(fillLight);
 
+// ── Sky & environment (scene presets from customization bg_scene) ───────────
+const FLOODLIGHT_COLORS = {
+  warm: 0xffd9a0, cool: 0xa8d8ff, red: 0xff7b7b, purple: 0xc084fc,
+};
+
+const SCENE_PRESETS = {
+  day: {
+    bg: 0xcfe8ff, fog: [0xcfe8ff, 1500, 4500],
+    sun: [0xfff2e0, 2.6], sunPos: [200, 600, 400],
+    ambient: 0.55, hemi: [0x87ceeb, 0x3a5f3a, 0.9],
+    stars: false, flood: 0, rain: false,
+    sky: [['#5aa7e8', 0], ['#87ceeb', 0.55], ['#cfe8ff', 1]],
+  },
+  sunset: {
+    bg: 0xf6c98a, fog: [0xf6c98a, 1100, 3800],
+    sun: [0xffa54f, 2.0], sunPos: [450, 320, 150],
+    ambient: 0.65, hemi: [0xfbbf24, 0x362d1e, 0.8],
+    stars: false, flood: 150, rain: false,
+    sky: [['#2b2350', 0], ['#f97316', 0.55], ['#fde68a', 1]],
+  },
+  night: {
+    bg: 0x0f172a, fog: [0x0f172a, 1500, 4500],
+    sun: [0x9db4ff, 0.55], sunPos: [300, 500, -300],
+    ambient: 0.95, hemi: [0x334166, 0x0b1220, 1.0],
+    stars: true, flood: 400, rain: false,
+    sky: [['#0b1020', 0], ['#0f172a', 0.6], ['#0f172a', 1]],
+  },
+  cloudy: {
+    bg: 0x8fa0b0, fog: [0x8fa0b0, 800, 3200],
+    sun: [0xcfd8e3, 0.8], sunPos: [0, 500, 200],
+    ambient: 0.95, hemi: [0x9aa5b5, 0x4a5560, 0.95],
+    stars: false, flood: 0, rain: true,
+    sky: [['#64748b', 0], ['#94a3b8', 0.55], ['#8fa0b0', 1]],
+  },
+  cyber: {
+    bg: 0x2e1065, fog: [0x2e1065, 1200, 4200],
+    sun: [0xb388ff, 0.7], sunPos: [350, 550, -150],
+    ambient: 0.9, hemi: [0x6d28d9, 0x111827, 0.95],
+    stars: true, flood: 380, rain: false,
+    sky: [['#1e0a3c', 0], ['#2e1065', 0.6], ['#2e1065', 1]],
+  },
+};
+
+function makeSkyTexture(stops) {
+  const cv = document.createElement('canvas');
+  cv.width = 64; cv.height = 256;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, cv.height);
+  for (const [color, off] of stops) g.addColorStop(off, color);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+const skyDome = new THREE.Mesh(
+  new THREE.SphereGeometry(3000, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+  new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false })
+);
+skyDome.position.y = 0;
+scene.add(skyDome);
+
+const starField = new THREE.Points(
+  new THREE.BufferGeometry(),
+  new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: true, fog: false })
+);
+{
+  const n = 400;
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const theta = Math.acos(Math.random());
+    const phi = Math.random() * Math.PI * 2;
+    const r = 2900;
+    pos[i * 3] = r * Math.sin(theta) * Math.cos(phi);
+    pos[i * 3 + 1] = Math.max(60, r * Math.cos(theta));
+    pos[i * 3 + 2] = r * Math.sin(theta) * Math.sin(phi);
+  }
+  starField.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+}
+starField.visible = false;
+scene.add(starField);
+
+function buildFloodlight() {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(2, 2.6, 150, 8),
+    new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.4 })
+  );
+  pole.position.y = 75;
+  g.add(pole);
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(24, 10, 14),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.3 })
+  );
+  head.position.y = 152;
+  g.add(head);
+  const panel = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 8),
+    new THREE.MeshStandardMaterial({ color: 0x111827, emissive: 0xffd9a0, emissiveIntensity: 1.6, roughness: 0.4 })
+  );
+  panel.position.set(0, 152, 8);
+  panel.lookAt(0, 90, 0);
+  g.add(panel);
+  const light = new THREE.PointLight(0xffd9a0, 0, 1000, 1.8);
+  light.position.y = 152;
+  g.add(light);
+  return { group: g, panelMat: panel.material, light };
+}
+
+const FLOODLIGHT_SPOTS = [
+  [-W / 2 - 150, -H / 2 + 100],
+  [-W / 2 - 150, H / 2 - 100],
+  [W / 2 + 150, -H / 2 + 100],
+  [W / 2 + 150, H / 2 - 100],
+];
+const floodlights = FLOODLIGHT_SPOTS.map(([sx, sy]) => {
+  const fl = buildFloodlight();
+  const w = serverToWorld(sx, sy);
+  fl.group.position.set(w.x, 0, w.z);
+  fl.group.lookAt(0, 0, 0);
+  scene.add(fl.group);
+  return fl;
+});
+
+let rainActive = false;
+const rainPoints = (() => {
+  const count = 320;
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * (W + 400);
+    pos[i * 3 + 1] = Math.random() * 280 + 10;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * (H + 300);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({
+    color: 0xa8c3de, size: 2.6, transparent: true, opacity: 0.65,
+    depthWrite: false, fog: false,
+  });
+  const pts = new THREE.Points(geo, m);
+  pts.visible = false;
+  scene.add(pts);
+  return pts;
+})();
+
+function applyScene(name, floodColor) {
+  const p = SCENE_PRESETS[name] || SCENE_PRESETS.night;
+  scene.background.setHex(p.bg);
+  scene.fog.color.setHex(p.fog[0]);
+  scene.fog.near = p.fog[1];
+  scene.fog.far = p.fog[2];
+  sunLight.color.setHex(p.sun[0]);
+  sunLight.intensity = p.sun[1];
+  sunLight.position.set(p.sunPos[0], p.sunPos[1], p.sunPos[2]);
+  ambientLight.intensity = p.ambient;
+  hemiLight.color.setHex(p.hemi[0]);
+  hemiLight.groundColor.setHex(p.hemi[1]);
+  hemiLight.intensity = p.hemi[2];
+  skyDome.material.map = makeSkyTexture(p.sky);
+  skyDome.material.needsUpdate = true;
+  starField.visible = p.stars;
+  const fc = FLOODLIGHT_COLORS[floodColor] || FLOODLIGHT_COLORS.warm;
+  for (const fl of floodlights) {
+    fl.panelMat.emissive.setHex(fc);
+    fl.light.color.setHex(fc);
+    fl.light.intensity = p.flood;
+  }
+  rainActive = p.rain;
+  rainPoints.visible = p.rain;
+  return { scene: name, floodlightColor: floodColor };
+}
+
+window.__sceneInfo = () => ({
+  scene: Object.keys(SCENE_PRESETS).find(n => SCENE_PRESETS[n].bg === scene.background.getHex()),
+  bg: '#' + scene.background.getHex().toString(16).padStart(6, '0'),
+  fogColor: '#' + scene.fog.color.getHex().toString(16).padStart(6, '0'),
+  fogNear: scene.fog.near, fogFar: scene.fog.far,
+  sunColor: '#' + sunLight.color.getHex().toString(16).padStart(6, '0'),
+  sunIntensity: +sunLight.intensity.toFixed(2),
+  ambient: +ambientLight.intensity.toFixed(2),
+  hemiIntensity: +hemiLight.intensity.toFixed(2),
+  stars: starField.visible,
+  floodlightIntensity: +floodlights[0].light.intensity.toFixed(1),
+  floodlightColor: '#' + floodlights[0].light.color.getHex().toString(16).padStart(6, '0'),
+  rain: rainPoints.visible,
+});
+window.__setScene = applyScene;
+
 // ── Field ───────────────────────────────────────────────────────────────────
 const fieldGroup = new THREE.Group();
 scene.add(fieldGroup);
@@ -1001,6 +1190,16 @@ function animate() {
     const ce = camera.matrixWorld.elements;
     crowdData.uniforms.uCamRight.value.set(ce[0], ce[1], ce[2]);
     crowdData.uniforms.uCamUp.value.set(ce[4], ce[5], ce[6]);
+  }
+  if (rainActive && rainPoints.visible) {
+    const pos = rainPoints.geometry.attributes.position.array;
+    for (let i = 0; i < pos.length; i += 3) {
+      pos[i + 1] -= 5.2;
+      pos[i] -= 0.7;
+      if (pos[i + 1] < 6) pos[i + 1] = 288;
+      if (pos[i] < -W / 2 - 200) pos[i] = W / 2 + 200;
+    }
+    rainPoints.geometry.attributes.position.needsUpdate = true;
   }
   renderer.render(scene, camera);
 }
@@ -1755,6 +1954,7 @@ function setOverlay(show, text) {
     if (cust.crowd_palette) {
       CUST_CROWD_PALETTE = cust.crowd_palette;
     }
+    if (cust.bg_scene) applyScene(cust.bg_scene, cust.floodlight_color || 'warm');
   } catch (e) {}
 
   // Ambient crowd noise starts on first user gesture (unlockAudio above)

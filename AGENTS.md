@@ -48,6 +48,13 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - **Testability hooks** (module-scope is invisible to CDP): `window.triggerAI` (also fixes the latent aivai-button bug — inline `onclick` can't see module-scope functions), `window.__refereePos()`, `window.__replayMeta()`.
 - Verified headless (CDP): mesh exists + positioned == `serverToWorld(state.referee)`, wanders during AI-vs-AI and replay autoplay, hidden during penalties, zero console exceptions.
 
+### Sky & Environment (scene presets, both 3D templates)
+- Driven by existing `bg_scene` customization field (db/customization.py, values: **night/sunset/cloudy/day/cyber** — `night` is the default and the pre-existing hardcoded look). Was fully ignored by the 3D renderer (third instance after `crowd_palette`; replay_3d had no customization fetch at all — one added).
+- Both `index_3d.html` and `replay_3d.html` share a `SCENE_PRESETS` table + `applyScene(name, floodColor)` (module-scope; `window.__setScene` hook for CDP): per-preset sky gradient (procedural canvas texture on an upper-half BackSide sphere radius 3000, `fog:false`), `scene.background`/`fog` color = horizon color, sun color/intensity/position, ambient+hemisphere intensities (night/cloudy boost ambient to keep gameplay visible — visibility floor over realism), 400-point star field (night/cyber only), 4 floodlight masts with emissive panels + non-shadow `PointLight`s (meshes always visible; **lights only when dark**: night 400 / cyber 380 / sunset 150 / day+cloudy 0; tint from `floodlight_color` warm/cool/red/purple), 320-point rain stream (cloudy only; per-frame fall+slant tick in `animate()`).
+- Customization read at init (same single fetch — `bg_scene` + `floodlight_color`); changes require page reload (matches existing system: customize.html says "They will apply on the game page").
+- Verified headless (CDP): all 5 presets' values exact, pairwise screenshot-distinct, rain animates, floodlight gating per preset, crowd/net/referee/camera hooks intact, cloudy+rain ≥ 70% of day fps (SwiftShader ~44), zero console errors on both pages.
+- **Known follow-up (orphaned customization fields still ignored by 3D)**: `grass_shade`, `pitch_pattern`, `field_line_color`, `corner_flag_style`, `stadium_vignette`, `bg_color`, `ball_color`, `ref_color`, `keeper_color_a/b`, `ball_design`, `highlight_style`, `shirt_font`, `goal_effect`, `trail_color`, `power_bar_style` — all saved/settable but unconsumed by the 3D renderer (2D-era fields).
+
 ### Routes (`app.py`)
 - `/` — redirects to `/play3d`
 - `/play3d` — Main 3D game (Three.js)
