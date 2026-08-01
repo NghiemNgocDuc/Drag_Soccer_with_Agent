@@ -733,16 +733,150 @@ if (new URLSearchParams(location.search).has('netinfo')) {
 }
 
 // ── Ball ────────────────────────────────────────────────────────────────────
-const ballMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3, metalness: 0.1 });
+// Procedural classic-ball texture (white + dark patches + seams) so spin reads
+function makeBallTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f8fafc';
+  g.fillRect(0, 0, 256, 128);
+  g.fillStyle = 'rgba(30, 41, 59, 0.9)';
+  const patch = (x, y, s) => {
+    g.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+      const px = x + Math.cos(a) * s;
+      const py = y + Math.sin(a) * s;
+      i ? g.lineTo(px, py) : g.moveTo(px, py);
+    }
+    g.closePath();
+    g.fill();
+  };
+  patch(52, 28, 12); patch(128, 20, 10); patch(204, 28, 12);
+  patch(24, 64, 10); patch(90, 64, 13); patch(166, 64, 13); patch(232, 64, 10);
+  patch(52, 100, 12); patch(128, 108, 10); patch(204, 100, 12);
+  g.strokeStyle = 'rgba(30, 41, 59, 0.5)';
+  g.lineWidth = 2;
+  g.beginPath(); g.moveTo(0, 64); g.lineTo(256, 64); g.stroke();
+  g.beginPath(); g.moveTo(128, 0); g.lineTo(128, 128); g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = 4;
+  return t;
+}
+
+const ballMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  map: makeBallTexture(),
+  roughness: 0.35,
+  metalness: 0.1,
+});
 const ballMesh = new THREE.Mesh(new THREE.SphereGeometry(BALL_R, 24, 24), ballMat);
 ballMesh.castShadow = true;
 ballMesh.position.copy(serverToWorld(W / 2, H / 2));
 scene.add(ballMesh);
 
-const shadowMat = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false });
+// Soft ball shadow (radial-gradient blob that fades and grows with height)
+function makeSoftShadowTexture() {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+  grad.addColorStop(0, 'rgba(0, 0, 0, 0.5)');
+  grad.addColorStop(0.6, 'rgba(0, 0, 0, 0.22)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const shadowMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  map: makeSoftShadowTexture(),
+  transparent: true,
+  opacity: 0.3,
+  depthWrite: false,
+});
 const shadowMesh = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.5, 16), shadowMat);
 shadowMesh.rotation.x = -Math.PI / 2;
 shadowMesh.position.set(0, 0.1, 0);
+
+// ── Bounce dust (small puff on ground impact) ──────────────────────────────
+const DUST_COUNT = 10;
+let dustMesh = null;
+let dust = null;
+function triggerDust(wx, wz) {
+  if (!dustMesh) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DUST_COUNT * 3), 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xd8d6c4,
+      size: 5,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    dustMesh = new THREE.Points(geo, mat);
+    dustMesh.frustumCulled = false;
+    scene.add(dustMesh);
+    dust = {
+      vel: new Float32Array(DUST_COUNT * 3),
+      life: new Float32Array(DUST_COUNT),
+      active: false,
+      age: 0,
+    };
+  }
+  const pos = dustMesh.geometry.attributes.position.array;
+  for (let i = 0; i < DUST_COUNT; i++) {
+    pos[i * 3] = wx + (Math.random() - 0.5) * 12;
+    pos[i * 3 + 1] = 0.4 + Math.random() * 1.2;
+    pos[i * 3 + 2] = wz + (Math.random() - 0.5) * 12;
+    const a = Math.random() * Math.PI * 2;
+    const sp = 1.2 + Math.random() * 2.6;
+    dust.vel[i * 3] = Math.cos(a) * sp;
+    dust.vel[i * 3 + 1] = 0.6 + Math.random() * 1.6;
+    dust.vel[i * 3 + 2] = Math.sin(a) * sp;
+    dust.life[i] = 1;
+  }
+  dust.active = true;
+  dust.age = 0;
+  dust.lastTs = performance.now();
+  dustMesh.geometry.attributes.position.needsUpdate = true;
+}
+function tickDust() {
+  if (!dustMesh || !dust.active) return;
+  const now = performance.now();
+  const dt = Math.min(0.1, (now - dust.lastTs) / 1000 || 0.016);
+  dust.lastTs = now;
+  dust.age += dt;
+  const pos = dustMesh.geometry.attributes.position.array;
+  let alive = false;
+  for (let i = 0; i < DUST_COUNT; i++) {
+    if (dust.life[i] <= 0) continue;
+    pos[i * 3] += dust.vel[i * 3];
+    pos[i * 3 + 1] += dust.vel[i * 3 + 1];
+    pos[i * 3 + 2] += dust.vel[i * 3 + 2];
+    dust.vel[i * 3 + 1] -= 8.4 * dt;
+    dust.life[i] -= 3.3 * dt;
+    if (dust.life[i] > 0) alive = true;
+  }
+  dustMesh.geometry.attributes.position.needsUpdate = true;
+  dustMesh.material.opacity = Math.max(0, 1 - dust.age / 0.25) * 0.85;
+  if (!alive || dust.age > 0.45) {
+    dust.active = false;
+    dustMesh.material.opacity = 0;
+  }
+}
+
+// Ball animation state (spin reference, bounce detection, squash spring)
+let prevBallWorld = new THREE.Vector3();
+let prevBz = 0;
+let squashActive = false;
+let squashT = 0;
 scene.add(shadowMesh);
 
 // ── Players ─────────────────────────────────────────────────────────────────
@@ -868,6 +1002,9 @@ let _skipKickerIdx = -1;
 let _skipKickerTeam = '';
 
 function animateTrajectory3D(trajectory, onDone) {
+  squashActive = false;
+  squashT = 0;
+  ballMesh.scale.set(1, 1, 1);
   if (!trajectory || trajectory.length === 0) { onDone(); return; }
   if (trajectory.length === 1) {
     const pt = trajectory[0];
@@ -884,6 +1021,19 @@ function animateTrajectory3D(trajectory, onDone) {
   const msPerSegment = Math.max(8, 24);
   const totalSegments = trajectory.length - 1;
   let startTime = null;
+
+  // Smooth ball path: Catmull-Rom through the trajectory points (server
+  // decimates to ~100 points, so linear lerp faceted the arcs). Falls back
+  // to lerp for degenerate 2-point paths.
+  let ballCurve = null;
+  if (trajectory.length >= 3) {
+    ballCurve = new THREE.CatmullRomCurve3(
+      trajectory.map(pt => new THREE.Vector3(pt.x, pt.y, pt.z || 0))
+    );
+  }
+  prevBallWorld.copy(ballMesh.position);
+  prevBz = trajectory[0].z || 0;
+
   function frame(timestamp) {
     if (!startTime) startTime = timestamp;
     const elapsed = timestamp - startTime;
@@ -897,14 +1047,58 @@ function animateTrajectory3D(trajectory, onDone) {
       playPositional(_bounceBuf, serverToWorld(ptA.x, ptA.y), { volume: 0.5 });
     }
 
-    const bx = lerp(ptA.x, ptB.x, segFrac);
-    const by = lerp(ptA.y, ptB.y, segFrac);
-    const bz = lerp(ptA.z || 0, ptB.z || 0, segFrac);
-    ballMesh.position.copy(serverToWorld(bx, by, bz));
+    // Interpolate ball position — Catmull-Rom for smooth arcs; z clamped at 0
+    // so the curve cannot dip underground at bounce points.
+    const zA = ptA.z || 0;
+    const zB = ptB.z || 0;
+    let bx, by, bz;
+    if (ballCurve) {
+      const cp = ballCurve.getPoint(Math.min(progress, totalSegments) / totalSegments);
+      bx = cp.x; by = cp.y; bz = Math.max(0, cp.z);
+    } else {
+      bx = lerp(ptA.x, ptB.x, segFrac);
+      by = lerp(ptA.y, ptB.y, segFrac);
+      bz = Math.max(0, lerp(zA, zB, segFrac));
+    }
+    const ballWorld = serverToWorld(bx, by, bz);
+    ballMesh.position.copy(ballWorld);
+
+    // Ball spin — rotate around the axis perpendicular to horizontal travel
+    // (angle = distance / radius, so roll and flight both read naturally)
+    const bdx = ballWorld.x - prevBallWorld.x;
+    const bdz = ballWorld.z - prevBallWorld.z;
+    const bdist = Math.hypot(bdx, bdz);
+    if (bdist > 0.05) {
+      ballMesh.rotateOnWorldAxis(new THREE.Vector3(-bdz, 0, bdx).normalize(), bdist / BALL_R);
+    }
+    prevBallWorld.copy(ballWorld);
+
+    // Squash + dust on ground bounce. Bounce frames carry no flag (b:true is
+    // wall bounces only), so detect the z→0 crossing client-side.
+    if (!squashActive && prevBz > 0.5 && bz <= 0.5) {
+      squashActive = true;
+      squashT = 0;
+      triggerDust(ballWorld.x, ballWorld.z);
+    }
+    prevBz = bz;
+    if (squashActive) {
+      squashT++;
+      const k = squashT / 9;
+      if (k >= 1) {
+        squashActive = false;
+        ballMesh.scale.set(1, 1, 1);
+      } else {
+        const s = Math.sin(k * Math.PI);
+        ballMesh.scale.set(1 + 0.09 * s, 1 - 0.18 * s, 1 + 0.09 * s);
+      }
+    }
+
+    // Shadow follows ball on ground — soft blob that fades and grows with height
     const sp = serverToWorld(bx, by);
     shadowMesh.position.set(sp.x, 0.1, sp.z);
-    const hr = Math.max(0.2, 1 - bz / 200);
-    shadowMesh.scale.set(hr, hr, 1);
+    const hr = THREE.MathUtils.clamp(1 - bz / 250, 0.35, 1);
+    shadowMesh.scale.set(1 + bz / 350, 1 + bz / 350, 1);
+    shadowMat.opacity = 0.3 * hr;
     if (ptA.a && ptB.a) {
       for (let k = 0; k < ptA.a.length; k++) {
         if (ptA.a[k] && ptB.a[k]) {
@@ -1091,6 +1285,14 @@ window.__replayMeta = () => ({
   hasStateRef: state.referee !== null,
   stateRef: state.referee
 });
+window.__ballFX = () => ({
+  quat: Array.from(ballMesh.quaternion.toArray()),
+  scale: [ballMesh.scale.x, ballMesh.scale.y, ballMesh.scale.z],
+  shadowOpacity: shadowMat.opacity,
+  shadowScale: [shadowMesh.scale.x, shadowMesh.scale.z],
+  dustActive: !!(dust && dust.active),
+  pos: [ballMesh.position.x, ballMesh.position.y, ballMesh.position.z],
+});
 
 // ── Render loop ─────────────────────────────────────────────────────────────
 function animate() {
@@ -1106,6 +1308,7 @@ function animate() {
     }
     rainPoints.geometry.attributes.position.needsUpdate = true;
   }
+  tickDust();
   renderer.render(scene, camera);
 }
 animate();
