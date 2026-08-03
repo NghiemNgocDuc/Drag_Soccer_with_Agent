@@ -21,6 +21,28 @@
   border-radius:8px;transition:background .2s;color:#fff;
 }
 .sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
+.hl-section{margin-top:18px}
+.hl-strip{display:flex;gap:2px;margin:10px 0 14px;height:22px;align-items:stretch}
+.hl-cell{flex:1;min-width:2px;background:rgba(14,165,233,.15);border-radius:3px;cursor:pointer;position:relative}
+.hl-cell:hover{background:rgba(14,165,233,.35)}
+.hl-cell.goal{background:rgba(251,191,36,.45)}
+.hl-cell.near{background:rgba(236,72,153,.45)}
+.hl-cell.fast{background:rgba(34,211,238,.45)}
+.hl-cell.current{outline:2px solid #fff;outline-offset:1px}
+.hl-cards{display:flex;flex-wrap:wrap;gap:10px}
+.hl-card{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:8px 12px}
+.hl-card .hl-ico{font-size:1.15rem}
+.hl-card .hl-label{font-weight:600;font-size:.92rem}
+.hl-card .hl-kick{font-size:.75rem;color:#94a3b8}
+.hl-card button{font-size:.8rem;padding:4px 12px;cursor:pointer;border:none;border-radius:8px;
+  background:rgba(14,165,233,.25);color:#fff;transition:background .2s}
+.hl-card button:hover{background:rgba(14,165,233,.45)}
+.hl-banner{display:inline-flex;align-items:center;gap:10px;background:rgba(251,191,36,.15);
+  border:1px solid rgba(251,191,36,.4);color:#fde68a;border-radius:10px;padding:6px 12px;font-size:.85rem}
+.hl-banner button{background:rgba(14,165,233,.3);border:none;color:#fff;border-radius:8px;
+  padding:4px 10px;cursor:pointer;font-size:.8rem}
+.hl-banner button:hover{background:rgba(14,165,233,.5)}
 </style>
 <script src="{{ url_for('static', filename='sound.js') }}"></script>
 </head>
@@ -79,6 +101,15 @@
       <button class="btn btn-ghost btn-play" id="btn-auto" onclick="toggleAutoPlay3D()">Auto Play</button>
       <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
     </div>
+
+    <div class="hl-section" id="hl-section" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0;font-size:1rem">Highlights</h3>
+        <div class="hl-banner" id="hl-banner" style="display:none"></div>
+      </div>
+      <div class="hl-strip" id="hl-strip"></div>
+      <div class="hl-cards" id="hl-cards"></div>
+    </div>
   </div>
 </main>
 
@@ -111,9 +142,18 @@ function worldToServer(v) {
 
 // ── Replay data ──────────────────────────────────────────────────────────────
 const replayData = {{ match.replay_data | tojson }};
+const highlights = {{ highlights | tojson }};
+const clipHighlight = {{ highlight | tojson }};
 let currentMove = 0;
 let isAnimating = false;
 let autoPlayOn = false;
+let clipEnd = null;
+
+// Entry indices of real (trajectory-bearing) moves, and per-move highlight map
+const realEntries = [];
+replayData.forEach((m, i) => { if (m.trajectory && m.trajectory.length > 0) realEntries.push(i); });
+const hlByStart = {};
+(highlights || []).forEach(h => { hlByStart[h.start] = h; });
 
 // ── Renderer ─────────────────────────────────────────────────────────────────
 const container = document.getElementById('three-container');
@@ -993,7 +1033,142 @@ function updateUI() {
   document.getElementById('score-a').textContent = state.score_a;
   document.getElementById('score-b').textContent = state.score_b;
   document.getElementById('kick-count').textContent = currentMove;
+  const cells = document.querySelectorAll('#hl-strip .hl-cell');
+  for (let i = 0; i < cells.length; i++) {
+    cells[i].classList.toggle('current', realEntries[i] <= currentMove && (i === realEntries.length - 1 || realEntries[i + 1] > currentMove));
+  }
 }
+
+// ── Highlights UI ───────────────────────────────────────────────────────────
+const HL_ICON = { goal: '⚽', near: '🎯', fast: '⚡' };
+
+function buildHighlightsUI() {
+  const section = document.getElementById('hl-section');
+  if (!highlights || highlights.length === 0) return;
+  section.style.display = 'block';
+
+  const strip = document.getElementById('hl-strip');
+  realEntries.forEach((e, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'hl-cell';
+    const hl = hlByStart[e];
+    if (hl) {
+      cell.classList.add(hl.type);
+      cell.title = hl.label;
+      cell.onclick = () => playHighlight(hl);
+    }
+    strip.appendChild(cell);
+  });
+
+  const cards = document.getElementById('hl-cards');
+  highlights.forEach(h => {
+    const card = document.createElement('div');
+    card.className = 'hl-card';
+    card.innerHTML =
+      '<span class="hl-ico">' + HL_ICON[h.type] + '</span>' +
+      '<div><div class="hl-label">' + h.label + '</div>' +
+      '<div class="hl-kick">move ' + (h.start + 1) + '–' + (h.end + 1) + '</div></div>' +
+      '<button data-hl="watch">Watch</button>' +
+      '<button data-hl="share">Share</button>';
+    card.querySelector('[data-hl="watch"]').onclick = () => playHighlight(h);
+    const shareBtn = card.querySelector('[data-hl="share"]');
+    shareBtn.onclick = () => shareHighlight(h, shareBtn);
+    cards.appendChild(card);
+  });
+}
+
+function seekToEntry(target) {
+  state = {
+    ball: { x: W / 2, y: H / 2 }, players_a: [], players_b: [],
+    referee: null, score_a: 0, score_b: 0,
+  };
+  for (let i = 0; i < target && i < replayData.length; i++) applyMoveToState(replayData[i]);
+  currentMove = target;
+  ballMesh.position.copy(serverToWorld(state.ball.x, state.ball.y, state.ball.z || 0));
+  const sp = serverToWorld(state.ball.x, state.ball.y);
+  shadowMesh.position.set(sp.x, 0.1, sp.z);
+  updatePlayerPositions(state.players_a, state.players_b);
+  if (state.referee) updateRefereeMesh(state.referee.x, state.referee.y);
+  updateUI();
+}
+
+function showClipBanner(h, done) {
+  const banner = document.getElementById('hl-banner');
+  if (!h) { banner.style.display = 'none'; return; }
+  banner.style.display = 'inline-flex';
+  banner.innerHTML = HL_ICON[h.type] + ' <b>' + h.label + '</b>' +
+    (done ? ' — clip finished' : '') +
+    ' <button id="hl-full">Watch Full Match</button>';
+  document.getElementById('hl-full').onclick = watchFullMatch;
+}
+
+function updateAutoBtn() {
+  const btn = document.getElementById('btn-auto');
+  if (autoPlayOn) {
+    btn.textContent = "Stop Auto";
+    btn.className = "btn btn-primary btn-play";
+  } else {
+    btn.textContent = "Auto Play";
+    btn.className = "btn btn-ghost btn-play";
+  }
+}
+
+function playHighlight(h) {
+  if (isAnimating) return;
+  autoPlayOn = false;
+  seekToEntry(h.start);
+  clipEnd = h.end;
+  showClipBanner(h, false);
+  autoPlayOn = true;
+  updateAutoBtn();
+  window.playNextMove3D();
+}
+
+function watchFullMatch() {
+  clipEnd = null;
+  showClipBanner(null, false);
+  if (currentMove >= replayData.length) seekToEntry(0);
+  if (!autoPlayOn) {
+    autoPlayOn = true;
+    updateAutoBtn();
+  }
+  window.playNextMove3D();
+}
+
+function clipFinishedCheck() {
+  if (clipEnd !== null && currentMove > clipEnd) {
+    const h = clipHighlight || highlights.find(x => x.end === clipEnd) || null;
+    clipEnd = null;
+    autoPlayOn = false;
+    updateAutoBtn();
+    showClipBanner(h, true);
+  }
+}
+
+async function shareHighlight(h, btn) {
+  const url = location.origin + '/highlight/' + h.id;
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    document.body.removeChild(ta);
+  }
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }
+}
+window.__hlState = () => ({
+  n: highlights ? highlights.length : 0,
+  realMoves: realEntries.length,
+  clipEnd: clipEnd,
+  auto: autoPlayOn,
+  current: currentMove,
+  bannerShown: document.getElementById('hl-banner').style.display !== 'none',
+});
 
 // ── Animation (reuses same signature as index_3d.html) ──────────────────────
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -1178,6 +1353,7 @@ window.playNextMove3D = function() {
   if (!raw || raw.length === 0) {
     currentMove++;
     updateUI();
+    clipFinishedCheck();
     if (autoPlayOn && currentMove < replayData.length) setTimeout(window.playNextMove3D, 200);
     return;
   }
@@ -1204,6 +1380,7 @@ window.playNextMove3D = function() {
     updatePlayerPositions(state.players_a, state.players_b);
     if (state.referee) updateRefereeMesh(state.referee.x, state.referee.y);
     updateUI();
+    clipFinishedCheck();
     if (autoPlayOn && currentMove < replayData.length) {
       setTimeout(window.playNextMove3D, 500);
     }
@@ -1250,15 +1427,13 @@ window.playNextMove3D = function() {
 };
 
 window.toggleAutoPlay3D = function() {
-  const btn = document.getElementById('btn-auto');
   if (autoPlayOn) {
     autoPlayOn = false;
-    btn.textContent = "Auto Play";
-    btn.className = "btn btn-ghost btn-play";
+    clipEnd = null;
+    updateAutoBtn();
   } else {
     autoPlayOn = true;
-    btn.textContent = "Stop Auto";
-    btn.className = "btn btn-primary btn-play";
+    updateAutoBtn();
     window.playNextMove3D();
   }
 };
@@ -1335,6 +1510,8 @@ animate();
   shadowMesh.position.copy(serverToWorld(state.ball.x, state.ball.y));
   shadowMesh.position.y = 0.1;
   updateUI();
+  buildHighlightsUI();
+  if (clipHighlight) setTimeout(() => playHighlight(clipHighlight), 400);
 })();
 </script>
 </body>

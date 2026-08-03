@@ -58,8 +58,10 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 ### Routes (`app.py`)
 - `/` — **landing page for logged-out visitors** (Phase 0 redesign); redirects logged-in users to `/play3d` (was `@login_required` redirect only)
 - `/play3d` — Main 3D game (Three.js)
-- `/replay3d/<tid>/<match_id>` — 3D match replay
+- `/replay3d/<tid>/<match_id>` — 3D match replay (passes detected `highlights` to the viewer)
 - `/tournaments/<tid>/watch/<match_id>` — redirects to `/replay3d/...`
+- `/matches/<tid>/<match_id>/highlights` — highlights JSON API (same privacy as replay: `@login_required`)
+- `/highlight/<hid>` — shareable highlight clip: renders `replay_3d.html` pre-seeked to the clip (unknown/expired id → flash + redirect)
 - `/online` — redirects to `/play3d` (online 2D removed)
 - `/customize` — point-buy stat assignment page (6 player cards, 4 sliders each, 200-pt budget)
 - `/reset` — injects saved stats via `inject_player_stats`
@@ -69,7 +71,7 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 
 ### Templates
 - `index_3d.html` — Three.js 3D game view (human vs AI), stat-aware mesh rendering, spatial audio, goal particles, cosmetic referee
-- `replay_3d.html` — Three.js 3D replay viewer, same rendering + audio/particles + referee
+- `replay_3d.html` — Three.js 3D replay viewer, same rendering + audio/particles + referee + highlight reel UI
 - `customize.html` — Point-buy allocator with player cards, color picker, save button
 - `landing.html` / `login.html` / `register.html` — **Phase 0 redesign**: built only on `static/design-system.css` (drop-in replacement for style.css on these pages); auth pages still use the old inline-styled layout classes only where the system didn't replace them
 - `login.html` / `register.html` — Auth pages (canvas animations removed, static CSS backgrounds)
@@ -98,18 +100,28 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - **Bugs fixed during verification**: (1) `startOnline` never set `ONLINE.roomId` (join/state responses lacked `room_id`) → `ONLINE.roomId.slice(0,8)` threw inside init's try → catch re-opened the lobby modal over an active match — join and state now return `room_id`; (2) trickle-ICE race — `ice` signals were `addIceCandidate`'d before async `setRemoteDescription` resolved (`InvalidStateError` swallowed) → all peer candidates dropped, both sides stuck "connecting" — candidates now queue in `VOICE.icePending` and flush after remote description lands; (3) `sendVoice` sent the whole `RTCSessionDescription` object as `data.sdp` instead of the SDP string → `new RTCSessionDescription` got an object and remote description never set.
 - Verified headless (Playwright, two contexts, fake mic): 20/20 — button visibility, panel, offer/answer/ICE relay, both peers `connected`, mute/unmute immediate + opponent badge, clean disconnect + peer notice, re-enable reconnects, zero console errors.
 
+### Auto-Detected Match Highlights (shareable replay clips, no video)
+- **Zero video**: a highlight is just a pointer — a start/end *entry index* into the match's stored `replay_data` (the interleaved move list) + label. No files, no encoding, nothing added to `models/soccer_logic.py` or live gameplay; the replay viewer's full-match behavior is unchanged (additive UI only).
+- **Detection** (`db/highlights.py`): `detect_highlights(replay_data)` runs on-demand from the stored match, then cached in Redis for 24h (`highlights:{tid}:{match_id}`; share registry `highlight:{hid}` → `{tid, match_id, type, kick, start, end, label}`). Share id = `sha1(tid:match_id:type:start:end)[:12]` — deterministic, so repeated fetches return identical lists. Expires with the match replay (24h TTL).
+- **Heuristics** (tunable constants, calibrated against real AI sims — measured kicks 400–1060 px/s, ~50% of AI kicks are zero-speed no-ops): **goal** = the stored `scored` flag, clip window = ±1 real move (edge-clamped, `GOAL_LEAD_MOVES`/`GOAL_TAIL_MOVES`); **near miss** = reached within `NEAR_LINE_MARGIN`=100px of the goal line AND closest approach to the mouth segment ≤ `NEAR_MOUTH_DIST`=100px AND max speed ≥ `NEAR_MIN_SPEED`=400 px/s AND attacking-direction check (mover `b` targets x=20, `a` targets x=1380); **fast play** = max speed ≥ `FAST_PLAY_MIN_SPEED`=700 px/s **absolute** (percentiles unreliable with ~50% no-op kicks) — the scoring kick is never double-listed as fast.
+- **Speed derivation**: trajectories are decimated (~100 frames, `step_est = round((len−1)/100)`); `max_speed` = peak per-frame `dist * 60 / step_est`.
+- **Routes** (`app.py`): `/matches/<tid>/<match_id>/highlights` (JSON API) and `/highlight/<hid>` (renders the replay viewer pre-seeked to the clip). Both match the existing replay privacy model (`@login_required` on `/replay3d/...`) — shared links are never more/less exposed than full replays.
+- **Replay viewer UI** (`replay_3d.html`): Highlights section = per-kick timeline markers (`#hl-strip` cells tinted ⚽/🎯/⚡, click to jump, `current` outline follows playback) + card list (Watch / Share — clipboard copy w/ `Copied!` feedback). `playHighlight` seeks to `h.start`, autoplays through `h.end`, then stops with a "clip finished" banner + Watch-Full-Match button. Deep links (`?highlight=<h>`) autoplay the clip on load; `window.__hlState()` test hook.
+- **Tests** (`test_highlights.py`, 13): goal window + edge clamping, near-miss vs slow-roll exclusion, wrong-direction exclusion, fast-play-yet-goal exclusion, wedged/single-frame safety, cache determinism + share-id roundtrip, missing-match → None, JSON API 302/200, highlight page 302/404 flow + clip render.
+
 ### AI agents
 - All 7 agents use `simulate_kick(state, pidx, angle, power)` to evaluate outcomes
 - `policy_iteration.py` and `value_iteration.py` account for Power stat in player selection
 - AI Arena benchmarks run all agents against each other with win-rate/accuracy/heatmap tables
 
-### Tests (89 passing, 4 skipped)
+### Tests (102 passing, 4 skipped)
 - `test_stats.py` — 11 stat-specific tests (mappings, injection, backward compat, power/weight/agility effects)
 - `test_pymunk.py` — 5 pymunk baseline tests
 - `test_penalty.py` — 27 penalty shootout tests
 - `test_vertical.py` — 5 vertical/loft tests
 - `test_chat.py` — 12 chat tests (3 skip without Supabase): DM relay, conversation list, rate limit, profanity filter, block/unblock, report, cursor semantics
 - `test_voice.py` — 5 voice-relay tests (1 skip without Supabase): signal queue/cursor, invalid type, HTTP offer/answer/ice relay, gating (401/400/404), blocked-pair rejection
+- `test_highlights.py` — 13 highlight tests: goal window + edge clamping, near-miss vs slow-roll exclusion, wrong-direction exclusion, fast-play-yet-goal exclusion, wedged/single-frame safety, cache determinism + share-id roundtrip, missing-match → None, JSON API 302/200, highlight page 302/404 flow + clip render
 - `referee_test.py` — 8 referee checks (temp file: `%TEMP%\opencode\referee_test.py`) — determinism, wandering, dodge, zero physics, bounds, state sync
 - `balance_test.py` — Balance test script (not pytest — run directly: `python balance_test.py`; needs `build` fixture, excluded from suite)
 - Run: `python -m pytest -q --ignore=test_integration.py --ignore=balance_test.py` (skips = Supabase-dependent + pre-existing)

@@ -1877,12 +1877,46 @@ def tournament_watch(tid, match_id):
 @login_required
 def tournament_watch_3d(tid, match_id):
     from db.tournaments import get_tournament, get_match
+    from db.highlights import get_highlights
     t = get_tournament(tid)
     m = get_match(tid, match_id)
     if not t or not m or m["status"] != "completed":
         flash("Match not available for replay")
         return redirect(url_for("tournament_view", tid=tid))
-    return render_template("replay_3d.html", username=session.get("username", "Player"), t=t, match=m)
+    hls = get_highlights(tid, match_id) or []
+    return render_template("replay_3d.html", username=session.get("username", "Player"),
+                           t=t, match=m, highlights=hls, highlight=None)
+
+
+@app.route("/matches/<tid>/<match_id>/highlights")
+@login_required
+def match_highlights_api(tid, match_id):
+    from db.tournaments import get_tournament, get_match
+    from db.highlights import get_highlights
+    t = get_tournament(tid)
+    m = get_match(tid, match_id)
+    if not t or not m or m["status"] != "completed":
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"highlights": get_highlights(tid, match_id) or []})
+
+
+@app.route("/highlight/<hid>")
+@login_required
+def highlight_page(hid):
+    from db.tournaments import get_tournament, get_match
+    from db.highlights import resolve_highlight, get_highlights
+    h = resolve_highlight(hid)
+    if not h:
+        flash("Highlight not found (replay may have expired)")
+        return redirect(url_for("tournaments_page"))
+    t = get_tournament(h["tid"])
+    m = get_match(h["tid"], h["match_id"])
+    if not t or not m or m["status"] != "completed":
+        flash("Match not available for replay")
+        return redirect(url_for("tournament_view", tid=h["tid"]))
+    hls = get_highlights(h["tid"], h["match_id"]) or []
+    return render_template("replay_3d.html", username=session.get("username", "Player"),
+                           t=t, match=m, highlights=hls, highlight=h)
 
 # ── Clerk — verify session ────────────────────────────────────────────────
 @app.route("/api/auth/clerk/verify", methods=["POST"])
