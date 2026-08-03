@@ -27,8 +27,27 @@
   border-radius:8px;transition:background .2s;color:#fff;
 }
 .sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
+#match-chat-wrap{position:fixed;right:16px;bottom:16px;width:320px;height:400px;z-index:60}
+.online-modal{position:fixed;inset:0;background:rgba(2,6,23,.62);backdrop-filter:blur(5px);
+  display:none;align-items:center;justify-content:center;z-index:70}
+.online-modal.visible{display:flex}
+.online-modal-card{background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.7);
+  border-radius:16px;padding:24px;width:min(430px,92vw);display:flex;flex-direction:column;gap:12px;
+  box-shadow:0 20px 60px rgba(2,6,23,.35)}
+.online-modal-card h3{margin:0;color:#0f172a}
+.online-modal-card p{margin:0;font-size:.85rem;color:#475569}
+.online-modal-card input{padding:9px 12px;border-radius:10px;border:1px solid rgba(148,163,184,.5);
+  font-size:.85rem;background:#fff;color:#0f172a;width:100%;box-sizing:border-box}
+.online-modal-card .row{display:flex;gap:8px}
+#online-bar{position:fixed;top:64px;left:50%;transform:translateX(-50%);z-index:50;
+  background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.65);border-radius:999px;
+  padding:6px 16px;font-size:.82rem;font-weight:600;color:#0f172a;white-space:nowrap;
+  box-shadow:0 4px 16px rgba(2,6,23,.15)}
+#online-lobby-create{display:none;flex-direction:column;gap:8px}
+#online-lobby-waiting{display:none;color:#0284c7;font-weight:600;font-size:.85rem}
 </style>
 <script src="/static/sound.js"></script>
+<script src="/static/chat.js"></script>
 </head>
 <body>
 <div class="flash-msg" id="flash-msg"></div>
@@ -105,10 +124,37 @@
     </div>
     <button class="btn btn-ghost" id="aivai-btn" style="display:none" onclick="triggerAI()">Run AI</button>
     <div class="sep"></div>
+    <button class="btn btn-ghost" id="online-btn" onclick="showOnlineLobby(true)">&#x1F517; Online</button>
+    <div class="sep"></div>
     <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
   </div>
 
   <div class="glass log-panel" id="log-panel"></div>
+
+  <!-- Online match lobby (chat-enabled 1v1) -->
+  <div class="online-modal" id="online-lobby">
+    <div class="online-modal-card">
+      <h3>&#x1F517; Play Online</h3>
+      <p id="online-lobby-status">Create a match, share the link with a friend, and chat while you play.</p>
+      <div id="online-lobby-create">
+        <input id="online-invite-link" readonly onclick="this.select()">
+        <div class="row">
+          <button class="btn btn-primary" onclick="copyInviteLink()">Copy Link</button>
+          <button class="btn btn-ghost" onclick="closeOnlineLobby()">Close</button>
+        </div>
+      </div>
+      <div id="online-lobby-join">
+        <input id="online-join-code" placeholder="Paste a match link or room code…">
+        <div class="row">
+          <button class="btn btn-primary" onclick="joinOnlineByCode()">Join Match</button>
+          <button class="btn btn-ghost" onclick="createOnlineMatch()">Create Match</button>
+        </div>
+      </div>
+      <div id="online-lobby-waiting">Waiting for your opponent to join&hellip;</div>
+    </div>
+  </div>
+  <div id="online-bar" style="display:none"></div>
+  <div id="match-chat-wrap"></div>
 
   <!-- Penalty shootout UI -->
   <div id="penalty-ui" style="display:none">
@@ -1139,6 +1185,260 @@ let animSpeed = 1.0;
 let _skipKickerIdx = -1;
 let _skipKickerTeam = '';
 
+// ── Online match (chat-enabled 1v1 room mode) ───────────────────────────────
+const ONLINE = {
+  active: false, roomId: null, side: null,
+  nameA: '', nameB: '', lastKick: -1,
+  pollTimer: null, chat: null,
+};
+
+function myTeamPlayers() {
+  if (ONLINE.active) return ONLINE.side === 'a' ? gameState.players_a : gameState.players_b;
+  return gameState.players_a;
+}
+
+function onlineMyTurn() {
+  return ONLINE.active && !!gameState && !!gameState.is_player_a === (ONLINE.side === 'a');
+}
+
+window.showOnlineLobby = function(show) {
+  const el = document.getElementById('online-lobby');
+  el.classList.toggle('visible', !!show);
+  if (show) document.getElementById('online-join-code').focus();
+};
+
+window.closeOnlineLobby = function() {
+  document.getElementById('online-lobby').classList.remove('visible');
+};
+
+window.copyInviteLink = function() {
+  const input = document.getElementById('online-invite-link');
+  if (!input.value) return;
+  navigator.clipboard.writeText(input.value).then(() => {
+    const btn = input.nextElementSibling;
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy Link'; }, 1500); }
+  });
+};
+
+window.createOnlineMatch = async function() {
+  const resp = await fetch('/online/create', { method: 'POST' });
+  const data = await resp.json();
+  if (!resp.ok || !data.room_id) { alert(data.error || 'Could not create a match'); return; }
+  const roomId = data.room_id;
+  const link = location.origin + '/play3d?room=' + roomId;
+  const statusEl = document.getElementById('online-lobby-status');
+  const createEl = document.getElementById('online-lobby-create');
+  const joinEl = document.getElementById('online-lobby-join');
+  const waitEl = document.getElementById('online-lobby-waiting');
+  document.getElementById('online-invite-link').value = link;
+  joinEl.style.display = 'none';
+  createEl.style.display = 'flex';
+  statusEl.textContent = 'Share this link — the match starts when your friend joins.';
+  await fetch('/online/' + roomId + '/join', { method: 'POST' });
+  waitEl.style.display = 'block';
+  for (let i = 0; i < 300; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    const st = await fetch('/online/' + roomId + '/state?since_kick=-1').then(r => r.json());
+    if (st.status === 'active' && st.my_side) {
+      history.replaceState(null, '', '/play3d?room=' + roomId);
+      startOnline(st);
+      return;
+    }
+    if (i % 10 === 9) statusEl.textContent = 'Still waiting for your opponent to join…';
+  }
+  statusEl.textContent = 'Timed out waiting — close and try again.';
+};
+
+window.joinOnlineByCode = async function() {
+  const raw = document.getElementById('online-join-code').value.trim();
+  if (!raw) return;
+  const m = raw.match(/[?&]room=([a-zA-Z0-9]+)/) || raw.match(/^([a-zA-Z0-9]{6,14})$/);
+  const roomId = m ? m[1] : raw;
+  const resp = await fetch('/online/' + roomId + '/join', { method: 'POST' });
+  const data = await resp.json();
+  if (data.error) { alert(data.error); return; }
+  history.replaceState(null, '', '/play3d?room=' + roomId);
+  startOnline(data);
+};
+
+function setOnlineUI(active) {
+  document.getElementById('mode-select').disabled = active;
+  document.getElementById('model-select').disabled = active;
+  document.getElementById('aivai-btn').style.display = 'none';
+  document.getElementById('online-btn').style.display = active ? 'none' : '';
+}
+
+function updateOnlineBar() {
+  const bar = document.getElementById('online-bar');
+  if (!ONLINE.active) { bar.style.display = 'none'; return; }
+  const me = ONLINE.side === 'a' ? ONLINE.nameA : ONLINE.nameB;
+  const them = ONLINE.side === 'a' ? ONLINE.nameB : ONLINE.nameA;
+  const score = gameState ? (gameState.score_a + ' – ' + gameState.score_b) : '0 – 0';
+  bar.style.display = 'block';
+  bar.textContent = me + '  vs  ' + them + '   ·   ' + score + '   ·   Room ' + ONLINE.roomId.slice(0, 8);
+}
+
+function startOnline(joinData) {
+  ONLINE.active = true;
+  ONLINE.side = joinData.my_side || null;
+  ONLINE.nameA = joinData.name_a || 'Player A';
+  ONLINE.nameB = joinData.name_b || 'Player B';
+  ONLINE.lastKick = -1;
+  closeOnlineLobby();
+  setOnlineUI(true);
+  if (gameState === null) {
+    gameState = {
+      ball: { x: W / 2, y: H / 2, z: 0 },
+      players_a: [], players_b: [],
+      score_a: 0, score_b: 0, is_player_a: true, kick_count: 0,
+      game_over: false, game_mode: 'hvh', penalty_shootout: false, referee: null,
+    };
+  }
+  rebuildPlayers();
+  ballMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.y = 0.1;
+  updateHUD(gameState);
+  updateOnlineBar();
+  ONLINE.chat = new ChatPanel({
+    mount: document.getElementById('match-chat-wrap'),
+    scope: 'match', scopeId: ONLINE.roomId,
+    name: 'Match Chat', quickReactions: true, pollMs: 2000, collapsed: true,
+  });
+  pollOnline();
+  ONLINE.pollTimer = setInterval(pollOnline, 1500);
+}
+
+async function pollOnline() {
+  if (!ONLINE.active) return;
+  try {
+    const resp = await fetch('/online/' + ONLINE.roomId + '/state?since_kick=' + ONLINE.lastKick);
+    const data = await resp.json();
+    if (data.error || !data.game) { endOnline(data.error); return; }
+    ONLINE.nameA = data.name_a || ONLINE.nameA;
+    ONLINE.nameB = data.name_b || ONLINE.nameB;
+    updateOnlineBar();
+    if (data.status === 'done' && !data.game.game_over) {
+      data.game.game_over = true;
+      data.game.winner = data.game.score_a > data.game.score_b ? 'A' : data.game.score_a < data.game.score_b ? 'B' : null;
+    }
+    if (data.last_move && data.game.kick_count > ONLINE.lastKick) {
+      ONLINE.lastKick = data.game.kick_count;
+      await animateOnlineMove(data.last_move, data.game);
+    } else if (!isAnimating) {
+      gameState = data.game;
+      updatePlayerPositions();
+      if (gameState.referee) updateRefereeMesh(gameState.referee.x, gameState.referee.y);
+      updateHUD(gameState);
+    }
+  } catch (e) { /* transient — retry next tick */ }
+}
+
+function endOnline(msg) {
+  ONLINE.active = false;
+  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  if (ONLINE.chat) { ONLINE.chat.destroy(); ONLINE.chat = null; }
+  document.getElementById('match-chat-wrap').innerHTML = '';
+  document.getElementById('online-bar').style.display = 'none';
+  setOnlineUI(false);
+  if (msg) alert(msg || 'The match ended');
+}
+
+async function animateOnlineMove(move, game) {
+  if (isAnimating) return;
+  isAnimating = true;
+  try {
+    const team = move.mover === 'a' ? 'a' : 'b';
+    const players = team === 'a' ? game.players_a : game.players_b;
+    const kickerPos = players && players[move.player_idx];
+    if (kickerPos) playPositional(_kickBuf, serverToWorld(kickerPos.x, kickerPos.y), { volume: 0.7 });
+    const isPenalty = !!game.penalty_shootout;
+    if (isPenalty) {
+      await new Promise(r => animateTrajectory3D(move.trajectory, r));
+    } else {
+      const t0 = move.trajectory && move.trajectory[0];
+      const from = t0 && t0[team] && t0[team][move.player_idx]
+        ? { x: t0[team][move.player_idx].x, y: t0[team][move.player_idx].y }
+        : { x: players[move.player_idx].x, y: players[move.player_idx].y };
+      const kickEnd = move.kick_endpoint || kickEndpoint(from, move.angle, move.power);
+      _skipKickerIdx = move.player_idx;
+      _skipKickerTeam = team;
+      await Promise.all([
+        new Promise(r => animateTrajectory3D(move.trajectory, r)),
+        new Promise(r => animatePlayerMove3D(move.player_idx, team, from, kickEnd, r)),
+      ]);
+      _skipKickerIdx = -1;
+      _skipKickerTeam = '';
+    }
+    syncBall(move.trajectory, move.scored);
+    logMove(move.desc, !!move.scored);
+    if (move.scored) {
+      SoundManager.goal();
+      triggerGoalEffect3D(team);
+      triggerCrowdCheer();
+    }
+  } finally {
+    gameState = game;
+    isAnimating = false;
+    updatePlayerPositions();
+    if (game.referee) updateRefereeMesh(game.referee.x, game.referee.y);
+    updateHUD(game);
+  }
+}
+
+async function submitOnlineKick(playerIdx, angleDeg, power) {
+  isAnimating = true;
+  const myTeam = ONLINE.side === 'a' ? 'a' : 'b';
+  const players = myTeam === 'a' ? gameState.players_a : gameState.players_b;
+  const kickerPos = players[playerIdx];
+  if (kickerPos) playPositional(_kickBuf, serverToWorld(kickerPos.x, kickerPos.y), { volume: 0.7 });
+  try {
+    const resp = await fetch('/online/' + ONLINE.roomId + '/move', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_idx: playerIdx, angle: angleDeg, power }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.move_result) {
+      if (data.error) alert(data.error);
+      return;
+    }
+    const mr = data.move_result;
+    const game = data.game;
+    ONLINE.lastKick = (game && game.kick_count) || 0;
+    const isPenalty = !!(game && game.penalty_shootout);
+    if (isPenalty) {
+      await new Promise(r => animateTrajectory3D(mr.trajectory, r));
+    } else {
+      const fromPos = { x: kickerPos.x, y: kickerPos.y };
+      const kickEnd = mr.kick_endpoint || kickEndpoint(fromPos, angleDeg, power);
+      _skipKickerIdx = playerIdx;
+      _skipKickerTeam = myTeam;
+      await Promise.all([
+        new Promise(r => animateTrajectory3D(mr.trajectory, r)),
+        new Promise(r => animatePlayerMove3D(playerIdx, myTeam, fromPos, kickEnd, r)),
+      ]);
+      _skipKickerIdx = -1;
+      _skipKickerTeam = '';
+    }
+    syncBall(mr.trajectory, mr.scored);
+    logMove(mr.desc, !!mr.scored);
+    if (mr.scored) {
+      SoundManager.goal();
+      triggerGoalEffect3D(myTeam);
+      triggerCrowdCheer();
+    }
+    gameState = game;
+    updatePlayerPositions();
+    if (gameState.referee) updateRefereeMesh(gameState.referee.x, gameState.referee.y);
+    updateHUD(game);
+  } catch (e) {
+    alert('Could not submit your move — check the connection.');
+  } finally {
+    isAnimating = false;
+  }
+}
+
 let CUST_TEAM_A = '#3b82f6';
 let CUST_TEAM_B = '#ef4444';
 let CUST_CROWD_PALETTE = 'classic';
@@ -1350,7 +1650,7 @@ function updateHUD(st) {
   const keeperTimer = document.getElementById('penalty-keeper-timer');
   const pScore = document.getElementById('penalty-score');
 
-  if (st.penalty_shootout && !over) {
+  if (st.penalty_shootout && !over && !ONLINE.active) {
     pUI.style.display = 'block';
     const isA = st.is_player_a;
     const m = st.game_mode;
@@ -1377,23 +1677,36 @@ function updateHUD(st) {
 
   if (over) {
     wb.style.display = 'block';
-    wb.textContent = st.winner === 'A' ? 'You win!' : st.winner === 'B' ? 'AI wins!' : "It's a draw!";
+    if (ONLINE.active) {
+      wb.textContent = st.winner === ONLINE.side ? 'You win!' : st.winner ? 'Opponent wins!' : "It's a draw!";
+    } else {
+      wb.textContent = st.winner === 'A' ? 'You win!' : st.winner === 'B' ? 'AI wins!' : "It's a draw!";
+    }
     wb.style.color = st.winner === 'A' ? '#059669' : st.winner === 'B' ? '#ef4444' : '#6b7fa3';
     tb.style.display = 'none';
   } else {
     wb.style.display = 'none';
     tb.style.display = '';
     const isA = st.is_player_a;
-    if (st.penalty_shootout) {
-      tb.textContent = isA ? 'Your penalty kick!' : 'Choose goalkeeper direction…';
+    if (ONLINE.active) {
+      if (st.penalty_shootout) {
+        tb.textContent = 'Penalties aren\u2019t available in online matches yet';
+        tb.className = 'turn-badge turn-b';
+      } else {
+        const myTurn = !!isA === (ONLINE.side === 'a');
+        tb.textContent = myTurn ? 'Your turn' : 'Opponent\u2019s turn\u2026';
+        tb.className = 'turn-badge ' + (myTurn ? 'turn-a' : 'turn-b');
+      }
+    } else if (st.penalty_shootout) {
+      tb.textContent = isA ? 'Your penalty kick!' : 'Choose goalkeeper direction\u2026';
       tb.className = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
     } else {
-      tb.textContent = isA ? 'Your turn' : 'AI thinking…';
+      tb.textContent = isA ? 'Your turn' : 'AI thinking\u2026';
       tb.className = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
     }
   }
   const aiBtn = document.getElementById('aivai-btn');
-  aiBtn.style.display = (st.game_mode === 'aivai' || (st.game_mode === 'hvh' && !st.is_player_a)) ? '' : 'none';
+  aiBtn.style.display = (ONLINE.active || st.game_mode === 'aivai' || (st.game_mode === 'hvh' && !st.is_player_a)) ? 'none' : '';
 }
 
 function logMove(text, isGoal) {
@@ -1578,6 +1891,18 @@ function updateDragVisuals(homeServer, pull) {
 // ── Input handlers ─────────────────────────────────────────────────────────
 function getHoveredPlayer(sx, sy) {
   if (!gameState || gameState.game_over || isAnimating) return null;
+  if (ONLINE.active) {
+    if (gameState.penalty_shootout) return null; // penalties unsupported online
+    if (!!gameState.is_player_a !== (ONLINE.side === 'a')) return null;
+    const players = ONLINE.side === 'a' ? gameState.players_a : gameState.players_b;
+    if (!players) return null;
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i];
+      const d = Math.hypot(p.x - sx, p.y - sy);
+      if (d < PLAYER_R + 8) return i;
+    }
+    return null;
+  }
   const isA = gameState.is_player_a;
   const mode = gameState.game_mode;
   if (gameState.penalty_shootout) {
@@ -1614,7 +1939,7 @@ renderer.domElement.addEventListener('mousemove', e => {
   if (!gp) return;
   if (dragPlayer !== null) {
     dragWorldPos.copy(gp);
-    const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
+    const home = dragPlayer === 'ball' ? gameState.ball : myTeamPlayers()[dragPlayer];
     const pull = calcPull(home);
     updateDragVisuals(home, pull);
     e.preventDefault();
@@ -1625,7 +1950,7 @@ renderer.domElement.addEventListener('mouseup', e => {
   if (dragPlayer === null) return;
   const gp = getGroundPoint(e.clientX, e.clientY);
   if (gp) dragWorldPos.copy(gp);
-  const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
+  const home = dragPlayer === 'ball' ? gameState.ball : myTeamPlayers()[dragPlayer];
   const { pullX, pullY, power, kickAngle } = calcPull(home);
   const idx = dragPlayer === 'ball' ? 0 : dragPlayer;
   clearDragVisuals();
@@ -1651,7 +1976,7 @@ renderer.domElement.addEventListener('touchmove', e => {
     const gp = getGroundPoint(t.clientX, t.clientY);
     if (gp) {
       dragWorldPos.copy(gp);
-      const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
+      const home = dragPlayer === 'ball' ? gameState.ball : myTeamPlayers()[dragPlayer];
       const pull = calcPull(home);
       updateDragVisuals(home, pull);
     }
@@ -1664,7 +1989,7 @@ renderer.domElement.addEventListener('touchend', e => {
   const t = e.changedTouches[0];
   const gp = getGroundPoint(t.clientX, t.clientY);
   if (gp) dragWorldPos.copy(gp);
-  const home = dragPlayer === 'ball' ? gameState.ball : gameState.players_a[dragPlayer];
+  const home = dragPlayer === 'ball' ? gameState.ball : myTeamPlayers()[dragPlayer];
   const { pullX, pullY, power, kickAngle } = calcPull(home);
   const idx = dragPlayer === 'ball' ? 0 : dragPlayer;
   clearDragVisuals();
@@ -1897,6 +2222,7 @@ function syncBall(trajectory, scored) {
 }
 
 async function submitKick(playerIdx, angleDeg, power) {
+  if (ONLINE.active) return submitOnlineKick(playerIdx, angleDeg, power);
   isAnimating = true;
   setOverlay(false);
 
@@ -1998,7 +2324,7 @@ async function submitKick(playerIdx, angleDeg, power) {
 }
 
 async function triggerAI() {
-  if (isAnimating || (gameState && gameState.game_over)) return;
+  if (isAnimating || ONLINE.active || (gameState && gameState.game_over)) return;
   isAnimating = true;
   showThinking();
   const resp = await fetch('/ai_move', { method: 'POST' });
@@ -2057,7 +2383,7 @@ async function triggerAI() {
 
 // ── Controls ────────────────────────────────────────────────────────────────
 window.resetGame = async function() {
-  if (isAnimating) return;
+  if (isAnimating || ONLINE.active) return;
   const body = { player_count: 3 };
   const data = await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
   gameState = data;
@@ -2070,7 +2396,7 @@ window.resetGame = async function() {
 };
 
 window.undoMove = async function() {
-  if (isAnimating) return;
+  if (isAnimating || ONLINE.active) return;
   const data = await fetch('/undo', { method: 'POST' }).then(r => r.json());
   gameState = data;
   rebuildPlayers();
@@ -2081,7 +2407,7 @@ window.undoMove = async function() {
 };
 
 window.setMode = async function(mode) {
-  if (isAnimating) return;
+  if (isAnimating || ONLINE.active) return;
   await fetch('/set_mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
   const data = await fetch('/state').then(r => r.json());
   gameState = data;
@@ -2155,6 +2481,29 @@ function setOverlay(show, text) {
     crowdData = createCrowd(pal);
     scene.add(crowdData.mesh);
   } catch (e) { console.warn('Crowd init failed:', e); }
+
+  const urlRoom = new URLSearchParams(location.search).get('room');
+  if (urlRoom) {
+    // Online room mode (chat-enabled 1v1) — game state comes from the room
+    document.getElementById('mode-select').value = 'hvh';
+    document.getElementById('online-btn').style.display = 'none';
+    try {
+      const joinResp = await fetch('/online/' + urlRoom + '/join', { method: 'POST' });
+      const joinData = await joinResp.json();
+      if (joinData.error) {
+        showOnlineLobby(true);
+        document.getElementById('online-lobby-status').textContent = joinData.error;
+        document.getElementById('mode-select').disabled = false;
+        document.getElementById('online-btn').style.display = '';
+        return;
+      }
+      history.replaceState(null, '', '/play3d?room=' + urlRoom);
+      startOnline(joinData);
+    } catch (e) {
+      showOnlineLobby(true);
+    }
+    return;
+  }
 
   const data = await fetch('/state').then(r => r.json());
   document.getElementById('mode-select').value = data.game_mode || 'hvai';

@@ -10,3 +10,4 @@ posthog>=3.0
 sentry-sdk>=2.0
 pinecone>=5.0
 requests>=2.31
+better-profanity>=0.7.0

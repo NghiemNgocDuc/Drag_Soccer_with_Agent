@@ -1472,6 +1472,229 @@ def api_remove_friend(friend_uid):
     return jsonify({"ok": True})
 
 
+# ── Chat (match / tournament-lobby / friend DMs) ─────────────────────────────
+# Delivery is polling (GET /chat/messages?after=<mid>) — same pattern as the
+# room state endpoints. Match + lobby chat are ephemeral Redis lists with TTL;
+# DMs persist in Supabase (migration_chat.sql). Rate limit, profanity filter,
+# report + block are server-side.
+
+def _chat_storage():
+    from db.chat import ChatUnavailable
+    return ChatUnavailable
+
+
+def _can_lobby_chat(tid: str, user_id: str) -> bool:
+    from db.tournaments import get_tournament
+    t = get_tournament(tid)
+    if not t:
+        return False
+    if t.get("creator_id") == user_id:
+        return True
+    return any(p.get("participant_id") == f"friend:{user_id}"
+               for p in t.get("participants", []))
+
+
+def _is_friends_with(a: str, b: str) -> bool:
+    a_has_b = any(f["uid"] == b for f in _get_friends(a))
+    b_has_a = any(f["uid"] == a for f in _get_friends(b))
+    return a_has_b and b_has_a
+
+
+@app.route("/messages")
+@login_required
+def messages_page():
+    return render_template("messages.html", username=session.get("username", "Player"))
+
+
+@app.route("/chat/send", methods=["POST"])
+def chat_send():
+    from db.chat import (contains_profanity, check_rate_limit,
+                         send_ephemeral, send_dm, get_blocked, conv_id)
+    from db.chat import ChatUnavailable
+    data  = request.get_json(silent=True) or {}
+    scope = (data.get("scope") or "").strip()
+    body  = (data.get("body") or "").strip()
+    if scope not in ("match", "tournament", "dm"):
+        return jsonify({"error": "Invalid scope"}), 400
+    if not body:
+        return jsonify({"error": "Message is empty"}), 400
+    if len(body) > 280:
+        return jsonify({"error": "Message too long (max 280 characters)"}), 400
+    if scope in ("tournament", "dm") and "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    if not uid():
+        import uuid
+        session["user_id"]  = f"guest:{uuid.uuid4().hex[:12]}"
+        session["username"] = "Guest"
+    my_uid  = uid()
+    my_name = session.get("username", "Player")
+
+    if contains_profanity(body):
+        return jsonify({"error": "Message blocked by the content filter"}), 400
+
+    allowed, retry_after = check_rate_limit(my_uid)
+    if not allowed:
+        return jsonify({"error": "You're sending messages too fast", "retry_after": retry_after}), 429
+
+    try:
+        if scope == "match":
+            scope_id = (data.get("scope_id") or "").strip()
+            room = _get_room(scope_id)
+            if not room:
+                return jsonify({"error": "Room not found"}), 404
+            if my_uid not in (room["player_a"], room["player_b"]):
+                return jsonify({"error": "You're not in this match"}), 403
+            msg = send_ephemeral("match", scope_id, my_uid, my_name, body)
+        elif scope == "tournament":
+            scope_id = (data.get("scope_id") or "").strip()
+            if not _can_lobby_chat(scope_id, my_uid):
+                return jsonify({"error": "You're not in this tournament"}), 403
+            msg = send_ephemeral("tournament", scope_id, my_uid, my_name, body)
+        else:
+            to_uid = (data.get("to_uid") or "").strip()
+            if not to_uid or to_uid == my_uid:
+                return jsonify({"error": "Invalid recipient"}), 400
+            if not _is_friends_with(my_uid, to_uid):
+                return jsonify({"error": "You can only message friends"}), 403
+            if to_uid in get_blocked(my_uid):
+                return jsonify({"error": "You've blocked this user"}), 403
+            if my_uid in get_blocked(to_uid):
+                return jsonify({"error": "This user has blocked you"}), 403
+            msg = send_dm(my_uid, my_name, conv_id(my_uid, to_uid), body)
+    except ChatUnavailable:
+        return jsonify({"error": "Chat storage is unavailable right now"}), 503
+    return jsonify({"ok": True, "message": msg})
+
+
+@app.route("/chat/messages")
+def chat_messages():
+    from db.chat import (get_ephemeral, get_dm, get_blocked, mark_read,
+                         conv_id, conv_parties)
+    from db.chat import ChatUnavailable
+    scope = (request.args.get("scope") or "").strip()
+    if scope not in ("match", "tournament", "dm"):
+        return jsonify({"error": "Invalid scope"}), 400
+    if scope in ("tournament", "dm") and "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    my_uid = uid()
+    raw_after = request.args.get("after")
+    try:
+        after = int(raw_after) if raw_after not in (None, "") else None
+    except ValueError:
+        after = None
+    try:
+        limit = max(1, min(100, int(request.args.get("limit", 60))))
+    except ValueError:
+        limit = 60
+    blocked = get_blocked(my_uid) if my_uid else set()
+
+    try:
+        if scope in ("match", "tournament"):
+            scope_id = (request.args.get("scope_id") or "").strip()
+            if not scope_id:
+                return jsonify({"error": "scope_id required"}), 400
+            if scope == "match":
+                room = _get_room(scope_id)
+                if not room:
+                    return jsonify({"error": "Room not found"}), 404
+                if my_uid not in (room["player_a"], room["player_b"]):
+                    return jsonify({"error": "You're not in this match"}), 403
+            else:
+                if not _can_lobby_chat(scope_id, my_uid):
+                    return jsonify({"error": "You're not in this tournament"}), 403
+            msgs, next_after = get_ephemeral(scope, scope_id, after, limit, blocked)
+        else:
+            scope_id = (request.args.get("scope_id") or "").strip()
+            with_uid = (request.args.get("with") or "").strip()
+            if not scope_id and with_uid:
+                if not _is_friends_with(my_uid, with_uid):
+                    return jsonify({"error": "You can only message friends"}), 403
+                scope_id = conv_id(my_uid, with_uid)
+            if not scope_id:
+                return jsonify({"error": "scope_id or with required"}), 400
+            me, other = conv_parties(scope_id)
+            if my_uid not in (me, other):
+                return jsonify({"error": "You're not part of this conversation"}), 403
+            msgs, next_after = get_dm(scope_id, after, limit, blocked)
+            if request.args.get("mark_read") == "1" and my_uid:
+                mark_read(my_uid, scope_id, next_after)
+    except ChatUnavailable:
+        return jsonify({"error": "Chat storage is unavailable right now"}), 503
+    return jsonify({"messages": msgs, "next_after": str(next_after), "scope_id": scope_id, "me": my_uid})
+
+
+@app.route("/chat/conversations")
+@login_required
+def chat_conversations():
+    from db.chat import get_conversations
+    from db.chat import ChatUnavailable
+    try:
+        convs = get_conversations(uid())
+    except ChatUnavailable:
+        return jsonify({"error": "Chat storage is unavailable right now"}), 503
+    return jsonify({"conversations": convs})
+
+
+@app.route("/chat/report", methods=["POST"])
+@login_required
+def chat_report():
+    from db.chat import report_message
+    from db.chat import ChatUnavailable
+    data    = request.get_json(silent=True) or {}
+    scope   = (data.get("scope") or "").strip()
+    scope_id = (data.get("scope_id") or "").strip()
+    mid     = (data.get("mid") or "").strip()
+    reason  = (data.get("reason") or "").strip()[:200]
+    if scope not in ("match", "tournament", "dm") or not scope_id or not mid:
+        return jsonify({"error": "Missing fields"}), 400
+    try:
+        ok = report_message(uid(), scope, scope_id, mid, reason)
+    except ChatUnavailable:
+        return jsonify({"error": "Chat storage is unavailable right now"}), 503
+    if not ok:
+        return jsonify({"error": "Message not found"}), 404
+    return jsonify({"ok": True})
+
+
+@app.route("/chat/block", methods=["POST"])
+@login_required
+def chat_block():
+    from db.chat import block_user
+    from db.chat import ChatUnavailable
+    data    = request.get_json(silent=True) or {}
+    target  = (data.get("user_id") or "").strip()
+    if not target or target == uid():
+        return jsonify({"error": "Invalid user"}), 400
+    try:
+        block_user(uid(), target)
+    except ChatUnavailable:
+        return jsonify({"error": "Chat storage is unavailable right now"}), 503
+    return jsonify({"ok": True})
+
+
+@app.route("/chat/unblock", methods=["POST"])
+@login_required
+def chat_unblock():
+    from db.chat import unblock_user
+    from db.chat import ChatUnavailable
+    data   = request.get_json(silent=True) or {}
+    target = (data.get("user_id") or "").strip()
+    if not target:
+        return jsonify({"error": "Invalid user"}), 400
+    try:
+        unblock_user(uid(), target)
+    except ChatUnavailable:
+        return jsonify({"error": "Chat storage is unavailable right now"}), 503
+    return jsonify({"ok": True})
+
+
+@app.route("/chat/blocked")
+@login_required
+def chat_blocked():
+    from db.chat import get_blocked
+    return jsonify({"blocked": sorted(get_blocked(uid()))})
+
+
 # ── Tournaments ─────────────────────────────────────────────────────────────
 
 @app.route("/tournaments")

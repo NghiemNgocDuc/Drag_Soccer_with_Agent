@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messages — Agent Soccer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+.msg-layout{display:grid;grid-template-columns:300px 1fr;gap:16px;align-items:stretch;margin-top:16px}
+.msg-side{display:flex;flex-direction:column;gap:10px;min-height:520px}
+.msg-main{display:flex;flex-direction:column;min-height:520px}
+#dm-chat-mount{flex:1;min-height:0}
+.msg-empty{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:.9rem;flex:1}
+.conv-item{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:12px;
+  border:1px solid transparent;cursor:pointer;background:var(--glass-bg);}
+.conv-item:hover{background:rgba(6,182,212,.08)}
+.conv-item.active{background:rgba(6,182,212,.14);border-color:rgba(6,182,212,.4)}
+.conv-name{font-weight:700;font-size:.88rem;color:var(--text);display:flex;justify-content:space-between;align-items:center}
+.conv-last{font-size:.76rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conv-unread{background:#ef4444;color:#fff;border-radius:999px;font-size:.66rem;font-weight:700;padding:0 6px;line-height:1.6}
+#conv-list{display:flex;flex-direction:column;gap:6px;overflow-y:auto}
+#new-chat-search{width:100%;box-sizing:border-box}
+#new-chat-results{margin-top:6px;display:flex;flex-direction:column;gap:4px}
+.nc-item{padding:8px 10px;border-radius:10px;background:var(--glass-bg);border:1px solid var(--glass-border);
+  cursor:pointer;font-size:.8rem;font-weight:600;color:var(--text)}
+.nc-item:hover{background:rgba(6,182,212,.14)}
+.nc-hint{font-size:.72rem;color:var(--muted);margin-top:6px}
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand title-gradient" href="/play3d">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/play3d" class="nav-link">Game</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/messages" class="nav-link active">Messages</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="/customize" class="nav-link">Customize</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+  </div>
+</nav>
+
+<main>
+  <h1>Messages</h1>
+  <div class="msg-layout">
+    <div class="msg-side">
+      <input id="new-chat-search" class="input" type="text"
+             placeholder="Search users to message (friends only)…">
+      <div id="new-chat-results"></div>
+      <div id="conv-list"></div>
+    </div>
+    <div class="glass-card msg-main">
+      <div id="dm-chat-mount"></div>
+      <div class="msg-empty" id="dm-empty">Select a conversation — or search for a friend above.</div>
+    </div>
+  </div>
+</main>
+
+<script src="/static/chat.js"></script>
+<script>
+(function () {
+  var panel = null;
+  var searchTimer = null;
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+  function fmtTime(ts) {
+    var d = new Date(typeof ts === 'string' ? ts : (ts || 0) * 1000);
+    if (isNaN(d.getTime())) return '';
+    var now = new Date();
+    var sameDay = d.toDateString() === now.toDateString();
+    var t = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return sameDay ? t : d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + t;
+  }
+
+  function renderConvs(convs) {
+    var list = document.getElementById('conv-list');
+    list.innerHTML = '';
+    if (!convs || !convs.length) {
+      var none = document.createElement('div');
+      none.className = 'nc-hint';
+      none.textContent = 'No conversations yet. Search for a friend to start one.';
+      list.appendChild(none);
+      return;
+    }
+    convs.forEach(function (c) {
+      var item = document.createElement('div');
+      item.className = 'conv-item' + (panel && c.conv_id === panel.opts.scopeId ? ' active' : '');
+      var name = document.createElement('div');
+      name.className = 'conv-name';
+      var n = document.createElement('span');
+      n.textContent = c.other_name || 'Player';
+      name.appendChild(n);
+      if (c.unread > 0) {
+        var b = document.createElement('span');
+        b.className = 'conv-unread';
+        b.textContent = c.unread > 99 ? '99+' : String(c.unread);
+        name.appendChild(b);
+      }
+      var last = document.createElement('div');
+      last.className = 'conv-last';
+      last.textContent = (c.last_body || '') + (c.last_ts ? ' · ' + fmtTime(c.last_ts) : '');
+      item.appendChild(name);
+      item.appendChild(last);
+      item.addEventListener('click', function () { selectConversation(c); });
+      list.appendChild(item);
+    });
+  }
+
+  function loadConvs() {
+    fetch('/chat/conversations').then(function (r) { return r.json(); }).then(function (d) {
+      if (d.error) return;
+      renderConvs(d.conversations || []);
+    }).catch(function () {});
+  }
+
+  function selectConversation(c) {
+    var empty = document.getElementById('dm-empty');
+    if (empty) empty.style.display = 'none';
+    if (!panel) {
+      panel = new ChatPanel({
+        mount: document.getElementById('dm-chat-mount'),
+        scope: 'dm',
+        name: c.other_name || 'Messages',
+        pollMs: 2500,
+        collapsed: false,
+      });
+    }
+    panel.setConversation(c.conv_id, c.other_name || 'Messages');
+    loadConvs();
+  }
+
+  var searchInput = document.getElementById('new-chat-search');
+  searchInput.addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    var q = searchInput.value.trim();
+    if (q.length < 2) { document.getElementById('new-chat-results').innerHTML = ''; return; }
+    searchTimer = setTimeout(function () {
+      fetch('/online/invite/search?q=' + encodeURIComponent(q))
+        .then(function (r) { return r.json(); })
+        .then(function (users) {
+          var box = document.getElementById('new-chat-results');
+          box.innerHTML = '';
+          (users || []).slice(0, 6).forEach(function (u) {
+            var item = document.createElement('div');
+            item.className = 'nc-item';
+            item.textContent = u.username;
+            item.title = 'Message ' + u.username + ' (friends only)';
+            item.addEventListener('click', function () {
+              box.innerHTML = '';
+              searchInput.value = '';
+              var empty = document.getElementById('dm-empty');
+              if (empty) empty.style.display = 'none';
+              if (!panel) {
+                panel = new ChatPanel({
+                  mount: document.getElementById('dm-chat-mount'),
+                  scope: 'dm',
+                  withUid: u.id,
+                  name: u.username,
+                  pollMs: 2500,
+                  collapsed: false,
+                });
+              } else {
+                panel.setRecipient(u.id, u.username);
+              }
+              loadConvs();
+            });
+            box.appendChild(item);
+          });
+        })
+        .catch(function () {});
+    }, 350);
+  });
+
+  loadConvs();
+  setInterval(loadConvs, 15000);
+})();
+</script>
+<script src="/static/feedback.js"></script>
+</body>
+</html>

@@ -114,6 +114,14 @@
   {% endif %}
 </main>
 
+<div class="glass-card" style="margin-top:20px;">
+  <h3>Tournament Chat</h3>
+  <p style="font-size:0.82rem;color:var(--muted);margin-top:4px;">
+    Chat with the tournament organiser and invited friends.
+  </p>
+  <div id="lobby-chat" style="height:340px;margin-top:10px;"></div>
+</div>
+
 <script>
 function addParticipant(type) {
   let select = document.getElementById(type + 'Select');
@@ -148,5 +156,17 @@ function simulateMatch(matchId) {
 }
 </script>
 <script src="/static/feedback.js"></script>
+<script src="/static/chat.js"></script>
+<script>
+  new ChatPanel({
+    mount: document.getElementById('lobby-chat'),
+    scope: 'tournament',
+    scopeId: '{{ t.id }}',
+    name: 'Tournament Chat',
+    quickReactions: false,
+    pollMs: 3000,
+    collapsed: false,
+  });
+</script>
 </body>
 </html>
