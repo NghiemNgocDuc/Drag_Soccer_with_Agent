@@ -45,6 +45,26 @@
   box-shadow:0 4px 16px rgba(2,6,23,.15)}
 #online-lobby-create{display:none;flex-direction:column;gap:8px}
 #online-lobby-waiting{display:none;color:#0284c7;font-weight:600;font-size:.85rem}
+#voice-btn{position:fixed;right:16px;bottom:428px;z-index:55;display:none;
+  background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.65);border-radius:999px;
+  padding:7px 14px;font-size:.82rem;font-weight:600;color:#0f172a;cursor:pointer;
+  box-shadow:0 4px 16px rgba(2,6,23,.15)}
+#voice-btn:hover{background:#fff}
+#voice-panel{position:fixed;right:16px;bottom:428px;z-index:55;display:none;align-items:center;gap:8px;
+  background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.65);border-radius:12px;
+  padding:8px 10px;box-shadow:0 4px 16px rgba(2,6,23,.15)}
+#voice-status{font-size:.78rem;font-weight:600;color:#0f172a;max-width:170px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+#voice-status .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#94a3b8}
+#voice-status.v-ok .dot{background:#22c55e}
+#voice-status.v-bad .dot{background:#ef4444}
+#voice-status.v-busy .dot{background:#f59e0b}
+.vp-btn{background:rgba(241,245,249,.9);border:1px solid rgba(148,163,184,.5);border-radius:8px;
+  font-size:.85rem;padding:5px 9px;cursor:pointer;color:#0f172a}
+.vp-btn:hover{background:#e2e8f0}
+.vp-btn.muted{background:#fee2e2;border-color:#f87171;color:#b91c1c}
+#voice-opp-muted{display:none;font-size:.7rem;color:#b45309;font-weight:600;background:#fef3c7;
+  border-radius:6px;padding:2px 6px}
 </style>
 <script src="/static/sound.js"></script>
 <script src="/static/chat.js"></script>
@@ -155,6 +175,15 @@
   </div>
   <div id="online-bar" style="display:none"></div>
   <div id="match-chat-wrap"></div>
+
+  <!-- Voice chat (1v1 online only) -->
+  <button id="voice-btn" onclick="voiceToggle()" title="Enable voice chat (microphone)">&#127908; Voice</button>
+  <div id="voice-panel">
+    <span id="voice-status"><span class="dot"></span>Voice: off</span>
+    <button id="voice-mic-btn" class="vp-btn" onclick="voiceToggleMic()" title="Mute / unmute microphone">&#127908;</button>
+    <span id="voice-opp-muted">opponent muted</span>
+    <button id="voice-end-btn" class="vp-btn" onclick="voiceDisconnect()" title="Disconnect from voice chat">&#10005;</button>
+  </div>
 
   <!-- Penalty shootout UI -->
   <div id="penalty-ui" style="display:none">
@@ -1266,6 +1295,8 @@ function setOnlineUI(active) {
   document.getElementById('model-select').disabled = active;
   document.getElementById('aivai-btn').style.display = 'none';
   document.getElementById('online-btn').style.display = active ? 'none' : '';
+  voiceBtn().style.display = active && !VOICE.enabled ? 'block' : 'none';
+  if (!active) voiceDisconnect();
 }
 
 function updateOnlineBar() {
@@ -1280,6 +1311,7 @@ function updateOnlineBar() {
 
 function startOnline(joinData) {
   ONLINE.active = true;
+  ONLINE.roomId = joinData.room_id || ONLINE.roomId;
   ONLINE.side = joinData.my_side || null;
   ONLINE.nameA = joinData.name_a || 'Player A';
   ONLINE.nameB = joinData.name_b || 'Player B';
@@ -1312,12 +1344,20 @@ function startOnline(joinData) {
 async function pollOnline() {
   if (!ONLINE.active) return;
   try {
-    const resp = await fetch('/online/' + ONLINE.roomId + '/state?since_kick=' + ONLINE.lastKick);
+    let url = '/online/' + ONLINE.roomId + '/state?since_kick=' + ONLINE.lastKick;
+    if (VOICE.enabled) url += '&voice_after=' + VOICE.after;
+    const resp = await fetch(url);
     const data = await resp.json();
     if (data.error || !data.game) { endOnline(data.error); return; }
     ONLINE.nameA = data.name_a || ONLINE.nameA;
     ONLINE.nameB = data.name_b || ONLINE.nameB;
     updateOnlineBar();
+    if (data.voice_signals) {
+      VOICE.after = parseInt(data.voice_after, 10);
+      if (!isNaN(VOICE.after)) {
+        data.voice_signals.forEach(handleVoiceSignal);
+      }
+    }
     if (data.status === 'done' && !data.game.game_over) {
       data.game.game_over = true;
       data.game.winner = data.game.score_a > data.game.score_b ? 'A' : data.game.score_a < data.game.score_b ? 'B' : null;
@@ -1340,9 +1380,214 @@ function endOnline(msg) {
   if (ONLINE.chat) { ONLINE.chat.destroy(); ONLINE.chat = null; }
   document.getElementById('match-chat-wrap').innerHTML = '';
   document.getElementById('online-bar').style.display = 'none';
+  voiceDisconnect();
   setOnlineUI(false);
   if (msg) alert(msg || 'The match ended');
 }
+
+// ── Voice chat (1v1 P2P WebRTC, STUN-only) ────────────────────────────────
+const VOICE = {
+  pc: null, localStream: null, localTrack: null, audioEl: null,
+  enabled: false, connected: false, after: -1, oppMuted: false,
+  icePending: [],
+};
+const VOICE_ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+function voiceBtn()      { return document.getElementById('voice-btn'); }
+function voicePanel()    { return document.getElementById('voice-panel'); }
+function voiceStatusEl() { return document.getElementById('voice-status'); }
+function voiceMicBtn()   { return document.getElementById('voice-mic-btn'); }
+function voiceOppMuted() { return document.getElementById('voice-opp-muted'); }
+
+function setVoiceStatus(text, cls) {
+  const el = voiceStatusEl();
+  el.className = cls || '';
+  el.innerHTML = '<span class="dot"></span>' + text;
+}
+
+function showVoiceUi(show) {
+  voiceBtn().style.display = ONLINE.active && !show ? 'block' : 'none';
+  voicePanel().style.display = show ? 'flex' : 'none';
+}
+
+function sendVoice(sig) {
+  if (!ONLINE.active) return;
+  fetch('/online/' + ONLINE.roomId + '/voice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sig),
+  }).catch(function() {});
+}
+
+window.voiceEnable = async function() {
+  if (VOICE.enabled || !ONLINE.active) return;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    showVoiceUi(true);
+    setVoiceStatus('Voice: mic permission denied', 'v-bad');
+    return;
+  }
+  const pc = new RTCPeerConnection(VOICE_ICE);
+  VOICE.pc = pc;
+  VOICE.localStream = stream;
+  VOICE.localTrack = stream.getAudioTracks()[0] || null;
+  if (VOICE.localTrack) pc.addTrack(VOICE.localTrack, stream);
+  const remote = new MediaStream();
+  pc.ontrack = function(e) {
+    e.streams.forEach(function(s) { s.getAudioTracks().forEach(function(t) { remote.addTrack(t); }); });
+    if (!VOICE.audioEl) {
+      VOICE.audioEl = new Audio();
+      VOICE.audioEl.autoplay = true;
+      VOICE.audioEl.srcObject = remote;
+      VOICE.audioEl.play().catch(function() {});
+    }
+  };
+  pc.onicecandidate = function(e) {
+    if (e.candidate) sendVoice({ type: 'ice', data: { candidate: e.candidate } });
+  };
+  pc.onconnectionstatechange = updateVoiceState;
+  pc.oniceconnectionstatechange = updateVoiceState;
+  VOICE.enabled = true;
+  VOICE.after = -1;
+  VOICE.oppMuted = false;
+  VOICE.icePending = [];
+  voiceOppMuted().style.display = 'none';
+  showVoiceUi(true);
+  setVoiceStatus('Voice: connecting…', 'v-busy');
+  updateVoiceMicBtn();
+  if (ONLINE.side === 'a') {
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendVoice({ type: 'offer', data: { sdp: pc.localDescription.sdp } });
+    } catch (err) { /* state handler will surface failure */ }
+  }
+  pollOnline();
+};
+
+function updateVoiceState() {
+  if (!VOICE.pc || !VOICE.enabled) return;
+  const st = VOICE.pc.connectionState || VOICE.pc.iceConnectionState;
+  if (st === 'connected' || st === 'completed') {
+    VOICE.connected = true;
+    setVoiceStatus('Voice: connected', 'v-ok');
+  } else if (st === 'connecting' || st === 'checking' || st === 'new') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: connecting…', 'v-busy');
+  } else if (st === 'disconnected') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: connection lost', 'v-bad');
+  } else if (st === 'failed') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: failed (P2P blocked? no TURN)', 'v-bad');
+  } else if (st === 'closed') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: disconnected', '');
+  }
+}
+
+function updateVoiceMicBtn() {
+  const muted = !VOICE.localTrack || !VOICE.localTrack.enabled;
+  voiceMicBtn().textContent = muted ? '🔇' : '🎤';
+  voiceMicBtn().classList.toggle('muted', muted);
+  voiceMicBtn().title = muted ? 'Unmute microphone' : 'Mute microphone';
+}
+
+window.voiceToggle = function() {
+  if (!ONLINE.active) return;
+  if (VOICE.enabled) { voiceDisconnect(); } else { voiceEnable(); }
+};
+
+window.voiceToggleMic = function() {
+  if (!VOICE.enabled || !VOICE.localTrack) return;
+  VOICE.localTrack.enabled = !VOICE.localTrack.enabled;
+  updateVoiceMicBtn();
+  sendVoice({ type: 'mute', data: { muted: !VOICE.localTrack.enabled } });
+};
+
+window.voiceDisconnect = function() {
+  if (VOICE.pc) {
+    VOICE.pc.onicecandidate = null;
+    VOICE.pc.ontrack = null;
+    VOICE.pc.onconnectionstatechange = null;
+    VOICE.pc.close();
+    VOICE.pc = null;
+  }
+  if (VOICE.localStream) {
+    VOICE.localStream.getTracks().forEach(function(t) { t.stop(); });
+    VOICE.localStream = null;
+  }
+  if (VOICE.audioEl) {
+    VOICE.audioEl.srcObject = null;
+    VOICE.audioEl.pause();
+    VOICE.audioEl = null;
+  }
+  VOICE.localTrack = null;
+  VOICE.enabled = false;
+  VOICE.connected = false;
+  VOICE.after = -1;
+  VOICE.oppMuted = false;
+  VOICE.icePending = [];
+  voiceOppMuted().style.display = 'none';
+  showVoiceUi(false);
+  setVoiceStatus('Voice: off', '');
+};
+
+function flushVoiceIce() {
+  const pc = VOICE.pc;
+  if (!pc || !VOICE.enabled) return;
+  VOICE.icePending.forEach(function(c) {
+    if (pc.remoteDescription && pc.remoteDescription.type) {
+      pc.addIceCandidate(new RTCIceCandidate(c)).catch(function() {});
+    }
+  });
+  VOICE.icePending = [];
+}
+
+function handleVoiceSignal(sig) {
+  if (!VOICE.pc || !VOICE.enabled) return;
+  const pc = VOICE.pc;
+  if (sig.type === 'offer') {
+    pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: sig.data.sdp }))
+      .then(function() { flushVoiceIce(); return pc.createAnswer(); })
+      .then(function(ans) { return pc.setLocalDescription(ans); })
+      .then(function() { sendVoice({ type: 'answer', data: { sdp: pc.localDescription.sdp } }); })
+      .catch(function() {});
+  } else if (sig.type === 'answer') {
+    pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sig.data.sdp }))
+      .then(function() { flushVoiceIce(); })
+      .catch(function() {});
+  } else if (sig.type === 'ice') {
+    if (sig.data && sig.data.candidate) {
+      if (pc.remoteDescription && pc.remoteDescription.type) {
+        pc.addIceCandidate(new RTCIceCandidate(sig.data.candidate)).catch(function() {});
+      } else {
+        VOICE.icePending.push(sig.data.candidate);
+      }
+    }
+  } else if (sig.type === 'mute') {
+    VOICE.oppMuted = !!(sig.data && sig.data.muted);
+    voiceOppMuted().style.display = VOICE.oppMuted ? 'inline-block' : 'none';
+  }
+}
+
+window.__voiceState = function() {
+  const pc = VOICE.pc;
+  return {
+    active: ONLINE.active, enabled: VOICE.enabled, connected: VOICE.connected,
+    after: VOICE.after, oppMuted: VOICE.oppMuted, hasPc: !!pc,
+    micMuted: !!VOICE.localTrack && !VOICE.localTrack.enabled,
+    statusText: voiceStatusEl().textContent,
+    panelShown: voicePanel().style.display !== 'none',
+    pcState: pc ? (pc.connectionState || 'null') : null,
+    iceState: pc ? (pc.iceConnectionState || 'null') : null,
+    gatherState: pc ? (pc.iceGatheringState || 'null') : null,
+    remoteDesc: pc && pc.remoteDescription ? pc.remoteDescription.type : null,
+    pendingIce: VOICE.icePending.length,
+  };
+};
 
 async function animateOnlineMove(move, game) {
   if (isAnimating) return;

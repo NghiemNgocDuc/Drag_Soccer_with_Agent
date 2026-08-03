@@ -1187,9 +1187,11 @@ def online_join(room_id):
     my_uid = uid()
     if room["player_a"] == my_uid:
         return jsonify({"my_side": "a", "status": room["status"],
+                        "room_id": room_id,
                         "name_a": room["name_a"], "name_b": room["name_b"]})
     if room["player_b"] == my_uid:
         return jsonify({"my_side": "b", "status": room["status"],
+                        "room_id": room_id,
                         "name_a": room["name_a"], "name_b": room["name_b"]})
     if room["player_b"] is not None:
         return jsonify({"error": "Room is full"}), 400
@@ -1198,6 +1200,7 @@ def online_join(room_id):
     room["status"]   = "active"
     _save_room(room_id, room)
     return jsonify({"my_side": "b", "status": "active",
+                    "room_id": room_id,
                     "name_a": room["name_a"], "name_b": room["name_b"]})
 
 
@@ -1216,13 +1219,69 @@ def online_room_state(room_id):
         "name_a":  room["name_a"],
         "name_b":  room["name_b"],
         "status":  room["status"],
+        "room_id": room_id,
     }
     my_uid = uid()
     resp["my_side"] = ("a" if my_uid == room["player_a"]
                        else "b" if my_uid == room["player_b"] else None)
     if room["last_move"] and room["game"].get("kick_count", 0) > since_kick:
         resp["last_move"] = room["last_move"]
+    # Voice-chat signaling rides the same poll — only for the two participants.
+    if request.args.get("voice_after") is not None and resp["my_side"]:
+        from db.voice import get_voice_signals
+        from db.chat import get_blocked
+        try:
+            after = int(request.args.get("voice_after", -1))
+        except ValueError:
+            after = -1
+        blocked = get_blocked(my_uid)
+        # A participant who blocked the other also stops receiving from them.
+        other = (room["player_b"] if my_uid == room["player_a"] else room["player_a"])
+        if other in blocked:
+            blocked = {other}
+        sigs, next_after = get_voice_signals(room_id, after, blocked)
+        # skip messages we sent ourselves — only the peer's matter
+        sigs = [s for s in sigs if s["from"] != my_uid]
+        resp["voice_signals"] = sigs
+        resp["voice_after"]   = next_after
     return jsonify(resp)
+
+
+@app.route("/online/<room_id>/voice", methods=["POST"])
+def online_voice_signal(room_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not in session"}), 401
+    room = _get_room(room_id)
+    if not room:
+        return jsonify({"error": "Room not found"}), 404
+    my_uid  = uid()
+    my_side = ("a" if my_uid == room["player_a"]
+               else "b" if my_uid == room["player_b"] else None)
+    if not my_side:
+        return jsonify({"error": "Not a player in this room"}), 403
+    data  = request.get_json(silent=True) or {}
+    s_type = (data.get("type") or "").strip()
+    if s_type not in ("offer", "answer", "ice", "mute"):
+        return jsonify({"error": "Invalid signal type"}), 400
+    # Mutual block check: a blocked user can't signal, and signals to a
+    # blocker would never be delivered anyway — reject at the source.
+    from db.chat import get_blocked
+    other = (room["player_b"] if my_side == "a" else room["player_a"])
+    try:
+        blocked_me  = get_blocked(my_uid)
+        blocked_them = get_blocked(other)
+    except Exception:
+        blocked_me = blocked_them = set()
+    if other in blocked_me:
+        return jsonify({"error": "You've blocked this user"}), 403
+    if my_uid in blocked_them:
+        return jsonify({"error": "This user has blocked you"}), 403
+    from db.voice import send_voice_signal
+    try:
+        sig = send_voice_signal(room_id, my_uid, s_type, data.get("data") or {})
+    except ValueError:
+        return jsonify({"error": "Invalid signal type"}), 400
+    return jsonify({"ok": True, "signal": sig})
 
 
 @app.route("/online/<room_id>/move", methods=["POST"])

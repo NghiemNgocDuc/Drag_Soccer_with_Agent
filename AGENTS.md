@@ -90,18 +90,29 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 - **Testability hooks**: `window.__ballFX()` on both pages (quat/scale/shadowOpacity/shadowScale/dustActive/pos).
 - Verified headless (Playwright, port 5094, seeded in-memory tournament + real `apply_kick` trajectories): 19/19 checks — lofted drive (bzMax 74-81, squash peak exactly 0.823 = designed spring, dust fires on bounces, spin > 1 rad, shadow 0.21 opacity at height vs 0.3 grounded, scale 1.21 at height), pure rolls (no flight, NO squash, dust=0, rolling spin), replay + play3d fps ~6.5 (parity with unmodified page at ~10 in this SwiftShader env — measured via git stash A/B: no regression), zero console errors / 4xx. Screenshot: `%TEMP%\opencode\ballfx_verify\replay_flight.png`. Harness: `%TEMP%\opencode\ballfx_verify\verify_ballfx.py`. pytest: 73 passed.
 
+### Voice chat (1v1 online matches — WebRTC P2P audio)
+- **Transport**: no new socket — signaling piggybacks on the existing 1500ms HTTP poll. `POST /online/<room_id>/voice` appends to Redis list `voice_signal:{room_id}` (TTL 6h, cap 100, types `offer`/`answer`/`ice`/`mute`, seq = list index); `GET /online/<room_id>/state?voice_after=N` returns `voice_signals` + `voice_after` only for room participants. Server filters own signals on read; blocked users' signals never delivered (read-filter + mutual-block check on write → 403).
+- **Backend** (`db/voice.py`, `app.py`): gating 401 (no session) / 404 (no room) / 403 (not a player, or blocked pair) / 400 (invalid type). Cursor = strictly-after seq.
+- **Frontend** (`index_3d.html`): mic is opt-in on explicit click (`voiceEnable` → `getUserMedia({audio:true})`); `#voice-btn` pill + `#voice-panel` (status dot v-ok/v-bad/v-busy, 🎤/🔇 toggle, opponent-muted amber badge, ✕ disconnect) at right 16px bottom 428px (above match chat); `voiceDisconnect` = full teardown (close pc, stop tracks, clear audio element); `window.__voiceState()` test hook (+ ICE diagnostics: pcState/iceState/gatherState/remoteDesc/pendingIce).
+- **STUN-only, no TURN** (`stun.l.google.com:19302`) — documented limitation: voice may fail on restrictive NATs, surfaced as "Voice: failed (P2P blocked? no TURN)".
+- **Bugs fixed during verification**: (1) `startOnline` never set `ONLINE.roomId` (join/state responses lacked `room_id`) → `ONLINE.roomId.slice(0,8)` threw inside init's try → catch re-opened the lobby modal over an active match — join and state now return `room_id`; (2) trickle-ICE race — `ice` signals were `addIceCandidate`'d before async `setRemoteDescription` resolved (`InvalidStateError` swallowed) → all peer candidates dropped, both sides stuck "connecting" — candidates now queue in `VOICE.icePending` and flush after remote description lands; (3) `sendVoice` sent the whole `RTCSessionDescription` object as `data.sdp` instead of the SDP string → `new RTCSessionDescription` got an object and remote description never set.
+- Verified headless (Playwright, two contexts, fake mic): 20/20 — button visibility, panel, offer/answer/ICE relay, both peers `connected`, mute/unmute immediate + opponent badge, clean disconnect + peer notice, re-enable reconnects, zero console errors.
+
 ### AI agents
 - All 7 agents use `simulate_kick(state, pidx, angle, power)` to evaluate outcomes
 - `policy_iteration.py` and `value_iteration.py` account for Power stat in player selection
 - AI Arena benchmarks run all agents against each other with win-rate/accuracy/heatmap tables
 
-### Tests (48 passing)
+### Tests (89 passing, 4 skipped)
 - `test_stats.py` — 11 stat-specific tests (mappings, injection, backward compat, power/weight/agility effects)
 - `test_pymunk.py` — 5 pymunk baseline tests
 - `test_penalty.py` — 27 penalty shootout tests
 - `test_vertical.py` — 5 vertical/loft tests
+- `test_chat.py` — 12 chat tests (3 skip without Supabase): DM relay, conversation list, rate limit, profanity filter, block/unblock, report, cursor semantics
+- `test_voice.py` — 5 voice-relay tests (1 skip without Supabase): signal queue/cursor, invalid type, HTTP offer/answer/ice relay, gating (401/400/404), blocked-pair rejection
 - `referee_test.py` — 8 referee checks (temp file: `%TEMP%\opencode\referee_test.py`) — determinism, wandering, dodge, zero physics, bounds, state sync
-- `balance_test.py` — Balance test script (not pytest — run directly: `python balance_test.py`)
+- `balance_test.py` — Balance test script (not pytest — run directly: `python balance_test.py`; needs `build` fixture, excluded from suite)
+- Run: `python -m pytest -q --ignore=test_integration.py --ignore=balance_test.py` (skips = Supabase-dependent + pre-existing)
 
 ## Key physics constants
 
