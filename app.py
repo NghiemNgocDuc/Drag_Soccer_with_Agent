@@ -781,12 +781,15 @@ def benchmark():
 def profile():
     from db.games import get_user_stats
     from db.profiles import get_avatar_url
+    from db.ranked import get_rating, PLACEMENT_GAMES
     stats = get_user_stats(uid())
     username = session.get("username", "Player")
     joined_days = session.get("joined_at")
     avatar_url = get_avatar_url(uid())
+    rating = get_rating(uid())
     return render_template("profile.html", username=username, stats=stats,
-                           joined_days=joined_days, avatar_url=avatar_url)
+                           joined_days=joined_days, avatar_url=avatar_url,
+                           rating=rating, placement_games=PLACEMENT_GAMES)
 
 
 # ── Profile photo (Supabase Storage, per-user scoped) ─────────────────────
@@ -908,10 +911,13 @@ def api_customization():
 @login_required
 def my_models_page():
     from db.user_models import get_user_models
+    from db.leaderboard import list_user_submissions
     from user_models.runner import TEMPLATE, detect_old_field_literals
     models = get_user_models(uid())
+    subs = list_user_submissions(uid()) if models else {}
     for m in models:
         m["maybe_outdated"] = bool(detect_old_field_literals(m.get("code") or ""))
+        m["lb"] = subs.get(m.get("id"))
     return render_template("my_models.html", username=session.get("username", "Player"), models=models, template_code=TEMPLATE)
 
 
@@ -1147,6 +1153,336 @@ def _save_room(room_id, room):
     r.setex(f"room:{room_id}", ROOM_TTL, _json.dumps(room))
 
 
+# ── Live-match index (spectator mode) ─────────────────────────────────────
+# A Redis set tracks rooms whose status is "active", so /spectate can list
+# open matches without scanning. Stale ids are pruned on read.
+
+def _mark_room_active(room_id):
+    from db.redis_client import r
+    r.sadd("online:active", room_id)
+
+
+def _mark_room_inactive(room_id):
+    from db.redis_client import r
+    r.srem("online:active", room_id)
+
+
+def _active_room_list():
+    from db.redis_client import r
+    ids = {i.decode() if isinstance(i, bytes) else i for i in r.smembers("online:active")}
+    rooms = []
+    for rid in ids:
+        room = _get_room(rid)
+        if not room or room.get("status") != "active":
+            _mark_room_inactive(rid)
+            continue
+        g = room["game"]
+        rooms.append({
+            "room_id":   rid,
+            "name_a":    room.get("name_a", "Player A"),
+            "name_b":    room.get("name_b", "Player B"),
+            "score_a":   g.get("score_a", 0),
+            "score_b":   g.get("score_b", 0),
+            "kick_count": g.get("kick_count", 0),
+            "started_at": room.get("started_at"),
+        })
+    rooms.sort(key=lambda x: x["started_at"] or 0)
+    return rooms
+
+
+# ── Ranked matchmaking (ELO for human players) ─────────────────────────────
+# A "Play Ranked" queue pairs human players by similar rating. ONLY matches
+# created from this queue affect rating — casual create/link/invite rooms stay
+# unranked (the hook only fires when room["ranked"] is set). The queue lives
+# in Redis: a set of waiting user ids + per-user join timestamps; matched
+# players are told their room id via a short-lived `ranked:match:{uid}` key.
+# Ratings live in Supabase (db/ranked.py) and are written only by the
+# server-side match-completion hook in `online_move`.
+
+RANKED_QUEUE_TTL   = 3600  # how long a queue entry may linger
+RANKED_MATCH_GRACE = 60    # seconds a matched-but-unstarted room survives
+RANKED_QUEUE_KEY   = "ranked:queue"
+RANKED_ROOMS_KEY   = "ranked:rooms"
+RANKED_MATCH_KEY   = "ranked:match"
+
+
+def _ranked_allowed_gap(wait_s: float) -> int:
+    """Matching window widens the longer a player has waited.
+
+    Small population, so don't leave anyone queued forever for a precise
+    match: 0-10s ±50, 10-30s ±150, 30-60s ±300, 60s+ ±600.
+    """
+    if wait_s < 10:
+        return 50
+    if wait_s < 30:
+        return 150
+    if wait_s < 60:
+        return 300
+    return 600
+
+
+def _ranked_members() -> set:
+    from db.redis_client import r as redis
+    members = redis.smembers(RANKED_QUEUE_KEY)
+    return {m.decode() if isinstance(m, bytes) else m for m in members}
+
+
+def _ranked_join_ts(uid_: str) -> float | None:
+    from db.redis_client import r as redis
+    raw = redis.get(f"ranked:join:{uid_}")
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _profile_names(user_ids) -> dict:
+    names: dict[str, str] = {}
+    try:
+        from db.supabase_client import service
+        if service:
+            rows = (service.table("profiles").select("id,username")
+                    .in_("id", list(user_ids)).execute().data or [])
+            for row in rows:
+                if row.get("username"):
+                    names[row["id"]] = row["username"]
+    except Exception:
+        pass
+    return names
+
+
+def _create_ranked_room(a_uid: str, b_uid: str) -> str:
+    from db.redis_client import r as redis
+    from db.ranked import get_ratings
+    ratings = get_ratings([a_uid, b_uid])
+    # Lower-rated player is A (deterministic assignment).
+    if ratings[a_uid]["rating"] > ratings[b_uid]["rating"]:
+        a_uid, b_uid = b_uid, a_uid
+    names = _profile_names([a_uid, b_uid])
+    room_id = _uuid.uuid4().hex[:10]
+    room = {
+        "game":            new_game_state(mode="hvh"),
+        "player_a":        a_uid,
+        "player_b":        b_uid,
+        "name_a":          names.get(a_uid) or "Player A",
+        "name_b":          names.get(b_uid) or "Player B",
+        "status":          "active",
+        "last_move":       None,
+        "started_at":      _time.time(),
+        "ranked":          True,
+        "ranked_processed": False,
+        "ranked_pending":  False,
+        "ranked_result":   None,
+    }
+    _save_room(room_id, room)
+    _mark_room_active(room_id)
+    redis.sadd(RANKED_ROOMS_KEY, room_id)
+    redis.setex(f"{RANKED_MATCH_KEY}:{a_uid}", RANKED_MATCH_GRACE, room_id)
+    redis.setex(f"{RANKED_MATCH_KEY}:{b_uid}", RANKED_MATCH_GRACE, room_id)
+    return room_id
+
+
+def _try_ranked_match() -> list[dict]:
+    """Pair the closest-rated waiting players whose gap fits the window.
+
+    Runs on every queue join/status poll. Greedy pass over the rating-sorted
+    waiting list: adjacent pairs (the closest ratings) ship first; the window
+    is the wider of the two players' wait-based thresholds.
+    """
+    from db.redis_client import r as redis
+    from db.ranked import get_ratings
+    members = _ranked_members()
+    if len(members) < 2:
+        return []
+    ratings = get_ratings(sorted(members))
+    ordered = sorted(members, key=lambda u: (ratings[u]["rating"], u))
+    now = _time.time()
+    matched: list[tuple[str, str]] = []
+    used: set[str] = set()
+    for i in range(len(ordered) - 1):
+        a, b = ordered[i], ordered[i + 1]
+        if a in used or b in used:
+            continue
+        wa = _ranked_join_ts(a) or now
+        wb = _ranked_join_ts(b) or now
+        gap = abs(ratings[a]["rating"] - ratings[b]["rating"])
+        if gap <= _ranked_allowed_gap(min(now - wa, now - wb)):
+            matched.append((a, b))
+            used.add(a)
+            used.add(b)
+    rooms = []
+    for a, b in matched:
+        redis.srem(RANKED_QUEUE_KEY, a, b)
+        redis.delete(f"ranked:join:{a}")
+        redis.delete(f"ranked:join:{b}")
+        room_id = _create_ranked_room(a, b)
+        rooms.append({"room_id": room_id, "player_a": a, "player_b": b})
+    return rooms
+
+
+def _in_ranked_room(uid_: str) -> bool:
+    """True if the user is a participant of an active ranked room."""
+    from db.redis_client import r as redis
+    ids = {i.decode() if isinstance(i, bytes) else i
+           for i in redis.smembers(RANKED_ROOMS_KEY)}
+    for rid in ids:
+        room = _get_room(rid)
+        if room and room.get("ranked") and room["status"] == "active" \
+                and uid_ in (room["player_a"], room["player_b"]):
+            return True
+    return False
+
+
+def _reclaim_stale_ranked() -> None:
+    """Give up on ranked rooms where neither player started after the grace
+    period and return both players to the queue."""
+    from db.redis_client import r as redis
+    ids = {i.decode() if isinstance(i, bytes) else i
+           for i in redis.smembers(RANKED_ROOMS_KEY)}
+    for rid in ids:
+        room = _get_room(rid)
+        if not room or not room.get("ranked") or room["status"] == "done":
+            redis.srem(RANKED_ROOMS_KEY, rid)
+            continue
+        started = room.get("started_at") or _time.time()
+        if room["game"].get("kick_count", 0) == 0 and _time.time() - started > RANKED_MATCH_GRACE:
+            for p in (room["player_a"], room["player_b"]):
+                if p:
+                    redis.sadd(RANKED_QUEUE_KEY, p)
+                    redis.setex(f"ranked:join:{p}", RANKED_QUEUE_TTL, _time.time())
+                    redis.delete(f"{RANKED_MATCH_KEY}:{p}")
+            redis.srem(RANKED_ROOMS_KEY, rid)
+            redis.delete(f"room:{rid}")
+            _mark_room_inactive(rid)
+
+
+def _ranked_payload(uid_: str) -> dict:
+    from db.redis_client import r as redis
+    from db.ranked import get_rating
+    raw = redis.get(f"{RANKED_MATCH_KEY}:{uid_}")
+    if raw:
+        rid = raw.decode() if isinstance(raw, bytes) else raw
+        room = _get_room(rid)
+        if room and room.get("ranked"):
+            other = room["name_b"] if uid_ == room["player_a"] else room["name_a"]
+            other_id = room["player_b"] if uid_ == room["player_a"] else room["player_a"]
+            return {
+                "status":    "matched",
+                "room_id":   rid,
+                "my_side":   "a" if uid_ == room["player_a"] else "b",
+                "name_a":    room["name_a"],
+                "name_b":    room["name_b"],
+                "opponent":  other,
+                "opponent_rating": get_rating(other_id)["rating"],
+            }
+    if uid_ in _ranked_members():
+        join_ts = _ranked_join_ts(uid_) or _time.time()
+        return {"status": "waiting", "wait_s": int(max(0, _time.time() - join_ts)),
+                "rating": get_rating(uid_)["rating"]}
+    return {"status": "idle", "rating": get_rating(uid_)["rating"]}
+
+
+def _process_ranked_result(room_id: str, room: dict) -> None:
+    """Server-side rating update for a finished ranked match (idempotent).
+
+    Called only from `online_move` after `apply_kick` marks the game over —
+    never from a client-trusted request. `ranked_processed` guards against
+    double-application; if the storage write fails we leave `ranked_pending`
+    so the next state poll retries.
+    """
+    if room.get("ranked_processed"):
+        return
+    pa, pb = room.get("player_a"), room.get("player_b")
+    game = room["game"]
+    winner = game.get("winner")
+    if not pa or not pb or pa.startswith("guest:") or pb.startswith("guest:") \
+            or winner not in ("A", "B"):
+        room["ranked_processed"] = True
+        room["ranked_pending"] = False
+        room["ranked_result"] = None
+        _save_room(room_id, room)
+        return
+    try:
+        from db.ranked import record_result
+        res = record_result(room_id=room_id, player_a=pa, player_b=pb,
+                            winner=winner, score_a=game.get("score_a", 0),
+                            score_b=game.get("score_b", 0))
+        room["ranked_processed"] = True
+        room["ranked_pending"] = False
+        room["ranked_result"] = res
+    except Exception as e:
+        room["ranked_pending"] = True
+        app.logger.warning("Ranked result for room %s failed: %s", room_id, e)
+    _save_room(room_id, room)
+
+
+@app.route("/ranked/join", methods=["POST"])
+@login_required
+def ranked_join():
+    if uid().startswith("guest:"):
+        return jsonify({"error": "Ranked play requires a registered account"}), 403
+    _reclaim_stale_ranked()
+    if _in_ranked_room(uid()):
+        payload = _ranked_payload(uid())
+        if payload.get("status") == "matched":
+            return jsonify(payload)
+        return jsonify({"error": "Finish your current ranked match first"}), 409
+    from db.redis_client import r as redis
+    if not redis.sismember(RANKED_QUEUE_KEY, uid()):
+        redis.sadd(RANKED_QUEUE_KEY, uid())
+        redis.setex(f"ranked:join:{uid()}", RANKED_QUEUE_TTL, _time.time())
+    _try_ranked_match()
+    return jsonify(_ranked_payload(uid()))
+
+
+@app.route("/ranked/cancel", methods=["POST"])
+@login_required
+def ranked_cancel():
+    from db.redis_client import r as redis
+    redis.srem(RANKED_QUEUE_KEY, uid())
+    redis.delete(f"ranked:join:{uid()}")
+    redis.delete(f"{RANKED_MATCH_KEY}:{uid()}")
+    return jsonify({"ok": True})
+
+
+@app.route("/ranked/status")
+@login_required
+def ranked_status():
+    if uid().startswith("guest:"):
+        return jsonify({"error": "Ranked play requires a registered account"}), 403
+    _reclaim_stale_ranked()
+    _try_ranked_match()
+    return jsonify(_ranked_payload(uid()))
+
+
+# ── Ranked leaderboard (human players, distinct from the AI-model board) ──
+
+@app.route("/api/leaderboard/ranked")
+@login_required
+def api_ranked_leaderboard():
+    from db.ranked import list_leaderboard, PLACEMENT_GAMES
+    try:
+        limit = max(1, min(100, int(request.args.get("limit", 20))))
+        offset = max(0, int(request.args.get("offset", 0)))
+    except (TypeError, ValueError):
+        limit, offset = 20, 0
+    entries, total = list_leaderboard(limit=limit, offset=offset)
+    return jsonify({"entries": entries, "total": total,
+                    "limit": limit, "offset": offset,
+                    "placement_games": PLACEMENT_GAMES})
+
+
+@app.route("/leaderboard/ranked")
+@login_required
+def ranked_leaderboard_page():
+    from db.ranked import PLACEMENT_GAMES
+    return render_template("ranked_leaderboard.html",
+                           username=session.get("username", ""),
+                           placement_games=PLACEMENT_GAMES)
+
+
 @app.route("/online")
 @login_required
 def online_page():
@@ -1170,6 +1506,7 @@ def online_create():
         "name_b":    None,
         "status":    "waiting",
         "last_move": None,
+        "started_at": _time.time(),
     }
     _save_room(room_id, room)
     return jsonify({"room_id": room_id})
@@ -1188,20 +1525,32 @@ def online_join(room_id):
     if room["player_a"] == my_uid:
         return jsonify({"my_side": "a", "status": room["status"],
                         "room_id": room_id,
-                        "name_a": room["name_a"], "name_b": room["name_b"]})
+                        "name_a": room["name_a"], "name_b": room["name_b"],
+                        "ranked": room.get("ranked", False)})
     if room["player_b"] == my_uid:
         return jsonify({"my_side": "b", "status": room["status"],
                         "room_id": room_id,
-                        "name_a": room["name_a"], "name_b": room["name_b"]})
+                        "name_a": room["name_a"], "name_b": room["name_b"],
+                        "ranked": room.get("ranked", False)})
+    # Ranked rooms are pre-filled by the matchmaker — a listed participant
+    # may claim their side without the generic "join as player B" path.
+    if room.get("ranked") and my_uid in (room["player_a"], room["player_b"]):
+        return jsonify({"my_side": "a" if my_uid == room["player_a"] else "b",
+                        "status": room["status"],
+                        "room_id": room_id,
+                        "name_a": room["name_a"], "name_b": room["name_b"],
+                        "ranked": True})
     if room["player_b"] is not None:
         return jsonify({"error": "Room is full"}), 400
     room["player_b"] = my_uid
     room["name_b"]   = session.get("username", "Guest")
     room["status"]   = "active"
     _save_room(room_id, room)
+    _mark_room_active(room_id)
     return jsonify({"my_side": "b", "status": "active",
                     "room_id": room_id,
-                    "name_a": room["name_a"], "name_b": room["name_b"]})
+                    "name_a": room["name_a"], "name_b": room["name_b"],
+                    "ranked": room.get("ranked", False)})
 
 
 @app.route("/online/<room_id>/state")
@@ -1214,13 +1563,22 @@ def online_room_state(room_id):
     if not room:
         return jsonify({"error": "Room not found"}), 404
     since_kick = int(request.args.get("since_kick", -1))
+    # A finished ranked match whose rating update failed previously is
+    # retried lazily here (players poll every 1.5s; room TTL is 6h).
+    if (room.get("ranked") and room.get("status") == "done"
+            and room.get("ranked_pending") and not room.get("ranked_processed")):
+        _process_ranked_result(room_id, room)
+        room = _get_room(room_id) or room
     resp = {
         "game":    room["game"],
         "name_a":  room["name_a"],
         "name_b":  room["name_b"],
         "status":  room["status"],
         "room_id": room_id,
+        "ranked":  room.get("ranked", False),
     }
+    if room.get("ranked_result"):
+        resp["ranked_result"] = room["ranked_result"]
     my_uid = uid()
     resp["my_side"] = ("a" if my_uid == room["player_a"]
                        else "b" if my_uid == room["player_b"] else None)
@@ -1315,7 +1673,15 @@ def online_move(room_id):
     room["last_move"] = move_res
     if game.get("game_over"):
         room["status"] = "done"
-    _save_room(room_id, room)
+        _mark_room_inactive(room_id)
+        if room.get("ranked"):
+            # Authoritative server-side rating update (winner/score were set
+            # by apply_kick above, never by a client). Idempotent + retried
+            # lazily on state polls if the storage write fails.
+            _process_ranked_result(room_id, room)
+        _save_room(room_id, room)
+    else:
+        _save_room(room_id, room)
     return jsonify({"move_result": move_res, "game": game})
 
 
@@ -1348,7 +1714,7 @@ def online_invite_send():
     room = {
         "game": new_game_state(mode="hvh"), "player_a": uid(), "player_b": None,
         "name_a": session.get("username", "Player A"), "name_b": None,
-        "status": "waiting", "last_move": None,
+        "status": "waiting", "last_move": None, "started_at": _time.time(),
     }
     _save_room(room_id, room)
     invite_id = _uuid.uuid4().hex[:12]
@@ -1396,7 +1762,9 @@ def online_accept_invite(invite_id):
     room["player_b"] = uid()
     room["name_b"]   = session.get("username", "Guest")
     room["status"]   = "active"
+    room.setdefault("started_at", _time.time())
     _save_room(inv["room_id"], room)
+    _mark_room_active(inv["room_id"])
     inv["status"] = "accepted"
     redis.setex(f"invite:{invite_id}", INVITE_TTL, _json.dumps(inv))
     redis.lrem(f"user_invites:{uid()}", 0, invite_id)
@@ -1417,6 +1785,34 @@ def online_decline_invite(invite_id):
     redis.setex(f"invite:{invite_id}", INVITE_TTL, _json.dumps(inv))
     redis.lrem(f"user_invites:{uid()}", 0, invite_id)
     return jsonify({"ok": True})
+
+
+# ── Live Spectator Mode (open: any user or logged-out visitor) ─────────────
+# Spectators watch live online matches through the same HTTP-polled /state
+# endpoint the players use. They get the full game + last_move, my_side=None,
+# and every write path (move/voice/chat) is already rejected server-side for
+# non-participants. No changes to the players' matching logic.
+
+@app.route("/api/spectate/active")
+def spectate_active():
+    return jsonify({"matches": _active_room_list()})
+
+
+@app.route("/spectate")
+def spectate_page():
+    return render_template("spectate.html", username=session.get("username"))
+
+
+@app.route("/spectate/<room_id>")
+def spectate_room(room_id):
+    room = _get_room(room_id)
+    if not room:
+        flash("That match is no longer available.", "error")
+        return redirect(url_for("spectate_page"))
+    return render_template("replay_3d.html",
+                           username=session.get("username"),
+                           t=None, match={"replay_data": [], "replay_data_len": 0},
+                           highlights=[], highlight=None, live_room=room_id)
 
 
 # ── Friend system ─────────────────────────────────────────────────────────────
@@ -1657,7 +2053,10 @@ def chat_messages():
                 if not room:
                     return jsonify({"error": "Room not found"}), 404
                 if my_uid not in (room["player_a"], room["player_b"]):
-                    return jsonify({"error": "You're not in this match"}), 403
+                    # Spectators may read a LIVE match's chat, but never post.
+                    # Once the match ends (or the room is gone) read access closes.
+                    if room.get("status") != "active":
+                        return jsonify({"error": "You're not in this match"}), 403
             else:
                 if not _can_lobby_chat(scope_id, my_uid):
                     return jsonify({"error": "You're not in this tournament"}), 403
@@ -1885,7 +2284,7 @@ def tournament_watch_3d(tid, match_id):
         return redirect(url_for("tournament_view", tid=tid))
     hls = get_highlights(tid, match_id) or []
     return render_template("replay_3d.html", username=session.get("username", "Player"),
-                           t=t, match=m, highlights=hls, highlight=None)
+                           t=t, match=m, highlights=hls, highlight=None, live_room=None)
 
 
 @app.route("/matches/<tid>/<match_id>/highlights")
@@ -1916,7 +2315,7 @@ def highlight_page(hid):
         return redirect(url_for("tournament_view", tid=h["tid"]))
     hls = get_highlights(h["tid"], h["match_id"]) or []
     return render_template("replay_3d.html", username=session.get("username", "Player"),
-                           t=t, match=m, highlights=hls, highlight=h)
+                           t=t, match=m, highlights=hls, highlight=h, live_room=None)
 
 # ── Clerk — verify session ────────────────────────────────────────────────
 @app.route("/api/auth/clerk/verify", methods=["POST"])
@@ -2099,6 +2498,106 @@ def api_research_delete():
 
 
 # ── AI Arena — model benchmarking & analytics ──────────────────────────────
+_LB_DEFAULT_GAMES = 5
+
+
+def _run_leaderboard_bench(model_id: str, user_id: str, model_name: str,
+                           code: str, n_games: int) -> None:
+    """Background benchmark for the model leaderboard (runs ~7 × n games)."""
+    import datetime
+    from services.game_analytics import benchmark_model_vs_builtins
+    from db.leaderboard import (set_status, save_submission, get_submission)
+    from db.user_models import update_model
+    try:
+        wrapper = _UserModelWrapper(model_id, model_name, code)
+        total = 7 * n_games
+        set_status(model_id, "running", done=0, total=total)
+
+        def _progress(d, n):
+            set_status(model_id, "running", done=d, total=n)
+
+        result = benchmark_model_vs_builtins(
+            wrapper, n_games=n_games, progress_callback=_progress)
+        save_submission(model_id, user_id, model_name, result["score"],
+                        n_games, result["details"])
+        bench_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        update_model(model_id, user_id,
+                     submitted_to_leaderboard=True, last_benchmarked_at=bench_ts)
+        sub = get_submission(model_id)
+        set_status(model_id, "done", done=result["n_games"] * 7, total=result["n_games"] * 7,
+                   score=result["score"], details=result["details"],
+                   avg_stats=result["avg_stats"], model_name=model_name,
+                   benchmarked_at=(sub or {}).get("benchmarked_at", bench_ts))
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        set_status(model_id, "failed", error=str(exc))
+
+
+@app.route("/api/models/user/<model_id>/submit-leaderboard", methods=["POST"])
+@login_required
+def api_submit_leaderboard(model_id: str):
+    from db.user_models import get_model_by_id
+    from db.leaderboard import get_status
+    import threading as _th
+    data = request.get_json(silent=True) or {}
+    n_games = min(max(int(data.get("games", _LB_DEFAULT_GAMES)), 1), 50)
+    if get_status(model_id) and get_status(model_id).get("status") == "running":
+        return jsonify({"error": "A benchmark is already running for this model."}), 409
+    m = get_model_by_id(model_id, requesting_user_id=uid())
+    if not m or m["user_id"] != uid():
+        return jsonify({"error": "Model not found or access denied."}), 404
+    _th.Thread(
+        target=_run_leaderboard_bench,
+        args=(model_id, uid(), m["name"], m["code"], n_games),
+        daemon=True,
+    ).start()
+    return jsonify({"ok": True, "total_games": 7 * n_games, "games": n_games})
+
+
+@app.route("/api/models/user/<model_id>/leaderboard-status")
+@login_required
+def api_leaderboard_status(model_id: str):
+    from db.leaderboard import get_status, get_submission
+    from db.user_models import get_model_by_id
+    m = get_model_by_id(model_id, requesting_user_id=uid())
+    if not m or m["user_id"] != uid():
+        return jsonify({"error": "Model not found or access denied."}), 404
+    status = get_status(model_id) or {}
+    sub = get_submission(model_id)
+    return jsonify({
+        "status": status.get("status", "idle"),
+        "done": status.get("done", 0),
+        "total": status.get("total", 0),
+        "score": status.get("score"),
+        "details": status.get("details"),
+        "avg_stats": status.get("avg_stats"),
+        "benchmarked_at": (sub or status or {}).get("benchmarked_at"),
+        "error": status.get("error"),
+    })
+
+
+@app.route("/api/leaderboard/models")
+@login_required
+def api_model_leaderboard():
+    from db.leaderboard import list_leaderboard
+    limit = min(max(int(request.args.get("limit", 20)), 1), 100)
+    offset = max(int(request.args.get("offset", 0)), 0)
+    sort = request.args.get("sort", "score")
+    if sort not in ("score", "recent"):
+        sort = "score"
+    entries, total = list_leaderboard(limit=limit, offset=offset, sort=sort)
+    return jsonify({"entries": entries, "total": total, "limit": limit, "offset": offset})
+
+
+@app.route("/api/leaderboard/models/<model_id>")
+@login_required
+def api_model_leaderboard_detail(model_id: str):
+    from db.leaderboard import get_entry_detail
+    entry = get_entry_detail(model_id)
+    if not entry:
+        return jsonify({"error": "Not on the leaderboard."}), 404
+    return jsonify(entry)
 
 @app.route("/arena")
 @login_required

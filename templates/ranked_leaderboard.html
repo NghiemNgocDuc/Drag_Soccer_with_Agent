@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="stylesheet" href="/static/style.css">
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ranked Leaderboard — Agent Soccer</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+nav,main{position:relative;z-index:1}
+main{max-width:820px;margin:0 auto;padding:30px 16px}
+h1{
+  font-size:1.35rem;font-weight:700;letter-spacing:-.02em;
+  background:linear-gradient(135deg,#f59e0b 0%,#ef4444 60%,#8b5cf6 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+  margin-bottom:6px;
+}
+.sub{font-size:.8rem;color:var(--muted);margin-bottom:20px}
+.glass-card{
+  background:var(--glass-bg);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;
+  box-shadow:var(--glass-shadow);
+  overflow:hidden;
+}
+table{width:100%;border-collapse:collapse}
+thead th{
+  background:rgba(255,240,230,.6);
+  padding:11px 16px;text-align:left;
+  font-size:.62rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);border-bottom:1px solid var(--glass-border);
+}
+tbody tr{border-bottom:1px solid rgba(200,120,80,.07);transition:background .12s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(254,243,199,.35)}
+tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
+.rank{font-weight:700;color:var(--dim);width:44px}
+.rank-1{color:#d97706}
+.rank-2{color:#6b7280}
+.rank-3{color:#92400e}
+.username-cell{font-weight:600}
+.lb-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px}
+.you-badge{
+  display:inline-block;font-size:.62rem;font-weight:600;
+  padding:2px 7px;border-radius:100px;
+  background:rgba(245,158,11,.14);border:1px solid rgba(245,158,11,.35);
+  color:#d97706;margin-left:6px;vertical-align:middle;
+}
+.rating-val{color:#d97706;font-weight:800;font-size:.95rem}
+.win-rate{color:var(--accent-b);font-weight:600}
+.peak{color:var(--dim);font-size:.75rem}
+.empty{text-align:center;padding:48px;color:var(--muted);font-size:.85rem}
+.load-more{display:block;margin:14px auto 4px;padding:8px 18px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(255,255,255,.5);color:#d97706;font-size:.78rem;font-weight:600;cursor:pointer}
+.load-more:hover{background:rgba(254,243,199,.6)}
+.spinner{width:30px;height:30px;border:3px solid rgba(245,158,11,.2);border-top-color:#f59e0b;border-radius:50%;animation:spin .6s linear infinite;margin:28px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.back-link{display:inline-block;margin:16px 0 8px;font-size:.78rem;font-weight:600;color:var(--accent);text-decoration:none}
+.back-link:hover{text-decoration:underline}
+.placement-note{
+  display:flex;align-items:center;gap:8px;margin-bottom:14px;
+  font-size:.75rem;color:var(--muted);
+  background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22);
+  border-radius:10px;padding:9px 13px;
+}
+</style>
+</head>
+<body>
+<div class="nebula"></div>
+
+<nav>
+  <a class="nav-brand" href="/play3d">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/play3d" class="nav-link">Game</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/leaderboard/ranked" class="nav-link active">Ranked</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="/customize" class="nav-link">Customize</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+  </div>
+</nav>
+
+<main>
+  <h1>&#127942; Ranked Leaderboard — Human Players</h1>
+  <div class="sub">ELO ratings from ranked online matches. Separate from the <a href="/leaderboard">AI-model leaderboard</a>.</div>
+
+  <div class="placement-note">
+    Players appear here after {{ placement_games }} placement matches (their provisional rating is private until then).
+    Play ranked from the <a href="/play3d" style="color:var(--accent)">game page</a> &mdash; every ranked match adjusts your rating.
+  </div>
+
+  <div class="glass-card">
+    <table>
+      <thead>
+        <tr>
+          <th class="rank">#</th>
+          <th>Player</th>
+          <th>Rating</th>
+          <th>Wins</th>
+          <th>Losses</th>
+          <th>Games</th>
+          <th>Win Rate</th>
+          <th>Peak</th>
+        </tr>
+      </thead>
+      <tbody id="ranked-tbody"></tbody>
+    </table>
+    <div class="empty" id="ranked-empty" style="display:none">
+      No placed players yet. Finish {{ placement_games }} ranked matches to appear here.
+    </div>
+    <div class="spinner" id="ranked-spinner"></div>
+    <button class="load-more" id="ranked-more" style="display:none" onclick="loadRanked()">Load more</button>
+  </div>
+
+  <a class="back-link" href="/leaderboard">&larr; Players &amp; AI Models leaderboard</a>
+</main>
+
+<script src="/static/feedback.js"></script>
+<script>
+let offset = 0;
+const limit = 20;
+const YOU = {{ username | tojson }};
+
+function rowHTML(e) {
+  const avatar = e.avatar_url ? '<img class="lb-avatar" src="' + e.avatar_url + '" alt="">' : '';
+  const you = e.username === YOU ? '<span class="you-badge">You</span>' : '';
+  return '<tr>' +
+    '<td class="rank rank-' + e.rank + '">' + e.rank + '</td>' +
+    '<td class="username-cell">' + avatar + e.username + you + '</td>' +
+    '<td class="rating-val">' + e.rating + '</td>' +
+    '<td>' + e.wins + '</td>' +
+    '<td>' + e.losses + '</td>' +
+    '<td>' + e.games_played + '</td>' +
+    '<td class="win-rate">' + e.win_rate + '%</td>' +
+    '<td class="peak">' + e.peak_rating + '</td>' +
+    '</tr>';
+}
+
+async function loadRanked() {
+  const resp = await fetch('/api/leaderboard/ranked?limit=' + limit + '&offset=' + offset);
+  if (!resp.ok) return;
+  const data = await resp.json();
+  document.getElementById('ranked-spinner').style.display = 'none';
+  const tbody = document.getElementById('ranked-tbody');
+  if (data.entries.length === 0 && offset === 0) {
+    document.getElementById('ranked-empty').style.display = 'block';
+  }
+  data.entries.forEach(e => { tbody.insertAdjacentHTML('beforeend', rowHTML(e)); });
+  offset += data.entries.length;
+  const more = document.getElementById('ranked-more');
+  more.style.display = offset < data.total ? 'block' : 'none';
+}
+
+loadRanked();
+</script>
+</body>
+</html>

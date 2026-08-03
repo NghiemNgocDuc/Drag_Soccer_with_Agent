@@ -54,6 +54,35 @@ tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
 }
 .win-rate{color:var(--accent-b);font-weight:600}
 .empty{text-align:center;padding:48px;color:var(--muted);font-size:.85rem}
+/* model leaderboard */
+.tab-bar{display:flex;gap:4px;margin:0 0 14px}
+.tab{font-size:.78rem;font-weight:600;padding:8px 18px;border-radius:10px;cursor:pointer;border:none;background:rgba(255,255,255,.4);color:var(--muted);transition:all .15s}
+.tab:hover{background:rgba(255,255,255,.7);color:var(--text)}
+.tab.active{background:var(--glass-bg);color:#06b6d4;box-shadow:0 2px 8px rgba(6,182,212,.1)}
+.spinner{width:30px;height:30px;border:3px solid rgba(6,182,212,.2);border-top-color:#06b6d4;border-radius:50%;animation:spin .6s linear infinite;margin:28px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+.score-val{color:#06b6d4;font-weight:800}
+.ml-ago{color:var(--dim);font-size:.72rem}
+.sort-row{display:flex;align-items:center;gap:8px;margin:8px 0}
+.sort-row label{font-size:.68rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.sort-row select{padding:6px 10px;border-radius:9px;border:1px solid var(--glass-border);background:rgba(255,255,255,.7);font-family:inherit;font-size:.78rem;color:var(--text);outline:none}
+.load-more{display:block;margin:14px auto 4px;padding:8px 18px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(255,255,255,.5);color:var(--accent);font-size:.78rem;font-weight:600;cursor:pointer}
+.load-more:hover{background:rgba(219,234,254,.5)}
+.btn-detail{font-size:.72rem;padding:4px 10px;border-radius:8px;border:none;background:rgba(6,182,212,.12);color:#0891b2;font-weight:600;cursor:pointer}
+.btn-detail:hover{background:rgba(6,182,212,.25)}
+.sort-btn{font-size:.72rem;padding:5px 11px;border-radius:8px;border:1px solid var(--glass-border);background:rgba(255,255,255,.5);color:var(--muted);font-weight:600;cursor:pointer}
+.sort-btn.active{background:rgba(6,182,212,.15);border-color:rgba(6,182,212,.35);color:#0891b2}
+.modal-overlay{position:fixed;inset:0;background:rgba(10,15,30,.55);display:none;align-items:center;justify-content:center;z-index:50;backdrop-filter:blur(3px)}
+.modal-overlay.open{display:flex}
+.modal{width:min(560px,92vw);max-height:86vh;overflow:auto;background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:16px;box-shadow:var(--glass-shadow);padding:20px 22px}
+.modal h3{margin:0 0 4px;font-size:1.05rem}
+.modal .m-sub{font-size:.75rem;color:var(--muted);margin-bottom:14px}
+.detail-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(80,120,200,.07)}
+.detail-row .d-name{width:120px;font-size:.8rem;font-weight:600;flex-shrink:0}
+.detail-track{flex:1;height:12px;background:rgba(6,182,212,.08);border-radius:6px;overflow:hidden}
+.detail-fill{height:100%;background:linear-gradient(90deg,#06b6d4,#8b5cf6);border-radius:6px}
+.detail-vals{font-size:.72rem;color:var(--muted);width:120px;text-align:right;flex-shrink:0}
+.close-modal{margin-top:14px;padding:7px 16px;border-radius:9px;border:none;background:rgba(6,182,212,.15);color:#0891b2;font-weight:600;cursor:pointer}
 </style>
 </head>
 <body>
@@ -79,43 +108,188 @@ tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
 
 <main>
   <h1>Leaderboard</h1>
-  <div class="glass-card">
-    {% if entries %}
-    <table>
-      <thead>
-        <tr>
-          <th class="rank">#</th>
-          <th>Player</th>
-          <th>Wins</th>
-          <th>Losses</th>
-          <th>Draws</th>
-          <th>Games</th>
-          <th>Win Rate</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for e in entries %}
-        <tr>
-          <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
-          <td class="username-cell">
-            {% if e.avatar_url %}<img class="lb-avatar" src="{{ e.avatar_url }}" alt="">{% endif %}
-            {{ e.username }}
-            {% if e.username == username %}<span class="you-badge">You</span>{% endif %}
-          </td>
-          <td>{{ e.wins }}</td>
-          <td>{{ e.losses }}</td>
-          <td>{{ e.draws }}</td>
-          <td>{{ e.games_played }}</td>
-          <td class="win-rate">{{ e.win_rate or 0 }}%</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="empty">No games played yet. Be the first!</div>
-    {% endif %}
+
+  <div class="tab-bar">
+    <div class="tab active" id="tab-btn-players" onclick="switchTab('players')">Players</div>
+    <div class="tab" id="tab-btn-models" onclick="switchTab('models')">AI Models</div>
+    <div class="tab" onclick="location.href='/leaderboard/ranked'">Ranked (ELO)</div>
+  </div>
+
+  <div id="panel-players">
+    <div class="glass-card">
+      {% if entries %}
+      <table>
+        <thead>
+          <tr>
+            <th class="rank">#</th>
+            <th>Player</th>
+            <th>Wins</th>
+            <th>Losses</th>
+            <th>Draws</th>
+            <th>Games</th>
+            <th>Win Rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+          <tr>
+            <td class="rank rank-{{ loop.index }}">{{ loop.index }}</td>
+            <td class="username-cell">
+              {% if e.avatar_url %}<img class="lb-avatar" src="{{ e.avatar_url }}" alt="">{% endif %}
+              {{ e.username }}
+              {% if e.username == username %}<span class="you-badge">You</span>{% endif %}
+            </td>
+            <td>{{ e.wins }}</td>
+            <td>{{ e.losses }}</td>
+            <td>{{ e.draws }}</td>
+            <td>{{ e.games_played }}</td>
+            <td class="win-rate">{{ e.win_rate or 0 }}%</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">No games played yet. Be the first!</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div id="panel-models" style="display:none">
+    <div class="glass-card" style="padding:6px 20px 18px">
+      <div class="sort-row">
+        <label>Sort</label>
+        <button class="sort-btn active" id="sort-score" onclick="sortModels('score')">Score</button>
+        <button class="sort-btn" id="sort-recent" onclick="sortModels('recent')">Recently benchmarked</button>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th class="rank">#</th>
+            <th>Model</th>
+            <th>Owner</th>
+            <th>Score (win&thinsp;% vs built-ins)</th>
+            <th>Games / Opp</th>
+            <th>Last Benchmarked</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="models-tbody"></tbody>
+      </table>
+      <div class="empty" id="models-empty" style="display:none">
+        No models on the leaderboard yet. Submit one from <a href="/my-models">My Models</a>.
+      </div>
+      <div class="spinner" id="models-spinner"></div>
+      <button class="load-more" id="models-more" style="display:none" onclick="loadModels()">Load more</button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="detail-modal" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <h3 id="detail-name"></h3>
+      <div class="m-sub" id="detail-sub"></div>
+      <div id="detail-body"></div>
+      <button class="close-modal" onclick="closeModal()">Close</button>
+    </div>
   </div>
 </main>
+<script>
+let modelsOffset = 0;
+let modelsSort = 'score';
+
+function switchTab(name) {
+  const isPlayers = name === 'players';
+  document.getElementById('tab-btn-players').classList.toggle('active', isPlayers);
+  document.getElementById('tab-btn-models').classList.toggle('active', !isPlayers);
+  document.getElementById('panel-players').style.display = isPlayers ? '' : 'none';
+  document.getElementById('panel-models').style.display = isPlayers ? 'none' : '';
+  if (!isPlayers) loadModels();
+}
+
+function sortModels(sort) {
+  modelsSort = sort;
+  document.getElementById('sort-score').classList.toggle('active', sort === 'score');
+  document.getElementById('sort-recent').classList.toggle('active', sort === 'recent');
+  modelsOffset = 0;
+  document.getElementById('models-tbody').innerHTML = '';
+  document.getElementById('models-more').style.display = 'none';
+  document.getElementById('models-empty').style.display = 'none';
+  loadModels();
+}
+
+async function loadModels() {
+  document.getElementById('models-spinner').style.display = 'block';
+  try {
+    const r = await fetch('/api/leaderboard/models?limit=20&offset=' + modelsOffset + '&sort=' + modelsSort);
+    const d = await r.json();
+    document.getElementById('models-spinner').style.display = 'none';
+    if (!d.entries || !d.entries.length) {
+      document.getElementById('models-empty').style.display = 'block';
+      document.getElementById('models-more').style.display = 'none';
+      return;
+    }
+    appendRows(d.entries);
+    modelsOffset += d.entries.length;
+    document.getElementById('models-more').style.display = modelsOffset < (d.total || 0) ? '' : 'none';
+  } catch (e) {
+    document.getElementById('models-spinner').style.display = 'none';
+  }
+}
+
+function appendRows(entries) {
+  const tbody = document.getElementById('models-tbody');
+  entries.forEach((e, i) => {
+    const rank = (modelsOffset) + i + 1;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      '<td class="rank">' + rank + '</td>' +
+      '<td class="username-cell">' + esc(e.model_name) + '</td>' +
+      '<td>' + (e.avatar_url ? '<img class="lb-avatar" src="' + esc(e.avatar_url) + '" alt="">' : '') + '<span class="username-cell">' + esc(e.username) + '</span>' + (e.username === '{{ username }}' ? '<span class="you-badge">You</span>' : '') + '</td>' +
+      '<td class="score-val">' + Number(e.score).toFixed(1) + '%</td>' +
+      '<td>' + e.games_per_opponent + '</td>' +
+      '<td class="ml-ago">' + ago(e.benchmarked_at) + '</td>' +
+      '<td><button class="btn-detail" onclick="showModel(\'' + esc(e.model_id) + '\')">Details</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function ago(iso) {
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60000) return 'just now';
+  if (ms < 3600000) return Math.floor(ms / 60000) + 'm ago';
+  if (ms < 86400000) return Math.floor(ms / 3600000) + 'h ago';
+  return Math.floor(ms / 86400000) + 'd ago';
+}
+
+async function showModel(modelId) {
+  const r = await fetch('/api/leaderboard/models/' + modelId);
+  const d = await r.json();
+  if (d.error) { closeModal(); return; }
+  document.getElementById('detail-name').textContent = d.model_name;
+  document.getElementById('detail-sub').textContent =
+    'Owner ' + d.username + ' · score ' + Number(d.score).toFixed(1) + '% · ' + d.games_per_opponent + ' games per opponent';
+  let html = '';
+  (d.details || []).forEach(x => {
+    const pct = Number(x.win_rate || 0);
+    html += '<div class="detail-row">' +
+      '<div class="d-name">' + esc(x.opponent) + '</div>' +
+      '<div class="detail-track"><div class="detail-fill" style="width:' + Math.min(pct, 100) + '%"></div></div>' +
+      '<div class="detail-vals">' + pct.toFixed(1) + '% · ' + x.wins + 'W ' + x.draws + 'D ' + x.losses + 'L</div>' +
+      '</div>';
+  });
+  document.getElementById('detail-body').innerHTML = html;
+  document.getElementById('detail-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('detail-modal').classList.remove('open');
+}
+
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML;
+}
+</script>
 <script src="/static/feedback.js"></script>
 </body>
 </html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watch Live Matches — Agent Soccer</title>
+<meta name="description" content="Watch any live online match in real time, right in your browser. No video — game-state 3D rendering.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>
+/* ── Spectate lobby ── */
+.live-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin: var(--space-7) 0 var(--space-5);
+}
+.live-hero h1 { font-size: clamp(1.6rem, 4vw, 2.25rem); margin: 0; letter-spacing: -0.02em; }
+.live-hero p { color: var(--text-secondary); margin: var(--space-2) 0 0; max-width: 620px; }
+.live-count {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  background: var(--gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  white-space: nowrap;
+}
+
+.match-list { display: flex; flex-direction: column; gap: var(--space-3); margin-top: var(--space-5); }
+.match-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.match-teams { display: flex; align-items: center; gap: var(--space-3); font-weight: 600; }
+.match-vs { color: var(--text-muted); font-size: 0.8125rem; font-weight: 600; }
+.match-score {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.match-meta { display: flex; align-items: center; gap: var(--space-4); color: var(--text-muted); font-size: 0.85rem; flex-wrap: wrap; }
+.live-dot {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #16a34a;
+}
+.live-dot::before {
+  content: "";
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.18);
+  animation: live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.empty {
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  color: var(--text-secondary);
+}
+.empty .empty-ico { font-size: 2rem; margin-bottom: var(--space-3); opacity: 0.7; }
+.spinner-row { display: flex; justify-content: center; padding: var(--space-7); }
+.spinner {
+  width: 30px; height: 30px;
+  border: 3px solid rgba(14, 165, 233, 0.2);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<nav class="navbar">
+  <a class="nav-brand" href="/" aria-label="Agent Soccer home">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 7l2 3 4 1-3 2 1 4-4-2-4 2 1-4-3-2 4-1z"/></svg>
+    Agent Soccer
+  </a>
+  <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-label="Toggle menu" aria-controls="nav-links">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+  </button>
+  <div class="nav-links" id="nav-links">
+    <a class="nav-link" href="/play3d">Game</a>
+    <a class="nav-link" href="/tournaments">Tournaments</a>
+    <a class="nav-link" href="/leaderboard">Leaderboard</a>
+    <a class="nav-link active" href="/spectate">Live Matches</a>
+    {% if username %}
+      <span class="nav-user">{{ username }}</span>
+      <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+    {% else %}
+      <a class="nav-link" href="/login">Log in</a>
+      <a class="btn btn-primary btn-sm" href="/register">Sign up free</a>
+    {% endif %}
+  </div>
+</nav>
+
+<main class="container">
+  <div class="live-hero">
+    <div>
+      <div class="hero-eyebrow"><span class="badge badge-brand"><span class="badge-dot"></span>Live · Real-time · No video</span></div>
+      <h1>Watch live matches</h1>
+      <p>Every online match that's in progress, rendered live in 3D from game data. Open to anyone — jump in and cheer.</p>
+    </div>
+    <div class="live-count" id="live-count">0 live</div>
+  </div>
+
+  <div class="glass-card">
+    <div id="list-spinner" class="spinner-row"><div class="spinner"></div></div>
+    <div class="match-list" id="match-list"></div>
+    <div class="empty" id="match-empty" style="display:none">
+      <div class="empty-ico">⚽</div>
+      <div><b>No live matches right now.</b></div>
+      <div style="margin-top:var(--space-1)">Start one in the Game to appear here, or check back in a minute.</div>
+      <a class="btn btn-primary btn-sm" href="/play3d" style="margin-top:var(--space-4)">Go to Game</a>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  const list = document.getElementById('match-list');
+  const empty = document.getElementById('match-empty');
+  const countEl = document.getElementById('live-count');
+  let inFlight = false;
+
+  function fmtElapsed(ts) {
+    if (!ts) return 'in progress';
+    const sec = Math.max(0, Math.floor((Date.now() / 1000) - ts));
+    const m = String(Math.floor(sec / 60)).padStart(2, '0');
+    const s = String(sec % 60).padStart(2, '0');
+    return m + ':' + s;
+  }
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  async function refresh() {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      const res = await fetch('/api/spectate/active');
+      const data = await res.json();
+      const matches = data.matches || [];
+      countEl.textContent = matches.length + ' live';
+      document.getElementById('list-spinner').style.display = 'none';
+      list.innerHTML = '';
+      empty.style.display = matches.length ? 'none' : 'block';
+      matches.forEach(function (m) {
+        const row = document.createElement('div');
+        row.className = 'glass-card match-row';
+        const teams = document.createElement('div');
+        teams.className = 'match-teams';
+        teams.innerHTML =
+          '<span>' + esc(m.name_a || 'Player A') + '</span>' +
+          '<span class="match-score">' + (m.score_a || 0) + ' − ' + (m.score_b || 0) + '</span>' +
+          '<span>' + esc(m.name_b || 'Player B') + '</span>';
+        const meta = document.createElement('div');
+        meta.className = 'match-meta';
+        meta.innerHTML =
+          '<span class="live-dot">LIVE</span>' +
+          '<span>' + (m.kick_count || 0) + ' kicks</span>' +
+          '<span>' + fmtElapsed(m.started_at) + '</span>' +
+          '<a class="btn btn-primary btn-sm" href="/spectate/' + encodeURIComponent(m.room_id) + '">Watch</a>';
+        row.appendChild(teams);
+        row.appendChild(meta);
+        list.appendChild(row);
+      });
+    } catch (e) {
+      /* transient — retry next tick */
+    } finally {
+      inFlight = false;
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 5000);
+
+  const navToggle = document.getElementById('nav-toggle');
+  if (navToggle) {
+    navToggle.addEventListener('click', function () {
+      const links = document.getElementById('nav-links');
+      const open = navToggle.getAttribute('aria-expanded') === 'true';
+      navToggle.setAttribute('aria-expanded', String(!open));
+      links.classList.toggle('open', !open);
+    });
+  }
+})();
+</script>
+</body>
+</html>

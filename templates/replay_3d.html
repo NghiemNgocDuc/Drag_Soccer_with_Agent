@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Replay 3D — Agent Soccer</title>
+<title>{% if live_room %}Live Match — Agent Soccer{% else %}Replay 3D — Agent Soccer{% endif %}</title>
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
@@ -43,6 +43,32 @@
 .hl-banner button{background:rgba(14,165,233,.3);border:none;color:#fff;border-radius:8px;
   padding:4px 10px;cursor:pointer;font-size:.8rem}
 .hl-banner button:hover{background:rgba(14,165,233,.5)}
+
+/* ── Live spectator mode ── */
+.live-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin:18px 0 14px;
+}
+.live-tag{
+  display:inline-flex;align-items:center;gap:7px;font-size:.78rem;font-weight:700;
+  color:#4ade80;letter-spacing:.06em;text-transform:uppercase;
+}
+.live-tag::before{
+  content:"";width:9px;height:9px;border-radius:50%;background:#22c55e;
+  box-shadow:0 0 0 3px rgba(34,197,94,.2);animation:livePulse 1.6s ease-in-out infinite;
+}
+@keyframes livePulse{0%,100%{opacity:1}50%{opacity:.4}}
+.live-msg{font-size:.9rem;color:#94a3b8}
+.live-msg a{color:#06b6d4}
+.live-chat{
+  margin-top:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);
+  border-radius:14px;padding:12px 14px;max-height:260px;overflow-y:auto;
+}
+.live-chat h4{margin:0 0 8px;font-size:.8rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em}
+.live-chat .lc-row{font-size:.88rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.live-chat .lc-row:last-child{border-bottom:none}
+.live-chat .lc-name{font-weight:600;color:#7dd3fc}
+.live-chat .lc-readonly{margin-top:8px;font-size:.75rem;color:#64748b}
 </style>
 <script src="{{ url_for('static', filename='sound.js') }}"></script>
 </head>
@@ -51,21 +77,25 @@
   <a class="nav-brand title-gradient" href="/play3d">Agent Soccer</a>
   <div class="nav-links">
     <a href="/play3d" class="nav-link">Game</a>
+    <a href="/spectate" class="nav-link{% if live_room %} active{% endif %}">Live Matches</a>
     <a href="/playground" class="nav-link">Playground</a>
     <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/my-models" class="nav-link">My Models</a>
     <a href="/profile" class="nav-link">Profile</a>
-    <a href="/tournaments" class="nav-link active">Tournaments</a>
+    <a href="/tournaments" class="nav-link{% if not live_room %} active{% endif %}">Tournaments</a>
     <a href="/research" class="nav-link">Research</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
     <a href="/feedback" class="nav-link">Feedback</a>
     <a href="/customize" class="nav-link">Customize</a>
-    <span class="nav-user">{{ username }}</span>
-    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+    {% if username %}
+      <span class="nav-user">{{ username }}</span>
+      <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+    {% endif %}
   </div>
 </nav>
 
 <main>
+  {% if not live_room %}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
     <h1>Match Replay <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></h1>
     <div>
@@ -73,19 +103,32 @@
       <a href="/tournaments/{{ t.id }}/watch/{{ match.id }}" class="btn btn-ghost">2D Replay</a>
     </div>
   </div>
+  {% endif %}
 
   <div class="glass-card">
+    {% if live_room %}
+    <div class="live-bar">
+      <span class="live-tag">Live</span>
+      <span class="live-msg" id="live-msg">Connecting…</span>
+      <a href="/spectate" class="btn btn-ghost">More Live Matches</a>
+    </div>
+    {% endif %}
+
     <div class="hud">
       <div class="team team-a">
-        <div class="team-name">Player A</div>
+        <div class="team-name" id="name-a">Player A</div>
         <div class="team-score" id="score-a">0</div>
       </div>
       <div class="hud-mid">
+        {% if live_room %}
+        <div class="kick-counter">Move <span id="kick-count">0</span></div>
+        {% else %}
         <div class="kick-counter">Move <span id="kick-count">0</span> / {{ match.replay_data|length }}</div>
+        {% endif %}
         <div class="turn-badge turn-a" id="turn-badge">Ready</div>
       </div>
       <div class="team team-b">
-        <div class="team-name">Player B</div>
+        <div class="team-name" id="name-b">Player B</div>
         <div class="team-score" id="score-b">0</div>
       </div>
     </div>
@@ -96,12 +139,19 @@
       </div>
     </div>
 
+    {% if not live_room %}
     <div class="replay-controls">
       <button class="btn btn-primary btn-play" id="btn-next" onclick="playNextMove3D()">Next Move</button>
       <button class="btn btn-ghost btn-play" id="btn-auto" onclick="toggleAutoPlay3D()">Auto Play</button>
       <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
     </div>
+    {% else %}
+    <div class="replay-controls">
+      <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
+    </div>
+    {% endif %}
 
+    {% if not live_room %}
     <div class="hl-section" id="hl-section" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <h3 style="margin:0;font-size:1rem">Highlights</h3>
@@ -110,6 +160,13 @@
       <div class="hl-strip" id="hl-strip"></div>
       <div class="hl-cards" id="hl-cards"></div>
     </div>
+    {% else %}
+    <div class="live-chat" id="live-chat">
+      <h4>Match Chat — watching</h4>
+      <div id="live-chat-msgs"></div>
+      <div class="lc-readonly">Read-only. Spectators can watch the players' chat but can't post.</div>
+    </div>
+    {% endif %}
   </div>
 </main>
 
@@ -144,6 +201,7 @@ function worldToServer(v) {
 const replayData = {{ match.replay_data | tojson }};
 const highlights = {{ highlights | tojson }};
 const clipHighlight = {{ highlight | tojson }};
+const LIVE_ROOM = {{ live_room | tojson }};
 let currentMove = 0;
 let isAnimating = false;
 let autoPlayOn = false;
@@ -1469,6 +1527,175 @@ window.__ballFX = () => ({
   pos: [ballMesh.position.x, ballMesh.position.y, ballMesh.position.z],
 });
 
+// ── Live spectator mode ─────────────────────────────────────────────────────
+// Watches an online room through the same HTTP-polled /state endpoint the
+// players use (1500ms). Full game state on each poll; when a new last_move
+// arrives, animate its trajectory, then re-snap to the authoritative game
+// state. Read-only match chat rides the same poll cadence at 2s.
+const LIVE = {
+  room: LIVE_ROOM,
+  lastKick: -1,
+  pollTimer: null,
+  chatTimer: null,
+  chatAfter: null,
+  over: false,
+  snap: function (game) {
+    state.ball = game.ball || state.ball;
+    state.players_a = game.players_a || [];
+    state.players_b = game.players_b || [];
+    state.referee = game.referee || null;
+    state.score_a = game.score_a || 0;
+    state.score_b = game.score_b || 0;
+    ballMesh.position.copy(serverToWorld(state.ball.x, state.ball.y, state.ball.z || 0));
+    const sp = serverToWorld(state.ball.x, state.ball.y);
+    shadowMesh.position.set(sp.x, 0.1, sp.z);
+    updatePlayerPositions(state.players_a, state.players_b);
+    if (state.referee) updateRefereeMesh(state.referee.x, state.referee.y);
+    document.getElementById('score-a').textContent = state.score_a;
+    document.getElementById('score-b').textContent = state.score_b;
+    document.getElementById('kick-count').textContent = game.kick_count || 0;
+  },
+  hud: function (game) {
+    const badge = document.getElementById('turn-badge');
+    if (game.game_over) {
+      badge.textContent = 'Full time';
+      badge.className = 'turn-badge turn-a';
+    } else if (game.penalty_shootout) {
+      badge.textContent = 'Penalty shootout';
+      badge.className = 'turn-badge turn-b';
+    } else {
+      badge.textContent = game.is_player_a ? "Player A's Move" : "Player B's Move";
+      badge.className = 'turn-badge ' + (game.is_player_a ? 'turn-a' : 'turn-b');
+    }
+  },
+  status: function (text) {
+    const el = document.getElementById('live-msg');
+    if (el) el.innerHTML = text;
+  },
+};
+
+function liveMsgEsc(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+async function pollLive() {
+  if (!LIVE.room) return;
+  try {
+    const res = await fetch('/online/' + LIVE.room + '/state?since_kick=' + LIVE.lastKick);
+    const data = await res.json();
+    if (data.error || !data.game) { endLive('This match is no longer available. <a href="/spectate">Watch another</a>'); return; }
+    document.getElementById('name-a').textContent = data.name_a || 'Player A';
+    document.getElementById('name-b').textContent = data.name_b || 'Player B';
+    if (data.status === 'done') {
+      LIVE.over = true;
+      clearInterval(LIVE.pollTimer);
+      if (data.game.game_over) {
+        const w = data.game.score_a > data.game.score_b ? data.game.name_a || data.name_a : data.game.score_a < data.game.score_b ? (data.game.name_b || data.name_b) : null;
+        endLive(w ? (w + ' wins! Match over. <a href="/spectate">Watch another</a>') : 'Full time — draw! <a href="/spectate">Watch another</a>');
+      } else {
+        endLive('Match over. <a href="/spectate">Watch another</a>');
+      }
+    }
+    if (data.last_move && data.game.kick_count > LIVE.lastKick) {
+      LIVE.lastKick = data.game.kick_count;
+      const move = data.last_move;
+      const raw = move.trajectory;
+      const badge = document.getElementById('turn-badge');
+      badge.textContent = move.mover === 'a' ? "Player A's Move" : "Player B's Move";
+      badge.className = 'turn-badge ' + (move.mover === 'a' ? 'turn-a' : 'turn-b');
+      document.getElementById('kick-count').textContent = LIVE.lastKick;
+      if (!raw || raw.length === 0) { LIVE.snap(data.game); LIVE.hud(data.game); return; }
+      const _preA = raw[0].a ? raw[0].a.map(p => ({ x: p.x, y: p.y })) : [];
+      const _preB = raw[0].b ? raw[0].b.map(p => ({ x: p.x, y: p.y })) : [];
+      const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
+      if (kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
+      const wasGoal = move.scored === 'A' || move.scored === 'B';
+      if (wasGoal) {
+        SoundManager.goal();
+        triggerGoalEffect3D(move.mover === 'a' ? 'a' : 'b');
+      }
+      isAnimating = true;
+      animateTrajectory3D(raw, () => {
+        isAnimating = false;
+        LIVE.snap(data.game);
+        LIVE.hud(data.game);
+      });
+    } else if (!isAnimating) {
+      LIVE.snap(data.game);
+      LIVE.hud(data.game);
+    }
+  } catch (e) { /* transient — retry next tick */ }
+}
+
+async function pollLiveChat() {
+  if (!LIVE.room || LIVE.over) return;
+  try {
+    let url = '/chat/messages?scope=match&scope_id=' + LIVE.room + '&limit=60';
+    if (LIVE.chatAfter !== null) url += '&after=' + LIVE.chatAfter;
+    const res = await fetch(url);
+    if (res.status === 403) return; // match over — stop silently
+    const data = await res.json();
+    if (!data || !data.messages) return;
+    const wrap = document.getElementById('live-chat-msgs');
+    data.messages.forEach(function (m) {
+      const row = document.createElement('div');
+      row.className = 'lc-row';
+      row.innerHTML = '<span class="lc-name">' + liveMsgEsc(m.sender_name || m.name || 'Player') + ':</span> ' + liveMsgEsc(m.body || m.text || '');
+      wrap.appendChild(row);
+    });
+    if (data.messages.length) wrap.scrollTop = wrap.scrollHeight;
+    if (data.next_after) LIVE.chatAfter = parseInt(data.next_after, 10);
+  } catch (e) { /* transient */ }
+}
+
+function endLive(html) {
+  clearInterval(LIVE.pollTimer);
+  clearInterval(LIVE.chatTimer);
+  LIVE.over = true;
+  LIVE.status(html);
+  const badge = document.getElementById('turn-badge');
+  badge.textContent = 'Full time';
+  badge.className = 'turn-badge turn-a';
+}
+
+window.__liveState = () => ({
+  room: LIVE.room,
+  lastKick: LIVE.lastKick,
+  over: LIVE.over,
+  chatAfter: LIVE.chatAfter,
+  nameA: document.getElementById('name-a').textContent,
+  nameB: document.getElementById('name-b').textContent,
+  scoreA: document.getElementById('score-a').textContent,
+  scoreB: document.getElementById('score-b').textContent,
+  badge: document.getElementById('turn-badge').textContent,
+  status: document.getElementById('live-msg').textContent,
+  chatRows: document.querySelectorAll('#live-chat-msgs .lc-row').length,
+});
+
+async function initLive() {
+  try {
+    const res = await fetch('/online/' + LIVE.room + '/state?since_kick=-1');
+    const data = await res.json();
+    if (data.error || !data.game) { endLive('This match is no longer available. <a href="/spectate">Watch another</a>'); return; }
+    document.getElementById('name-a').textContent = data.name_a || 'Player A';
+    document.getElementById('name-b').textContent = data.name_b || 'Player B';
+    LIVE.snap(data.game);
+    rebuildPlayers(state.players_a, state.players_b);
+    LIVE.hud(data.game);
+    if (data.status === 'done') { endLive('Match over. <a href="/spectate">Watch another</a>'); return; }
+    LIVE.status('Watching <b>' + liveMsgEsc(data.name_a || 'Player A') + '</b> vs <b>' + liveMsgEsc(data.name_b || 'Player B') + '</b>');
+    pollLive();
+    LIVE.pollTimer = setInterval(pollLive, 1500);
+    pollLiveChat();
+    LIVE.chatTimer = setInterval(pollLiveChat, 2000);
+  } catch (e) {
+    endLive('Could not connect. <a href="/spectate">Watch another</a>');
+  }
+}
+
+
 // ── Render loop ─────────────────────────────────────────────────────────────
 function animate() {
   requestAnimationFrame(animate);
@@ -1494,6 +1721,11 @@ animate();
     const cust = await fetch('/api/customization').then(r => r.json());
     if (cust.bg_scene) applyScene(cust.bg_scene, cust.floodlight_color || 'warm');
   } catch (e) {}
+
+  if (LIVE_ROOM) {
+    initLive();
+    return;
+  }
 
   const first = replayData.find(m => m.trajectory && m.trajectory.length > 0);
   if (first) {

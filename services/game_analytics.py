@@ -306,3 +306,58 @@ def compute_goal_zones(move_history: list[dict]) -> dict:
             zones[key] = zones.get(key, 0) + 1
     total = sum(zones.values()) or 1
     return {k: round(v / total * 100, 1) for k, v in zones.items()}
+
+
+# ── Leaderboard benchmark (orchestration only; reuses run_model_battle) ──────
+
+def benchmark_model_vs_builtins(
+    model,
+    n_games: int = 5,
+    opponents: list | None = None,
+    progress_callback=None,
+) -> dict:
+    """Benchmark `model` (team A) against every built-in agent.
+
+    Aggregates `run_model_battle` results into the leaderboard score:
+    the arithmetic mean of the per-opponent win rates (0-100), plus the
+    per-opponent breakdown and aggregate shot stats. `opponents` accepts
+    catalog ids or model objects (default: all 7 built-ins). Returns
+    {"score", "n_games", "details": [...], "avg_stats": {...}}.
+    """
+    if opponents is None:
+        opponents = [m["id"] for m in MODEL_CATALOG]
+    total_games = len(opponents) * n_games
+    offset = 0
+    details = []
+    stats_acc: dict[str, list[float]] = {}
+
+    for opp in opponents:
+        if isinstance(opp, str):
+            opp_name = next((m["name"] for m in MODEL_CATALOG if m["id"] == opp), opp)
+        else:
+            opp_name = getattr(opp, "MODEL_NAME", "Opponent")
+        if progress_callback:
+            def _pb(d, _n, off=offset):
+                progress_callback(off + d, total_games)
+        else:
+            _pb = None
+        result = run_model_battle(
+            model, opp, n_games=n_games, parallel=True, progress_callback=_pb,
+        )
+        if result is None:
+            continue
+        offset += result["n_games"]
+        details.append({
+            "opponent": opp_name,
+            "win_rate": result["win_rate_a"],
+            "wins": result["wins_a"],
+            "draws": result["draws"],
+            "losses": result["n_games"] - result["wins_a"] - result["draws"],
+            "n_games": result["n_games"],
+        })
+        for k, v in (result.get("avg_stats_a") or {}).items():
+            stats_acc.setdefault(k, []).append(v)
+
+    score = round(sum(d["win_rate"] for d in details) / len(details), 1) if details else 0.0
+    avg_stats = {k: round(sum(vs) / len(vs), 1) for k, vs in stats_acc.items()} if stats_acc else {}
+    return {"score": score, "n_games": n_games, "details": details, "avg_stats": avg_stats}

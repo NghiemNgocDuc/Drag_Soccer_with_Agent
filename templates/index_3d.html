@@ -171,6 +171,14 @@
         </div>
       </div>
       <div id="online-lobby-waiting">Waiting for your opponent to join&hellip;</div>
+      <div id="online-lobby-ranked" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:8px">Ranked matches pair you with a player of similar skill &mdash; your ELO rating changes with every result.</p>
+        <div class="row">
+          <button class="btn btn-primary" id="ranked-btn" onclick="rankedJoin()">&#127942; Play Ranked</button>
+          <button class="btn btn-ghost" id="ranked-cancel-btn" style="display:none" onclick="rankedCancel()">Cancel Queue</button>
+        </div>
+        <p id="ranked-status" style="display:none;margin-top:8px"></p>
+      </div>
     </div>
   </div>
   <div id="online-bar" style="display:none"></div>
@@ -1216,7 +1224,7 @@ let _skipKickerTeam = '';
 
 // ── Online match (chat-enabled 1v1 room mode) ───────────────────────────────
 const ONLINE = {
-  active: false, roomId: null, side: null,
+  active: false, roomId: null, side: null, ranked: false,
   nameA: '', nameB: '', lastKick: -1,
   pollTimer: null, chat: null,
 };
@@ -1306,13 +1314,16 @@ function updateOnlineBar() {
   const them = ONLINE.side === 'a' ? ONLINE.nameB : ONLINE.nameA;
   const score = gameState ? (gameState.score_a + ' – ' + gameState.score_b) : '0 – 0';
   bar.style.display = 'block';
-  bar.textContent = me + '  vs  ' + them + '   ·   ' + score + '   ·   Room ' + ONLINE.roomId.slice(0, 8);
+  bar.textContent = me + '  vs  ' + them + '   ·   ' + score + '   ·   Room ' + ONLINE.roomId.slice(0, 8)
+    + (ONLINE.ranked ? '   ·   \uD83C\uDFC6 Ranked' : '');
 }
 
 function startOnline(joinData) {
   ONLINE.active = true;
   ONLINE.roomId = joinData.room_id || ONLINE.roomId;
   ONLINE.side = joinData.my_side || null;
+  ONLINE.ranked = !!joinData.ranked;
+  RANKED.delta = null;
   ONLINE.nameA = joinData.name_a || 'Player A';
   ONLINE.nameB = joinData.name_b || 'Player B';
   ONLINE.lastKick = -1;
@@ -1358,6 +1369,7 @@ async function pollOnline() {
         data.voice_signals.forEach(handleVoiceSignal);
       }
     }
+    if (data.ranked_result) RANKED.delta = data.ranked_result;
     if (data.status === 'done' && !data.game.game_over) {
       data.game.game_over = true;
       data.game.winner = data.game.score_a > data.game.score_b ? 'A' : data.game.score_a < data.game.score_b ? 'B' : null;
@@ -1384,6 +1396,65 @@ function endOnline(msg) {
   setOnlineUI(false);
   if (msg) alert(msg || 'The match ended');
 }
+
+// ── Ranked queue (ELO matchmaking, human players) ─────────────────────────
+const RANKED = { active: false, timer: null, delta: null };
+
+window.rankedJoin = async function() {
+  const resp = await fetch('/ranked/join', { method: 'POST' });
+  const data = await resp.json();
+  if (!resp.ok || data.error) { alert(data.error || 'Could not join the ranked queue'); return; }
+  if (data.status === 'matched') { enterRankedMatch(data); return; }
+  RANKED.active = true;
+  document.getElementById('ranked-btn').style.display = 'none';
+  document.getElementById('ranked-cancel-btn').style.display = '';
+  const st = document.getElementById('ranked-status');
+  st.style.display = 'block';
+  updateRankedStatus(data);
+  pollRankedStatus();
+  RANKED.timer = setInterval(pollRankedStatus, 3000);
+};
+
+function updateRankedStatus(data) {
+  const st = document.getElementById('ranked-status');
+  if (data.status === 'waiting') {
+    st.textContent = 'Searching for an opponent\u2026 ' + (data.wait_s || 0) + 's   (rating ' + (data.rating || '') + ')';
+  } else if (data.status === 'idle') {
+    st.textContent = '';
+  }
+}
+
+async function pollRankedStatus() {
+  if (!RANKED.active) return;
+  try {
+    const data = await fetch('/ranked/status').then(r => r.json());
+    if (data.error) { rankedCancel(); return; }
+    if (data.status === 'matched') { enterRankedMatch(data); return; }
+    updateRankedStatus(data);
+  } catch (e) { /* transient — retry next tick */ }
+}
+
+async function enterRankedMatch(data) {
+  RANKED.active = false;
+  if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
+  document.getElementById('ranked-btn').style.display = '';
+  document.getElementById('ranked-cancel-btn').style.display = 'none';
+  document.getElementById('ranked-status').style.display = 'none';
+  const resp = await fetch('/online/' + data.room_id + '/join', { method: 'POST' });
+  const join = await resp.json();
+  if (join.error) { alert(join.error); return; }
+  history.replaceState(null, '', '/play3d?room=' + data.room_id);
+  startOnline(join);
+}
+
+window.rankedCancel = async function() {
+  RANKED.active = false;
+  if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
+  document.getElementById('ranked-btn').style.display = '';
+  document.getElementById('ranked-cancel-btn').style.display = 'none';
+  document.getElementById('ranked-status').style.display = 'none';
+  try { await fetch('/ranked/cancel', { method: 'POST' }); } catch (e) { /* ignore */ }
+};
 
 // ── Voice chat (1v1 P2P WebRTC, STUN-only) ────────────────────────────────
 const VOICE = {
@@ -1923,7 +1994,13 @@ function updateHUD(st) {
   if (over) {
     wb.style.display = 'block';
     if (ONLINE.active) {
-      wb.textContent = st.winner === ONLINE.side ? 'You win!' : st.winner ? 'Opponent wins!' : "It's a draw!";
+      let msg = st.winner === ONLINE.side ? 'You win!' : st.winner ? 'Opponent wins!' : "It's a draw!";
+      if (ONLINE.ranked && RANKED.delta) {
+        const d = ONLINE.side === 'a' ? RANKED.delta.player_a.delta : RANKED.delta.player_b.delta;
+        const after = ONLINE.side === 'a' ? RANKED.delta.player_a.rating_after : RANKED.delta.player_b.rating_after;
+        msg += '  ' + (d >= 0 ? '+' + d : d) + ' rating (' + after + ')';
+      }
+      wb.textContent = msg;
     } else {
       wb.textContent = st.winner === 'A' ? 'You win!' : st.winner === 'B' ? 'AI wins!' : "It's a draw!";
     }

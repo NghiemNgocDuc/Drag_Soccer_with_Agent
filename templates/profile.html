@@ -91,7 +91,7 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
 .hero-badge .val{font-size:1.6rem;font-weight:800;color:var(--accent-b)}
 .hero-badge .lbl{font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
 /* ── Stats Grid ── */
-.stats-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:20px}
+.stats-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:20px}
 .stat-card{
   background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
   border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);
@@ -106,6 +106,7 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
 .stat-card.played .stat-val{color:var(--accent)}
 .stat-card.draws .stat-val{color:var(--dim)}
 .stat-card.rate .stat-val{color:var(--accent-b)}
+.stat-card.elo .stat-val{color:#d97706}
 /* ── Win Rate Ring ── */
 .winrate-section{margin-bottom:20px}
 .winrate-card{
@@ -298,7 +299,27 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
       <div class="stat-val">{{ rate | round(1) }}%</div>
       <div class="stat-lbl">Win Rate</div>
     </div>
+    <div class="stat-card elo">
+      <div class="stat-icon">🏅</div>
+      <div class="stat-val">{{ rating.rating }}</div>
+      <div class="stat-lbl">ELO Rating</div>
+    </div>
   </div>
+
+  {% set rp = rating.games_played or 0 %}
+  {% if rp < placement_games %}
+  <div class="placement-note" style="margin:-8px 0 20px;font-size:.75rem;color:var(--muted)">
+    Ranked: {{ rp }}/{{ placement_games }} placement matches — your rating appears on the
+    <a href="/leaderboard/ranked" style="color:var(--accent)">ranked leaderboard</a> after placement.
+    ({{ rating.wins }}W / {{ rating.losses }}L, peak {{ rating.peak_rating }})
+  </div>
+  {% else %}
+  <div class="placement-note" style="margin:-8px 0 20px;font-size:.75rem;color:var(--muted)">
+    Ranked: placed at {{ rating.rating }} — see the
+    <a href="/leaderboard/ranked" style="color:var(--accent)">ranked leaderboard</a>.
+    ({{ rating.games_played }} games, {{ rating.wins }}W / {{ rating.losses }}L, peak {{ rating.peak_rating }})
+  </div>
+  {% endif %}
 
   {% if gp > 0 %}
   <!-- Win Rate Breakdown -->

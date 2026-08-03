@@ -52,6 +52,16 @@ nav,div.page{position:relative;z-index:1}
   background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.25);
 }
 .outdated-warning code{font-family:ui-monospace,Consolas,monospace;font-size:.62rem;color:#fde68a}
+/* ── Leaderboard (per-model) ── */
+.mc-lb{display:flex;gap:8px;align-items:center;margin-top:8px}
+.lb-score{
+  font-size:.66rem;font-weight:700;color:#fbbf24;
+  padding:2px 9px;border-radius:100px;
+  background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.3);
+}
+.lb-updated{font-size:.6rem;color:var(--dim)}
+.lb-hint{font-size:.63rem;color:var(--muted)}
+.lb-hint.lb-err{color:#ef4444}
 .validate-result.warn{display:block;background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.25)}
 .empty-state{text-align:center;padding:40px 16px;color:var(--muted);font-size:.82rem;background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--glass-border);border-radius:12px}
 .empty-state strong{display:block;font-size:1rem;font-weight:600;color:var(--text);margin-bottom:6px}
@@ -220,9 +230,19 @@ pre.ref-code{
             <div style="margin-left:auto;display:flex;gap:4px">
               <button class="btn btn-ghost btn-xs"
                 onclick="event.stopPropagation(); testInPlayground('{{ m.id }}')">▶ Test</button>
+              <button class="btn btn-ghost btn-xs"
+                onclick="event.stopPropagation(); submitToLeaderboard('{{ m.id }}')">{{ 'Re-benchmark' if m.lb else 'Submit to Leaderboard' }}</button>
               <button class="btn btn-danger btn-xs"
                 onclick="event.stopPropagation(); deleteModel('{{ m.id }}')">Delete</button>
             </div>
+          </div>
+          <div class="mc-lb" id="lb-{{ m.id }}">
+            {% if m.lb %}
+            <span class="lb-score">🏆 {{ m.lb.score }}%</span>
+            <span class="lb-updated">vs built-ins · {{ m.lb.benchmarked_at[:10] if m.lb.benchmarked_at else '' }}</span>
+            {% else %}
+            <span class="lb-hint">Not ranked — benchmark against the 7 built-in agents</span>
+            {% endif %}
           </div>
         </div>
         {% endfor %}
@@ -562,6 +582,62 @@ async function testInPlayground(id) {
   if (data.error) { alert(data.error); return; }
   sessionStorage.setItem('pg_preload_code', data.code);
   window.location.href = '/playground';
+}
+
+// ── Leaderboard submission (background benchmark + poll) ────────────────────
+async function submitToLeaderboard(id) {
+  const row = document.getElementById('lb-' + id);
+  const btn = event.target.closest('button');
+  if (btn) btn.disabled = true;
+  row.innerHTML = '<span class="lb-hint">Benchmarking vs 7 built-ins… this takes a while</span>';
+  try {
+    const r = await fetch(`/api/models/user/${id}/submit-leaderboard`, {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({games: 5}),
+    });
+    const d = await r.json();
+    if (d.error) {
+      row.innerHTML = '<span class="lb-hint lb-err">' + escLb(d.error) + '</span>';
+      if (btn) btn.disabled = false;
+      return;
+    }
+    pollLeaderboard(id);
+  } catch (e) {
+    row.innerHTML = '<span class="lb-hint lb-err">Request failed — try again</span>';
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function pollLeaderboard(id) {
+  const row = document.getElementById('lb-' + id);
+  if (!row) return;
+  let st;
+  try {
+    const r = await fetch(`/api/models/user/${id}/leaderboard-status`);
+    st = await r.json();
+  } catch (e) { return; }
+  if (st.status === 'done') {
+    row.innerHTML = '<span class="lb-score">🏆 ' + Number(st.score).toFixed(1) + '%</span>' +
+      '<span class="lb-updated">vs built-ins · ' + (st.benchmarked_at ? st.benchmarked_at.slice(0, 10) : '') + '</span>' +
+      '<button class="btn btn-ghost btn-xs" style="margin-left:auto" onclick="event.stopPropagation();submitToLeaderboard(\'' + id + '\')">Re-benchmark</button>';
+    return;
+  }
+  if (st.status === 'failed') {
+    row.innerHTML = '<span class="lb-hint lb-err">Benchmark failed: ' + escLb(st.error || 'unknown') + '</span>';
+    return;
+  }
+  if (st.status === 'running' && st.total) {
+    const pct = Math.round(st.done / st.total * 100);
+    row.innerHTML = '<span class="lb-hint">Benchmarking… ' + st.done + '/' + st.total + ' games (' + pct + '%)</span>';
+  } else {
+    row.innerHTML = '<span class="lb-hint">Benchmarking…</span>';
+  }
+  setTimeout(() => pollLeaderboard(id), 5000);
+}
+
+function escLb(s) {
+  if (s === null || s === undefined) return '';
+  const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML;
 }
 </script>
 <script src="/static/feedback.js"></script>
