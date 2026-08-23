@@ -63,6 +63,25 @@ tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
   background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.22);
   border-radius:10px;padding:9px 13px;
 }
+.season-bar{
+  display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;
+  font-size:.78rem;color:var(--muted);
+  background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.22);
+  border-radius:10px;padding:9px 13px;
+}
+.season-bar .tag{font-weight:700;color:#8b5cf6}
+.season-bar .ends{color:var(--muted)}
+.season-bar select{
+  margin-left:auto;background:rgba(255,255,255,.7);border:1px solid var(--glass-border);
+  border-radius:8px;padding:6px 10px;font-family:inherit;font-size:.76rem;color:var(--text);
+}
+.season-bar select:focus{outline:none;border-color:rgba(139,92,246,.5)}
+.past-banner{
+  display:flex;align-items:center;gap:8px;margin-bottom:14px;
+  font-size:.75rem;color:var(--muted);
+  background:rgba(6,182,212,.08);border:1px solid rgba(6,182,212,.25);
+  border-radius:10px;padding:9px 13px;
+}
 </style>
 </head>
 <body>
@@ -89,12 +108,27 @@ tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
 
 <main>
   <h1>&#127942; Ranked Leaderboard — Human Players</h1>
-  <div class="sub">ELO ratings from ranked online matches. Separate from the <a href="/leaderboard">AI-model leaderboard</a>.</div>
+  <div class="sub">ELO ratings from ranked online matches, reset each season. Separate from the <a href="/leaderboard">AI-model leaderboard</a>.</div>
 
   <div class="placement-note">
     Players appear here after {{ placement_games }} placement matches (their provisional rating is private until then).
     Play ranked from the <a href="/play3d" style="color:var(--accent)">game page</a> &mdash; every ranked match adjusts your rating.
   </div>
+
+  <div class="season-bar">
+    <span class="tag">Season {{ current_season.number }}</span>
+    <span class="ends" id="season-ends"></span>
+    <select id="season-select" onchange="switchSeason()" title="View a different season's standings">
+      <option value="current">Season {{ current_season.number }} (current)</option>
+      {% for s in seasons %}
+        {% if s.number != current_season.number %}
+        <option value="{{ s.number }}">Season {{ s.number }}{% if s.status == 'completed' %} (ended){% endif %}</option>
+        {% endif %}
+      {% endfor %}
+      <option value="all">All-time (no reset)</option>
+    </select>
+  </div>
+  <div class="past-banner" id="past-banner" style="display:none"></div>
 
   <div class="glass-card">
     <table>
@@ -143,14 +177,52 @@ function rowHTML(e) {
     '</tr>';
 }
 
-async function loadRanked() {
-  const resp = await fetch('/api/leaderboard/ranked?limit=' + limit + '&offset=' + offset);
+function fmtCountdown(endsAt) {
+  if (!endsAt) return '';
+  var t = new Date(endsAt).getTime() - Date.now();
+  if (!isFinite(t) || t <= 0) return '';
+  var d = Math.floor(t / 86400000);
+  var h = Math.floor((t % 86400000) / 3600000);
+  if (d > 0) return 'ends in ' + d + 'd ' + h + 'h';
+  var m = Math.floor((t % 3600000) / 60000);
+  if (h > 0) return 'ends in ' + h + 'h ' + m + 'm';
+  return 'ends in ' + Math.max(1, Math.floor(t / 60000)) + 'm';
+}
+
+function currentSeasonParam() {
+  const s = document.getElementById('season-select');
+  return s ? s.value : 'current';
+}
+
+function renderSeasonHud(data) {
+  // Countdown in the season bar (only meaningful while viewing the live season)
+  var el = document.getElementById('season-ends');
+  if (el) {
+    var viewingNow = data.viewing !== 'all' && String(data.viewing) === String(data.season.number);
+    el.textContent = viewingNow && data.season ? fmtCountdown(data.season.ends_at) : '';
+  }
+  // Past-season banner
+  const banner = document.getElementById('past-banner');
+  if (banner) {
+    const past = data.viewing !== 'all' && data.viewing !== data.season.number;
+    banner.style.display = past ? 'flex' : 'none';
+    if (past) banner.textContent = 'Season ' + data.viewing + ' ended — these are its archived final standings. Season rewards were granted from this snapshot.';
+  }
+}
+
+async function loadRanked(reset) {
+  const resp = await fetch('/api/leaderboard/ranked?season=' +
+    encodeURIComponent(currentSeasonParam()) + '&limit=' + limit + '&offset=' + offset);
   if (!resp.ok) return;
   const data = await resp.json();
   document.getElementById('ranked-spinner').style.display = 'none';
+  renderSeasonHud(data);
   const tbody = document.getElementById('ranked-tbody');
+  if (reset) tbody.innerHTML = '';
   if (data.entries.length === 0 && offset === 0) {
     document.getElementById('ranked-empty').style.display = 'block';
+  } else {
+    document.getElementById('ranked-empty').style.display = 'none';
   }
   data.entries.forEach(e => { tbody.insertAdjacentHTML('beforeend', rowHTML(e)); });
   offset += data.entries.length;
@@ -158,7 +230,16 @@ async function loadRanked() {
   more.style.display = offset < data.total ? 'block' : 'none';
 }
 
-loadRanked();
+function switchSeason() {
+  offset = 0;
+  document.getElementById('ranked-tbody').innerHTML = '';
+  document.getElementById('ranked-empty').style.display = 'none';
+  document.getElementById('ranked-spinner').style.display = 'block';
+  document.getElementById('past-banner').style.display = 'none';
+  loadRanked(false);
+}
+
+loadRanked(true);
 </script>
 </body>
 </html>

@@ -109,7 +109,7 @@ def test_high_power_kicks_farther():
 
 
 def test_high_power_more_loft():
-    """Higher Power stat -> ball reaches higher z for same power input."""
+    """Ground-only: ball stays on ground — both powers produce z==0."""
     st = new_soccer_state(player_count=3)
     inject_player_stats(st, [
         {"size": 50, "power": 80, "weight": 50, "agility": 50},
@@ -124,7 +124,7 @@ def test_high_power_more_loft():
     traj_low, _ = simulate_kick(st2, 1, 0, 90, True)
     max_z_low = max(pt.get("z", 0) for pt in traj_low)
 
-    assert max_z_high > max_z_low, "Higher Power should produce more loft"
+    assert max_z_high == 0.0 and max_z_low == 0.0, "Ground-only: no loft"
 
 
 def test_heavy_vs_light_collision():

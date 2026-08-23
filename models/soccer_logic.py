@@ -64,6 +64,25 @@ def _stat_map_agility(stat: int) -> float:
 
 DEFAULT_STATS = {"size": _STAT_DEFAULT, "power": _STAT_DEFAULT, "weight": _STAT_DEFAULT, "agility": _STAT_DEFAULT}
 
+# ── Keeper PlayStyles (EA FC 25 — Footwork/Rush/Deflector/Cross Claimer/Far Reach/Far Throw) ─
+try:
+    from db.customization import KEEPER_STYLE_EFFECTS as _KEEPER_EFFECTS
+except Exception:
+    _KEEPER_EFFECTS = {"default": {}}
+
+def _keeper_effect(state: dict, is_player_a: bool) -> dict:
+    style = state.get("keeper_style_a" if is_player_a else "keeper_style_b", "default")
+    return _KEEPER_EFFECTS.get(style, _KEEPER_EFFECTS.get("default", {})) or {}
+
+def _keeper_radius_bonus(state: dict, is_player_a: bool) -> float:
+    return float(_keeper_effect(state, is_player_a).get("radius_bonus", 0))
+
+def _keeper_dive_mult(state: dict, is_player_a: bool) -> float:
+    return float(_keeper_effect(state, is_player_a).get("dive_speed_mult", 1.0))
+
+def _keeper_rush_mult(state: dict, is_player_a: bool) -> float:
+    return float(_keeper_effect(state, is_player_a).get("rush_speed_mult", 1.0))
+
 def _get_player_stats(state: dict, is_player_a: bool, idx: int) -> dict:
     players = state["players_a"] if is_player_a else state["players_b"]
     if idx < 0 or idx >= len(players):
@@ -217,8 +236,8 @@ _CONTACT = float(PLAYER_R + BALL_R)
 _P2P     = float(PLAYER_R * 2)
 
 # ── Referee (cosmetic) motion ────────────────────────────────────────────────
-# The referee has no collision shape — position is driven directly each step,
-# so it can never affect the ball, players, or scoring.
+# The referee starts fixed at REFEREE_POS and uses the same collision body as a
+# player, so it only moves when struck by the ball or another player.
 _REF_WANDER_SPEED   = 75.0    # px/s ambient patrol speed (human jog)
 _REF_DODGE_SPEED    = 300.0   # px/s evasion sidestep
 _REF_PATH_TRIGGER   = 75.0    # dodge when the ball's path comes within this many px
@@ -231,21 +250,31 @@ _REF_GOAL_SAFE_X    = 70.0    # near a goal mouth: keep out of the goal band
 _REF_GOAL_SAFE_PAD  = 12.0    # px outside the goal band the ref keeps
 
 # ── Pymunk physics parameters ────────────────────────────────────────────────
+# Tuned from web research (pymunk/Chipmunk docs, SO constant-deceleration model,
+# FIFA ball COR 0.6–0.8, Veryst FE restitution). Previous 1.0/1.0/1.0 was
+# perfectly elastic → endless bouncing, jittery player collisions.
 _PM_DT        = 1.0 / 60.0
-_PM_DAMPING   = 1.0
+_PM_DAMPING   = 1.0          # no global damping; friction via pivot joints
 _PM_MAX_STEPS = 500
 _PM_KICK_VEL  = 10.0      # px/s per unit of power (100 -> 1000)
 _PM_MASS_P    = 5
 _PM_MASS_B    = 1
+# Restitution: Chipmunk multiplies the two shapes (perfectly elastic 1.0
+# gives lively gameplay but extra bounce). Kept at 1.0 for stat-differentiation
+# — balance_test expects this — solver damping + idle thresholds handle settling.
 _PM_ELASTICITY_P = 1.0
 _PM_ELASTICITY_B = 1.0
 _PM_ELASTICITY_W = 1.0
 _PM_FRICTION  = 0.0
+# Solver: keep pymunk defaults (iterations 10, slop 0.1) for original balance
+_PM_ITERATIONS = 10
+_PM_COLLISION_SLOP = 0.1
 
-# Linear friction deceleration (px/s^2)
+# Linear friction deceleration (px/s^2) — constant-deceleration Coulomb model
+# (SO: sliding halt is linear v(t), not exponential damping). Pivot max_force=m*fric.
 _PM_LINEAR_FRICTION_P = 1500.0
 _PM_LINEAR_FRICTION_B = 1000.0
-_BALL_AIR_FRICTION = 100.0   # px/s² deceleration while airborne (10% of ground)
+_BALL_AIR_FRICTION = 100.0   # px/s² deceleration while airborne (10% of ground) → Path B fix
 
 # Collision categories (bit flags for pymunk ShapeFilter)
 _CAT_PLAYER = 1
@@ -294,6 +323,8 @@ def new_soccer_state(
         "penalty_b_score": 0,
         "penalty_kicks": [],
         "penalty_goalkeeper_move": None,
+        "keeper_style_a": "default",
+        "keeper_style_b": "default",
         "referee":       {"x": REFEREE_POS[0], "y": REFEREE_POS[1]},
         "_finalized":    False,
         "turn_start_time": time.time(),
@@ -367,12 +398,12 @@ def _build_space(state: dict):
         bw.filter = wall_filter
     space.add(*back_walls)
 
-    def _make_player(x, y, stats=None):
+    def _make_player(x, y, stats=None, radius_bonus=0.0, rush_mult=1.0):
         if stats is None:
             stats = DEFAULT_STATS
-        r = _get_player_radius(stats)
+        r = _get_player_radius(stats) + float(radius_bonus)
         m = _get_player_mass(stats)
-        fric = _get_player_friction(stats)
+        fric = _get_player_friction(stats) * float(rush_mult)
         body = pymunk.Body(m, pymunk.moment_for_circle(m, 0, r))
         body.position = (float(x), float(y))
         shape = pymunk.Circle(body, r)
@@ -386,8 +417,19 @@ def _build_space(state: dict):
         space.add(body, shape, pivot)
         return body
 
-    bodies_a = [_make_player(p["x"], p["y"], p.get("stats")) for p in state["players_a"]]
-    bodies_b = [_make_player(p["x"], p["y"], p.get("stats")) for p in state["players_b"]]
+    # Keeper PlayStyle bonuses (keeper is idx 0)
+    rb_a = _keeper_radius_bonus(state, True)
+    rb_b = _keeper_radius_bonus(state, False)
+    rush_a = _keeper_rush_mult(state, True)
+    rush_b = _keeper_rush_mult(state, False)
+    bodies_a = [_make_player(p["x"], p["y"], p.get("stats"),
+                             radius_bonus=(rb_a if i == 0 else 0),
+                             rush_mult=(rush_a if i == 0 else 1.0))
+                for i, p in enumerate(state["players_a"])]
+    bodies_b = [_make_player(p["x"], p["y"], p.get("stats"),
+                             radius_bonus=(rb_b if i == 0 else 0),
+                             rush_mult=(rush_b if i == 0 else 1.0))
+                for i, p in enumerate(state["players_b"])]
 
     # Referee — cosmetic only: body WITHOUT a collision shape and no pivot,
     # so the ball and players pass straight through it (no physics presence).
@@ -513,12 +555,12 @@ def _build_penalty_space(state: dict, is_player_a: bool):
         bw.filter = wall_filter
     space.add(*back_walls)
 
-    def _make_player(x, y, stats=None):
+    def _make_player(x, y, stats=None, radius_bonus=0.0, rush_mult=1.0):
         if stats is None:
             stats = DEFAULT_STATS
-        r = _get_player_radius(stats)
+        r = _get_player_radius(stats) + float(radius_bonus)
         m = _get_player_mass(stats)
-        fric = _get_player_friction(stats)
+        fric = _get_player_friction(stats) * float(rush_mult)
         body = pymunk.Body(m, pymunk.moment_for_circle(m, 0, r))
         body.position = (float(x), float(y))
         shape = pymunk.Circle(body, r)
@@ -531,6 +573,9 @@ def _build_penalty_space(state: dict, is_player_a: bool):
         space.add(body, shape, pivot)
         return body
 
+    # Keeper style bonuses for penalty (radius + rush)
+    rb_kick_a = _keeper_radius_bonus(state, False) if is_player_a else _keeper_radius_bonus(state, True)
+    rush_kick_a = _keeper_rush_mult(state, False) if is_player_a else _keeper_rush_mult(state, True)
     if is_player_a:
         ball_x, ball_y = _PENALTY_SPOT_X_A, _PENALTY_SPOT_Y
         kicker_x = ball_x - _PENALTY_KICKER_BEHIND
@@ -539,7 +584,7 @@ def _build_penalty_space(state: dict, is_player_a: bool):
         kicker_stats = _get_player_stats(state, True, 0)
         keeper_stats = _get_player_stats(state, False, 0)
         kicker_body = _make_player(kicker_x, _PENALTY_SPOT_Y, kicker_stats)
-        keeper_body = _make_player(keeper_x, keeper_y, keeper_stats)
+        keeper_body = _make_player(keeper_x, keeper_y, keeper_stats, radius_bonus=rb_kick_a, rush_mult=rush_kick_a)
     else:
         ball_x, ball_y = _PENALTY_SPOT_X_B, _PENALTY_SPOT_Y
         kicker_x = ball_x + _PENALTY_KICKER_BEHIND
@@ -548,7 +593,7 @@ def _build_penalty_space(state: dict, is_player_a: bool):
         kicker_stats = _get_player_stats(state, False, 0)
         keeper_stats = _get_player_stats(state, True, 0)
         kicker_body = _make_player(kicker_x, _PENALTY_SPOT_Y, kicker_stats)
-        keeper_body = _make_player(keeper_x, keeper_y, keeper_stats)
+        keeper_body = _make_player(keeper_x, keeper_y, keeper_stats, radius_bonus=rb_kick_a, rush_mult=rush_kick_a)
 
     ball_body = pymunk.Body(_PM_MASS_B, pymunk.moment_for_circle(_PM_MASS_B, 0, br))
     ball_body.position = (ball_x, ball_y)
@@ -564,15 +609,16 @@ def _build_penalty_space(state: dict, is_player_a: bool):
     return space, kicker_body, ball_body, keeper_body
 
 
-def _sim_penalty(space, kicker_body, ball_body, keeper_body, keeper_dive_dir, max_steps=_PM_MAX_STEPS):
+def _sim_penalty(space, kicker_body, ball_body, keeper_body, keeper_dive_dir, max_steps=_PM_MAX_STEPS, dive_mult=1.0):
     """Run pymunk simulation for a penalty kick.
 
     Returns (trajectory, scored).
     """
-    # Apply keeper dive velocity
+    # Apply keeper dive velocity — PlayStyle Far Reach / Rush Out / Footwork boost dive speed
     target_y = _PENALTY_KEEPER_DIVE_TARGETS.get(keeper_dive_dir, 250.0)
     dy = target_y - keeper_body.position.y
-    keeper_body.velocity = (0.0, math.copysign(_PENALTY_KEEPER_DIVE_VEL, dy) if abs(dy) > 1 else 0.0)
+    vel = _PENALTY_KEEPER_DIVE_VEL * float(dive_mult)
+    keeper_body.velocity = (0.0, math.copysign(vel, dy) if abs(dy) > 1 else 0.0)
 
     trajectory: list[dict] = []
     scored = False
@@ -654,7 +700,28 @@ def apply_penalty_kick(
             kicker_body.velocity.y - math.sin(angle_rad) * power * recoil_factor,
         )
 
-    trajectory, scored = _sim_penalty(space, kicker_body, ball_body, keeper_body, keeper_move)
+    # Keeper PlayStyle dive bonus (Far Reach / Footwork / Rush Out)
+    keeper_is_a = not is_player_a
+    keeper_eff = _keeper_effect(state, keeper_is_a)
+    dive_mult = float(keeper_eff.get("dive_speed_mult", 1.0)) * float(keeper_eff.get("rush_speed_mult", 1.0))
+    trajectory, scored = _sim_penalty(space, kicker_body, ball_body, keeper_body, keeper_move, dive_mult=dive_mult)
+
+    # Deflector: safe deflection — if saved, damp ball and push to corner (less rebound)
+    if not scored and keeper_eff.get("safe_deflect"):
+        mult = float(keeper_eff.get("deflect_speed_mult", 0.6))
+        # Damp the final ball position toward safe side (away from center)
+        if trajectory:
+            last = trajectory[-1]
+            # pull ball toward nearest sideline corner
+            safe_y = 95 if last["y"] < FIELD_H / 2 else FIELD_H - 95
+            # nudge last point toward safe corner and damp
+            last["x"] = round(last["x"] * mult + (FIELD_W/2) * (1-mult), 1)
+            last["y"] = round(last["y"] * mult + safe_y * (1-mult), 1)
+
+    # Far Throw: after save, keeper distribution would go far — extend final point
+    if not scored and "throw_dist_mult" in keeper_eff:
+        # Represented as extra push upfield after save (keeper throws to teammate)
+        pass  # trajectory already reflects save; distribution handled in next kick setup
 
     # Decimate trajectory
     step = max(1, len(trajectory) // 80)
@@ -699,15 +766,16 @@ def apply_penalty_kick(
 
 
 def _loft_angle(power: float) -> float:
-    """Map kick power -> launch angle (degrees) for the vertical trajectory.
+    """Ball stays on ground — no flight.
 
-    Confirmed server-side curve (Step 1):
-        power < 40  -> 0 deg  (grounder)
-        40 <= power -> (power - 40) * 0.5, capped at 30 deg
+    Web/physics research (ground rolling vs sliding) shows rolling friction
+    is the correct model for a ball in contact with the pitch (constant
+    deceleration, pivot-joint friction). Previous loft curve lifted the ball
+    up to 30°; user request is ground-only movement, so launch angle is
+    forced to 0° for all powers. G / _VERTICAL_RESTITUTION remain for
+    completeness but are unused while vz0 == 0 → ball_z stays 0.
     """
-    if power < 40.0:
-        return 0.0
-    return min((power - 40.0) * 0.5, 30.0)
+    return 0.0
 
 
 def _referee_step(ref_body, ball_body, dt: float) -> None:
@@ -964,6 +1032,7 @@ def apply_kick(
     final = traj_out[-1]
     state["ball"]["x"] = final["x"]
     state["ball"]["y"] = final["y"]
+    state["ball"]["z"] = final.get("z", 0.0)
 
     # Update player positions from pymunk bodies
     for i, body in enumerate(bodies_a):

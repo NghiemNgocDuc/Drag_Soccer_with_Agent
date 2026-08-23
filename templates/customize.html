@@ -42,6 +42,10 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
 .preview-canvas{border-radius:10px;border:2px solid var(--glass-border);width:100%;max-width:520px;height:auto;aspect-ratio:1000/625}
 .btn-row{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
 .btn:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+select option:disabled{color:#94a3b8}
+.lock-note{font-size:.68rem;color:var(--dim);width:100%;padding-left:100px;margin-top:-2px}
+.lock-note .lock-ico{opacity:.8}
+.lock-note b{color:var(--muted);font-weight:600}
 </style>
 </head>
 <body>
@@ -217,6 +221,7 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
           <option value="classic">Classic Panels</option>
           <option value="euro">Euro Style</option>
           <option value="gold">Gold</option>
+          <option value="titanium">Titanium</option>
           <option value="retro">Retro Brown</option>
           <option value="neon">Neon Glow</option>
           <option value="pixel">Pixel 8-bit</option>
@@ -255,6 +260,52 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
     </div>
   </div>
 
+  <!-- Keeper PlayStyles — EA FC 25 -->
+  <div class="glass-card">
+    <h2>Keeper PlayStyles <span style="font-weight:400;font-size:.7rem;color:var(--muted)">6 styles × Plus — keeper is idx 0</span></h2>
+    <div class="setting-row">
+      <span class="setting-label">Keeper A Style</span>
+      <div class="setting-control">
+        <select id="keeper_style_a">
+          <option value="default">Default</option>
+          <option value="footwork">Footwork — foot saves faster + reach</option>
+          <option value="footwork_plus">Footwork+ — even faster + greater reach</option>
+          <option value="rush_out">Rush Out — rush speed + 1v1 reaction</option>
+          <option value="rush_out_plus">Rush Out+ — greatly faster</option>
+          <option value="deflector">Deflector — safe deflection</option>
+          <option value="deflector_plus">Deflector+ — to teammate + speed control</option>
+          <option value="cross_claimer">Cross Claimer — claim pace & punch</option>
+          <option value="cross_claimer_plus">Cross Claimer+ — greater</option>
+          <option value="far_reach">Far Reach — dive reach + anim</option>
+          <option value="far_reach_plus">Far Reach+ — greater reach</option>
+          <option value="far_throw">Far Throw — speed + distance</option>
+          <option value="far_throw_plus">Far Throw+ — greater</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Keeper B Style</span>
+      <div class="setting-control">
+        <select id="keeper_style_b">
+          <option value="default">Default</option>
+          <option value="footwork">Footwork</option>
+          <option value="footwork_plus">Footwork+</option>
+          <option value="rush_out">Rush Out</option>
+          <option value="rush_out_plus">Rush Out+</option>
+          <option value="deflector">Deflector</option>
+          <option value="deflector_plus">Deflector+</option>
+          <option value="cross_claimer">Cross Claimer</option>
+          <option value="cross_claimer_plus">Cross Claimer+</option>
+          <option value="far_reach">Far Reach</option>
+          <option value="far_reach_plus">Far Reach+</option>
+          <option value="far_throw">Far Throw</option>
+          <option value="far_throw_plus">Far Throw+</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-desc">Keeper is player 0. Plus variants are stronger. Effects: Footwork low-ball, Rush 1v1, Deflector safe, Cross punch, Far Reach dive, Far Throw distribution.</div>
+  </div>
+
   <!-- 5. Game Feel -->
   <div class="glass-card">
     <h2>Game Feel</h2>
@@ -264,6 +315,7 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
         <select id="goal_effect">
           <option value="confetti">Confetti Burst</option>
           <option value="fireworks">Fireworks</option>
+          <option value="aurora">Aurora</option>
           <option value="flash">Screen Flash</option>
           <option value="shake">Screen Shake</option>
           <option value="none">None</option>
@@ -363,16 +415,18 @@ h1{font-size:1.35rem;font-weight:700;letter-spacing:-.02em;background:linear-gra
 
 <script>
 const CUST = {{ cust | tojson }};
+const LOCK_MAP = {{ lock_map | tojson }};
+const LOCKED = {{ locked | tojson }};
 const DEFAULTS = {
   team_a_color:'#3b82f6',team_b_color:'#ef4444',ref_color:'#fde68a',ball_color:'#f8fafc',bg_color:'#2a2518',
   player_count:3,grass_shade:'dark',pitch_pattern:'stripes',field_line_color:'#ffffff',corner_flag_style:'normal',
   crowd_palette:'classic',stadium_vignette:0.6,floodlight_color:'warm',bg_scene:'night',
-  ball_design:'classic',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',highlight_style:'glow',shirt_font:'default',
+  ball_design:'classic',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',keeper_style_a:'default',keeper_style_b:'default',highlight_style:'glow',shirt_font:'default',
   goal_effect:'confetti',trail_color:'#ffffff',power_bar_style:'classic',
   half_length:45,power_cap:100,win_goal_limit:5
 };
 const COLOR_KEYS = ['team_a_color','team_b_color','ref_color','ball_color','bg_color','field_line_color','trail_color','keeper_color_a','keeper_color_b'];
-const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','ball_design','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
+const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','ball_design','keeper_style_a','keeper_style_b','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
 const RANGE_KEYS = ['player_count','stadium_vignette','power_cap'];
 let current = {};
 function getVal(id){return document.getElementById(id).value}
@@ -477,8 +531,65 @@ function showFlash(msg,type){
   el.textContent=msg;el.className='flash-msg '+type;
   setTimeout(function(){el.className='flash-msg'},4000);
 }
+// ── Achievement-gated cosmetics ───────────────────────────────────────────
+function lockedSet(){
+  var s=new Set();
+  LOCKED.forEach(function(k){s.add(k)});
+  return s;
+}
+function applyLocks(){
+  var locks=lockedSet();
+  Object.keys(LOCK_MAP||{}).forEach(function(field){
+    var sel=document.getElementById(field);
+    if(!sel)return;
+    var notes=[];
+    Object.keys(LOCK_MAP[field]).forEach(function(value){
+      var info=LOCK_MAP[field][value];
+      var opt=sel.querySelector('option[value="'+value+'"]');
+      var isLocked=locks.has(field+':'+value);
+      if(!opt)return;
+      if(isLocked){
+        opt.disabled=true;
+        opt.setAttribute('data-locked','1');
+        opt.title='Locked — unlock by earning "'+info.name+'"';
+        notes.push('🔒 '+value+' — '+info.name);
+      }else{
+        opt.disabled=false;
+        opt.removeAttribute('data-locked');
+        opt.title='';
+      }
+    });
+    if(notes.length){
+      var row=sel.closest('.setting-row');
+      var existing=row&&row.querySelector('.lock-note');
+      if(existing)existing.remove();
+      if(row){
+        var note=document.createElement('div');
+        note.className='lock-note';
+        note.innerHTML='<span class="lock-ico">🔒</span> '+notes.join(' · ');
+        row.appendChild(note);
+      }
+    }
+  });
+  // If the currently-selected value is locked (grandfathered save), keep it
+  // visible but greyed; the server still accepts the stored value unchanged.
+}
 async function saveSettings(){
   syncFromInputs();
+  // Client-side guard (server re-enforces): never submit a locked value.
+  var locks=lockedSet();
+  var bad=null;
+  Object.keys(LOCK_MAP||{}).forEach(function(field){
+    var v=current[field];
+    if(v!==undefined&&locks.has(field+':'+v)&&!bad){
+      bad=LOCK_MAP[field][v];
+      bad.fieldLabel=field;
+    }
+  });
+  if(bad){
+    showFlash('"'+(bad.name||bad.key)+'" is locked — unlock it before saving.','error');
+    return;
+  }
   var btn=document.getElementById('save-btn');btn.disabled=true;btn.textContent='Saving…';
   try{
     var resp=await fetch('/customize/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(current)});
@@ -641,6 +752,13 @@ function renderPreview(){
       ctx.shadowColor=gc.trail_color;ctx.shadowBlur=15;
       ctx.fillStyle=gc.ball_color;ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();
       ctx.shadowBlur=0;ctx.strokeStyle=gc.trail_color;ctx.lineWidth=2;ctx.stroke();
+    }else if(gc.ball_design==='titanium'){
+      var grad=ctx.createLinearGradient(x-12,y-12,x+12,y+12);
+      grad.addColorStop(0,'#f8fafc');grad.addColorStop(.5,'#94a3b8');grad.addColorStop(1,'#475569');
+      ctx.fillStyle=grad;ctx.beginPath();ctx.arc(x,y,12,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#1e293b';ctx.lineWidth=1.5;ctx.stroke();
+      ctx.fillStyle='#334155';
+      for(var i=0;i<5;i++){var a=i*2*Math.PI/5-Math.PI/2,px=x+5*Math.cos(a),py=y+5*Math.sin(a);ctx.beginPath();ctx.arc(px,py,2.5,0,Math.PI*2);ctx.fill()}
     }else if(gc.ball_design==='pixel'){
       ctx.fillStyle=gc.ball_color;
       for(var dx=-8;dx<=8;dx+=3)for(var dy=-8;dy<=8;dy+=3){if(dx*dx+dy*dy<80){ctx.fillRect(x+dx-1,y+dy-1,3,3)}}
@@ -648,7 +766,17 @@ function renderPreview(){
   }
 }
 
-// Init
+// Init: populate inputs from saved CUST
+Object.keys(CUST||{}).forEach(function(k){
+  var el=document.getElementById(k);
+  if(!el) return;
+  var v=CUST[k];
+  if(v===undefined||v===null) return;
+  if(k==='stadium_vignette') el.value = Math.round(parseFloat(v)*100);
+  else el.value = v;
+  if(COLOR_KEYS.indexOf(k)!==-1) updateHex(k);
+});
+applyLocks();
 syncFromInputs();
 renderPreview();
 </script>

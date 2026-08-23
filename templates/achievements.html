@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="stylesheet" href="/static/style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Achievements — Agent Soccer</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+nav,main{position:relative;z-index:1}
+main{max-width:900px;margin:0 auto;padding:30px 16px}
+/* ── Hero ── */
+.hero{
+  background:linear-gradient(135deg,rgba(6,182,212,.12),rgba(139,92,246,.12));
+  border:1px solid rgba(255,255,255,.5);
+  backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border-radius:20px;padding:32px;
+  display:flex;align-items:center;gap:24px;
+  margin-bottom:24px;position:relative;overflow:hidden;
+}
+.hero-info h1{font-size:1.6rem;font-weight:800;letter-spacing:-.03em;color:var(--text);margin:0}
+.hero-info .tagline{font-size:.78rem;color:var(--muted);margin-top:2px}
+.hero-badge{
+  margin-left:auto;position:relative;
+  background:rgba(255,255,255,.5);border-radius:12px;padding:12px 20px;text-align:center;
+  border:1px solid rgba(255,255,255,.4);
+}
+.hero-badge .val{font-size:1.6rem;font-weight:800;color:var(--accent-b)}
+.hero-badge .lbl{font-size:.6rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+/* ── Progress bar ── */
+.progress-card{
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);
+  padding:20px 24px;margin-bottom:24px;
+}
+.progress-bar{height:10px;border-radius:999px;background:rgba(0,0,0,.07);overflow:hidden;margin-top:10px}
+.progress-fill{height:100%;border-radius:999px;background:linear-gradient(90deg,#06b6d4,#8b5cf6);transition:width .5s ease}
+.progress-lbl{display:flex;justify-content:space-between;font-size:.72rem;color:var(--muted);font-weight:600}
+/* ── Category sections ── */
+.section-title{
+  font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+  color:var(--muted);margin-bottom:10px;margin-top:26px;
+}
+.badge-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.badge-card{
+  background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
+  border:1px solid var(--glass-border);border-radius:14px;box-shadow:var(--glass-shadow);
+  padding:16px;display:flex;gap:14px;align-items:flex-start;transition:transform .15s,box-shadow .15s;
+}
+.badge-card.earned:hover{transform:translateY(-2px);box-shadow:0 12px 40px rgba(31,38,135,.12)}
+.badge-card .b-emoji{
+  font-size:1.7rem;line-height:1;flex-shrink:0;width:44px;height:44px;border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,rgba(6,182,212,.15),rgba(139,92,246,.15));
+}
+.badge-card:not(.earned){opacity:.55;filter:grayscale(.9)}
+.badge-card:not(.earned) .b-emoji{filter:grayscale(1)}
+.badge-card .b-name{font-size:.88rem;font-weight:700;color:var(--text)}
+.badge-card .b-desc{font-size:.74rem;color:var(--muted);margin-top:3px;line-height:1.45}
+.badge-card .b-date{font-size:.65rem;color:var(--dim);margin-top:6px;font-weight:600}
+.badge-card .b-locked{font-size:.6rem;color:var(--dim);margin-top:6px;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+@media(max-width:600px){
+  .hero{flex-direction:column;text-align:center;padding:24px}
+  .hero-badge{margin-left:0}
+  .badge-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="nebula"></div>
+
+<nav>
+  <a class="nav-brand" href="/play3d">Agent Soccer</a>
+  <div class="nav-links">
+    <a href="/play3d" class="nav-link">Game</a>
+    <a href="/playground" class="nav-link">Playground</a>
+    <a href="/arena" class="nav-link">AI Arena</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/achievements" class="nav-link active">Achievements</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/research" class="nav-link">Research</a>
+    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="/customize" class="nav-link">Customize</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+  </div>
+</nav>
+
+<main>
+  <div class="hero">
+    <div class="hero-info">
+      <h1>Achievements</h1>
+      <p class="tagline">Permanent badges for your play — cosmetic only, no gameplay effects.</p>
+    </div>
+    <div class="hero-badge">
+      <div class="val">{{ earned }}/{{ total }}</div>
+      <div class="lbl">Earned</div>
+    </div>
+  </div>
+
+  <div class="progress-card">
+    <div class="progress-lbl">
+      <span>Progress</span><span>{{ earned }} of {{ total }} badges</span>
+    </div>
+    {% set pct = (earned / total * 100) if total else 0 %}
+    <div class="progress-bar"><div class="progress-fill" style="width:{{ pct }}%"></div></div>
+  </div>
+
+  {% for cat, label in categories.items() %}
+    {% set group = achievements | selectattr("category", "equalto", cat) | list %}
+    {% if group %}
+      <div class="section-title">{{ label }}</div>
+      <div class="badge-grid">
+        {% for a in group %}
+          <div class="badge-card {{ 'earned' if a.earned else '' }}">
+            <div class="b-emoji">{{ a.emoji }}</div>
+            <div>
+              <div class="b-name">{{ a.name }}</div>
+              <div class="b-desc">{{ a.description }}</div>
+              {% if a.earned %}
+                <div class="b-date">Earned {{ a.awarded_at[:10] }}</div>
+              {% else %}
+                <div class="b-locked">Locked</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</main>
+</body>
+</html>

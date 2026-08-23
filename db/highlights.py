@@ -33,6 +33,22 @@ TYPE_LABEL = {
     "fast": "Fast play",
 }
 
+# Priority for "the best highlight from a match" (confirmed design):
+# a goal beats a near miss, which beats a fast play. Lower = better.
+TYPE_PRIORITY = {"goal": 0, "near": 1, "fast": 2}
+
+
+def best_highlight(hls: list[dict]) -> dict | None:
+    """The single "best" highlight from a detected list, or None.
+
+    Selection-only (no detection): first goal if any, else first
+    near-miss, else first fast play; ties keep detection/kick order.
+    """
+    if not hls:
+        return None
+    return min(hls, key=lambda h: (TYPE_PRIORITY.get(h.get("type"), 3),
+                                   h.get("kick", 0)))
+
 
 def _real_moves(replay_data):
     """The trajectory-bearing entries (the route's moves), with entry index."""

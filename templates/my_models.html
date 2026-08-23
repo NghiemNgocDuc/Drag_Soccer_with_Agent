@@ -185,6 +185,7 @@ pre.ref-code{
   <a class="nav-brand" href="/play3d">Agent Soccer</a>
   <div class="nav-links">
     <a href="/play3d" class="nav-link">Game</a>
+    <a href="/learn" class="nav-link">Learn</a>
     <a href="/playground" class="nav-link">Playground</a>
     <a href="/arena" class="nav-link">AI Arena</a>
     <a href="/my-models" class="nav-link active">My Models</a>
@@ -213,6 +214,25 @@ pre.ref-code{
       <button class="btn btn-blue btn-sm" onclick="openNew()">+ New</button>
     </div>
 
+    <a href="/learn" class="tutorial-cta">
+      <span class="tc-icon">🎓</span>
+      <span>
+        <strong>New to building AIs?</strong><br>
+        <span class="tc-sub">Take the 7-lesson Learn curriculum — milestones are checked automatically.</span>
+      </span>
+      <span class="tc-arrow">→</span>
+    </a>
+    <style>
+      .tutorial-cta{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--text);
+        background:linear-gradient(135deg,rgba(14,165,233,.12),rgba(99,102,241,.12));
+        border:1px solid rgba(99,102,241,.35);border-radius:14px;padding:12px 14px;margin-bottom:14px;transition:transform .12s,box-shadow .12s}
+      .tutorial-cta:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(99,102,241,.18)}
+      .tutorial-cta .tc-icon{font-size:1.3rem}
+      .tutorial-cta strong{font-size:.84rem}
+      .tutorial-cta .tc-sub{font-size:.72rem;color:var(--muted);line-height:1.45}
+      .tutorial-cta .tc-arrow{margin-left:auto;color:var(--accent);font-weight:700}
+    </style>
+
     <div class="model-list" id="model-list">
       {% if models %}
         {% for m in models %}
@@ -230,6 +250,8 @@ pre.ref-code{
             <div style="margin-left:auto;display:flex;gap:4px">
               <button class="btn btn-ghost btn-xs"
                 onclick="event.stopPropagation(); testInPlayground('{{ m.id }}')">▶ Test</button>
+              <button class="btn btn-ghost btn-xs"
+                onclick="event.stopPropagation(); location.href='/loss-analysis?model={{ m.id }}'">🔍 Why did it lose?</button>
               <button class="btn btn-ghost btn-xs"
                 onclick="event.stopPropagation(); submitToLeaderboard('{{ m.id }}')">{{ 'Re-benchmark' if m.lb else 'Submit to Leaderboard' }}</button>
               <button class="btn btn-danger btn-xs"
@@ -616,6 +638,7 @@ async function pollLeaderboard(id) {
     const r = await fetch(`/api/models/user/${id}/leaderboard-status`);
     st = await r.json();
   } catch (e) { return; }
+  AW.handle(st);
   if (st.status === 'done') {
     row.innerHTML = '<span class="lb-score">🏆 ' + Number(st.score).toFixed(1) + '%</span>' +
       '<span class="lb-updated">vs built-ins · ' + (st.benchmarked_at ? st.benchmarked_at.slice(0, 10) : '') + '</span>' +
@@ -641,5 +664,6 @@ function escLb(s) {
 }
 </script>
 <script src="/static/feedback.js"></script>
+<script src="/static/achievements.js"></script>
 </body>
 </html>

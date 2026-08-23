@@ -31,10 +31,13 @@ def _fresh_store():
     ranked._MEM.clear()
     ranked._MEM_MATCHES.clear()
     ranked._MEM_HISTORY.clear()
+    from db import seasons
+    seasons.reset_mem()
     yield
     ranked._MEM.clear()
     ranked._MEM_MATCHES.clear()
     ranked._MEM_HISTORY.clear()
+    seasons.reset_mem()
 
 
 def new_user(tag):
@@ -48,7 +51,7 @@ def login(client_, uid_, name_):
 
 
 def _cleanup():
-    for k in ("ranked:queue", "ranked:rooms", "online:active"):
+    for k in ("ranked:queue", "ranked:rooms", "online:active", "season:lock"):
         try:
             r.delete(k)
         except Exception:
@@ -161,6 +164,13 @@ def test_leaderboard_route_smoke():
         ua, na = new_user("rl")
         ranked._MEM[ua] = {"user_id": ua, "rating": 1350, "games_played": PLACEMENT_GAMES,
                            "wins": 7, "losses": 3, "peak_rating": 1350}
+        from db import seasons
+        seasons.reset_mem()
+        season = seasons.initialize()
+        seasons._MEM_SEASON_RATINGS[(ua, season["id"])] = {
+            "user_id": ua, "season_id": season["id"], "rating_start": 1200,
+            "rating": 1350, "games_played": PLACEMENT_GAMES,
+            "wins": 7, "losses": 3, "peak_rating": 1350}
         with app.test_client() as c:
             login(c, ua, na)
             resp = c.get("/api/leaderboard/ranked?limit=5&offset=0")
@@ -170,6 +180,10 @@ def test_leaderboard_route_smoke():
             assert data["entries"][0]["rating"] == 1350
             # Every entry is placed
             assert data["entries"][0]["games_played"] >= PLACEMENT_GAMES
+            # Season-scoped by default now; all-time still available
+            assert data["viewing"] == season["number"]
+            all_resp = c.get("/api/leaderboard/ranked?season=all")
+            assert all_resp.get_json()["total"] == 1
     finally:
         _cleanup()
 

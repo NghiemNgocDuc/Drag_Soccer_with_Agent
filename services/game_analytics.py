@@ -137,6 +137,7 @@ def run_model_battle(
     max_kicks: int = 30,
     parallel: bool = True,
     progress_callback=None,
+    tracer: dict | None = None,
 ) -> dict | None:
     if isinstance(model_a, str):
         model_a = _load_model(model_a)
@@ -144,6 +145,8 @@ def run_model_battle(
         model_b = _load_model(model_b)
     if model_a is None or model_b is None:
         return None
+    if tracer is None:
+        tracer = None
     wins_a = wins_b = draws = 0
     all_stats_a = []
     all_stats_b = []
@@ -155,6 +158,8 @@ def run_model_battle(
     def _play_one(game_idx: int) -> dict:
         st = new_soccer_state()
         st["move_history"] = []
+        traced: list[dict] = []
+        turn_n = 0  # monotonic kick counter (penalty kicks don't advance kick_count)
         for _ in range(max_kicks):
             if st.get("game_over"):
                 break
@@ -166,12 +171,28 @@ def run_model_battle(
                 st["winner"] = "B" if is_a else "A"
                 st["game_over"] = True
                 break
+            # Snapshot the exact pre-kick state if this turn belongs to the
+            # traced side (deep copy BEFORE apply_kick mutates `st` in place).
+            snap = None
+            if tracer and ((tracer["side"] == "A") == is_a):
+                snap = dict(st)
+                snap.pop("move_history", None)
             try:
                 traj, scored, desc, kep, push = apply_kick(st, pidx, ang, pwr, is_a)
             except Exception:
                 st["winner"] = "B" if is_a else "A"
                 st["game_over"] = True
                 break
+            if snap is not None:
+                traced.append({
+                    "turn": turn_n,
+                    "mover": "a" if is_a else "b",
+                    "snapshot": snap,
+                    "decision": {"player_idx": pidx, "angle": round(ang, 1), "power": round(pwr, 1)},
+                    "scored": scored,
+                    "trajectory": traj,
+                })
+            turn_n += 1
             st["move_history"].append({
                 "mover": "a" if is_a else "b",
                 "player_idx": pidx, "angle": round(ang, 1), "power": round(pwr, 1),
@@ -180,7 +201,7 @@ def run_model_battle(
         w = st.get("winner", "Draw")
         ga_a = analyze_game({**st, "move_history": [m for m in st["move_history"] if m.get("mover") == "a"]})
         ga_b = analyze_game({**st, "move_history": [m for m in st["move_history"] if m.get("mover") == "b"]})
-        return {
+        gr = {
             "game_idx": game_idx,
             "winner": w,
             "score_a": st["score_a"],
@@ -190,6 +211,9 @@ def run_model_battle(
             "stats_b": ga_b,
             "move_history": st.get("move_history", []),
         }
+        if tracer is not None:
+            gr["traced_turns"] = traced
+        return gr
 
     if parallel and n_games > 1:
         with ThreadPoolExecutor(max_workers=min(n_games, 8)) as pool:
@@ -315,6 +339,7 @@ def benchmark_model_vs_builtins(
     n_games: int = 5,
     opponents: list | None = None,
     progress_callback=None,
+    tracer: dict | None = None,
 ) -> dict:
     """Benchmark `model` (team A) against every built-in agent.
 
@@ -323,6 +348,10 @@ def benchmark_model_vs_builtins(
     per-opponent breakdown and aggregate shot stats. `opponents` accepts
     catalog ids or model objects (default: all 7 built-ins). Returns
     {"score", "n_games", "details": [...], "avg_stats": {...}}.
+
+    When `tracer` is given (dict with a "side" — see run_model_battle), the
+    per-game results carrying `traced_turns` are also returned under
+    "traced_games" (list of {"opponent", "opponent_label", "games"}).
     """
     if opponents is None:
         opponents = [m["id"] for m in MODEL_CATALOG]
@@ -330,11 +359,14 @@ def benchmark_model_vs_builtins(
     offset = 0
     details = []
     stats_acc: dict[str, list[float]] = {}
+    traced_payload: list[dict] = [] if tracer is not None else None
 
     for opp in opponents:
         if isinstance(opp, str):
+            opp_id = opp
             opp_name = next((m["name"] for m in MODEL_CATALOG if m["id"] == opp), opp)
         else:
+            opp_id = getattr(opp, "MODEL_NAME", "opponent")
             opp_name = getattr(opp, "MODEL_NAME", "Opponent")
         if progress_callback:
             def _pb(d, _n, off=offset):
@@ -343,6 +375,7 @@ def benchmark_model_vs_builtins(
             _pb = None
         result = run_model_battle(
             model, opp, n_games=n_games, parallel=True, progress_callback=_pb,
+            tracer=tracer,
         )
         if result is None:
             continue
@@ -355,9 +388,18 @@ def benchmark_model_vs_builtins(
             "losses": result["n_games"] - result["wins_a"] - result["draws"],
             "n_games": result["n_games"],
         })
+        if traced_payload is not None:
+            traced_payload.append({
+                "opponent": opp_id,
+                "opponent_label": opp_name,
+                "games": result.get("games") or [],
+            })
         for k, v in (result.get("avg_stats_a") or {}).items():
             stats_acc.setdefault(k, []).append(v)
 
     score = round(sum(d["win_rate"] for d in details) / len(details), 1) if details else 0.0
     avg_stats = {k: round(sum(vs) / len(vs), 1) for k, vs in stats_acc.items()} if stats_acc else {}
-    return {"score": score, "n_games": n_games, "details": details, "avg_stats": avg_stats}
+    out = {"score": score, "n_games": n_games, "details": details, "avg_stats": avg_stats}
+    if traced_payload is not None:
+        out["traced_games"] = traced_payload
+    return out

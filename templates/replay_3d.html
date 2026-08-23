@@ -69,6 +69,44 @@
 .live-chat .lc-row:last-child{border-bottom:none}
 .live-chat .lc-name{font-weight:600;color:#7dd3fc}
 .live-chat .lc-readonly{margin-top:8px;font-size:.75rem;color:#64748b}
+
+/* ── Loss analysis mode ── */
+.hl-badge{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;
+  border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:4px 12px}
+.hl-cell.tag-goal{background:rgba(74,222,128,.45)}
+.hl-cell.tag-chance{background:rgba(34,211,238,.45)}
+.hl-cell.tag-neutral{background:rgba(148,163,184,.35)}
+.hl-cell.tag-poor{background:rgba(251,146,60,.5)}
+.hl-cell.tag-own{background:rgba(244,63,94,.55)}
+.hl-badge.tag-goal{background:rgba(74,222,128,.22);border-color:rgba(74,222,128,.5);color:#bbf7d0}
+.hl-badge.tag-chance{background:rgba(34,211,238,.22);border-color:rgba(34,211,238,.5);color:#a5f3fc}
+.hl-badge.tag-neutral{background:rgba(148,163,184,.22);border-color:rgba(148,163,184,.5);color:#cbd5e1}
+.hl-badge.tag-poor{background:rgba(251,146,60,.22);border-color:rgba(251,146,60,.5);color:#fed7aa}
+.hl-badge.tag-own{background:rgba(244,63,94,.22);border-color:rgba(244,63,94,.5);color:#fecdd3}
+.loss-patterns{display:flex;flex-direction:column;gap:8px}
+.loss-pattern-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.loss-pattern-block{font-size:.84rem;color:#cbd5e1;line-height:1.55}
+.loss-pattern-warn{font-size:.84rem;color:#fca5a5;background:rgba(244,63,94,.12);
+  border:1px solid rgba(244,63,94,.35);border-radius:10px;padding:7px 11px}
+.loss-caveat{font-size:.75rem;color:#64748b;margin-top:2px}
+.loss-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.loss-dec{font-size:.9rem;color:#e2e8f0}
+.loss-desc{font-size:.85rem;color:#94a3b8;margin-top:6px}
+.loss-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.loss-compare-hint{font-size:.82rem;color:#94a3b8}
+.loss-chips{display:inline-flex;flex-wrap:wrap;gap:6px}
+.loss-chip{font-size:.72rem;padding:3px 9px;text-transform:capitalize}
+.loss-compare-box{margin-top:10px;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 12px}
+.loss-compare-title{font-size:.9rem;color:#e2e8f0}
+.loss-compare-note{font-size:.85rem;color:#cbd5e1;margin-top:4px}
+.loss-compare-note b{color:#fde68a}
+.loss-loading{font-size:.82rem;color:#94a3b8;font-style:italic}
+.loss-empty{font-size:.9rem;color:#94a3b8;line-height:1.7}
+.loss-empty a{color:#06b6d4}
+#loss-match.input{background:rgba(255,255,255,.07);color:#e2e8f0;border:1px solid rgba(255,255,255,.25);
+  border-radius:10px;padding:7px 10px;font-size:.85rem}
+#loss-match.input option{background:#0f172a;color:#e2e8f0}
 </style>
 <script src="{{ url_for('static', filename='sound.js') }}"></script>
 </head>
@@ -80,9 +118,9 @@
     <a href="/spectate" class="nav-link{% if live_room %} active{% endif %}">Live Matches</a>
     <a href="/playground" class="nav-link">Playground</a>
     <a href="/arena" class="nav-link">AI Arena</a>
-    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/my-models" class="nav-link{% if loss_model %} active{% endif %}">My Models</a>
     <a href="/profile" class="nav-link">Profile</a>
-    <a href="/tournaments" class="nav-link{% if not live_room %} active{% endif %}">Tournaments</a>
+    <a href="/tournaments" class="nav-link{% if not live_room and not loss_model %} active{% endif %}">Tournaments</a>
     <a href="/research" class="nav-link">Research</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
     <a href="/feedback" class="nav-link">Feedback</a>
@@ -95,12 +133,19 @@
 </nav>
 
 <main>
-  {% if not live_room %}
+  {% if not live_room and t and match %}
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
     <h1>Match Replay <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></h1>
     <div>
       <a href="/tournaments/{{ t.id }}" class="btn btn-ghost" style="margin-right:8px">Back to Bracket</a>
       <a href="/tournaments/{{ t.id }}/watch/{{ match.id }}" class="btn btn-ghost">2D Replay</a>
+    </div>
+  </div>
+  {% elif loss_model %}
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+    <h1>Loss Analysis <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></h1>
+    <div>
+      <a href="/my-models" class="btn btn-ghost" style="margin-right:8px">Back to My Models</a>
     </div>
   </div>
   {% endif %}
@@ -122,8 +167,10 @@
       <div class="hud-mid">
         {% if live_room %}
         <div class="kick-counter">Move <span id="kick-count">0</span></div>
-        {% else %}
+        {% elif match %}
         <div class="kick-counter">Move <span id="kick-count">0</span> / {{ match.replay_data|length }}</div>
+        {% else %}
+        <div class="kick-counter">Move <span id="kick-count">0</span></div>
         {% endif %}
         <div class="turn-badge turn-a" id="turn-badge">Ready</div>
       </div>
@@ -139,7 +186,7 @@
       </div>
     </div>
 
-    {% if not live_room %}
+    {% if not live_room and not loss_model %}
     <div class="replay-controls">
       <button class="btn btn-primary btn-play" id="btn-next" onclick="playNextMove3D()">Next Move</button>
       <button class="btn btn-ghost btn-play" id="btn-auto" onclick="toggleAutoPlay3D()">Auto Play</button>
@@ -151,7 +198,7 @@
     </div>
     {% endif %}
 
-    {% if not live_room %}
+    {% if not live_room and not loss_model %}
     <div class="hl-section" id="hl-section" style="display:none">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <h3 style="margin:0;font-size:1rem">Highlights</h3>
@@ -159,6 +206,17 @@
       </div>
       <div class="hl-strip" id="hl-strip"></div>
       <div class="hl-cards" id="hl-cards"></div>
+    </div>
+    {% elif loss_model %}
+    <div class="hl-section" id="loss-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0;font-size:1rem">Why did <span id="loss-model-name">{{ loss_model_name }}</span> lose?</h3>
+        <select id="loss-match" class="input" style="max-width:340px"></select>
+      </div>
+      <div id="loss-patterns" class="loss-patterns" style="margin-top:10px"></div>
+      <div class="hl-strip" id="loss-strip" style="margin-top:10px"></div>
+      <div id="loss-detail" class="loss-detail" style="margin-top:10px"></div>
+      <div id="loss-empty" class="loss-empty" style="display:none;margin-top:10px"></div>
     </div>
     {% else %}
     <div class="live-chat" id="live-chat">
@@ -198,10 +256,12 @@ function worldToServer(v) {
 }
 
 // ── Replay data ──────────────────────────────────────────────────────────────
-const replayData = {{ match.replay_data | tojson }};
+const replayData = {% if match %}{{ match.replay_data | tojson }}{% else %}[]{% endif %};
 const highlights = {{ highlights | tojson }};
 const clipHighlight = {{ highlight | tojson }};
 const LIVE_ROOM = {{ live_room | tojson }};
+const LOSS_MODEL = {{ loss_model | tojson }};
+const LOSS_MODEL_NAME = {{ loss_model_name | tojson }};
 let currentMove = 0;
 let isAnimating = false;
 let autoPlayOn = false;
@@ -417,6 +477,16 @@ function makeSkyTexture(stops) {
   tex.colorSpace = THREE.SRGBColorSpace;
   return tex;
 }
+function makeGrassTexture() {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 512;
+  const x = c.getContext('2d');
+  x.fillStyle = '#15803d'; x.fillRect(0, 0, 512, 512);
+  x.fillStyle = '#16a34a';
+  for (let i = 0; i < 512; i += 64) x.fillRect(0, i, 512, 32);
+  x.fillStyle = 'rgba(255,255,255,0.04)';
+  for (let i = 0; i < 600; i++) x.fillRect(Math.random()*512, Math.random()*512, 2, 1);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 2); t.anisotropy = 8; t.colorSpace = THREE.SRGBColorSpace; return t;
+}
 
 const skyDome = new THREE.Mesh(
   new THREE.SphereGeometry(3000, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
@@ -443,6 +513,44 @@ const starField = new THREE.Points(
 }
 starField.visible = false;
 scene.add(starField);
+
+// ── Sun (visible disc + soft halo) ────────────────────────────────────────
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(170, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xfff6d6, fog: false })
+);
+const sunHalo = new THREE.Mesh(
+  new THREE.SphereGeometry(300, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.16, fog: false, side: THREE.BackSide })
+);
+sunMesh.add(sunHalo);
+scene.add(sunMesh);
+
+// ── Clouds (fluffy billboard clusters, slow drift) ────────────────────────
+const cloudGroup = new THREE.Group();
+function makeCloudCluster(cx, cy, cz, scale, opacity) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity, fog: false });
+  const seeds = [[0,0,0,1],[0.9,0.2,0.3,0.8],[-0.8,0.1,-0.2,0.9],[0.3,0.1,0.7,0.7],[-0.4,0.15,0.6,0.6]];
+  for (const [ox, oy, oz, s] of seeds) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(55 * s, 12, 10), mat);
+    m.position.set(ox * 90, oy * 22, oz * 55);
+    m.scale.set(1, 0.62, 1);
+    g.add(m);
+  }
+  g.position.set(cx, cy, cz);
+  g.scale.setScalar(scale);
+  return g;
+}
+for (let i = 0; i < 11; i++) {
+  const ang = (i / 11) * Math.PI * 2 + Math.random() * 0.4;
+  const rad = 900 + Math.random() * 1400;
+  const y = 520 + Math.random() * 380;
+  const cx = Math.cos(ang) * rad, cz = Math.sin(ang) * rad;
+  const sc = 1.0 + Math.random() * 1.6, op = 0.72 + Math.random() * 0.22;
+  cloudGroup.add(makeCloudCluster(cx, y, cz, sc, op));
+}
+scene.add(cloudGroup);
 
 function buildFloodlight() {
   const g = new THREE.Group();
@@ -508,7 +616,7 @@ const rainPoints = (() => {
 })();
 
 function applyScene(name, floodColor) {
-  const p = SCENE_PRESETS[name] || SCENE_PRESETS.night;
+  const p = SCENE_PRESETS[name] || SCENE_PRESETS.day;
   scene.background.setHex(p.bg);
   scene.fog.color.setHex(p.fog[0]);
   scene.fog.near = p.fog[1];
@@ -516,6 +624,14 @@ function applyScene(name, floodColor) {
   sunLight.color.setHex(p.sun[0]);
   sunLight.intensity = p.sun[1];
   sunLight.position.set(p.sunPos[0], p.sunPos[1], p.sunPos[2]);
+  const sd = new THREE.Vector3(p.sunPos[0], p.sunPos[1], p.sunPos[2]).normalize().multiplyScalar(2250);
+  sunMesh.position.copy(sd);
+  sunMesh.material.color.setHex(p.sun[0]);
+  sunHalo.material.color.setHex(p.sun[0]);
+  const isDayish = name === 'day' || name === 'sunset' || name === 'cloudy';
+  sunMesh.visible = true; sunHalo.visible = true;
+  sunMesh.material.opacity = isDayish ? 1 : 0.22; sunMesh.material.transparent = !isDayish;
+  sunHalo.material.opacity = isDayish ? 0.16 : 0.05;
   ambientLight.intensity = p.ambient;
   hemiLight.color.setHex(p.hemi[0]);
   hemiLight.groundColor.setHex(p.hemi[1]);
@@ -523,6 +639,8 @@ function applyScene(name, floodColor) {
   skyDome.material.map = makeSkyTexture(p.sky);
   skyDome.material.needsUpdate = true;
   starField.visible = p.stars;
+  cloudGroup.visible = true;
+  cloudGroup.traverse(o => { if (o.isMesh) { o.material.opacity = (name === 'cloudy' ? 0.92 : name === 'day' ? 0.78 : name === 'sunset' ? 0.62 : 0.28); }});
   const fc = FLOODLIGHT_COLORS[floodColor] || FLOODLIGHT_COLORS.warm;
   for (const fl of floodlights) {
     fl.panelMat.emissive.setHex(fc);
@@ -554,7 +672,93 @@ window.__setScene = applyScene;
 const fieldGroup = new THREE.Group();
 scene.add(fieldGroup);
 
-const grassMat = new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.9, metalness: 0.0 });
+let replayCrowd = null;
+let replayCheerPhase = 0;
+function triggerCrowdCheer() { replayCheerPhase = 1; try { SoundManager.crowdCheer(); } catch (_) {} setTimeout(() => { replayCheerPhase = 0; }, 3000); }
+function tickReplayCrowd() {
+  if (!replayCrowd) return;
+  const t = performance.now() / 1000;
+  const dummy = new THREE.Object3D();
+  const amp = 0.7 + (replayCheerPhase > 0.5 ? 3.5 : 0);
+  for (let i = 0; i < replayCrowd.infos.length; i++) {
+    const inf = replayCrowd.infos[i];
+    const dy = Math.sin(t * 1.5 + inf.phase) * amp;
+    dummy.position.set(inf.x, inf.baseY + dy, inf.z); dummy.updateMatrix(); replayCrowd.body.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(inf.x, inf.baseY + 13 + dy, inf.z); dummy.updateMatrix(); replayCrowd.head.setMatrixAt(i, dummy.matrix);
+  }
+  replayCrowd.body.instanceMatrix.needsUpdate = true; replayCrowd.head.instanceMatrix.needsUpdate = true;
+}
+
+function createReplayAudience() {
+  const group = new THREE.Group();
+  // ── Expanded tiered stadium bowl — 8 rows, 34–162px beyond pitch ──
+  const tierMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
+  const tierDark = new THREE.MeshStandardMaterial({ color: 0x0f1a2a, roughness: 0.9 });
+  const endRows = 8, sideRows = 8;
+  for (let r = 0; r < endRows; r++) {
+    const zN = H / 2 + 34 + r * 16 + 9, zS = -(H / 2 + 34 + r * 16 + 9);
+    const y = 4 + r * 11;
+    const w = W - 64 + r * 6;
+    const tN = new THREE.Mesh(new THREE.BoxGeometry(w, 8, 18), r % 2 ? tierDark : tierMat);
+    tN.position.set(0, y - 4, zN); group.add(tN);
+    const tS = new THREE.Mesh(new THREE.BoxGeometry(w, 8, 18), r % 2 ? tierDark : tierMat);
+    tS.position.set(0, y - 4, zS); group.add(tS);
+  }
+  for (let r = 0; r < sideRows; r++) {
+    const xE = W / 2 + 34 + r * 16 + 9, xW = -(W / 2 + 34 + r * 16 + 9);
+    const y = 4 + r * 11;
+    const h = H - 64 + r * 6;
+    const tE = new THREE.Mesh(new THREE.BoxGeometry(18, 8, h), r % 2 ? tierDark : tierMat);
+    tE.position.set(xE, y - 4, 0); group.add(tE);
+    const tW = new THREE.Mesh(new THREE.BoxGeometry(18, 8, h), r % 2 ? tierDark : tierMat);
+    tW.position.set(xW, y - 4, 0); group.add(tW);
+  }
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) for (let r = 0; r < 4; r++) {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(22, 8, 22), tierMat);
+    c.position.set(sx * (W / 2 + 34 + r * 16), 4 + r * 11 - 4, sz * (H / 2 + 34 + r * 16));
+    group.add(c);
+  }
+  for (const args of [[W + 240, 20, 18, 0, 10, H / 2 + 170], [W + 240, 20, 18, 0, 10, -(H / 2 + 170)], [18, 20, H + 260, W / 2 + 150, 10, 0], [18, 20, H + 260, -(W / 2 + 150), 10, 0]]) {
+    const bw = new THREE.Mesh(new THREE.BoxGeometry(args[0], args[1], args[2]), new THREE.MeshStandardMaterial({ color: 0x0f172a })); bw.position.set(args[3], args[4], args[5]); group.add(bw);
+  }
+  const positions = [];
+  // 8 rows each side, dense spacing ~14px, tiered height 10+row*11
+  for (let row = 0; row < 8; row++) {
+    const y = 10 + row * 11;
+    const nZ = H / 2 + 34 + row * 16 + 6, sZ = -(H / 2 + 34 + row * 16 + 6);
+    for (let x = -W / 2 + 32; x <= W / 2 - 32; x += 14) { positions.push([x, y, nZ]); positions.push([x, y, sZ]); }
+  }
+  for (let row = 0; row < 8; row++) {
+    const y = 10 + row * 11;
+    const eX = W / 2 + 34 + row * 16 + 6, wX = -(W / 2 + 34 + row * 16 + 6);
+    for (let z = -H / 2 + 32; z <= H / 2 - 32; z += 14) { positions.push([eX, y, z]); positions.push([wX, y, z]); }
+  }
+  const colors = [0x2563eb, 0xef4444];
+  const body = new THREE.InstancedMesh(new THREE.CylinderGeometry(6, 8, 16, 6), new THREE.MeshBasicMaterial({ vertexColors: true }), positions.length);
+  const head = new THREE.InstancedMesh(new THREE.SphereGeometry(5, 8, 6), new THREE.MeshBasicMaterial({ vertexColors: true }), positions.length);
+  body.frustumCulled = head.frustumCulled = false;
+  const dummy = new THREE.Object3D();
+  const color = new THREE.Color();
+  const infos = [];
+  positions.forEach(([x, y, z], i) => {
+    const phase = Math.random() * Math.PI * 2;
+    infos.push({ x, baseY: y, z, phase });
+    dummy.position.set(x, y, z); dummy.updateMatrix(); body.setMatrixAt(i, dummy.matrix);
+    dummy.position.set(x, y + 13, z); dummy.updateMatrix(); head.setMatrixAt(i, dummy.matrix);
+    color.set(z > 0 ? colors[0] : colors[1]); body.setColorAt(i, color); head.setColorAt(i, color);
+  });
+  body.instanceMatrix.needsUpdate = true; head.instanceMatrix.needsUpdate = true;
+  body.instanceColor.needsUpdate = true; head.instanceColor.needsUpdate = true;
+  group.add(body, head);
+  replayCrowd = { body, head, infos };
+  group.userData.replayCrowd = replayCrowd;
+  return group;
+}
+
+scene.add(createReplayAudience());
+
+const grassTex = makeGrassTexture();
+const grassMat = new THREE.MeshStandardMaterial({ map: grassTex, color: 0xffffff, roughness: 0.92, metalness: 0.0 });
 const grass = new THREE.Mesh(new THREE.PlaneGeometry(W, H), grassMat);
 grass.rotation.x = -Math.PI / 2;
 grass.position.set(0, 0, 0);
@@ -595,78 +799,91 @@ fieldGroup.add(line2d(W, 0, W, H));
 fieldGroup.add(line2d(W, H, 0, H));
 fieldGroup.add(line2d(0, H, 0, 0));
 fieldGroup.add(line2d(W / 2, 0, W / 2, H));
-fieldGroup.add(arc2d(W / 2, H / 2, 60, 0, Math.PI * 2));
+// ── FIFA Law 1 markings (105m × 68m → 1400×875 → 13.33/12.87 px/m) ──
+const FIFA_LEN = 105, FIFA_WID = 68;
+const pxPerMx = W / FIFA_LEN, pxPerMy = H / FIFA_WID, pxPerM = (pxPerMx + pxPerMy) / 2;
+const PA_DEPTH = 16.5 * pxPerMx, PA_HALF_W = (40.32 / 2) * pxPerMy;
+const GA_DEPTH = 5.5 * pxPerMx, GA_HALF_W = (18.32 / 2) * pxPerMy;
+const SPOT_DIST = 11 * pxPerMx, CENTRE_R = 9.15 * pxPerM, ARC_R = 9.15 * pxPerM, CORNER_R = 1 * pxPerM;
+fieldGroup.add(arc2d(W / 2, H / 2, CENTRE_R, 0, Math.PI * 2));
 
 const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-const dot = new THREE.Mesh(new THREE.CircleGeometry(3, 16), dotMat);
+const dot = new THREE.Mesh(new THREE.CircleGeometry(3.5, 16), dotMat);
 dot.rotation.x = -Math.PI / 2;
 dot.position.copy(serverToWorld(W / 2, H / 2));
-dot.position.y = 0.3;
+dot.position.y = 0.32;
 fieldGroup.add(dot);
 
-const PA_OFF = 20, PA_W = 100, PA_H = 180;
-fieldGroup.add(line2d(PA_OFF, (H - PA_H) / 2, PA_OFF, (H + PA_H) / 2));
-fieldGroup.add(line2d(PA_OFF, (H - PA_H) / 2, PA_OFF + PA_W, (H - PA_H) / 2));
-fieldGroup.add(line2d(PA_OFF + PA_W, (H - PA_H) / 2, PA_OFF + PA_W, (H + PA_H) / 2));
-fieldGroup.add(line2d(PA_OFF, (H + PA_H) / 2, PA_OFF + PA_W, (H + PA_H) / 2));
-fieldGroup.add(line2d(W - PA_OFF, (H - PA_H) / 2, W - PA_OFF, (H + PA_H) / 2));
-fieldGroup.add(line2d(W - PA_OFF, (H - PA_H) / 2, W - PA_OFF - PA_W, (H - PA_H) / 2));
-fieldGroup.add(line2d(W - PA_OFF - PA_W, (H - PA_H) / 2, W - PA_OFF - PA_W, (H + PA_H) / 2));
-fieldGroup.add(line2d(W - PA_OFF, (H + PA_H) / 2, W - PA_OFF - PA_W, (H + PA_H) / 2));
-
-const GA_W = 50, GA_D = 36;
-fieldGroup.add(line2d(20, GOAL_Y1 - GA_W, 20 + GA_D, GOAL_Y1 - GA_W));
-fieldGroup.add(line2d(20 + GA_D, GOAL_Y1 - GA_W, 20 + GA_D, GOAL_Y2 + GA_W));
-fieldGroup.add(line2d(20 + GA_D, GOAL_Y2 + GA_W, 20, GOAL_Y2 + GA_W));
-fieldGroup.add(line2d(W - 20, GOAL_Y1 - GA_W, W - 20 - GA_D, GOAL_Y1 - GA_W));
-fieldGroup.add(line2d(W - 20 - GA_D, GOAL_Y1 - GA_W, W - 20 - GA_D, GOAL_Y2 + GA_W));
-fieldGroup.add(line2d(W - 20 - GA_D, GOAL_Y2 + GA_W, W - 20, GOAL_Y2 + GA_W));
-
-const spotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.5 });
-const spot = new THREE.Mesh(new THREE.CircleGeometry(3, 12), spotMat);
-spot.rotation.x = -Math.PI / 2;
-spot.position.copy(serverToWorld(120, H / 2));
-spot.position.y = 0.3;
-fieldGroup.add(spot);
-const spot2 = spot.clone();
-spot2.position.copy(serverToWorld(W - 120, H / 2));
-spot2.position.y = 0.3;
-fieldGroup.add(spot2);
-
-// Penalty arcs
-for (const cx of [120, W - 120]) {
-  const pts = [];
-  const aOff = cx < W / 2 ? -0.55 : Math.PI - 0.55;
-  const aEnd = cx < W / 2 ? 0.55 : Math.PI + 0.55;
-  for (let i = 0; i <= 16; i++) {
-    const t = aOff + (aEnd - aOff) * (i / 16);
-    pts.push(serverToWorld(cx + Math.cos(t) * 32, H / 2 + Math.sin(t) * 32));
-  }
-  const g = new THREE.BufferGeometry().setFromPoints(pts);
-  const m = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
-  const l = new THREE.Line(g, m);
-  l.position.y = 0.3;
-  fieldGroup.add(l);
+for (const side of [-1, 1]) {
+  const x0 = side < 0 ? 0 : W, x1 = side < 0 ? PA_DEPTH : W - PA_DEPTH;
+  const y0 = H / 2 - PA_HALF_W, y1 = H / 2 + PA_HALF_W;
+  fieldGroup.add(line2d(x0, y0, x0, y1)); fieldGroup.add(line2d(x0, y0, x1, y0));
+  fieldGroup.add(line2d(x1, y0, x1, y1)); fieldGroup.add(line2d(x0, y1, x1, y1));
 }
+for (const side of [-1, 1]) {
+  const x0 = side < 0 ? 0 : W, x1 = side < 0 ? GA_DEPTH : W - GA_DEPTH;
+  const y0 = H / 2 - GA_HALF_W, y1 = H / 2 + GA_HALF_W;
+  fieldGroup.add(line2d(x0, y0, x0, y1)); fieldGroup.add(line2d(x0, y0, x1, y0));
+  fieldGroup.add(line2d(x1, y0, x1, y1)); fieldGroup.add(line2d(x0, y1, x1, y1));
+}
+const spotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+const spotGeo = new THREE.CircleGeometry(3.5, 14);
+for (const sx of [SPOT_DIST, W - SPOT_DIST]) {
+  const m = new THREE.Mesh(spotGeo, spotMat); m.rotation.x = -Math.PI / 2;
+  m.position.copy(serverToWorld(sx, H / 2)); m.position.y = 0.32; fieldGroup.add(m);
+  fieldGroup.add(line2d(sx, -5, sx, 5)); fieldGroup.add(line2d(sx, H - 5, sx, H + 5));
+}
+function arcForSpot(cx){ return (a0,a1)=>{ const pts=[]; for(let i=0;i<=24;i++){ const t=a0+(a1-a0)*(i/24); pts.push(serverToWorld(cx+Math.cos(t)*ARC_R, H/2+Math.sin(t)*ARC_R)); } return pts; };}
+const leftArc = arcForSpot(SPOT_DIST), rightArc = arcForSpot(W-SPOT_DIST);
+const aD = Math.acos((PA_DEPTH-SPOT_DIST)/ARC_R);
+let g = new THREE.BufferGeometry().setFromPoints(leftArc(-aD,aD));
+let m = new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.55});
+let ln = new THREE.Line(g,m); ln.position.y=0.3; fieldGroup.add(ln);
+g = new THREE.BufferGeometry().setFromPoints(rightArc(Math.PI-aD,Math.PI+aD));
+ln = new THREE.Line(g,m.clone()); ln.position.y=0.3; fieldGroup.add(ln);
 
-// Corner arcs
+// Corner arcs (FIFA 1m)
 for (const [cx, cy] of [[0,0],[W,0],[0,H],[W,H]]) {
   const segs = [];
   const aOff = cx === 0 && cy === 0 ? 0 : cx === W && cy === 0 ? Math.PI / 2 : cx === 0 && cy === H ? -Math.PI / 2 : Math.PI;
   for (let i = 0; i <= 12; i++) {
     const t = (i / 12) * Math.PI / 2 + aOff;
-    const px = cx + Math.cos(t) * 10;
-    const py = cy + Math.sin(t) * 10;
+    const px = cx + Math.cos(t) * CORNER_R;
+    const py = cy + Math.sin(t) * CORNER_R;
     if (px >= 0 && px <= W && py >= 0 && py <= H) segs.push(serverToWorld(px, py));
   }
   if (segs.length > 1) {
-    const g = new THREE.BufferGeometry().setFromPoints(segs);
-    const m = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
-    const l = new THREE.Line(g, m);
-    l.position.y = 0.3;
-    fieldGroup.add(l);
+    const gg = new THREE.BufferGeometry().setFromPoints(segs);
+    const mm = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+    const ll = new THREE.Line(gg, mm);
+    ll.position.y = 0.3;
+    fieldGroup.add(ll);
   }
 }
+// ── LED perimeter boards (stadium) ───────────────────────────────────────
+(() => {
+  const ledH = 14, ledY = 7;
+  function makeLEDCanvas(text) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = '#0b1220'; g.fillRect(0, 0, 512, 64);
+    g.fillStyle = '#0ea5e9'; g.font = 'bold 22px Inter, sans-serif'; g.textAlign = 'center';
+    g.fillText(text, 256, 38);
+    g.strokeStyle = 'rgba(14,165,233,0.35)'; g.strokeRect(0, 0, 512, 64);
+    const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.repeat.set(3, 1); return t;
+  }
+  const tex = makeLEDCanvas('AGENT SOCCER • LIVE • GOAL! • ');
+  const mat = new THREE.MeshStandardMaterial({ map: tex, emissive: 0x0ea5e9, emissiveIntensity: 0.55, roughness: 0.4 });
+  const ledGroup = new THREE.Group();
+  const north = new THREE.Mesh(new THREE.BoxGeometry(W + 40, ledH, 6), mat);
+  north.position.copy(serverToWorld(W/2, -14)); north.position.y = ledY; ledGroup.add(north);
+  const south = north.clone(); south.position.copy(serverToWorld(W/2, H + 14)); south.position.y = ledY; ledGroup.add(south);
+  const west = new THREE.Mesh(new THREE.BoxGeometry(6, ledH, H + 40), mat);
+  west.position.copy(serverToWorld(-14, H/2)); west.position.y = ledY; ledGroup.add(west);
+  const east = west.clone(); east.position.copy(serverToWorld(W + 14, H/2)); east.position.y = ledY; ledGroup.add(east);
+  scene.add(ledGroup);
+  let off = 0; const tick = () => { off = (off + 0.003) % 1; tex.offset.x = off; requestAnimationFrame(tick); }; tick();
+})();
 
 // ── Goals ───────────────────────────────────────────────────────────────────
 const goalGroup = new THREE.Group();
@@ -977,35 +1194,82 @@ let squashActive = false;
 let squashT = 0;
 scene.add(shadowMesh);
 
-// ── Players ─────────────────────────────────────────────────────────────────
+// ── Players (improved — jersey texture, kit, limbs) ───────────────────────
 const playerMeshesA = [];
 const playerMeshesB = [];
 const TEAM_A_COLOR = '#3b82f6';
 const TEAM_B_COLOR = '#ef4444';
+const _jerseyCache = new Map();
+function makeJerseyTexture(teamHex, num, isKeeper) {
+  const key = teamHex + '|' + num + '|' + isKeeper;
+  if (_jerseyCache.has(key)) return _jerseyCache.get(key);
+  const c = document.createElement('canvas'); c.width = 256; c.height = 256;
+  const g = c.getContext('2d');
+  g.fillStyle = teamHex; g.fillRect(0, 0, 256, 256);
+  if (isKeeper) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#facc15'; g.fillRect(0, 92, 256, 28); }
+  else { g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(0, 88, 256, 22); }
+  g.fillStyle = isKeeper ? '#1e293b' : '#ffffff'; g.font = 'bold 96px Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  const txt = String(num ?? 7); g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 6; g.strokeText(txt, 128, 172); g.fillText(txt, 128, 172);
+  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.ellipse(128, 38, 42, 14, 0, 0, Math.PI*2); g.fill();
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; _jerseyCache.set(key, tex); return tex;
+}
 
 function hexToThree(c) { return new THREE.Color(c); }
 
-function createPlayerMesh(teamColor, isKeeper = false, stats) {
+function createPlayerMesh(teamColor, isKeeper = false, stats, number) {
   const sizeStat = stats ? (stats.size || 50) : 50;
   const r = 12 + (sizeStat / 100) * 16;
   const group = new THREE.Group();
-  const bodyMat = new THREE.MeshStandardMaterial({ color: teamColor, roughness: 0.6, metalness: 0.1 });
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.8 });
-  const bodyH = isKeeper ? 14 : 18;
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.7, r * 0.9, bodyH, 12), bodyMat);
-  body.position.y = bodyH / 2;
-  body.castShadow = true; group.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(r * 0.4, 10, 10), headMat);
-  head.position.y = bodyH + r * 0.35;
-  head.castShadow = true; group.add(head);
-  const pShadow = new THREE.Mesh(
-    new THREE.CircleGeometry(r * 0.8, 12),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.15, depthWrite: false })
-  );
-  pShadow.rotation.x = -Math.PI / 2;
-  pShadow.position.y = 0.05;
-  group.add(pShadow);
+  const hex = teamColor instanceof THREE.Color ? '#' + teamColor.getHexString() : teamColor;
+  const jerseyTex = makeJerseyTexture(hex, number ?? (isKeeper ? 1 : 7 + Math.floor(Math.random()*6)), isKeeper);
+  const bodyMat = new THREE.MeshStandardMaterial({ map: jerseyTex, roughness: 0.55, metalness: 0.08 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.7 });
+  const shortsMat = new THREE.MeshStandardMaterial({ color: isKeeper ? 0x1e293b : new THREE.Color(hex).offsetHSL(0, -0.1, -0.18).getHex(), roughness: 0.65 });
+  const socksMat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.6 });
+  const bodyH = isKeeper ? 15 : 19;
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.72, r * 0.88, bodyH, 14), bodyMat);
+  torso.position.y = bodyH / 2 + 8; torso.castShadow = true; group.add(torso);
+  const shorts = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.9, r * 0.92, 7, 12), shortsMat);
+  shorts.position.y = 8 + 3.5; shorts.castShadow = true; group.add(shorts);
+  const legGeo = new THREE.CylinderGeometry(r * 0.28, r * 0.22, 9, 8);
+  for (const sx of [-1, 1]) { const leg = new THREE.Mesh(legGeo, skinMat); leg.position.set(sx * r * 0.38, 4, 0); group.add(leg); const sock = new THREE.Mesh(new THREE.CylinderGeometry(r*0.30,r*0.26,6,8), socksMat); sock.position.set(sx*r*0.38,1.2,0); group.add(sock); }
+  const armGeo = new THREE.CylinderGeometry(r * 0.18, r * 0.15, 10, 8);
+  for (const sx of [-1, 1]) { const arm = new THREE.Mesh(armGeo, skinMat); arm.position.set(sx * r * 0.85, bodyH/2+6, 0); arm.rotation.z = sx*0.35; group.add(arm); }
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r * 0.42, 14, 12), skinMat);
+  head.position.y = bodyH + 8 + r * 0.38; head.castShadow = true; group.add(head);
+  const pShadow = new THREE.Mesh(new THREE.CircleGeometry(r * 0.92, 14), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }));
+  pShadow.rotation.x = -Math.PI / 2; pShadow.position.y = 0.06; group.add(pShadow);
   return group;
+}
+
+function addBenchPlayers() {
+  const group = new THREE.Group();
+  const benchMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.7 });
+  // Both benches on the SAME touchline (south side), either side of halfway —
+  // per FIFA/UEFA: "either side of the halfway line, parallel to the
+  // touchline, 5–8 m from the field, nearest point ≥5 m from halfway".
+  // Bench is outside the pitch (server y = H + 60 ≈ 5 m beyond touchline).
+  const benchY = H + 60;
+  const benches = [{ x: W / 2 - 320, color: 0x2563eb }, { x: W / 2 + 320, color: 0xef4444 }];
+  for (const benchInfo of benches) {
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(250, 10, 28), benchMat);
+    bench.position.copy(serverToWorld(benchInfo.x, benchY + 12));
+    bench.position.y = 5;
+    group.add(bench);
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(230, 4, 22), seatMat);
+    seat.position.copy(serverToWorld(benchInfo.x, benchY - 2));
+    seat.position.y = 12;
+    group.add(seat);
+    for (let i = 0; i < 4; i++) {
+      const player = createPlayerMesh(new THREE.Color(benchInfo.color), false, null, 12 + i);
+      player.scale.setScalar(0.78);
+      player.position.copy(serverToWorld(benchInfo.x - 82 + i * 54, benchY + 12));
+      player.position.y = 14;
+      group.add(player);
+    }
+  }
+  scene.add(group);
 }
 
 function rebuildPlayers(playerDataA, playerDataB) {
@@ -1015,13 +1279,15 @@ function rebuildPlayers(playerDataA, playerDataB) {
   playerMeshesB.length = 0;
   for (let i = 0; i < playerDataA.length; i++) {
     const p = playerDataA[i];
-    const mesh = createPlayerMesh(hexToThree(TEAM_A_COLOR), i === 0, p.stats);
+    const num = i === 0 ? 1 : (i === 1 ? 7 : 10);
+    const mesh = createPlayerMesh(hexToThree(TEAM_A_COLOR), i === 0, p.stats, num);
     mesh.position.copy(serverToWorld(p.x, p.y));
     playerMeshesA.push(mesh); scene.add(mesh);
   }
   for (let i = 0; i < playerDataB.length; i++) {
     const p = playerDataB[i];
-    const mesh = createPlayerMesh(hexToThree(TEAM_B_COLOR), i === 0, p.stats);
+    const num = i === 0 ? 1 : (i === 1 ? 7 : 10);
+    const mesh = createPlayerMesh(hexToThree(TEAM_B_COLOR), i === 0, p.stats, num);
     mesh.position.copy(serverToWorld(p.x, p.y));
     playerMeshesB.push(mesh); scene.add(mesh);
   }
@@ -1035,6 +1301,36 @@ function updatePlayerPositions(playerDataA, playerDataB) {
   for (let i = 0; i < playerMeshesB.length && i < playerDataB.length; i++) {
     playerMeshesB[i].position.copy(serverToWorld(playerDataB[i].x, playerDataB[i].y));
   }
+}
+
+function replayHomePositions(count, side) {
+  const centerY = H / 2;
+  const positions = [{ x: side === 'a' ? W * 0.062 : W * 0.938, y: centerY }];
+  if (count < 2) return positions.slice(0, count);
+  const outfield = count - 1;
+  const formations = {
+    1: [0, 0, 1], 2: [1, 0, 1], 3: [1, 0, 2], 4: [2, 0, 2],
+    5: [2, 1, 2], 6: [3, 1, 2], 7: [3, 2, 2], 8: [4, 2, 2],
+    9: [4, 3, 2], 10: [4, 3, 3], 11: [4, 4, 2]
+  };
+  let [defenders, midfielders, forwards] = formations[count] || [outfield, 0, 0];
+  const total = defenders + midfielders + forwards;
+  if (total > outfield) forwards -= total - outfield;
+  else if (total < outfield) forwards += outfield - total;
+  const yRange = Math.min(H * 0.6, 80 + outfield * 25);
+  const minY = centerY - yRange / 2;
+  const x = side === 'a'
+    ? [W * 0.162, W * 0.281, W / 2 - 95]
+    : [W * 0.838, W * 0.719, W / 2 + 95];
+  function addRow(xPos, amount) {
+    for (let i = 0; i < amount; i++) {
+      positions.push({ x: xPos, y: minY + (i + 0.5) / amount * yRange });
+    }
+  }
+  addRow(x[0], defenders);
+  addRow(x[1], midfielders);
+  addRow(x[2], forwards);
+  return positions.slice(0, count);
 }
 
 // ── Referee (cosmetic, driven by trajectory "ref" frames) ───────────────────
@@ -1085,6 +1381,12 @@ function applyMoveToState(move) {
   if (last.ref) state.referee = { x: last.ref.x, y: last.ref.y };
   if (move.scored === 'A') state.score_a++;
   else if (move.scored === 'B') state.score_b++;
+  if (move.scored) {
+    state.ball = { x: W / 2, y: H / 2, z: 0 };
+    state.players_a = replayHomePositions(state.players_a.length, 'a');
+    state.players_b = replayHomePositions(state.players_b.length, 'b');
+    state.referee = { x: W / 2, y: H - 80 };
+  }
 }
 
 function updateUI() {
@@ -1261,7 +1563,9 @@ function animateTrajectory3D(trajectory, onDone) {
   let ballCurve = null;
   if (trajectory.length >= 3) {
     ballCurve = new THREE.CatmullRomCurve3(
-      trajectory.map(pt => new THREE.Vector3(pt.x, pt.y, pt.z || 0))
+      trajectory.map(pt => new THREE.Vector3(pt.x, pt.y, pt.z || 0)),
+      false,
+      'centripetal'
     );
   }
   prevBallWorld.copy(ballMesh.position);
@@ -1424,9 +1728,8 @@ window.playNextMove3D = function() {
 
   const _preA = raw[0].a ? raw[0].a.map(p => ({ x: p.x, y: p.y })) : [];
   const _preB = raw[0].b ? raw[0].b.map(p => ({ x: p.x, y: p.y })) : [];
-  const HOME_A = [{x:86.8,y:437.5},{x:605,y:405},{x:605,y:470}];
-
-  const HOME_B = [{x:1313.2,y:437.5},{x:795,y:405},{x:795,y:470}];
+  const HOME_A = replayHomePositions(state.players_a.length, 'a');
+  const HOME_B = replayHomePositions(state.players_b.length, 'b');
   function finish() {
     applyMoveToState(move);
     currentMove++;
@@ -1448,9 +1751,10 @@ window.playNextMove3D = function() {
     // Kick sound at kicker position
     const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
     if (kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
-    // Goal sound + particles
+    // Goal sound + particles + crowd cheer
     SoundManager.goal();
     triggerGoalEffect3D(move.mover === 'a' ? 'a' : 'b');
+    triggerCrowdCheer();
     // Animate trajectory, then slide back to kickoff positions
     animateTrajectory3D(raw, () => {
       state.players_a = _preA.map(p => ({ x: p.x, y: p.y }));
@@ -1615,6 +1919,7 @@ async function pollLive() {
       if (wasGoal) {
         SoundManager.goal();
         triggerGoalEffect3D(move.mover === 'a' ? 'a' : 'b');
+        triggerCrowdCheer();
       }
       isAnimating = true;
       animateTrajectory3D(raw, () => {
@@ -1696,10 +2001,288 @@ async function initLive() {
 }
 
 
+// ── Loss analysis mode ─────────────────────────────────────────────────────
+// Turn-by-turn viewer over a user's own model's decision traces ("why did
+// my model lose this match?"). All heavy work (rebuilding the pre-kick
+// state, re-running the kick, comparisons) happens server-side from the
+// stored snapshot; the client renders the scene and the diagnostics.
+const LOSS = {
+  model: LOSS_MODEL,
+  match: null,
+  traces: [],
+  current: -1,
+  patternsDone: false,
+  builtins: ['minimax', 'monte_carlo', 'greedy', 'bayesian',
+             'value_iteration', 'policy_iteration', 'q_learning'],
+  snap: function (tr) {
+    const s = tr.state;
+    state.ball = s.ball || { x: W / 2, y: H / 2, z: 0 };
+    state.players_a = s.players_a || [];
+    state.players_b = s.players_b || [];
+    state.referee = s.referee || null;
+    state.score_a = s.score_a || 0;
+    state.score_b = s.score_b || 0;
+    ballMesh.position.copy(serverToWorld(state.ball.x, state.ball.y, state.ball.z || 0));
+    const sp = serverToWorld(state.ball.x, state.ball.y);
+    shadowMesh.position.set(sp.x, 0.1, sp.z);
+    updatePlayerPositions(state.players_a, state.players_b);
+    if (state.referee) updateRefereeMesh(state.referee.x, state.referee.y);
+    document.getElementById('score-a').textContent = state.score_a;
+    document.getElementById('score-b').textContent = state.score_b;
+    document.getElementById('kick-count').textContent = s.kick_count || 0;
+  },
+  badge: function () {
+    const badge = document.getElementById('turn-badge');
+    badge.textContent = 'Decision turn';
+    badge.className = 'turn-badge turn-a';
+  },
+};
+
+const LOSS_TAG = {
+  goal:          { label: 'Goal',         emoji: '⚽', cls: 'tag-goal' },
+  good_chance:   { label: 'Good chance',  emoji: '🎯', cls: 'tag-chance' },
+  neutral:       { label: 'Neutral',      emoji: '➖', cls: 'tag-neutral' },
+  poor:          { label: 'Poor',         emoji: '📉', cls: 'tag-poor' },
+  own_goal_risk: { label: 'Own-goal risk', emoji: '🆘', cls: 'tag-own' },
+};
+
+function lossEls() {
+  return {
+    sel: document.getElementById('loss-match'),
+    patterns: document.getElementById('loss-patterns'),
+    strip: document.getElementById('loss-strip'),
+    detail: document.getElementById('loss-detail'),
+    empty: document.getElementById('loss-empty'),
+  };
+}
+
+function lossUrl(path) {
+  return '/api/loss/models/' + encodeURIComponent(LOSS_MODEL) + path;
+}
+
+async function initLossAnalysis() {
+  const els = lossEls();
+  LOSS.badge();
+  try {
+    const res = await fetch(lossUrl('/matches'));
+    const data = await res.json();
+    const matches = data.matches || [];
+    if (!matches.length) {
+      els.sel.style.display = 'none';
+      els.patterns.style.display = 'none';
+      els.strip.style.display = 'none';
+      els.detail.style.display = 'none';
+      els.empty.style.display = 'block';
+      els.empty.innerHTML =
+        'No traced matches for this model yet.<br>' +
+        'Traces are captured when the model plays in an ' +
+        '<a href="/arena">AI Arena</a> battle, a ' +
+        '<a href="/my-models">leaderboard benchmark</a>, or a tournament it is entered in.' +
+        '<div class="loss-caveat">Traces expire after 30 days (capped at ~200 matches per model).</div>';
+      return;
+    }
+    matches.forEach(function (m) {
+      const opt = document.createElement('option');
+      opt.value = m.match_id;
+      const resultTxt = m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : 'D';
+      opt.textContent = m.opponent + ' · ' + m.score_for + '–' + m.score_against +
+                        ' (' + resultTxt + ') · ' + m.turn_count + ' turns';
+      els.sel.appendChild(opt);
+    });
+    els.sel.onchange = function () { loadLossMatch(els.sel.value); };
+    await renderLossPatterns();
+    await loadLossMatch(matches[0].match_id);
+  } catch (e) {
+    els.empty.style.display = 'block';
+    els.empty.textContent = 'Could not load loss-analysis data.';
+  }
+}
+
+async function loadLossMatch(matchId) {
+  const els = lossEls();
+  els.strip.innerHTML = '';
+  els.detail.innerHTML = '<div class="loss-loading">Loading decisions…</div>';
+  LOSS.match = matchId;
+  LOSS.current = -1;
+  try {
+    const res = await fetch(lossUrl('/matches/' + encodeURIComponent(matchId)));
+    const data = await res.json();
+    if (data.error || !data.traces || !data.traces.length) {
+      els.detail.innerHTML = 'No decisions recorded for this match.';
+      return;
+    }
+    LOSS.traces = data.traces.slice().sort(function (a, b) { return a.turn - b.turn; });
+    const tracedSide = LOSS.traces[0].mover;
+    const me = LOSS_MODEL_NAME || 'Your model';
+    document.getElementById('name-a').textContent = tracedSide === 'a' ? me : (data.match && data.match.opponent || 'Opponent (A)');
+    document.getElementById('name-b').textContent = tracedSide === 'b' ? me : (data.match && data.match.opponent || 'Opponent (B)');
+    LOSS.traces.forEach(function (tr, i) {
+      const cell = document.createElement('div');
+      const meta = LOSS_TAG[tr.outcome_tag] || LOSS_TAG.neutral;
+      cell.className = 'hl-cell ' + meta.cls;
+      cell.title = 'Turn ' + tr.turn + ' — ' + meta.label;
+      cell.textContent = meta.emoji;
+      cell.onclick = function () { selectLossTurn(i); };
+      els.strip.appendChild(cell);
+    });
+    selectLossTurn(0);
+  } catch (e) {
+    els.detail.innerHTML = 'Could not load this match.';
+  }
+}
+
+function selectLossTurn(i) {
+  if (i < 0 || i >= LOSS.traces.length) return;
+  LOSS.current = i;
+  const tr = LOSS.traces[i];
+  document.querySelectorAll('#loss-strip .hl-cell').forEach(function (c, j) {
+    c.classList.toggle('current', j === i);
+  });
+  LOSS.snap(tr);
+  LOSS.badge();
+  const meta = LOSS_TAG[tr.outcome_tag] || LOSS_TAG.neutral;
+  const d = tr.decision || {};
+  document.getElementById('loss-detail').innerHTML =
+    '<div class="loss-row">' +
+      '<span class="hl-badge ' + meta.cls + '">' + meta.emoji + ' ' + meta.label + '</span>' +
+      '<span class="loss-dec">Decided: player <b>' + (d.player_idx != null ? d.player_idx : '?') + '</b> · ' +
+        'angle <b>' + (d.angle != null ? d.angle : '?') + '°</b> · power <b>' + (d.power != null ? d.power : '?') + '</b></span>' +
+    '</div>' +
+    '<div class="loss-desc">' + meta.description + '</div>' +
+    '<div class="loss-actions">' +
+      '<button class="btn btn-ghost btn-sm" onclick="window.playLossTurn()">▶ Play this kick</button> ' +
+      '<span class="loss-compare-hint">What would a stronger agent do?</span>' +
+      '<span class="loss-chips">' + LOSS.builtins.map(function (b) {
+        return '<button class="btn btn-ghost btn-sm loss-chip" onclick="window.compareLossTurn(\'' + b + '\')">' + b.replace(/_/g, ' ') + '</button>';
+      }).join('') + '</span>' +
+    '</div>' +
+    '<div id="loss-compare-box" class="loss-compare-box"></div>';
+  // Auto-compare with the default strong agent (minimax) on first look.
+  window.compareLossTurn('minimax', true);
+}
+
+window.playLossTurn = async function () {
+  const tr = LOSS.traces[LOSS.current];
+  const box = document.getElementById('loss-compare-box');
+  if (!tr) return;
+  const d = tr.decision || {};
+  box.innerHTML = '<div class="loss-loading">Simulating kick…</div>';
+  try {
+    const res = await fetch(lossUrl('/matches/' + encodeURIComponent(LOSS.match) +
+                                    '/turns/' + tr.turn + '/playback'), { method: 'POST' });
+    const data = await res.json();
+    if (data.error || !data.trajectory) { box.innerHTML = data.error || 'Could not simulate.'; return; }
+    const raw = data.trajectory;
+    if (raw[0] && raw[0].a) state.players_a = raw[0].a.map(function (p) { return { x: p.x, y: p.y }; });
+    if (raw[0] && raw[0].b) state.players_b = raw[0].b.map(function (p) { return { x: p.x, y: p.y }; });
+    updatePlayerPositions(state.players_a, state.players_b);
+    const kickerSrv = (tr.state.is_player_a ? state.players_a : state.players_b)[d.player_idx];
+    if (kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
+    if (data.scored === 'A' || data.scored === 'B') {
+      SoundManager.goal();
+      triggerGoalEffect3D(data.scored === 'A' ? 'a' : 'b');
+      triggerCrowdCheer();
+    }
+    isAnimating = true;
+    animateTrajectory3D(raw, function () {
+      isAnimating = false;
+      LOSS.snap(tr);
+      LOSS.badge();
+    });
+    box.innerHTML = '<div class="loss-loading">Played: ' + (data.desc || 'kick simulated') + '</div>';
+  } catch (e) {
+    box.innerHTML = 'Could not simulate the kick.';
+  }
+};
+
+window.compareLossTurn = async function (modelKey, quiet) {
+  const tr = LOSS.traces[LOSS.current];
+  const box = document.getElementById('loss-compare-box');
+  if (!tr || !box) return;
+  if (!quiet) box.innerHTML = '<div class="loss-loading">Thinking…</div>';
+  try {
+    const res = await fetch(lossUrl('/matches/' + encodeURIComponent(LOSS.match) +
+                                    '/turns/' + tr.turn + '/compare?model=' + encodeURIComponent(modelKey)));
+    const data = await res.json();
+    if (data.error) { if (!quiet) box.innerHTML = data.error; return; }
+    const y = data.yours || {}, t = data.theirs || {}, diff = data.diff || {};
+    let note;
+    if (t.player_idx !== y.player_idx) {
+      note = 'It would kick with a <b>different player</b> (' + t.player_idx + ' instead of ' + y.player_idx + ').';
+    } else if (Math.abs(diff.angle_delta) >= 10 && Math.abs(diff.power_delta) >= 15) {
+      note = 'Substantially different angle and power.';
+    } else if (Math.abs(diff.angle_delta) >= 10) {
+      note = 'Aim would be <b>' + (diff.angle_delta > 0 ? '+' : '') + diff.angle_delta + '°</b> different.';
+    } else if (Math.abs(diff.power_delta) >= 15) {
+      note = 'Power would differ by <b>' + (diff.power_delta > 0 ? '+' : '') + diff.power_delta + '</b>.';
+    } else {
+      note = 'Very similar to what your model did — this turn wasn\'t the problem.';
+    }
+    box.innerHTML =
+      '<div class="loss-compare-title">' + t.name + ' would do: player <b>' + t.player_idx + '</b> · ' +
+        'angle <b>' + t.angle + '°</b> · power <b>' + t.power + '</b></div>' +
+      '<div class="loss-compare-note">' + note + '</div>' +
+      '<div class="loss-caveat">One turn isn\'t a verdict — this only shows what a built-in agent picks ' +
+      'given the exact same situation.</div>';
+  } catch (e) {
+    if (!quiet) box.innerHTML = 'Comparison failed.';
+  }
+};
+
+async function renderLossPatterns() {
+  const els = lossEls();
+  try {
+    const res = await fetch(lossUrl('/patterns'));
+    const p = await res.json();
+    if (!p || !p.n_matches) { els.patterns.innerHTML = '<div class="loss-caveat">No pattern data yet.</div>'; return; }
+    const rec = p.record || {};
+    const outs = p.outcomes || {};
+    const thirds = p.by_third || {};
+    const fmt = function (o) {
+      return (o.goal || 0) + ' goals · ' + (o.good_chance || 0) + ' chances · ' +
+             (o.poor || 0) + ' poor · ' + (o.neutral || 0) + ' neutral' +
+             ((o.own_goal_risk || 0) ? ' · ' + o.own_goal_risk + ' own-goal risks' : '');
+    };
+    let html =
+      '<div class="loss-pattern-row">' +
+        '<span class="hl-badge">' + p.n_matches + ' matches</span> ' +
+        '<span class="hl-badge">' + rec.wins + 'W–' + rec.losses + 'L–' + rec.draws + 'D</span> ' +
+        '<span class="hl-badge">' + p.n_turns + ' of your decisions</span> ' +
+        '<span class="hl-badge">' + p.poor_rate + '% non-threatening</span>' +
+      '</div>' +
+      '<div class="loss-pattern-block"><b>By match phase:</b><br>early [' + fmt(thirds.early) + ']<br>' +
+      'middle [' + fmt(thirds.middle) + ']<br>late [' + fmt(thirds.late) + ']</div>';
+    if (p.own_goal_match_ids && p.own_goal_match_ids.length) {
+      html += '<div class="loss-pattern-warn">⚠ Your model kicked toward its own goal in ' +
+              p.own_goal_match_ids.length + ' match(es) — check those first.</div>';
+    }
+    html += p.caveats.map(function (c) { return '<div class="loss-caveat">' + c + '</div>'; }).join('');
+    els.patterns.innerHTML = html;
+  } catch (e) {
+    els.patterns.innerHTML = '';
+  }
+}
+
+window.__lossState = function () {
+  return {
+    model: LOSS_MODEL,
+    match: LOSS.match,
+    current: LOSS.current,
+    tracedTurns: LOSS.traces.length,
+    selOptions: document.getElementById('loss-match').options.length,
+    stripCells: document.querySelectorAll('#loss-strip .hl-cell').length,
+    detailText: document.getElementById('loss-detail').textContent,
+    hasEmpty: document.getElementById('loss-empty').style.display === 'block',
+  };
+};
+
 // ── Render loop ─────────────────────────────────────────────────────────────
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+  // replay crowd static for smoothness — shader crowd in index handles bob on GPU
+  cloudGroup.rotation.y += 0.00016;
+  sunHalo.rotation.y -= 0.0002;
   if (rainActive && rainPoints.visible) {
     const pos = rainPoints.geometry.attributes.position.array;
     for (let i = 0; i < pos.length; i += 3) {
@@ -1722,8 +2305,15 @@ animate();
     if (cust.bg_scene) applyScene(cust.bg_scene, cust.floodlight_color || 'warm');
   } catch (e) {}
 
+  addBenchPlayers();
+
   if (LIVE_ROOM) {
     initLive();
+    return;
+  }
+
+  if (LOSS_MODEL) {
+    initLossAnalysis();
     return;
   }
 

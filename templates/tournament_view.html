@@ -150,13 +150,21 @@ function generateBracket() {
 function simulateMatch(matchId) {
   fetch('/tournaments/{{ t.id }}/simulate/' + matchId, { method: 'POST' })
     .then(res => res.json()).then(data => {
-      if(data.ok) location.reload();
+      if(data.ok) {
+        if (data.achievements && data.achievements.length) {
+          AW.handle(data);
+          setTimeout(() => location.reload(), 2600);
+        } else {
+          location.reload();
+        }
+      }
       else alert(data.error);
     });
 }
 </script>
 <script src="/static/feedback.js"></script>
 <script src="/static/chat.js"></script>
+<script src="/static/achievements.js"></script>
 <script>
   new ChatPanel({
     mount: document.getElementById('lobby-chat'),

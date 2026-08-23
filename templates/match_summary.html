@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Match Summary — Agent Soccer</title>
+<meta name="description" content="Shareable post-match summary card: result, rating change, and the lineups each player fielded.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>
+/* ── Match summary card ── */
+.summary-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin: var(--space-7) 0 var(--space-5);
+}
+.summary-hero h1 { font-size: clamp(1.6rem, 4vw, 2.25rem); margin: 0; letter-spacing: -0.02em; }
+.summary-hero p { color: var(--text-secondary); margin: var(--space-2) 0 0; max-width: 620px; }
+
+.scoreboard {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-5);
+  text-align: center;
+}
+.player-col { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); }
+.player-avatar {
+  width: 64px; height: 64px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--font-display); font-size: 1.5rem; font-weight: 800;
+  color: #fff; background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  overflow: hidden;
+}
+.player-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.player-name { font-weight: 700; font-size: 1rem; max-width: 180px; }
+.score-line {
+  font-family: var(--font-display);
+  font-size: clamp(2.2rem, 6vw, 3.2rem);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.result-badge { font-size: 0.78rem; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
+.result-win  { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
+.result-loss { background: rgba(239, 68, 68, 0.14); color: #ef4444; }
+.result-draw { background: rgba(107, 114, 128, 0.18); color: var(--text-muted); }
+.section-title { font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 0 0 var(--space-3); }
+.section { margin-top: var(--space-6); }
+
+.rating-row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-2) 0; }
+.rating-row + .rating-row { border-top: 1px solid var(--line-subtle); }
+.rating-name { font-weight: 600; }
+.delta-chip { font-family: var(--font-display); font-weight: 800; font-size: 0.95rem; padding: 3px 12px; border-radius: 999px; }
+.delta-pos { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
+.delta-neg { background: rgba(239, 68, 68, 0.14); color: #ef4444; }
+.delta-after { color: var(--text-muted); font-size: 0.85rem; }
+
+.lineups { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-4); }
+@media (max-width: 700px) { .lineups { grid-template-columns: 1fr; } }
+.lineup-col h3 { font-size: 0.95rem; margin: 0 0 var(--space-3); }
+.lp-player { background: var(--surface-subtle, rgba(255,255,255,.5)); border-radius: 10px; padding: 10px 12px; margin-bottom: var(--space-3); }
+.lp-head { display: flex; justify-content: space-between; font-weight: 600; font-size: 0.85rem; margin-bottom: 6px; }
+.lp-head span { font-weight: 400; color: var(--text-muted); }
+.lp-row { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.lp-label { width: 62px; font-size: 0.78rem; color: var(--text-muted); text-align: right; flex-shrink: 0; }
+.lp-track { flex: 1; height: 6px; background: rgba(14, 165, 233, 0.12); border-radius: 3px; overflow: hidden; }
+.lp-fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, #0ea5e9, #6366f1); }
+.lp-val { width: 24px; text-align: right; font-size: 0.8rem; font-weight: 700; }
+
+.season-chip {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.82rem; font-weight: 700; color: var(--accent-b, #6366f1);
+  background: rgba(99, 102, 241, 0.12); border-radius: 999px; padding: 5px 14px;
+}
+.hl-none { display: flex; flex-direction: column; align-items: center; gap: var(--space-2); text-align: center; padding: var(--space-5) var(--space-3); color: var(--text-muted); }
+.hl-none .hl-ico { font-size: 2rem; opacity: 0.4; }
+.hl-none b { color: var(--text, #0f172a); }
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <div class="nav-inner container">
+    <a class="brand" href="/">Agent Soccer</a>
+    <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');document.getElementById('nav-links').classList.toggle('open')">☰</button>
+    <div class="nav-links" id="nav-links">
+      <a class="nav-link" href="/play3d">Game</a>
+      <a class="nav-link" href="/tournaments">Tournaments</a>
+      <a class="nav-link" href="/leaderboard">Leaderboard</a>
+      <a class="nav-link" href="/spectate">Live Matches</a>
+      {% if username %}
+        <span class="nav-user">{{ username }}</span>
+        <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+      {% else %}
+        <a class="nav-link" href="/login">Log in</a>
+        <a class="btn btn-primary btn-sm" href="/register">Sign up free</a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<main class="container">
+  <div class="summary-hero">
+    <div>
+      <div class="hero-eyebrow"><span class="badge badge-brand"><span class="badge-dot"></span>Match Summary</span></div>
+      <h1>{{ s.name_a }} vs {{ s.name_b }}</h1>
+      <p>{% if s.ranked %}Ranked match{% else %}Casual match{% endif %}{% if s.season %} · played in Season {{ s.season }}{% endif %} — shared from the game.</p>
+    </div>
+    {% if s.season %}<div class="season-chip">🏆 Season {{ s.season }}</div>{% endif %}
+  </div>
+
+  <div class="glass-card">
+    <div class="scoreboard">
+      <div class="player-col">
+        <div class="player-avatar">
+          {% if s.avatar_a %}<img src="{{ s.avatar_a }}" alt="{{ s.name_a }}">{% else %}{{ s.name_a[0] | upper }}{% endif %}
+        </div>
+        <div class="player-name">{{ s.name_a }}</div>
+        <div class="result-badge {{ 'result-win' if s.winner == 'A' else 'result-loss' if s.winner == 'B' else 'result-draw' }}">
+          {{ 'WIN' if s.winner == 'A' else 'LOSS' if s.winner == 'B' else 'DRAW' }}
+        </div>
+      </div>
+      <div class="score-line">{{ s.score_a }} : {{ s.score_b }}</div>
+      <div class="player-col">
+        <div class="player-avatar" style="background:linear-gradient(135deg,#f97316,#ef4444)">
+          {% if s.avatar_b %}<img src="{{ s.avatar_b }}" alt="{{ s.name_b }}">{% else %}{{ s.name_b[0] | upper }}{% endif %}
+        </div>
+        <div class="player-name">{{ s.name_b }}</div>
+        <div class="result-badge {{ 'result-win' if s.winner == 'B' else 'result-loss' if s.winner == 'A' else 'result-draw' }}">
+          {{ 'WIN' if s.winner == 'B' else 'LOSS' if s.winner == 'A' else 'DRAW' }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {% if s.ranked and s.ranked_result %}
+  <div class="section">
+    <h2 class="section-title">Rating change</h2>
+    <div class="glass-card" style="padding:var(--space-4) var(--space-5)">
+      {% set r = s.ranked_result %}
+      <div class="rating-row">
+        <div class="rating-name">{{ s.name_a }}</div>
+        <div>
+          {% set d = r.player_a.delta %}
+          <span class="delta-chip {{ 'delta-pos' if d >= 0 else 'delta-neg' }}">{{ '+' if d >= 0 else '' }}{{ d }}</span>
+          <span class="delta-after">→ {{ r.player_a.rating_after }}</span>
+        </div>
+      </div>
+      <div class="rating-row">
+        <div class="rating-name">{{ s.name_b }}</div>
+        <div>
+          {% set d = r.player_b.delta %}
+          <span class="delta-chip {{ 'delta-pos' if d >= 0 else 'delta-neg' }}">{{ '+' if d >= 0 else '' }}{{ d }}</span>
+          <span class="delta-after">→ {{ r.player_b.rating_after }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="section">
+    <h2 class="section-title">Lineups</h2>
+    <div class="lineups">
+      <div class="lineup-col">
+        <h3>🟦 {{ s.name_a }} — Team A</h3>
+        {% for p in s.build_a %}
+        <div class="lp-player">
+          <div class="lp-head">Player {{ loop.index }}<span>{{ p.size + p.power + p.weight + p.agility }}/200</span></div>
+          {% for key, label in [('size','Size'),('power','Power'),('weight','Weight'),('agility','Agility')] %}
+          <div class="lp-row"><span class="lp-label">{{ label }}</span><div class="lp-track"><div class="lp-fill" style="width:{{ p[key] }}%"></div></div><span class="lp-val">{{ p[key] }}</span></div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="lineup-col">
+        <h3>🟥 {{ s.name_b }} — Team B</h3>
+        {% for p in s.build_b %}
+        <div class="lp-player">
+          <div class="lp-head">Player {{ loop.index }}<span>{{ p.size + p.power + p.weight + p.agility }}/200</span></div>
+          {% for key, label in [('size','Size'),('power','Power'),('weight','Weight'),('agility','Agility')] %}
+          <div class="lp-row"><span class="lp-label">{{ label }}</span><div class="lp-track"><div class="lp-fill" style="width:{{ p[key] }}%"></div></div><span class="lp-val">{{ p[key] }}</span></div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2 class="section-title">Highlights &amp; replay</h2>
+    <div class="glass-card">
+      <div class="hl-none">
+        <div class="hl-ico">🎬</div>
+        <div><b>No highlights were detected for this match.</b></div>
+        <div>Online 1v1 replays aren't stored yet — highlights appear for tournament matches.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="text-align:center;margin:var(--space-7) 0">
+    <a class="btn btn-secondary" href="/">Back to Agent Soccer</a>
+  </div>
+</main>
+
+<script>
+(function () {
+  const toggle = document.querySelector('.nav-toggle');
+  if (toggle) toggle.addEventListener('click', function () {
+    document.getElementById('nav-links').classList.toggle('open');
+  });
+})();
+</script>
+</body>
+</html>

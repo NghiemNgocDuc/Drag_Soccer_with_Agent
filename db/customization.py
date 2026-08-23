@@ -7,6 +7,35 @@ _DEFAULT_PLAYER_STATS = [
     {"size": 50, "power": 50, "weight": 50, "agility": 50},
 ]
 
+KEEPER_STYLES = [
+    "default",
+    "footwork", "footwork_plus",
+    "rush_out", "rush_out_plus",
+    "deflector", "deflector_plus",
+    "cross_claimer", "cross_claimer_plus",
+    "far_reach", "far_reach_plus",
+    "far_throw", "far_throw_plus",
+]
+
+# Keeper PlayStyle → physics deltas (base + plus). Values tuned from EA descriptions:
+# footwork: low-ball reach; rush_out: 1v1 rush speed; deflector: safe deflection;
+# cross_claimer: claim/punch; far_reach: dive radius; far_throw: distribution.
+KEEPER_STYLE_EFFECTS: dict[str, dict] = {
+    "default": {},
+    "footwork": {"radius_bonus": 4, "dive_speed_mult": 1.18, "low_ball_bonus": True},
+    "footwork_plus": {"radius_bonus": 6, "dive_speed_mult": 1.28, "low_ball_bonus": True},
+    "rush_out": {"rush_speed_mult": 1.35, "reaction_bonus": 0.08},
+    "rush_out_plus": {"rush_speed_mult": 1.55, "reaction_bonus": 0.13},
+    "deflector": {"deflect_speed_mult": 0.62, "safe_deflect": True},
+    "deflector_plus": {"deflect_speed_mult": 0.48, "safe_deflect": True, "to_teammate": True},
+    "cross_claimer": {"claim_speed_mult": 1.22, "punch_dist_mult": 1.32},
+    "cross_claimer_plus": {"claim_speed_mult": 1.38, "punch_dist_mult": 1.52},
+    "far_reach": {"radius_bonus": 7, "dive_speed_mult": 1.14, "extended_anim": True},
+    "far_reach_plus": {"radius_bonus": 11, "dive_speed_mult": 1.22, "extended_anim": True},
+    "far_throw": {"throw_dist_mult": 1.42},
+    "far_throw_plus": {"throw_dist_mult": 1.72},
+}
+
 DEFAULT_CUSTOMIZATION = {
     "team_a_color": "#3b82f6",
     "team_b_color": "#ef4444",
@@ -21,10 +50,12 @@ DEFAULT_CUSTOMIZATION = {
     "crowd_palette": "classic",
     "stadium_vignette": 0.6,
     "floodlight_color": "warm",
-    "bg_scene": "night",
+    "bg_scene": "day",
     "ball_design": "classic",
     "keeper_color_a": "#22c55e",
     "keeper_color_b": "#f97316",
+    "keeper_style_a": "default",
+    "keeper_style_b": "default",
     "highlight_style": "glow",
     "shirt_font": "default",
     "goal_effect": "confetti",
@@ -41,15 +72,90 @@ DEFAULT_CUSTOMIZATION = {
 
 _ALLOWED = set(DEFAULT_CUSTOMIZATION.keys())
 
+# ── Achievement-gated cosmetics ─────────────────────────────────────────────
+# (field, value) -> achievement_key that unlocks it. Only "special variant"
+# values are gated; every category keeps at least one always-available option,
+# and the defaults in DEFAULT_CUSTOMIZATION are never gated. Availability is a
+# DERIVED property (query user_achievements) — no separate unlock-state table.
+
+UNLOCK_REQUIREMENTS: dict[tuple[str, str], str] = {
+    ("ball_design",      "gold"):      "rk_first_win",
+    ("ball_design",      "pixel"):     "ai_first_bench",
+    ("ball_design",      "titanium"):  "sn_champion",
+    ("crowd_palette",    "rainbow"):   "sk_big_win",
+    ("bg_scene",         "cyber"):     "ai_first_model",
+    ("grass_shade",      "neon"):      "friend_match",
+    ("goal_effect",      "fireworks"): "tour_champion",
+    ("goal_effect",      "aurora"):    "sn_top_10",
+    ("floodlight_color", "red"):       "rk_streak_3",
+    ("floodlight_color", "purple"):    "rk_rating_1400",
+}
+
+# Human-readable reward labels for toast notifications ("Unlocked: Gold ball").
+_REWARD_LABELS: dict[tuple[str, str], str] = {
+    ("ball_design",      "gold"):      "Gold ball",
+    ("ball_design",      "pixel"):     "Pixel ball",
+    ("ball_design",      "titanium"):  "Titanium ball",
+    ("crowd_palette",    "rainbow"):   "Rainbow crowd",
+    ("bg_scene",         "cyber"):     "Cyberpunk scene",
+    ("grass_shade",      "neon"):      "Neon pitch",
+    ("goal_effect",      "fireworks"): "Fireworks goal effect",
+    ("goal_effect",      "aurora"):    "Aurora goal effect",
+    ("floodlight_color", "red"):       "Red floodlights",
+    ("floodlight_color", "purple"):    "Purple floodlights",
+}
+
+# achievement_key -> [reward labels] (reverse of UNLOCK_REQUIREMENTS).
+COSMETIC_REWARDS: dict[str, list[str]] = {}
+for _pair, _key in UNLOCK_REQUIREMENTS.items():
+    COSMETIC_REWARDS.setdefault(_key, []).append(_REWARD_LABELS[_pair])
+
+
+def locked_values(user_id: str) -> set[tuple[str, str]]:
+    """(field, value) pairs the user cannot select (unlock not yet earned).
+
+    Fast lookup: a single `get_earned` read of user_achievements; empty
+    user_id (or unknown users) gets everything locked.
+    """
+    if not user_id:
+        return set(UNLOCK_REQUIREMENTS)
+    try:
+        from db.achievements import get_earned
+        earned = get_earned(user_id)
+    except Exception:
+        return set(UNLOCK_REQUIREMENTS)
+    return {(f, v) for (f, v), key in UNLOCK_REQUIREMENTS.items() if key not in earned}
+
+
+def is_unlocked(user_id: str, field: str, value: str) -> bool:
+    """True if `value` is not gated, or the user earned the gate achievement."""
+    req = UNLOCK_REQUIREMENTS.get((field, value))
+    if not req:
+        return True
+    try:
+        from db.achievements import get_earned
+        return req in get_earned(user_id)
+    except Exception:
+        return False
+
+
 def _svc():
     from db.supabase_client import service
     return service
+
+# In-memory fallback (dev/tests: no Supabase) — mirrors the other db modules.
+_MEM: dict[str, dict] = {}
 
 
 def get_customization(user_id: str) -> dict:
     svc = _svc()
     if not svc:
-        return dict(DEFAULT_CUSTOMIZATION)
+        saved = _MEM.get(user_id)
+        if saved is None:
+            return dict(DEFAULT_CUSTOMIZATION)
+        result = dict(DEFAULT_CUSTOMIZATION)
+        result.update(saved)
+        return result
     try:
         row = svc.table("profiles").select("customization").eq("id", user_id).maybe_single().execute()
         if row.data and row.data.get("customization"):
@@ -66,7 +172,10 @@ def get_customization(user_id: str) -> dict:
 def save_customization(user_id: str, settings: dict) -> bool:
     svc = _svc()
     if not svc:
-        return False
+        saved = dict(_MEM.get(user_id) or {})
+        saved.update(settings)
+        _MEM[user_id] = saved
+        return True
     current = get_customization(user_id)
     current.update(settings)
     cleaned = {k: v for k, v in current.items() if k in _ALLOWED}

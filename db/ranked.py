@@ -183,6 +183,35 @@ def _decorate(rows: list[dict], offset: int) -> list[dict]:
     return out
 
 
+def get_win_streak(user_id: str, limit: int = 50) -> int:
+    """Consecutive ranked wins ending at this user's most recent match.
+
+    Scans the user's ranked_matches newest-first and counts wins until a
+    loss (or the window runs out). Used by the ranked streak achievements.
+    """
+    svc = _svc()
+    if not svc:
+        matches = [m for m in reversed(_MEM_MATCHES)
+                   if m["player_a"] == user_id or m["player_b"] == user_id]
+    else:
+        try:
+            res = (svc.table("ranked_matches")
+                   .select("player_a,player_b,winner")
+                   .or_(f"player_a.eq.{user_id},player_b.eq.{user_id}")
+                   .order("created_at", desc=True).limit(limit).execute())
+        except Exception:
+            return 0
+        matches = list(res.data or [])
+    streak = 0
+    for m in matches:
+        side = "a" if m.get("player_a") == user_id else "b"
+        if m.get("winner") == side.upper():
+            streak += 1
+        else:
+            break
+    return streak
+
+
 def get_rating_history(user_id: str, limit: int = 20) -> list[dict]:
     """Recent rating changes for one user, newest first."""
     svc = _svc()
@@ -194,6 +223,32 @@ def get_rating_history(user_id: str, limit: int = 20) -> list[dict]:
         .select("*").eq("user_id", user_id)\
         .order("created_at", desc=True).limit(limit).execute()
     return list(res.data or [])
+
+
+def get_all_rating_history(limit: int = 10000) -> list[dict]:
+    """All rating-history rows, oldest first (analytics input)."""
+    svc = _svc()
+    if not svc:
+        return [dict(h) for h in _MEM_HISTORY]
+    try:
+        res = (svc.table("rating_history").select("*")
+               .order("created_at", desc=False).limit(limit).execute())
+        return list(res.data or [])
+    except Exception:
+        return []
+
+
+def get_all_ranked_matches(limit: int = 5000) -> list[dict]:
+    """All rated-match rows, oldest first (analytics input)."""
+    svc = _svc()
+    if not svc:
+        return [dict(m) for m in _MEM_MATCHES]
+    try:
+        res = (svc.table("ranked_matches").select("*")
+               .order("created_at", desc=False).limit(limit).execute())
+        return list(res.data or [])
+    except Exception:
+        return []
 
 
 # ── Result application (authoritative, atomic, idempotent) ───────────────

@@ -107,6 +107,9 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
 .stat-card.draws .stat-val{color:var(--dim)}
 .stat-card.rate .stat-val{color:var(--accent-b)}
 .stat-card.elo .stat-val{color:#d97706}
+.stat-card.ach .stat-val{color:#8b5cf6}
+.stat-card.seasons .stat-val{color:#06b6d4}
+.stat-card a{text-decoration:none}
 /* ── Win Rate Ring ── */
 .winrate-section{margin-bottom:20px}
 .winrate-card{
@@ -304,6 +307,18 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
       <div class="stat-val">{{ rating.rating }}</div>
       <div class="stat-lbl">ELO Rating</div>
     </div>
+    <a href="/achievements" class="stat-card ach">
+      <div class="stat-icon">🏆</div>
+      <div class="stat-val">{{ achievement_count }}</div>
+      <div class="stat-lbl">Achievements</div>
+    </a>
+    <div class="stat-card seasons">
+      <div class="stat-icon">🗓️</div>
+      <div class="stat-val">{{ season_career.seasons_played }}</div>
+      <a href="/leaderboard/ranked" style="text-decoration:none;color:inherit">
+        <div class="stat-lbl">Seasons Played</div>
+      </a>
+    </div>
   </div>
 
   {% set rp = rating.games_played or 0 %}
@@ -317,7 +332,8 @@ main{max-width:820px;margin:0 auto;padding:30px 16px}
   <div class="placement-note" style="margin:-8px 0 20px;font-size:.75rem;color:var(--muted)">
     Ranked: placed at {{ rating.rating }} — see the
     <a href="/leaderboard/ranked" style="color:var(--accent)">ranked leaderboard</a>.
-    ({{ rating.games_played }} games, {{ rating.wins }}W / {{ rating.losses }}L, peak {{ rating.peak_rating }})
+    ({{ rating.games_played }} games, {{ rating.wins }}W / {{ rating.losses }}L, peak {{ rating.peak_rating }}{% if season_career.best_rank %}, best season finish #{{ season_career.best_rank }}{% endif %}) ·
+    Season {{ current_season }} is live — ratings soft-reset each season.
   </div>
   {% endif %}
 

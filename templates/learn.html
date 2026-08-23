@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learn to Build a Soccer AI — Agent Soccer</title>
+<meta name="description" content="A guided, machine-checked curriculum: write your first game AI, then beat every built-in agent — Greedy, Monte Carlo, Minimax and more.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/static/design-system.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<style>
+:root { --accent-b: #6366f1; }
+.learn-hero { margin: var(--space-7) 0 var(--space-4); }
+.learn-hero h1 { font-size: clamp(1.6rem, 4vw, 2.25rem); margin: 0; letter-spacing: -0.02em; }
+.learn-hero p { color: var(--text-secondary); margin: var(--space-2) 0 0; max-width: 760px; line-height: 1.55; }
+.learn-progress { display: flex; align-items: center; gap: 14px; margin-top: var(--space-4); }
+.learn-bar { flex: 1; height: 10px; border-radius: 999px; background: rgba(14,165,233,.12); overflow: hidden; }
+.learn-bar > div { height: 100%; border-radius: 999px; background: linear-gradient(90deg, #0ea5e9, #6366f1); transition: width .4s ease; }
+.learn-count { font-size: 0.82rem; font-weight: 700; color: var(--text-secondary); white-space: nowrap; }
+
+.lessons { display: flex; flex-direction: column; gap: var(--space-4); margin: var(--space-5) 0; }
+
+.lesson { border-radius: 16px; overflow: hidden; }
+.lesson.locked { opacity: .62; }
+.lesson-head { display: flex; align-items: center; gap: 14px; padding: 16px 18px; cursor: pointer; }
+.lesson.locked .lesson-head { cursor: not-allowed; }
+.lesson-icon { font-size: 1.35rem; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; background: rgba(14,165,233,.10); flex-shrink: 0; }
+.lesson-idx { font-size: 0.68rem; font-weight: 800; letter-spacing: .1em; color: var(--text-muted); text-transform: uppercase; }
+.lesson-title { font-size: 1.02rem; font-weight: 700; margin: 2px 0 0; letter-spacing: -0.01em; }
+.lesson-tag { font-size: 0.82rem; color: var(--text-secondary); margin-top: 2px; }
+.lesson-status { margin-left: auto; font-size: 0.72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; border-radius: 999px; padding: 4px 12px; white-space: nowrap; }
+.lesson-status.completed { background: rgba(34,197,94,.14); color: #16a34a; }
+.lesson-status.unlocked  { background: rgba(14,165,233,.14); color: #0284c7; }
+.lesson-status.locked    { background: rgba(107,114,128,.14); color: var(--text-muted); }
+.lesson-open { font-size: 0.9rem; color: var(--text-muted); margin-left: 8px; transition: transform .18s; }
+.lesson.open .lesson-open { transform: rotate(180deg); }
+
+.lesson-body { display: none; padding: 0 18px 18px; }
+.lesson.open .lesson-body { display: block; }
+
+.sec { margin: var(--space-3) 0; }
+.sec h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: .07em; color: var(--accent-b); margin: 0 0 6px; }
+.sec p { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.6; margin: 0; white-space: pre-wrap; }
+.sec code { background: rgba(14,165,233,.09); color: #0284c7; border-radius: 5px; padding: 1px 6px; font-size: .9em; }
+.sec pre { background: #0f172a; color: #cbd5e1; border-radius: 10px; padding: 12px 14px; font-size: 0.78rem; line-height: 1.6; overflow-x: auto; margin: 8px 0 0; white-space: pre; }
+
+.milestone-chip { display: inline-flex; align-items: center; gap: 8px; font-size: 0.8rem; font-weight: 600; background: rgba(99,102,241,.10); color: var(--accent-b); border-radius: 10px; padding: 8px 14px; margin: var(--space-3) 0; }
+
+.learn-grid { display: grid; grid-template-columns: 1fr; gap: var(--space-4); }
+@media (min-width: 900px) { .learn-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 4fr); } }
+
+.editor-card { display: flex; flex-direction: column; }
+.editor-card .cm-wrap { flex: 1; min-height: 340px; display: flex; }
+.editor-card .CodeMirror { flex: 1; height: 340px; border-radius: 0 0 12px 12px; font-size: 0.78rem; }
+.editor-toolbar { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid rgba(255,255,255,.12); flex-wrap: wrap; }
+.editor-toolbar .et-title { font-size: 0.78rem; font-weight: 700; }
+.et-spacer { flex: 1; }
+.check-btn { min-width: 170px; }
+.check-btn:disabled { opacity: .55; cursor: wait; }
+.check-state { font-size: 0.8rem; color: var(--text-secondary); padding: 10px 14px; min-height: 38px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.check-state.pass { color: #16a34a; font-weight: 600; }
+.check-state.fail { color: #ef4444; }
+.check-state.run  { color: #d97706; }
+.result-line { display: flex; gap: 14px; flex-wrap: wrap; font-size: 0.82rem; }
+.result-line b { color: var(--text); }
+.target-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 10px 14px; }
+.target-row label { font-size: 0.82rem; display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.target-row input { accent-color: var(--accent-b); }
+
+.note { font-size: 0.78rem; color: var(--text-muted); line-height: 1.5; margin: var(--space-3) 0 0; }
+.note a { color: var(--accent-b); }
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <div class="nav-inner container">
+    <a class="brand" href="/">Agent Soccer</a>
+    <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');document.getElementById('nav-links').classList.toggle('open')">☰</button>
+    <div class="nav-links" id="nav-links">
+      <a class="nav-link" href="/play3d">Game</a>
+      <a class="nav-link" href="/learn" style="color:var(--accent-b)">Learn</a>
+      <a class="nav-link" href="/playground">Playground</a>
+      <a class="nav-link" href="/arena">AI Arena</a>
+      <a class="nav-link" href="/my-models">My Models</a>
+      <a class="nav-link" href="/leaderboard">Leaderboard</a>
+      <a class="nav-link" href="/tournaments">Tournaments</a>
+      <span class="nav-user">{{ username }}</span>
+      <form method="POST" action="/auth/logout" style="display:inline">
+        <button type="submit" class="btn btn-ghost btn-sm">Logout</button>
+      </form>
+    </div>
+  </div>
+</nav>
+
+<main class="container">
+  <div class="learn-hero">
+    <h1>Learn to Build a Soccer AI 🎓</h1>
+    <p>Seven short lessons take you from "never written a game AI" to a model that
+       can beat <strong>every built-in agent</strong>. Each lesson ends with a
+       machine-checked milestone: the server quietly plays 5 full matches against
+       a fixed opponent and grades your code by win rate — no guesswork, no
+       self-reporting.</p>
+    <div class="learn-progress">
+      <div class="learn-bar"><div id="progress-fill" style="width:0%"></div></div>
+      <span class="learn-count" id="progress-label">0 / 7 lessons</span>
+    </div>
+  </div>
+
+  <div class="lessons" id="lessons">
+    {% for lesson in lessons %}
+    {% set st = state.get(lesson.id, 'locked') %}
+    <div class="glass-card lesson {{ st }} {% if loop.first and st != 'locked' %}open{% endif %}"
+         data-id="{{ lesson.id }}" data-kind="{{ lesson.kind }}" data-st=" {{ st }} ">
+      <div class="lesson-head" {% if st == 'locked' %}onclick="return false"{% endif %}>
+        <div class="lesson-icon">{{ lesson.icon }}</div>
+        <div>
+          <div class="lesson-idx">Lesson {{ loop.index }}{% if lesson.optional %} · optional{% endif %}</div>
+          <div class="lesson-title">{{ lesson.title }}</div>
+          <div class="lesson-tag">{{ lesson.tagline }}</div>
+        </div>
+        <span class="lesson-status {{ st }}" data-status="{{ st }}">{{ st }}</span>
+        <span class="lesson-open">▾</span>
+      </div>
+      <div class="lesson-body">
+        {% for heading, body in lesson.sections %}
+        <div class="sec">
+          <h3>{{ heading }}</h3>
+          {% for para in body.split('\n\n') %}
+            {% if para.strip().startswith('    ') or para.strip().startswith('\t') %}
+            <pre>{{ para.strip('\n') }}</pre>
+            {% elif para.strip() %}
+            <p>{{ para }}</p>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+        <div class="milestone-chip">🎯 Milestone: {{ lesson.milestone }}</div>
+        {% if lesson.hint %}<div class="note">💡 Hint: {{ lesson.hint }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <div class="learn-grid" id="workspace" style="margin-bottom:var(--space-7)">
+    <div class="glass-card editor-card">
+      <div class="editor-toolbar">
+        <span class="et-title" id="ws-title">Editor</span>
+        <span class="et-tag" style="font-size:.72rem;color:var(--text-muted)">Python</span>
+        <span class="et-spacer"></span>
+        <button class="btn btn-ghost btn-sm" onclick="loadStarter()">↺ Reset to starter</button>
+        <button class="btn btn-secondary btn-sm" onclick="openInPlayground()">▶ Open in Playground</button>
+      </div>
+      <div class="cm-wrap"><textarea id="code-editor"></textarea></div>
+      <div class="check-state" id="check-state">Pick a lesson to start. Your code is checked automatically — no saving needed.</div>
+    </div>
+    <div class="glass-card" style="padding:0;overflow:hidden">
+      <div class="target-row" id="target-row" style="display:none">
+        <span style="font-size:.78rem;font-weight:700">Beat:</span>
+        <label><input type="radio" name="tut-target" value="monte_carlo" checked> Monte Carlo</label>
+        <label><input type="radio" name="tut-target" value="bayesian"> Bayesian</label>
+      </div>
+      <div class="editor-toolbar" style="justify-content:flex-start;border-bottom:none">
+        <button class="btn btn-primary check-btn" id="check-btn" onclick="runCheck()" disabled>✓ Check milestone</button>
+        <button class="btn btn-ghost btn-sm" id="stop-btn" onclick="stopPoll()" style="display:none">Stop</button>
+      </div>
+      <div class="result-line" id="result-line" style="padding:0 14px 16px"></div>
+    </div>
+  </div>
+
+  <div class="glass-card" style="margin-bottom:var(--space-7)">
+    <div style="padding:16px 18px">
+      <div class="sec"><h3>How the checks work</h3>
+        <p>Each check runs your exact editor code headlessly for a few full matches
+           against the lesson's opponent (physics, goals, halves — the real engine).
+           Most lessons need 3 wins out of 5. Heavy opponents like Minimax take a
+           minute or two; the page shows live progress. Completed lessons stay
+           completed — re-runs never undo progress.</p>
+      </div>
+      <div class="sec"><h3>Where to take your model next</h3>
+        <p><strong>Playground</strong> — test your code interactively (human vs code,
+           or code vs any built-in with auto-play). <strong>My Models</strong> — save
+           your code, then <strong>Submit to Leaderboard</strong> in the capstone to
+           rank it against the other 7 built-ins and every other builder's models.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">Agent Soccer — the tutorial milestones are computed on the server from real engine matches.</div>
+</footer>
+
+<script src="/static/achievements.js"></script>
+<script>
+(function () {
+  'use strict';
+  var META = {{ lesson_meta | tojson }};
+  var editor = null;
+  var lessonId = null;       // currently open lesson
+  var pollTimer = null;
+  var dirty = false;
+
+  var statusEl = document.getElementById('check-state');
+  var resultEl = document.getElementById('result-line');
+  var checkBtn = document.getElementById('check-btn');
+
+  function meta(id) {
+    for (var i = 0; i < META.length; i++) if (META[i].id === id) return META[i];
+    return null;
+  }
+
+  // ── Editor ────────────────────────────────────────────────────────────────
+  function initEditor() {
+    editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+      mode: 'python', lineNumbers: true, indentUnit: 4, tabSize: 4,
+      indentWithTabs: false,
+      extraKeys: { Tab: function (cm) { cm.replaceSelection('    '); } },
+    });
+    editor.on('change', function () { dirty = true; });
+    setStatus('Pick a lesson to start.', '');
+  }
+
+  function loadStarter() {
+    var m = meta(lessonId);
+    if (!m || !m.starter) return;
+    if (dirty && !confirm('Replace your edited code with the lesson starter?')) return;
+    editor.setValue(m.starter);
+    dirty = false;
+    setStatus('Starter code loaded for lesson ' + lessonId + '.', '');
+  }
+
+  function openInPlayground() {
+    if (!lessonId) return;
+    try { sessionStorage.setItem('pg_preload_code', editor.getValue()); } catch (e) {}
+    window.location.href = '/playground';
+  }
+
+  // ── Lesson selection ──────────────────────────────────────────────────────
+  var heads = document.querySelectorAll('.lesson-head');
+  Array.prototype.forEach.call(heads, function (head) {
+    head.addEventListener('click', function () {
+      var card = head.parentElement;
+      if (card.classList.contains('locked')) return;
+      var id = parseInt(card.getAttribute('data-id'), 10);
+      selectLesson(id);
+    });
+  });
+
+  function selectLesson(id) {
+    stopPoll();
+    lessonId = id;
+    dirty = false;
+    var cards = document.querySelectorAll('.lesson');
+    Array.prototype.forEach.call(cards, function (c) {
+      c.classList.toggle('open', parseInt(c.getAttribute('data-id'), 10) === id);
+    });
+    document.getElementById('ws-title').textContent = 'Editor — Lesson ' + id;
+    var m = meta(id);
+    if (m && m.starter) {
+      editor.setValue(m.starter);
+    } else {
+      editor.setValue('# Capstone: no code needed.\n# Open My Models → Submit to Leaderboard.');
+    }
+    var tr = document.getElementById('target-row');
+    tr.style.display = m && m.target_choice ? 'flex' : 'none';
+    checkBtn.disabled = false;
+    setStatus('Press "Check milestone" to run ' + (m.games || 1) + ' match(es) against ' +
+              (m.opponent_label || 'the target') + '.', '');
+    resultEl.innerHTML = '';
+    // Show existing completed state.
+    var stEl = cardStatus(id);
+    if (stEl === 'completed') setStatus('✅ This lesson is already complete. Re-running won\'t undo it.', 'pass');
+  }
+
+  function cardStatus(id) {
+    var card = document.querySelector('.lesson[data-id="' + id + '"]');
+    return card ? card.getAttribute('data-st').trim() : 'locked';
+  }
+
+  function refreshCardStatus(completedList) {
+    var done = completedList || [];
+    Array.prototype.forEach.call(META, function (m) {
+      var card = document.querySelector('.lesson[data-id="' + m.id + '"]');
+      if (!card) return;
+      var st = done.indexOf(m.id) !== -1 ? 'completed' :
+               allDone(m.requires, done) ? 'unlocked' : 'locked';
+      card.setAttribute('data-st', st);
+      card.className = 'glass-card lesson ' + st + (card.classList.contains('open') ? ' open' : '');
+      var badge = card.querySelector('.lesson-status');
+      badge.textContent = st;
+      badge.className = 'lesson-status ' + st;
+      if (st === 'locked') {
+        card.querySelector('.lesson-head').onclick = function () { return false; };
+      }
+    });
+    var fill = document.getElementById('progress-fill');
+    var pct = Math.round(done.length / META.length * 100);
+    fill.style.width = pct + '%';
+    document.getElementById('progress-label').textContent = done.length + ' / ' + META.length + ' lessons';
+  }
+
+  function allDone(reqs, done) {
+    for (var i = 0; i < reqs.length; i++) if (done.indexOf(reqs[i]) === -1) return false;
+    return true;
+  }
+
+  // ── Check flow ────────────────────────────────────────────────────────────
+  function runCheck() {
+    if (!lessonId) return;
+    var m = meta(lessonId);
+    if (m && m.target_choice) {
+      var sel = document.querySelector('input[name="tut-target"]:checked');
+      if (!sel) { setStatus('Pick an opponent first.', 'fail'); return; }
+    }
+    checkBtn.disabled = true;
+    stopPoll();
+    var body = { lesson_id: lessonId, code: editor.getValue() };
+    var sel = document.querySelector('input[name="tut-target"]:checked');
+    if (sel) body.target = sel.value;
+
+    fetch('/api/tutorial/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { setStatus(res.d.error || 'Check could not start.', 'fail'); checkBtn.disabled = false; return; }
+        if (res.d.status === 'done') {
+          handleDone(res.d);
+        } else {
+          setStatus('Running matches… 0 / ' + (res.d.games || 1), 'run');
+          document.getElementById('stop-btn').style.display = 'inline-block';
+          pollStatus(lessonId);
+        }
+        if (window.AW && res.d.achievements) AW.handle(res.d.achievements);
+      })
+      .catch(function () { setStatus('Network error — try again.', 'fail'); checkBtn.disabled = false; });
+  }
+
+  function pollStatus(id) {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(function () {
+      fetch('/api/tutorial/check-status?lesson_id=' + id)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.status === 'running') {
+            setStatus('Running matches… ' + (d.done || 0) + ' / ' + (d.total || 1), 'run');
+            pollStatus(id);
+          } else if (d.status === 'done') {
+            handleDone(d);
+          } else if (d.status === 'failed') {
+            setStatus('Check failed: ' + (d.error || 'unknown error'), 'fail');
+            checkBtn.disabled = false;
+            document.getElementById('stop-btn').style.display = 'none';
+          } else {
+            setStatus('No check running — press "Check milestone".', '');
+            checkBtn.disabled = false;
+          }
+          if (window.AW && d.achievements) AW.handle(d.achievements);
+        })
+        .catch(function () { setStatus('Status poll failed — retrying…', 'run'); pollStatus(id); });
+    }, 2000);
+  }
+
+  function stopPoll() {
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    document.getElementById('stop-btn').style.display = 'none';
+  }
+
+  function handleDone(d) {
+    stopPoll();
+    checkBtn.disabled = false;
+    if (d.completed) refreshCardStatus(d.completed);
+    var r = d.result || {};
+    var kind = meta(d.lesson_id) && meta(d.lesson_id).kind;
+    if (d.passed) {
+      setStatus('✅ Milestone passed! Lesson ' + d.lesson_id + ' completed.', 'pass');
+      if (kind === 'leaderboard_submit' && d.submitted) {
+        resultEl.innerHTML = 'Leaderboard entry confirmed: <b>' + (d.submitted.length) + '</b> submitted model(s).';
+      }
+    } else if (kind === 'leaderboard_submit') {
+      setStatus('Not yet — submit a model to the leaderboard first (My Models → Submit to Leaderboard).', 'fail');
+    } else {
+      setStatus('❌ Not this time — ' + (d.error || (r.wins || 0) + ' wins out of ' + (r.games || 0) + ' matches.'), 'fail');
+    }
+    if (kind !== 'leaderboard_submit' && r.games) {
+      resultEl.innerHTML =
+        '<span>Wins <b>' + (r.wins || 0) + '</b></span>' +
+        '<span>Losses <b>' + (r.losses || 0) + '</b></span>' +
+        '<span>Draws <b>' + (r.draws || 0) + '</b></span>' +
+        '<span>vs <b>' + (r.target || '—') + '</b></span>' +
+        (r.elapsed_s ? '<span style="color:var(--text-muted)">' + r.elapsed_s + ' s</span>' : '');
+    }
+  }
+
+  function setStatus(msg, cls) {
+    statusEl.textContent = '';
+    statusEl.className = 'check-state' + (cls ? ' ' + cls : '');
+    if (msg) {
+      var sp = document.createElement('span');
+      sp.textContent = msg;
+      statusEl.appendChild(sp);
+    }
+  }
+
+  // ── Boot ──────────────────────────────────────────────────────────────────
+  window.__tutorialState = function () {
+    return {
+      lessonId: lessonId,
+      statusText: statusEl.textContent,
+    };
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initEditor();
+    var cards = document.querySelectorAll('.lesson');
+    var firstOpen = null;
+    Array.prototype.forEach.call(cards, function (c) {
+      if (!c.classList.contains('locked') && firstOpen === null) firstOpen = parseInt(c.getAttribute('data-id'), 10);
+    });
+    if (firstOpen !== null) selectLesson(firstOpen);
+    if (window.AW) AW.pump();
+  });
+})();
+</script>
+</body>
+</html>

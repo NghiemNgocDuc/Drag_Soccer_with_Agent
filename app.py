@@ -177,6 +177,7 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
     if state.get("game_over") and state.get("game_mode") == "hvai" and not state.get("_finalized"):
         _persist_result(state)
         state["_finalized"] = True
+    result["achievements"] = _ach_toasts()
     return result
 
 
@@ -194,9 +195,195 @@ def _persist_result(state: dict) -> None:
             total_moves= state.get("kick_count", 0),
         )
         _ph.track_game_end(uid(), state.get("game_mode", "hvai"), winner, state["score_a"], state["score_b"])
+        _check_casual_achievements(state, uid())
         _auto_clear_state(uid())
     except Exception as e:
         app.logger.warning("Failed to save game result: %s", e)
+
+
+# ── Achievements (badges) — detection helpers ──────────────────────────────
+# Award hooks live at natural completion points: ranked result application,
+# casual match persist, online game-over, goal moments, bench completion,
+# tournament create/final, avatar upload, model create, match start (scene).
+
+def _ach_grant(user_id: str, achievement_key: str) -> None:
+    """Fire-and-forget badge grant (double-award guarded inside db.achievements)."""
+    if not user_id or user_id.startswith("guest:"):
+        return
+    try:
+        from db.achievements import award
+        award(user_id, achievement_key)
+    except Exception:
+        pass
+
+
+def _ach_toasts() -> list[dict]:
+    """Drain this session user's pending badge toasts for the response body."""
+    try:
+        from db.achievements import drain_toasts
+        toasts = drain_toasts(uid())
+        try:
+            from db.customization import COSMETIC_REWARDS
+            for t in toasts:
+                rewards = COSMETIC_REWARDS.get(t.get("key"))
+                if rewards:
+                    t["unlock"] = rewards
+        except Exception:
+            pass
+        return toasts
+    except Exception:
+        return []
+
+
+def _hat_trick_side(moves: list) -> str | None:
+    """'A'/'B' if that team has a player with 3+ own-team goals, else None."""
+    counts: dict[tuple, int] = {}
+    for m in moves or []:
+        if not m.get("scored") or m.get("scored") != m.get("player"):
+            continue
+        key = (m.get("player"), m.get("player_idx"))
+        counts[key] = counts.get(key, 0) + 1
+        if counts[key] >= 3:
+            return m.get("player")
+    return None
+
+
+def _extreme_build(stats_list) -> bool:
+    """True if every player has exactly one stat >= 60 and the rest <= 40."""
+    if not stats_list:
+        return False
+    for st in stats_list:
+        vals = [int(st.get(k, 50)) for k in ("size", "power", "weight", "agility")]
+        if sum(1 for v in vals if v >= 60) != 1 or sum(1 for v in vals if v <= 40) != 3:
+            return False
+    return True
+
+
+def _goal_moment_achievements(trajectory: list) -> None:
+    """Goal-moment badges for the session user (first goal / rocket / loft)."""
+    if not trajectory:
+        return
+    _ach_grant(uid(), "exp_first_goal")
+    try:
+        from db.highlights import max_speed
+        if max_speed(trajectory) >= 700:
+            _ach_grant(uid(), "sk_rocket")
+        apex = max((p.get("z", 0.0) for p in trajectory), default=0.0)
+        if apex >= 40:
+            _ach_grant(uid(), "sk_loft")
+    except Exception:
+        pass
+
+
+def _check_casual_achievements(state: dict, user_id: str) -> None:
+    """Match-end badges for a finished hvai (human vs AI) game."""
+    winner = state.get("winner")
+    score_a = state.get("score_a", 0)
+    score_b = state.get("score_b", 0)
+    if _hat_trick_side(state.get("move_history", [])):
+        _ach_grant(user_id, "sk_pan_trick")
+    if winner == "A":
+        if score_b == 0:
+            _ach_grant(user_id, "sk_clean_sheet")
+        if score_a - score_b >= 5:
+            _ach_grant(user_id, "sk_big_win")
+        if _extreme_build((state.get("player_stats") or {}).get("a")):
+            _ach_grant(user_id, "sk_extreme_build")
+
+
+def _check_online_achievements(room: dict, game: dict) -> None:
+    """Match-end badges for a finished online (hvh) game — both participants."""
+    pa, pb = room.get("player_a"), room.get("player_b")
+    if not pa or not pb or pa.startswith("guest:") or pb.startswith("guest:"):
+        return
+    winner = game.get("winner")
+    sa = game.get("score_a", 0)
+    sb = game.get("score_b", 0)
+    ht = _hat_trick_side(game.get("move_history", []))
+    if ht == "A":
+        _ach_grant(pa, "sk_pan_trick")
+    elif ht == "B":
+        _ach_grant(pb, "sk_pan_trick")
+    if winner == "A":
+        if sb == 0:
+            _ach_grant(pa, "sk_clean_sheet")
+        if sa - sb >= 5:
+            _ach_grant(pa, "sk_big_win")
+        if _extreme_build((game.get("player_stats") or {}).get("a")):
+            _ach_grant(pa, "sk_extreme_build")
+    elif winner == "B":
+        if sa == 0:
+            _ach_grant(pb, "sk_clean_sheet")
+        if sb - sa >= 5:
+            _ach_grant(pb, "sk_big_win")
+        if _extreme_build((game.get("player_stats") or {}).get("b")):
+            _ach_grant(pb, "sk_extreme_build")
+    if _is_friends_with(pa, pb):
+        _ach_grant(pa, "friend_match")
+        _ach_grant(pb, "friend_match")
+
+
+def _check_ranked_achievements(pa: str, pb: str, res: dict) -> None:
+    """Ranked badges for both participants after a result is recorded."""
+    if not res:
+        return
+    try:
+        from db.ranked import get_rating, get_win_streak
+    except Exception:
+        return
+    winner = res.get("winner")
+    for user_id, side in ((pa, "a"), (pb, "b")):
+        if not user_id or user_id.startswith("guest:"):
+            continue
+        row = get_rating(user_id)
+        games = int(row.get("games_played", 0))
+        wins = int(row.get("wins", 0))
+        rating = int(row.get("rating", 1200))
+        won = winner == side.upper()
+        conceded = res.get("score_a" if side == "b" else "score_b", 0)
+        for key, need in (("rk_game_10", 10), ("rk_game_50", 50), ("rk_game_100", 100)):
+            if games >= need:
+                _ach_grant(user_id, key)
+        for key, need in (("rk_rating_1400", 1400), ("rk_rating_1600", 1600),
+                          ("rk_rating_1800", 1800)):
+            if rating >= need:
+                _ach_grant(user_id, key)
+        if won and wins == 1:
+            _ach_grant(user_id, "rk_first_win")
+        if won and conceded == 0:
+            _ach_grant(user_id, "rk_clean_sheet")
+        streak = get_win_streak(user_id)
+        for key, need in (("rk_streak_3", 3), ("rk_streak_5", 5), ("rk_streak_10", 10)):
+            if streak >= need:
+                _ach_grant(user_id, key)
+
+
+def _track_scene_usage(user_id: str) -> None:
+    """Record the active scene preset at match start (Night-Owl badge, set-based)."""
+    try:
+        from db.customization import get_customization
+        from db.redis_client import r as redis
+        scene = (get_customization(user_id).get("bg_scene") or "night")
+        key = f"ach:scenes:{user_id}"
+        redis.sadd(key, scene)
+        redis.expire(key, 7 * 86400)
+        if len(redis.smembers(key)) >= 4:
+            _ach_grant(user_id, "exp_sense4")
+    except Exception:
+        pass
+
+
+def _model_rank(model_id: str) -> int | None:
+    """1-based rank of a model on the score-sorted model leaderboard."""
+    try:
+        from db.leaderboard import list_leaderboard
+        entries, _total = list_leaderboard(limit=200, offset=0, sort="score")
+        for i, e in enumerate(entries):
+            if e.get("model_id") == model_id:
+                return i + 1
+    except Exception:
+        pass
+    return None
 
 
 def _apply_move(state: dict, player_idx: int, angle: float, power: float, is_player_a: bool) -> dict:
@@ -295,6 +482,8 @@ def auth_register():
     if anon is None:
         session["user_id"]  = f"dev:{email}"
         session["username"] = username
+        from db.profiles import register_user
+        register_user(session["user_id"], username)
         _ph.track_signup(session["user_id"], email)
         if request.is_json:
             return jsonify({"ok": True, "username": username})
@@ -361,6 +550,8 @@ def auth_login():
     if anon is None:
         session["user_id"]  = f"dev:{email}"
         session["username"] = email.split("@")[0]
+        from db.profiles import register_user
+        register_user(session["user_id"], session["username"])
         if request.is_json:
             return jsonify({"ok": True})
         return redirect(url_for("index"))
@@ -526,9 +717,13 @@ def human_move():
             "kick_endpoint": traj[-1].get("kicker", {"x": traj[-1]["x"], "y": traj[-1]["y"]}),
             "push_result": None,
         }
+        if scored:
+            _goal_moment_achievements(traj)
         extra = {"move_result": result}
     else:
         result = _apply_move(state, player_idx, angle, power, True)
+        if result.get("scored"):
+            _goal_moment_achievements(result["trajectory"])
         extra = {"move_result": result}
 
     save_game(user_id, state)
@@ -562,6 +757,8 @@ def trigger_ai_move():
         }
     else:
         result = _do_ai_move(state, model_name, is_player_a)
+    if result.get("scored"):
+        _goal_moment_achievements(result.get("trajectory"))
     save_game(user_id, state)
     _auto_save_state(user_id, state)
     return jsonify(_full_state(state, {"ai_result": result}))
@@ -621,6 +818,7 @@ def reset_game():
     user_id   = uid()
     old_state = get_game(user_id)
     data = request.get_json(silent=True) or {}
+    _track_scene_usage(user_id)
     penalty_mode = data.get("penalty_mode", False)
     if penalty_mode:
         pc = 5
@@ -639,6 +837,10 @@ def reset_game():
         state["penalty_goalkeeper_move"] = None
         state["score_a"] = 0
         state["score_b"] = 0
+        from db.customization import get_customization as _gc
+        _cust = _gc(user_id)
+        state["keeper_style_a"] = _cust.get("keeper_style_a", "default")
+        state["keeper_style_b"] = _cust.get("keeper_style_b", "default")
         _setup_penalty_positions(state, True)
     else:
         pc = int(data.get("player_count", old_state.get("player_count", 3)))
@@ -660,6 +862,9 @@ def reset_game():
         from models.soccer_logic import inject_player_stats
         pstats = cust.get("player_stats", {})
         inject_player_stats(state, pstats.get("a"), pstats.get("b"))
+        # Keeper PlayStyles (EA FC 25 — 6 keeper styles)
+        state["keeper_style_a"] = cust.get("keeper_style_a", "default")
+        state["keeper_style_b"] = cust.get("keeper_style_b", "default")
     _auto_clear_state(user_id)
     save_game(user_id, state)
     _ph.track_game_start(uid(), state.get("game_mode", "hvai"), state.get("model_name_b", ""))
@@ -782,14 +987,42 @@ def profile():
     from db.games import get_user_stats
     from db.profiles import get_avatar_url
     from db.ranked import get_rating, PLACEMENT_GAMES
+    from db.achievements import count_earned
+    from db.seasons import career_summary, get_current_season
     stats = get_user_stats(uid())
     username = session.get("username", "Player")
     joined_days = session.get("joined_at")
     avatar_url = get_avatar_url(uid())
     rating = get_rating(uid())
+    achievement_count = count_earned(uid())
+    season_career = career_summary(uid())
+    current_season = int(get_current_season()["number"])
     return render_template("profile.html", username=username, stats=stats,
                            joined_days=joined_days, avatar_url=avatar_url,
-                           rating=rating, placement_games=PLACEMENT_GAMES)
+                           rating=rating, placement_games=PLACEMENT_GAMES,
+                           achievement_count=achievement_count,
+                           season_career=season_career,
+                           current_season=current_season)
+
+
+@app.route("/api/achievements/toasts")
+@login_required
+def achievements_toasts():
+    """Drain pending badge toasts for the current session user (page-load pump)."""
+    return jsonify({"achievements": _ach_toasts()})
+
+
+@app.route("/achievements")
+@login_required
+def achievements_page():
+    from db.achievements import list_for_user, count_earned, definitions, CATEGORY_LABELS
+    user_list = list_for_user(uid())
+    earned = count_earned(uid())
+    total = len(definitions())
+    return render_template("achievements.html",
+                           username=session.get("username", "Player"),
+                           achievements=user_list, earned=earned, total=total,
+                           categories=CATEGORY_LABELS)
 
 
 # ── Profile photo (Supabase Storage, per-user scoped) ─────────────────────
@@ -818,6 +1051,7 @@ def api_upload_photo():
     if not set_avatar_url(user_id, url):
         return jsonify({"error": "Photo uploaded but saving it to your profile failed."}), 502
     _ph.capture(user_id, "profile_photo_upload")
+    _ach_grant(user_id, "exp_photo")
     return jsonify({"ok": True, "avatar_url": url})
 
 
@@ -883,18 +1117,41 @@ def leaderboard():
 @app.route("/customize")
 @login_required
 def customize_page():
-    from db.customization import get_customization
+    from db.customization import get_customization, locked_values, UNLOCK_REQUIREMENTS
+    from db.achievements import ACHIEVEMENTS
     cust = get_customization(uid())
-    return render_template("customize.html", username=session.get("username", "Player"), cust=cust)
+    lock_map: dict[str, dict] = {}
+    for (field, value), key in UNLOCK_REQUIREMENTS.items():
+        defn = ACHIEVEMENTS.get(key) or {}
+        lock_map.setdefault(field, {})[value] = {
+            "key": key,
+            "name": defn.get("name", key),
+            "description": defn.get("description", ""),
+        }
+    locked = [f"{f}:{v}" for f, v in sorted(locked_values(uid()))]
+    return render_template("customize.html", username=session.get("username", "Player"),
+                           cust=cust, lock_map=lock_map, locked=locked)
 
 
 @app.route("/customize/save", methods=["POST"])
 @login_required
 def customize_save():
-    from db.customization import save_customization
+    from db.customization import save_customization, _ALLOWED, UNLOCK_REQUIREMENTS
+    from db.achievements import ACHIEVEMENTS, get_earned
     data = request.get_json(silent=True) or {}
-    from db.customization import _ALLOWED
     cleaned = {k: v for k, v in data.items() if k in _ALLOWED}
+    if cleaned:
+        earned = get_earned(uid())
+        for (field, value), key in UNLOCK_REQUIREMENTS.items():
+            if field in cleaned and cleaned[field] == value and key not in earned:
+                defn = ACHIEVEMENTS.get(key) or {}
+                return jsonify({
+                    "ok": False,
+                    "error": (f"{field.replace('_', ' ').title()} value "
+                              f"'{value}' is locked — unlock by earning "
+                              f"'{defn.get('name', key)}' "
+                              f"({defn.get('description', '')})."),
+                }), 403
     ok = save_customization(uid(), cleaned)
     return jsonify({"ok": ok})
 
@@ -961,6 +1218,8 @@ def api_create_model():
         return jsonify({"error": f"Code error: {msg}"}), 400
     model = create_model(uid(), name, desc, code)
     resp = {"ok": True, "model": model}
+    _ach_grant(uid(), "ai_first_model")
+    resp["achievements"] = _ach_toasts()
     hits = detect_old_field_literals(code)
     if hits:
         resp["warning"] = (
@@ -1136,6 +1395,136 @@ def pg_reset():
     return jsonify(_full_state(state))
 
 
+# ── AI-builder tutorial (Learn page + machine-checked milestones) ──────────
+
+@app.route("/learn")
+@login_required
+def learn_page():
+    from db.tutorial import get_progress
+    from services.tutorial import LESSONS, unlock_state
+    progress = get_progress(uid())
+    meta = [{k: l.get(k) for k in (
+        "id", "title", "kind", "games", "threshold", "target_choice",
+        "opponent_label", "requires", "starter",
+    )} for l in LESSONS]
+    return render_template(
+        "learn.html",
+        username=session.get("username", "Player"),
+        lessons=LESSONS,
+        completed=progress,
+        state=unlock_state(progress),
+        lesson_meta=meta,
+    )
+
+
+def _run_tutorial_check(user_id: str, lesson_id: int, code: str,
+                        target: str | None) -> None:
+    """Background milestone check (daemon thread; user_id captured at request)."""
+    from db.tutorial import set_status, mark_complete
+    from services.tutorial import run_milestone_check, get_lesson
+    lesson = get_lesson(lesson_id) or {}
+    n = lesson.get("games", 1)
+    set_status(user_id, lesson_id, "running", done=0, total=n)
+    try:
+        result = run_milestone_check(code, lesson_id, target)
+        passed = bool(result.get("passed"))
+        if passed:
+            mark_complete(user_id, lesson_id)
+        set_status(user_id, lesson_id, "done",
+                   done=n, total=n, passed=passed, result=result)
+        if passed:
+            if lesson_id == 1:
+                _ach_grant(user_id, "tut_first_lesson")
+            if lesson_id == 7:
+                _ach_grant(user_id, "tut_curriculum_done")
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        set_status(user_id, lesson_id, "failed", error=str(exc))
+
+
+@app.route("/api/tutorial/check", methods=["POST"])
+@login_required
+def api_tutorial_check():
+    import threading as _th
+    from db.tutorial import get_status, get_progress, mark_complete, is_complete
+    from services.tutorial import get_lesson, is_unlocked
+    from user_models.runner import validate_code
+
+    data = request.get_json(silent=True) or {}
+    try:
+        lesson_id = int(data.get("lesson_id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid lesson."}), 400
+    lesson = get_lesson(lesson_id)
+    if lesson is None:
+        return jsonify({"error": "Unknown lesson."}), 404
+
+    current = get_progress(uid())
+    if not is_unlocked(lesson_id, current):
+        return jsonify({"error": "Complete the previous lessons first."}), 403
+
+    # Capstone: answered synchronously from the leaderboard store (no code).
+    if lesson["kind"] == "leaderboard_submit":
+        from db.leaderboard import list_user_submissions
+        subs = list_user_submissions(uid())
+        passed = bool(subs)
+        if passed and not is_complete(uid(), lesson_id):
+            mark_complete(uid(), lesson_id)
+            _ach_grant(uid(), "tut_curriculum_done")
+        return jsonify({
+            "ok": True,
+            "lesson_id": lesson_id,
+            "passed": passed,
+            "status": "done",
+            "submitted": sorted(subs.keys()),
+            "completed": sorted(get_progress(uid()).keys()),
+            "achievements": _ach_toasts(),
+        })
+
+    code = data.get("code", "")
+    ok, msg = validate_code(code)
+    if not ok:
+        return jsonify({"error": f"Code error: {msg}"}), 400
+
+    if (get_status(uid(), lesson_id) or {}).get("status") == "running":
+        return jsonify({"error": "A check is already running for this lesson."}), 409
+
+    target = data.get("target") or None
+    if lesson.get("target_choice") and target not in lesson["target_choice"]:
+        return jsonify({"error": f"Pick a target: {' / '.join(lesson['target_choice'])}."}), 400
+
+    _th.Thread(
+        target=_run_tutorial_check,
+        args=(uid(), lesson_id, code, target),
+        daemon=True,
+    ).start()
+    return jsonify({"ok": True, "status": "running",
+                    "games": lesson.get("games", 1), "lesson_id": lesson_id})
+
+
+@app.route("/api/tutorial/check-status")
+@login_required
+def api_tutorial_check_status():
+    from db.tutorial import get_status, get_progress
+    try:
+        lesson_id = int(request.args.get("lesson_id", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid lesson."}), 400
+    status = get_status(uid(), lesson_id) or {}
+    return jsonify({
+        "lesson_id": lesson_id,
+        "status": status.get("status", "idle"),
+        "done": status.get("done", 0),
+        "total": status.get("total", 0),
+        "passed": status.get("passed"),
+        "result": status.get("result"),
+        "error": status.get("error"),
+        "completed": sorted(get_progress(uid()).keys()),
+        "achievements": _ach_toasts(),
+    })
+
+
 import uuid as _uuid, time as _time, json as _json
 
 ROOM_TTL   = 3600 * 6   # 6 hours
@@ -1240,16 +1629,21 @@ def _ranked_join_ts(uid_: str) -> float | None:
 
 def _profile_names(user_ids) -> dict:
     names: dict[str, str] = {}
-    try:
-        from db.supabase_client import service
-        if service:
+    from db.supabase_client import service
+    if service:
+        try:
             rows = (service.table("profiles").select("id,username")
                     .in_("id", list(user_ids)).execute().data or [])
             for row in rows:
                 if row.get("username"):
                     names[row["id"]] = row["username"]
-    except Exception:
-        pass
+        except Exception:
+            pass
+    else:
+        from db.profiles import _MEM_USERS
+        for uid_ in user_ids:
+            if _MEM_USERS.get(uid_):
+                names[uid_] = _MEM_USERS[uid_]
     return names
 
 
@@ -1270,6 +1664,7 @@ def _create_ranked_room(a_uid: str, b_uid: str) -> str:
         "name_b":          names.get(b_uid) or "Player B",
         "status":          "active",
         "last_move":       None,
+        "move_log":        [],
         "started_at":      _time.time(),
         "ranked":          True,
         "ranked_processed": False,
@@ -1361,6 +1756,7 @@ def _reclaim_stale_ranked() -> None:
 def _ranked_payload(uid_: str) -> dict:
     from db.redis_client import r as redis
     from db.ranked import get_rating
+    season = _season_info()
     raw = redis.get(f"{RANKED_MATCH_KEY}:{uid_}")
     if raw:
         rid = raw.decode() if isinstance(raw, bytes) else raw
@@ -1376,12 +1772,33 @@ def _ranked_payload(uid_: str) -> dict:
                 "name_b":    room["name_b"],
                 "opponent":  other,
                 "opponent_rating": get_rating(other_id)["rating"],
+                "season":    season,
             }
     if uid_ in _ranked_members():
         join_ts = _ranked_join_ts(uid_) or _time.time()
         return {"status": "waiting", "wait_s": int(max(0, _time.time() - join_ts)),
-                "rating": get_rating(uid_)["rating"]}
-    return {"status": "idle", "rating": get_rating(uid_)["rating"]}
+                "rating": get_rating(uid_)["rating"], "season": season}
+    return {"status": "idle", "rating": get_rating(uid_)["rating"], "season": season}
+
+
+def _season_info() -> dict:
+    """Season indicator payload for ranked responses. Runs the transition
+    lazily if a boundary has passed (cheap when nothing to do)."""
+    try:
+        from db.seasons import run_transition_if_due
+        run_transition_if_due()
+        from db.seasons import get_current_season
+        s = get_current_season()
+        from datetime import datetime, timezone
+        ends_at = s.get("ends_at")
+        if isinstance(ends_at, str):
+            ends_at = datetime.fromisoformat(ends_at.replace("Z", "+00:00"))
+        now = datetime.now(timezone.utc)
+        ends_in_s = max(0, int((ends_at - now).total_seconds()))
+        return {"number": int(s["number"]), "status": s.get("status"),
+                "ends_at": s.get("ends_at"), "ends_in_s": ends_in_s}
+    except Exception:
+        return {}
 
 
 def _process_ranked_result(room_id: str, room: dict) -> None:
@@ -1409,13 +1826,87 @@ def _process_ranked_result(room_id: str, room: dict) -> None:
         res = record_result(room_id=room_id, player_a=pa, player_b=pb,
                             winner=winner, score_a=game.get("score_a", 0),
                             score_b=game.get("score_b", 0))
+        _record_season_match(pa, pb, winner, res)
         room["ranked_processed"] = True
         room["ranked_pending"] = False
         room["ranked_result"] = res
+        _check_ranked_achievements(pa, pb, res)
     except Exception as e:
         room["ranked_pending"] = True
         app.logger.warning("Ranked result for room %s failed: %s", room_id, e)
     _save_room(room_id, room)
+
+
+def _record_season_match(pa: str, pb: str, winner: str, res: dict) -> None:
+    """Per-season accounting alongside the career rating write. Purely
+    additive — never changes the ELO math; failures are swallowed."""
+    try:
+        from db.seasons import get_current_season, apply_match
+        season = get_current_season()
+        for side, uid_ in (("a", pa), ("b", pb)):
+            detail = res.get(f"player_{side}") or {}
+            apply_match(season, uid_,
+                        int(detail.get("rating_before", 1200)),
+                        int(detail.get("rating_after", 1200)),
+                        won=winner == side.upper())
+    except Exception:
+        app.logger.warning("Season match accounting failed", exc_info=True)
+
+
+def _saved_lineup(user_id: str, side: str) -> list[dict] | None:
+    """The player's saved point-buy lineup for `side` (a/b), or defaults."""
+    try:
+        from db.customization import get_customization, _DEFAULT_PLAYER_STATS
+        stats = (get_customization(user_id) or {}).get("player_stats") or {}
+        lineup = stats.get(side)
+        if not lineup:
+            return [dict(s) for s in _DEFAULT_PLAYER_STATS]
+        return [dict(s) for s in lineup]
+    except Exception:
+        return None
+
+
+def _save_match_summary(room_id: str, room: dict) -> None:
+    """Snapshot a finished online match into the shareable summary store.
+
+    Called from the `online_move` game-over branch (after the ranked
+    result is applied so deltas are included). Purely an aggregate of
+    existing room/customization/season data — failures are swallowed so
+    nothing about match completion ever depends on it.
+    """
+    try:
+        from db.summaries import save_summary
+        from db.seasons import season_for_time
+        game = room.get("game") or {}
+        pa, pb = room.get("player_a"), room.get("player_b")
+        started = room.get("started_at")
+        season = season_for_time(started) if started else None
+        moves = game.get("move_history") or []
+        first_goal_kick = None
+        for i, m in enumerate(moves, 1):
+            if m.get("scored"):
+                first_goal_kick = i
+                break
+        save_summary(room_id, {
+            "room_id": room_id,
+            "player_a": pa, "player_b": pb,
+            "name_a": room.get("name_a") or "Player A",
+            "name_b": room.get("name_b") or "Player B",
+            "score_a": int(game.get("score_a", 0)),
+            "score_b": int(game.get("score_b", 0)),
+            "winner": game.get("winner"),
+            "ranked": bool(room.get("ranked")),
+            "ranked_result": room.get("ranked_result"),
+            "build_a": _saved_lineup(pa, "a") if pa else None,
+            "build_b": _saved_lineup(pb, "b") if pb else None,
+            "season": int(season["number"]) if season else None,
+            "started_at": started,
+            "total_kicks": int(game.get("kick_count", 0)),
+            "first_goal_kick": first_goal_kick,
+        })
+        _an_clear("an:data")
+    except Exception:
+        app.logger.warning("Match summary for room %s failed", room_id, exc_info=True)
 
 
 @app.route("/ranked/join", methods=["POST"])
@@ -1463,24 +1954,83 @@ def ranked_status():
 @login_required
 def api_ranked_leaderboard():
     from db.ranked import list_leaderboard, PLACEMENT_GAMES
+    from db.seasons import (season_standings, get_current_season, list_seasons,
+                            run_transition_if_due)
     try:
         limit = max(1, min(100, int(request.args.get("limit", 20))))
         offset = max(0, int(request.args.get("offset", 0)))
     except (TypeError, ValueError):
         limit, offset = 20, 0
-    entries, total = list_leaderboard(limit=limit, offset=offset)
+    run_transition_if_due()
+    current = get_current_season()
+    seasons = [{"number": int(s["number"]), "status": s.get("status"),
+                "ends_at": s.get("ends_at")} for s in list_seasons()]
+    viewing = request.args.get("season")
+    if viewing in (None, "", "current"):
+        season_id = int(current["id"])
+        viewing_number = int(current["number"])
+        entries, total = season_standings(season_id, limit=limit, offset=offset)
+    elif viewing == "all":
+        viewing_number = "all"
+        entries, total = list_leaderboard(limit=limit, offset=offset)
+    else:
+        try:
+            from db.seasons import get_season_by_number
+            season = get_season_by_number(int(viewing))
+        except (TypeError, ValueError):
+            season = None
+        if season is None:
+            return jsonify({"error": "Unknown season"}), 404
+        entries, total = season_standings(int(season["id"]), limit=limit, offset=offset)
+        viewing_number = int(season["number"])
     return jsonify({"entries": entries, "total": total,
                     "limit": limit, "offset": offset,
-                    "placement_games": PLACEMENT_GAMES})
+                    "placement_games": PLACEMENT_GAMES,
+                    "viewing": viewing_number,
+                    "season": {"number": int(current["number"]),
+                               "status": current.get("status"),
+                               "ends_at": current.get("ends_at")},
+                    "seasons": seasons})
 
 
 @app.route("/leaderboard/ranked")
 @login_required
 def ranked_leaderboard_page():
     from db.ranked import PLACEMENT_GAMES
+    from db.seasons import get_current_season, list_seasons, run_transition_if_due
+    run_transition_if_due()
+    current = get_current_season()
     return render_template("ranked_leaderboard.html",
                            username=session.get("username", ""),
-                           placement_games=PLACEMENT_GAMES)
+                           placement_games=PLACEMENT_GAMES,
+                           current_season={"number": int(current["number"]),
+                                           "ends_at": current.get("ends_at"),
+                                           "status": current.get("status")},
+                           seasons=[{"number": int(s["number"]),
+                                     "status": s.get("status"),
+                                     "ends_at": s.get("ends_at")}
+                                    for s in list_seasons()])
+
+
+@app.route("/api/seasons/_transition", methods=["POST"])
+@login_required
+def seasons_transition_manual():
+    """Dev/test-only season-boundary trigger. Default call behaves like the
+    scheduled job (runs only when the end date has passed -> safe no-op
+    otherwise); ?force=1 ignores the clock for manual verification."""
+    if not __import__("config").DEV_MODE:
+        return jsonify({"error": "Not available outside dev mode"}), 403
+    from db.seasons import get_current_season, transition, run_transition_if_due
+    if request.args.get("force") != "1":
+        result = run_transition_if_due()
+        if result is not None:
+            return jsonify({"ok": True, "transition": result})
+        return jsonify({"ok": True, "noop": True})
+    season = get_current_season()
+    result = transition(int(season["id"]))
+    if result is None:
+        return jsonify({"ok": True, "noop": True})
+    return jsonify({"ok": True, "transition": result})
 
 
 @app.route("/online")
@@ -1506,6 +2056,7 @@ def online_create():
         "name_b":    None,
         "status":    "waiting",
         "last_move": None,
+        "move_log":  [],
         "started_at": _time.time(),
     }
     _save_room(room_id, room)
@@ -1584,6 +2135,12 @@ def online_room_state(room_id):
                        else "b" if my_uid == room["player_b"] else None)
     if room["last_move"] and room["game"].get("kick_count", 0) > since_kick:
         resp["last_move"] = room["last_move"]
+    move_log = room.get("move_log") or []
+    if move_log:
+        resp["moves"] = [
+            item for item in move_log
+            if item.get("kick_count", 0) > since_kick
+        ]
     # Voice-chat signaling rides the same poll — only for the two participants.
     if request.args.get("voice_after") is not None and resp["my_side"]:
         from db.voice import get_voice_signals
@@ -1602,6 +2159,7 @@ def online_room_state(room_id):
         sigs = [s for s in sigs if s["from"] != my_uid]
         resp["voice_signals"] = sigs
         resp["voice_after"]   = next_after
+    resp["achievements"] = _ach_toasts()
     return jsonify(resp)
 
 
@@ -1665,24 +2223,33 @@ def online_move(room_id):
     power      = max(0.0, min(pc, float(data.get("power", 80.0))))
     push_snapshot(game)
     traj, scored, desc, kick_ep, push_res = apply_kick(game, player_idx, angle, power, game["is_player_a"])
+    if scored:
+        _goal_moment_achievements(traj)
     move_res = {
         "trajectory":    traj, "scored": scored, "desc": desc,
         "player_idx":    player_idx, "angle": round(angle, 1), "power": round(power, 1),
         "kick_endpoint": kick_ep, "push_result": push_res, "mover": my_side,
     }
     room["last_move"] = move_res
+    room.setdefault("move_log", []).append({
+        **move_res,
+        "kick_count": game.get("kick_count", 0),
+    })
+    room["move_log"] = room["move_log"][-20:]
     if game.get("game_over"):
         room["status"] = "done"
         _mark_room_inactive(room_id)
+        _check_online_achievements(room, game)
         if room.get("ranked"):
             # Authoritative server-side rating update (winner/score were set
             # by apply_kick above, never by a client). Idempotent + retried
             # lazily on state polls if the storage write fails.
             _process_ranked_result(room_id, room)
+        _save_match_summary(room_id, room)
         _save_room(room_id, room)
     else:
         _save_room(room_id, room)
-    return jsonify({"move_result": move_res, "game": game})
+    return jsonify({"move_result": move_res, "game": game, "achievements": _ach_toasts()})
 
 
 @app.route("/online/invite/search")
@@ -1812,7 +2379,8 @@ def spectate_room(room_id):
     return render_template("replay_3d.html",
                            username=session.get("username"),
                            t=None, match={"replay_data": [], "replay_data_len": 0},
-                           highlights=[], highlight=None, live_room=room_id)
+                           highlights=[], highlight=None, live_room=room_id,
+                           loss_model=None, loss_model_name=None)
 
 
 # ── Friend system ─────────────────────────────────────────────────────────────
@@ -2169,7 +2737,8 @@ def create_tournament_api():
     data = request.get_json(silent=True) or {}
     name = (data.get("name") or "Unnamed Tournament").strip()
     t = create_tournament(uid(), name)
-    return jsonify({"ok": True, "tournament": t})
+    _ach_grant(uid(), "tour_playmaker")
+    return jsonify({"ok": True, "tournament": t, "achievements": _ach_toasts()})
 
 @app.route("/tournaments/<tid>")
 @login_required
@@ -2214,6 +2783,27 @@ def tournament_generate(tid):
         return jsonify({"ok": True})
     return jsonify({"error": "Could not generate bracket"}), 400
 
+def _tournament_champion_award(tid: str) -> None:
+    """Champion badge: when a tournament completes, award it to the owner of
+    the human (`friend:<uid>`) participant who won the final — not a model."""
+    from db.tournaments import get_tournament
+    t = get_tournament(tid)
+    if not t or t.get("status") != "completed":
+        return
+    rounds = [x.get("round_num", 0) for x in t.get("matches", [])]
+    finals = [x for x in t.get("matches", [])
+              if x.get("round_num") == (max(rounds) if rounds else 0)]
+    final_winner = finals[0].get("winner") if finals else None
+    if not final_winner:
+        return
+    for p in t.get("participants", []):
+        if p.get("id") == final_winner:
+            pid = p.get("participant_id") or ""
+            if pid.startswith("friend:"):
+                _ach_grant(pid[len("friend:"):], "tour_champion")
+            break
+
+
 @app.route("/tournaments/<tid>/simulate/<match_id>", methods=["POST"])
 @login_required
 def tournament_simulate(tid, match_id):
@@ -2242,7 +2832,9 @@ def tournament_simulate(tid, match_id):
             
     st = new_soccer_state()
     st["move_history"] = []
-    
+
+    pending_traces: list[dict] = []
+    turn_n = 0  # monotonic kick counter (penalty kicks don't advance kick_count)
     for __ in range(40):
         if st.get("game_over"): break
         is_a = st["is_player_a"]
@@ -2250,21 +2842,48 @@ def tournament_simulate(tid, match_id):
             pidx, ang, pwr = _run_model(pa if is_a else pb, st, is_a)
             from game.session import push_snapshot
             push_snapshot(st)
+            # Loss-analysis capture: trace turns of the tournament creator's
+            # own user models only (anonymous/guest runs are never traced).
+            participant = pa if is_a else pb
+            pid = (participant or {}).get("participant_id") or ""
+            snap = None
+            if pid.startswith(USER_MODEL_PREFIX):
+                snap = dict(st)
+                snap.pop("move_history", None)
             traj, scored, desc, kick_ep, push_res = _kick(st, pidx, ang, pwr, is_a)
+            if snap is not None:
+                pending_traces.append({
+                    "is_a": is_a,
+                    "model_id": pid,
+                    "model_label": (participant.get("name") or pid),
+                    "opponent": (pb if is_a else pa).get("name") or "Opponent",
+                    "turn": turn_n,
+                    "mover": "a" if is_a else "b",
+                    "snapshot": snap,
+                    "decision": {"player_idx": pidx, "angle": round(ang, 1), "power": round(pwr, 1)},
+                    "scored": scored,
+                    "trajectory": traj,
+                })
             st["move_history"].append({
                 "mover": "a" if is_a else "b",
                 "player_idx": pidx, "angle": round(ang,1), "power": round(pwr,1),
                 "trajectory": traj, "push_result": push_res, "scored": scored
             })
+            turn_n += 1
         except Exception as e:
             # If a model crashes, other player wins
             st["winner"] = "B" if is_a else "A"
             st["game_over"] = True
             break
-            
+
     winner_id = m["participant_a"] if st.get("winner") == "A" else m["participant_b"]
     save_match_result(tid, match_id, winner_id, st["move_history"])
-    return jsonify({"ok": True, "winner": winner_id})
+    _tournament_champion_award(tid)
+    if pending_traces:
+        _persist_tournament_traces(uid(), tid, match_id, st, pending_traces)
+    resp = {"ok": True, "winner": winner_id}
+    resp["achievements"] = _ach_toasts()
+    return jsonify(resp)
 
 @app.route("/tournaments/<tid>/watch/<match_id>")
 @login_required
@@ -2284,7 +2903,8 @@ def tournament_watch_3d(tid, match_id):
         return redirect(url_for("tournament_view", tid=tid))
     hls = get_highlights(tid, match_id) or []
     return render_template("replay_3d.html", username=session.get("username", "Player"),
-                           t=t, match=m, highlights=hls, highlight=None, live_room=None)
+                           t=t, match=m, highlights=hls, highlight=None, live_room=None,
+                           loss_model=None, loss_model_name=None)
 
 
 @app.route("/matches/<tid>/<match_id>/highlights")
@@ -2315,7 +2935,32 @@ def highlight_page(hid):
         return redirect(url_for("tournament_view", tid=h["tid"]))
     hls = get_highlights(h["tid"], h["match_id"]) or []
     return render_template("replay_3d.html", username=session.get("username", "Player"),
-                           t=t, match=m, highlights=hls, highlight=h, live_room=None)
+                           t=t, match=m, highlights=hls, highlight=h, live_room=None,
+                           loss_model=None, loss_model_name=None)
+
+
+@app.route("/match/<room_id>/summary")
+def match_summary_page(room_id):
+    """Public shareable post-match summary card.
+
+    Deliberately no `@login_required`: the whole point of the card is
+    that it can be opened outside the app (same public pattern as the
+    live spectator pages). Data is a read-only aggregate of the snapshot
+    stored at match end; names/avatars resolve live from profiles.
+    """
+    from db.summaries import get_summary
+    from db.profiles import get_avatar_url
+    summary = get_summary(room_id)
+    if not summary:
+        flash("Match summary not found (or the match never finished)")
+        return redirect(url_for("index"))
+    for side in ("a", "b"):
+        uid_ = summary.get(f"player_{side}")
+        summary[f"avatar_{side}"] = get_avatar_url(uid_) if uid_ else None
+    return render_template("match_summary.html",
+                           username=session.get("username", ""),
+                           s=summary)
+
 
 # ── Clerk — verify session ────────────────────────────────────────────────
 @app.route("/api/auth/clerk/verify", methods=["POST"])
@@ -2501,6 +3146,82 @@ def api_research_delete():
 _LB_DEFAULT_GAMES = 5
 
 
+def _persist_tournament_traces(owner_id: str, tid: str, match_id: str,
+                               st: dict, pending: list[dict]) -> None:
+    """Persist traced turns collected during a tournament sim.
+
+    `st` is the final state (winner + scores). All failures are swallowed —
+    loss analysis must never affect the match result.
+    """
+    from services.loss_analysis import save_traced_turn
+    w = st.get("winner")
+    for t in pending:
+        side = "A" if t["is_a"] else "B"
+        result = "win" if w == side else ("loss" if w in ("A", "B") else "draw")
+        save_traced_turn(
+            owner_id=owner_id,
+            model_id=t["model_id"],
+            model_label=t["model_label"],
+            match_id=f"tournament:{tid}:{match_id}",
+            opponent=t["opponent"],
+            result=result,
+            score_for=st["score_a"] if side == "A" else st["score_b"],
+            score_against=st["score_b"] if side == "A" else st["score_a"],
+            turn=t["turn"],
+            mover=t["mover"],
+            pre_state=t["snapshot"],
+            decision=t["decision"],
+            scored=t["scored"],
+            trajectory=t["trajectory"],
+        )
+
+
+def _persist_battle_traces(owner_id: str, model_key: str, model_label: str,
+                           opponent_label: str, side: str,
+                           battle_result: dict, match_prefix: str) -> None:
+    """Persist traced turns from a `run_model_battle` result.
+
+    `battle_result` is the aggregate dict; its per-game entries carry
+    `traced_turns` when a tracer was active. Match ids are deterministic
+    per (match_prefix, game_idx) so re-runs overwrite idempotently.
+    """
+    from services.loss_analysis import save_traced_turn
+    try:
+        for gr in battle_result.get("games") or []:
+            turns = gr.get("traced_turns") or []
+            if not turns:
+                continue
+            w = gr.get("winner")
+            result = "win" if w == side else ("loss" if w in ("A", "B") else "draw")
+            score_for = gr["score_a"] if side == "A" else gr["score_b"]
+            score_against = gr["score_b"] if side == "A" else gr["score_a"]
+            match_id = f"{match_prefix}:{gr.get('game_idx', 0)}"
+            for t in turns:
+                save_traced_turn(
+                    owner_id=owner_id,
+                    model_id=model_key,
+                    model_label=model_label,
+                    match_id=match_id,
+                    opponent=opponent_label,
+                    result=result,
+                    score_for=score_for,
+                    score_against=score_against,
+                    turn=t["turn"],
+                    mover=t["mover"],
+                    pre_state=t["snapshot"],
+                    decision=t["decision"],
+                    scored=t["scored"],
+                    trajectory=t["trajectory"],
+                )
+    except Exception:
+        pass
+
+
+def _builtin_label(model_key: str) -> str:
+    from services.game_analytics import MODEL_CATALOG
+    return next((m["name"] for m in MODEL_CATALOG if m["id"] == model_key), model_key)
+
+
 def _run_leaderboard_bench(model_id: str, user_id: str, model_name: str,
                            code: str, n_games: int) -> None:
     """Background benchmark for the model leaderboard (runs ~7 × n games)."""
@@ -2517,7 +3238,8 @@ def _run_leaderboard_bench(model_id: str, user_id: str, model_name: str,
             set_status(model_id, "running", done=d, total=n)
 
         result = benchmark_model_vs_builtins(
-            wrapper, n_games=n_games, progress_callback=_progress)
+            wrapper, n_games=n_games, progress_callback=_progress,
+            tracer={"side": "A"})
         save_submission(model_id, user_id, model_name, result["score"],
                         n_games, result["details"])
         bench_ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -2528,6 +3250,32 @@ def _run_leaderboard_bench(model_id: str, user_id: str, model_name: str,
                    score=result["score"], details=result["details"],
                    avg_stats=result["avg_stats"], model_name=model_name,
                    benchmarked_at=(sub or {}).get("benchmarked_at", bench_ts))
+        _ach_grant(user_id, "ai_first_bench")
+        details = result.get("details") or []
+        if details and all(d.get("win_rate", 0) > 50 for d in details):
+            _ach_grant(user_id, "ai_beat_all")
+        rank = _model_rank(model_id)
+        if rank is not None:
+            if rank <= 5:
+                _ach_grant(user_id, "ai_top_5")
+            if rank == 1:
+                _ach_grant(user_id, "ai_rank_one")
+        # Loss-analysis capture (bench always runs the user model as team A).
+        model_key = f"{USER_MODEL_PREFIX}{model_id}"
+        for opp_chunk in (result.get("traced_games") or []):
+            opp_id = opp_chunk.get("opponent", "")
+            opp_label = opp_chunk.get("opponent_label", opp_id)
+            chunk = dict(result)
+            chunk["games"] = opp_chunk.get("games") or []
+            _persist_battle_traces(
+                owner_id=user_id,
+                model_key=model_key,
+                model_label=model_name,
+                opponent_label=opp_label,
+                side="A",
+                battle_result=chunk,
+                match_prefix=f"bench:{model_id}:{opp_id}",
+            )
     except Exception as exc:
         import traceback
         traceback.print_exc()
@@ -2574,6 +3322,7 @@ def api_leaderboard_status(model_id: str):
         "avg_stats": status.get("avg_stats"),
         "benchmarked_at": (sub or status or {}).get("benchmarked_at"),
         "error": status.get("error"),
+        "achievements": _ach_toasts(),
     })
 
 
@@ -2621,10 +3370,195 @@ def arena_battle():
     model_a = data.get("model_a", "minimax")
     model_b = data.get("model_b", "greedy")
     games = min(int(data.get("games", 10)), 50)
-    result = run_model_battle(model_a, model_b, games)
+
+    # Resolve via the app registry so `user_model:<id>` (the caller's own
+    # model, enforced by _load_model -> owner-only lookup) loads too.
+    try:
+        ma = _load_model(model_a) if model_a else None
+        mb = _load_model(model_b) if model_b else None
+    except Exception:
+        ma = mb = None
+
+    # Loss-analysis capture: trace the caller's own model when one side is it.
+    tracer = None
+    own_key = own_side = None
+    if isinstance(model_a, str) and model_a.startswith(USER_MODEL_PREFIX) and ma:
+        own_key, own_side = model_a, "A"
+    elif isinstance(model_b, str) and model_b.startswith(USER_MODEL_PREFIX) and mb:
+        own_key, own_side = model_b, "B"
+    if own_key:
+        from db.user_models import get_model_by_id
+        own_label = (get_model_by_id(own_key[len(USER_MODEL_PREFIX):],
+                                     requesting_user_id=uid()) or {}).get("name") or own_key
+        tracer = {"side": own_side}
+
+    result = run_model_battle(ma, mb, games, tracer=tracer)
     if result is None:
         return jsonify({"error": f"Model not found or failed to load. Available: {list(MODELS.keys())}"}), 400
+    if tracer:
+        _opponent = model_a if own_side == "B" else model_b
+        _opp_label = _builtin_label(_opponent) if _opponent in MODELS else \
+            (getattr(mb if own_side == "A" else ma, "MODEL_NAME", None) or _opponent)
+        _persist_battle_traces(
+            owner_id=uid(),
+            model_key=own_key,
+            model_label=own_label,
+            opponent_label=_opp_label,
+            side=own_side,
+            battle_result=result,
+            match_prefix=f"arena:{uid()}:{own_side}",
+        )
     return jsonify(result)
+
+
+# ── Loss analysis — "why did my model lose this match?" ─────────────────────
+# Read side of the decision-trace feature (capture lives in the arena,
+# leaderboard-bench and tournament-sim call sites above). Every route is
+# owner-only: the model id must belong to the logged-in user.
+
+def _resolve_loss_model(model_id: str):
+    """Returns (raw_model_id, model_row) for an owner's model, else None."""
+    from db.user_models import get_model_by_id
+    if model_id.startswith(USER_MODEL_PREFIX):
+        model_id = model_id[len(USER_MODEL_PREFIX):]
+    m = get_model_by_id(model_id, requesting_user_id=uid())
+    if not m or m["user_id"] != uid():
+        return None
+    return model_id, m
+
+
+def _loss_display_state(snapshot: dict) -> dict:
+    """Compact scene state for the viewer (keeps the full snapshot server-side)."""
+    return {
+        "ball": snapshot.get("ball"),
+        "players_a": [{"x": p["x"], "y": p["y"]} for p in snapshot.get("players_a", [])],
+        "players_b": [{"x": p["x"], "y": p["y"]} for p in snapshot.get("players_b", [])],
+        "referee": snapshot.get("referee"),
+        "score_a": snapshot.get("score_a", 0),
+        "score_b": snapshot.get("score_b", 0),
+        "kick_count": snapshot.get("kick_count", 0),
+        "is_player_a": bool(snapshot.get("is_player_a")),
+        "penalty_shootout": bool(snapshot.get("penalty_shootout")),
+    }
+
+
+@app.route("/loss-analysis")
+@login_required
+def loss_analysis_page():
+    from db.user_models import get_model_by_id
+    model_id = (request.args.get("model") or "").strip()
+    if model_id.startswith(USER_MODEL_PREFIX):
+        model_id = model_id[len(USER_MODEL_PREFIX):]
+    m = get_model_by_id(model_id, requesting_user_id=uid())
+    if not m or m["user_id"] != uid():
+        flash("Model not found or access denied")
+        return redirect(url_for("my_models_page"))
+    return render_template(
+        "replay_3d.html", username=session.get("username", "Player"),
+        t=None, match=None, highlights=[], highlight=None, live_room=None,
+        loss_model=USER_MODEL_PREFIX + model_id, loss_model_name=m["name"],
+    )
+
+
+@app.route("/api/loss/models/<model_id>/matches")
+@login_required
+def api_loss_matches(model_id):
+    resolved = _resolve_loss_model(model_id)
+    if not resolved:
+        return jsonify({"error": "Model not found or access denied"}), 404
+    mid, m = resolved
+    from db.decision_traces import list_matches
+    matches = list_matches(uid(), model_id=USER_MODEL_PREFIX + mid)
+    return jsonify({"model_id": USER_MODEL_PREFIX + mid, "model_name": m["name"],
+                    "matches": matches})
+
+
+@app.route("/api/loss/models/<model_id>/matches/<match_id>")
+@login_required
+def api_loss_match_traces(model_id, match_id):
+    resolved = _resolve_loss_model(model_id)
+    if not resolved:
+        return jsonify({"error": "Model not found or access denied"}), 404
+    mid, m = resolved
+    from db.decision_traces import get_match, get_match_meta
+    rows = get_match(uid(), match_id)
+    if not rows:
+        return jsonify({"error": "Match not found"}), 404
+    meta = get_match_meta(uid(), match_id)
+    return jsonify({
+        "model_id": USER_MODEL_PREFIX + mid,
+        "model_name": m["name"],
+        "match": meta,
+        "traces": [{
+            "turn": r["turn"],
+            "mover": r.get("mover", ""),
+            "decision": r.get("decision", {}),
+            "outcome_tag": r.get("outcome_tag", "neutral"),
+            "state": _loss_display_state(r.get("state_snapshot") or {}),
+        } for r in rows],
+    })
+
+
+@app.route("/api/loss/models/<model_id>/matches/<match_id>/turns/<int:turn>/compare")
+@login_required
+def api_loss_compare(model_id, match_id, turn):
+    resolved = _resolve_loss_model(model_id)
+    if not resolved:
+        return jsonify({"error": "Model not found or access denied"}), 404
+    from db.decision_traces import get_match
+    from services.loss_analysis import builtin_decision, default_comparison_model
+    from services.game_analytics import _BUILTIN_MODEL_PATHS
+    rows = get_match(uid(), match_id)
+    row = next((r for r in rows if r["turn"] == turn), None)
+    if not row:
+        return jsonify({"error": "Turn not found"}), 404
+    model_key = request.args.get("model", default_comparison_model())
+    if model_key not in _BUILTIN_MODEL_PATHS:
+        return jsonify({"error": f"Unknown model: {model_key}"}), 400
+    theirs = builtin_decision(row.get("state_snapshot") or {}, model_key)
+    if theirs is None:
+        return jsonify({"error": "Comparison failed (model error)"}), 502
+    yours = row.get("decision", {})
+    return jsonify({
+        "yours": yours,
+        "theirs": theirs,
+        "diff": {
+            "same_player": theirs["player_idx"] == yours.get("player_idx"),
+            "angle_delta": round(float(theirs["angle"]) - float(yours.get("angle", 0)), 1),
+            "power_delta": round(float(theirs["power"]) - float(yours.get("power", 0)), 1),
+        },
+    })
+
+
+@app.route("/api/loss/models/<model_id>/matches/<match_id>/turns/<int:turn>/playback",
+           methods=["POST"])
+@login_required
+def api_loss_playback(model_id, match_id, turn):
+    resolved = _resolve_loss_model(model_id)
+    if not resolved:
+        return jsonify({"error": "Model not found or access denied"}), 404
+    from db.decision_traces import get_match
+    from services.loss_analysis import playback_turn
+    rows = get_match(uid(), match_id)
+    row = next((r for r in rows if r["turn"] == turn), None)
+    if not row:
+        return jsonify({"error": "Turn not found"}), 404
+    result = playback_turn(row.get("state_snapshot") or {}, row.get("decision", {}))
+    return jsonify(result)
+
+
+@app.route("/api/loss/models/<model_id>/patterns")
+@login_required
+def api_loss_patterns(model_id):
+    resolved = _resolve_loss_model(model_id)
+    if not resolved:
+        return jsonify({"error": "Model not found or access denied"}), 404
+    mid, _m = resolved
+    from db.decision_traces import list_traces
+    from services.loss_analysis import aggregate_patterns
+    rows = [r for r in list_traces(uid(), limit=2000)
+            if r.get("model_id") == USER_MODEL_PREFIX + mid]
+    return jsonify(aggregate_patterns(rows))
 
 
 @app.route("/api/arena/matrix", methods=["POST"])
@@ -2635,6 +3569,166 @@ def arena_matrix():
     if result is None:
         return jsonify({"error": "Failed to compute matrix. Check server logs."}), 500
     return jsonify(result)
+
+
+# ── Analytics dashboard (public — aggregates only, portfolio piece) ────────
+ANALYTICS_CACHE_TTL = 86400          # 24h: data only changes when matches finish
+_MATRIX_DEFAULT_GAMES = 5            # 7 agents -> 21 head-to-head pairs
+_MATRIX_STATUS_TTL = 7200
+
+
+def _an_get(key: str):
+    from db.redis_client import r as redis
+    import json as _json
+    raw = redis.get(key)
+    if raw:
+        try:
+            return _json.loads(raw)
+        except (TypeError, ValueError):
+            return None
+    return None
+
+
+def _an_set(key: str, payload: dict, ttl: int = ANALYTICS_CACHE_TTL) -> None:
+    from db.redis_client import r as redis
+    import json as _json
+    redis.setex(key, ttl, _json.dumps(payload, default=float))
+
+
+def _an_clear(key: str) -> None:
+    from db.redis_client import r as redis
+    redis.delete(key)
+
+
+def _compute_analytics_payload() -> dict:
+    """Assemble the full dashboard payload from the cheap data reads.
+
+    Everything except the 7-agent matrix is computed here (small tables,
+    pandas reductions). The matrix is the one expensive computation
+    (~9 min for 21 pairs at 5 games) and is always served from cache —
+    it is produced by the background `/api/analytics/matrix/recompute`
+    job, never on a page/JSON request.
+    """
+    from datetime import datetime, timezone
+    from db.summaries import list_summaries
+    from db.ranked import (get_all_rating_history, get_all_ranked_matches,
+                           get_ratings)
+    from db.seasons import list_seasons
+    from db.leaderboard import list_leaderboard
+    from db.tournaments import get_tournaments, get_tournament
+    from services.analytics import (stat_build_analysis, agent_matrix_analysis,
+                                    custom_models_vs_builtins,
+                                    rating_progression, season_over_season,
+                                    match_dynamics)
+
+    summaries  = list_summaries()
+    matches    = get_all_ranked_matches()
+    history    = get_all_rating_history()
+    seasons    = list_seasons()
+    entries, _ = list_leaderboard(limit=100, offset=0, sort="score")
+    replays = []
+    for t in get_tournaments():
+        full = get_tournament(t.get("id")) or {}
+        for m in (full.get("matches") or []):
+            if m.get("status") == "completed" and m.get("replay_data"):
+                replays.append({"tid": t.get("id"), "match_id": m.get("id"),
+                                "replay_data": m["replay_data"]})
+
+    player_ids = {s.get("player_a") for s in summaries}
+    player_ids |= {s.get("player_b") for s in summaries}
+    ratings = get_ratings(list(player_ids))
+
+    matrix = _an_get("an:matrix")
+    matrix_status = _an_get("an:matrix:status") or {}
+    agents = {
+        "matrix": matrix,
+        "status": matrix_status.get("status", "not_computed"),
+        "status_detail": matrix_status,
+        "customs": [],
+    }
+    if matrix:
+        ma = agent_matrix_analysis(matrix)
+        agents["analysis"] = ma
+        agents["customs"] = custom_models_vs_builtins(entries, ma)
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "meta": {
+            "summaries": len(summaries),
+            "ranked_matches": len(matches),
+            "rating_history_rows": len(history),
+            "seasons": len(seasons),
+            "custom_models": len(entries),
+            "tournament_replays": len(replays),
+        },
+        "stat_builds": stat_build_analysis(summaries, ratings=ratings),
+        "rating": rating_progression(matches, history),
+        "season_over_season": season_over_season(seasons),
+        "dynamics": match_dynamics(summaries, replays),
+        "agents": agents,
+    }
+
+
+def _run_matrix_job(n_games: int = _MATRIX_DEFAULT_GAMES) -> None:
+    """Background job: build the 7-agent head-to-head matrix and cache it.
+    Mirrors the model-leaderboard benchmark thread pattern (Redis status,
+    guard against overlap)."""
+    from db.redis_client import r as redis
+    import json as _json
+    from datetime import datetime, timezone
+    from services.game_analytics import compute_head_to_head_matrix
+    try:
+        matrix = compute_head_to_head_matrix(n_games=n_games)
+        redis.setex("an:matrix", ANALYTICS_CACHE_TTL, _json.dumps(matrix))
+        redis.setex("an:matrix:status", _MATRIX_STATUS_TTL, _json.dumps({
+            "status": "done", "n_pairs": len(matrix), "n_games": n_games,
+            "computed_at": datetime.now(timezone.utc).isoformat(),
+        }))
+    except Exception as exc:
+        redis.setex("an:matrix:status", _MATRIX_STATUS_TTL, _json.dumps({
+            "status": "failed", "error": str(exc),
+        }))
+
+
+@app.route("/analytics")
+def analytics_page():
+    """Public analytics dashboard (aggregate data only; usernames shown
+    are already public via the leaderboards)."""
+    return render_template("analytics.html", dev_mode=_dev_mode)
+
+
+@app.route("/api/analytics")
+def api_analytics():
+    """Cached dashboard JSON. First request computes the cheap reductions,
+    then results are served from Redis for ANALYTICS_CACHE_TTL (invalidated
+    on every finished online match). The agent matrix is never computed
+    here — it comes from the cache or an honest 'not computed' state."""
+    cached = _an_get("an:data")
+    if cached:
+        cached["cached"] = True
+        return jsonify(cached)
+    payload = _compute_analytics_payload()
+    payload["cached"] = False
+    _an_set("an:data", payload)
+    return jsonify(payload)
+
+
+@app.route("/api/analytics/matrix/recompute", methods=["POST"])
+@rate_limited
+def api_analytics_matrix_recompute():
+    """Kick off the ~9-minute background matrix build. Guarded: a 409 if
+    a run is already in progress. Public like the rest of the dashboard;
+    the first response tells the client to poll `/api/analytics`."""
+    status = _an_get("an:matrix:status")
+    if status and status.get("status") == "running":
+        return jsonify({"error": "Matrix computation already in progress."}), 409
+    _an_set("an:matrix:status", {"status": "running", "done": 0,
+                                 "total": 21}, ttl=_MATRIX_STATUS_TTL)
+    threading.Thread(target=_run_matrix_job, args=(_MATRIX_DEFAULT_GAMES,),
+                     daemon=True).start()
+    return jsonify({"ok": True, "note": "Matrix builds in the background "
+                                        "(~9 min for 21 pairs); poll "
+                                        "GET /api/analytics for status."})
 
 
 def _seed_test_account():
@@ -2683,5 +3777,29 @@ def _seed_test_account():
 
 _seed_test_account()
 
+
+def _season_watcher() -> None:
+    """Background daemon: runs the season transition when a boundary
+    passes. Lightweight (one 60 s sleep + a cheap status check) — no
+    scheduler dependency; ranked request paths also check lazily."""
+    try:
+        from db.seasons import initialize, run_transition_if_due
+        initialize()
+    except Exception:
+        pass
+    while True:
+        _time.sleep(60)
+        try:
+            run_transition_if_due()
+        except Exception:
+            app.logger.warning("Season watcher tick failed", exc_info=True)
+
+
 if __name__ == "__main__":
+    try:
+        from db.seasons import initialize
+        initialize()
+    except Exception:
+        pass
+    threading.Thread(target=_season_watcher, daemon=True).start()
     app.run(debug=__import__("config").DEV_MODE, port=5000)

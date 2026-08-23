@@ -73,11 +73,13 @@ function createTournament() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: name })
   }).then(res => res.json()).then(data => {
+    AW.handle(data);
     if(data.ok) window.location.href = '/tournaments/' + data.tournament.id;
     else alert(data.error || 'Failed to create');
   });
 }
 </script>
+<script src="/static/achievements.js"></script>
 <script src="/static/feedback.js"></script>
 </body>
 </html>

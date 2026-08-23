@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Analytics — Agent Soccer</title>
+<meta name="description" content="Public analytics dashboard: stat-build outcomes, AI agent comparisons, rating progression, and match dynamics — computed from real game data with honest sample-size reporting.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="/static/design-system.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+:root { --accent-b: #6366f1; }
+.an-hero { margin: var(--space-7) 0 var(--space-4); }
+.an-hero h1 { font-size: clamp(1.6rem, 4vw, 2.25rem); margin: 0; letter-spacing: -0.02em; }
+.an-hero p { color: var(--text-secondary); margin: var(--space-2) 0 0; max-width: 720px; }
+.an-meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: var(--space-3); }
+.an-chip { font-size: 0.78rem; font-weight: 700; background: rgba(14,165,233,.10); color: var(--accent-a, #0284c7); border-radius: 999px; padding: 4px 12px; }
+.an-chip.cached { background: rgba(99,102,241,.12); color: var(--accent-b); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: var(--space-5); margin: var(--space-5) 0; }
+.card-h { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-3); }
+.card-h h2 { font-size: 1.02rem; margin: 0; letter-spacing: -0.01em; }
+.card-h .tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+.caption { font-size: 0.82rem; color: var(--text-secondary); line-height: 1.5; margin: 0 0 var(--space-3); }
+.caption b { color: var(--text, #0f172a); }
+.note { font-size: 0.78rem; color: var(--text-muted); margin: var(--space-3) 0 0; line-height: 1.45; }
+.chart-box { position: relative; height: 260px; }
+.chart-box.short { height: 220px; }
+.matrix-panel { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-4); }
+.status-chip { font-size: 0.78rem; font-weight: 700; border-radius: 999px; padding: 4px 12px; }
+.status-not_computed { background: rgba(107,114,128,.15); color: var(--text-muted); }
+.status-running { background: rgba(245,158,11,.15); color: #d97706; }
+.status-done { background: rgba(34,197,94,.15); color: #16a34a; }
+.status-failed { background: rgba(239,68,68,.15); color: #ef4444; }
+.cycle-alert { border-left: 3px solid #f59e0b; background: rgba(245,158,11,.08); border-radius: 6px; padding: 10px 14px; margin: var(--space-3) 0; font-size: 0.85rem; }
+.cycle-alert b { color: #d97706; }
+table.an-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-top: var(--space-3); }
+table.an-table th { text-align: left; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--line-subtle, rgba(0,0,0,.08)); }
+table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle, rgba(0,0,0,.06)); }
+.pos { color: #16a34a; font-weight: 700; }
+.neg { color: #ef4444; font-weight: 700; }
+.stat-hero { display: flex; align-items: baseline; gap: 10px; }
+.stat-hero .big { font-family: var(--font-display); font-size: 2.2rem; font-weight: 800; }
+.stat-hero .sub { color: var(--text-muted); font-size: 0.85rem; }
+.empty { text-align: center; color: var(--text-muted); padding: var(--space-5) var(--space-3); }
+.empty .ico { font-size: 1.8rem; opacity: .45; margin-bottom: 6px; }
+.methods li { font-size: 0.84rem; color: var(--text-secondary); line-height: 1.5; margin-bottom: var(--space-2); }
+.methods b { color: var(--text, #0f172a); }
+.methods .q { color: var(--accent-b); font-weight: 700; }
+.pair-bars { display: flex; flex-direction: column; gap: 6px; margin-top: var(--space-3); }
+.pair-row { font-size: 0.8rem; display: grid; grid-template-columns: 130px 1fr 88px; gap: 8px; align-items: center; }
+.pair-track { height: 8px; background: rgba(14,165,233,.1); border-radius: 4px; overflow: hidden; }
+.pair-fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, #0ea5e9, #6366f1); }
+.pair-row .v { text-align: right; font-weight: 700; color: var(--text-muted); }
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <div class="nav-inner container">
+    <a class="brand" href="/">Agent Soccer</a>
+    <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');document.getElementById('nav-links').classList.toggle('open')">☰</button>
+    <div class="nav-links" id="nav-links">
+      <a class="nav-link" href="/play3d">Game</a>
+      <a class="nav-link" href="/tournaments">Tournaments</a>
+      <a class="nav-link" href="/leaderboard">Leaderboard</a>
+      <a class="nav-link" href="/spectate">Live Matches</a>
+      <a class="nav-link" href="/analytics" style="color:var(--accent-b)">Analytics</a>
+      <a class="nav-link" href="/login">Log in</a>
+      <a class="btn btn-primary btn-sm" href="/register">Sign up free</a>
+    </div>
+  </div>
+</nav>
+
+<main class="container">
+  <div class="an-hero">
+    {# HTML comment removed: dynamic hero is injected by JS from the payload #}
+    <div id="hero-root"></div>
+  </div>
+
+  <div class="grid" id="dash-root">
+    <div style="grid-column:1/-1" class="empty"><div class="ico">⏳</div><div>Loading analytics…</div></div>
+  </div>
+
+  <div class="glass-card" style="margin:0 0 var(--space-7)">
+    <div class="card-h"><h2>Methodology &amp; confidence</h2><span class="tag">How to read this page</span></div>
+    <ul class="methods" id="methods-root"></ul>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">Agent Soccer — analytics computed from real match data. No game logic is exposed or modified.</div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+  var CHARTS = [];
+  function register(ch) { CHARTS.push(ch); }
+  function destroyCharts() { CHARTS.forEach(function (c) { try { c.destroy(); } catch (e) {} }); CHARTS = []; }
+  function ctx(id, heightCls) {
+    var wrap = document.createElement('div');
+    wrap.className = 'chart-box' + (heightCls || '');
+    wrap.innerHTML = '<canvas></canvas>';
+    var holder = document.getElementById(id);
+    holder.appendChild(wrap);
+    return { wrap: wrap, canvas: wrap.querySelector('canvas') };
+  }
+  function hex(alpha) { return function () { var c = new Chart.helpers.color('rgba(14,165,233,' + alpha + ')').rgbString(); return c; }; }
+  function baseOpts() {
+    return {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { boxWidth: 10, font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            afterLabel: function (item) {
+              var raw = item.raw;
+              if (raw && raw.ci) return '95% CI: ' + (raw.ci[0] * 100).toFixed(0) + '–' + (raw.ci[1] * 100).toFixed(0) + '%';
+              return '';
+            }
+          }
+        }
+      },
+      scales: {
+        y: { beginAtZero: true, ticks: { font: { size: 10 } } },
+        x: { ticks: { font: { size: 10 } } }
+      }
+    };
+  }
+
+  function pct(p) { return (p * 100).toFixed(0) + '%'; }
+
+  /* ── Stat-build meta card ─────────────────────────────────────────── */
+  function buildCard(b, host) {
+    var card = document.createElement('div');
+    card.className = 'glass-card';
+    var status = b.status || 'insufficient_data';
+    if (status !== 'ok') {
+      card.innerHTML =
+        '<div class="card-h"><h2>Stat-build outcomes</h2><span class="tag">Balanced design</span></div>' +
+        '<div class="empty"><div class="ico">📊</div><div><b>Not enough matches yet.</b></div>' +
+        '<div style="margin-top:6px">' + (b.message || '') + '</div></div>';
+      host.appendChild(card);
+      return;
+    }
+    card.innerHTML =
+      '<div class="card-h"><h2>Stat-build outcomes</h2><span class="tag">' +
+      'k-means-free archetypes</span></div>' +
+      '<p class="caption"><b>Question:</b> do Size/Power/Weight/Agility allocations correlate with win rate, and does the effect survive controlling for player skill?</p>' +
+      '<div id="ChBuild"></div>' +
+      '<p class="caption" style="margin-top:6px"><b>Method:</b> each side of a finished match is bucketed by which stat its 3-player lineup most allocates above the 50 baseline (Power-heavy / Agility-heavy / Size-heavy / Weight-heavy / Balanced). Win rate is compared across buckets with a k×2 homogeneity test — the exact Fisher variant when cells are small — and each bucket ships a Wilson 95% CI.</p>' +
+      '<div id="BuildTest"></div>' +
+      '<div id="BuildStrat"></div>';
+    host.appendChild(card);
+    var groups = b.per_archetype || [];
+    var hostBox = ctx('ChBuild');
+    var labels = groups.map(function (g) { return g.key; });
+    register(new Chart(hostBox.canvas, {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'Win rate', data: groups.map(function (g) { return { x: g.key, y: (g.k / g.n) * 100, ci: g.ci, n: g.n }; }),
+          backgroundColor: 'rgba(14,165,233,.65)'
+        }]
+      },
+      options: Object.assign(baseOpts(), {
+        plugins: { legend: { display: false },
+          tooltip: { callbacks: {
+            label: function (item) { return 'Win rate: ' + item.raw.y.toFixed(0) + '%'; },
+            afterLabel: function (item) { return 'n = ' + item.raw.n + (item.raw.ci ? '\n95% CI: ' + (item.raw.ci[0]*100).toFixed(0) + '–' + (item.raw.ci[1]*100).toFixed(0) + '%' : ''); }
+          } } },
+        y: { beginAtZero: true, max: 100, title: { display: true, text: 'Win rate %', font: { size: 10 } }, ticks: { font: { size: 10 } } },
+        x: { ticks: { font: { size: 10 } } }
+      })
+    }));
+    var test = b.test || {};
+    var testEl = document.createElement('div');
+    testEl.className = 'note';
+    var testTxt = 'Per-bucket sample sizes are reported under each bar. ';
+    if (test.p !== null && test.p !== undefined) {
+      testTxt += 'Homogeneity test p = ' + test.p.toFixed(3) + ' (' + test.method + ') — ' +
+        (test.p < 0.05 ? '<b class="pos">suggestive difference across archetypes</b>' : '<b>no significant difference across archetypes (p ≥ 0.05)</b>') + '.';
+    } else if (test.method === 'insufficient') {
+      testTxt += '<b>Test skipped:</b> cells too small for a reliable test at this sample size.';
+    }
+    testEl.innerHTML = testTxt;
+    document.getElementById('BuildTest').appendChild(testEl);
+    var stra = b.strata;
+    if (stra) {
+      var sEl = document.createElement('div');
+      sEl.innerHTML = '<div class="note"><b>Skill control:</b> split by pre-match rating (median = ' + stra.median_rating + '). ' +
+        (function () {
+          var parts = [];
+          for (var k in stra.tests) {
+            var t = stra.tests[k];
+            var txt = k + '-median players: ';
+            if (t.p !== null && t.p !== undefined) txt += 'p = ' + t.p.toFixed(3) + ' (' + t.method + ')';
+            else txt += 'cells too small to test';
+            parts.push('<b>' + txt + '</b>');
+          }
+          return parts.join(' · ');
+        })() +
+        '</div>';
+      document.getElementById('BuildStrat').appendChild(sEl);
+    }
+    var overall = b.overall || {};
+    var meta = document.createElement('div');
+    meta.className = 'note';
+    meta.innerHTML = 'Based on <b>' + overall.n_matches + '</b> matches, <b>' + overall.n_sides +
+      '</b> side observations, <b>' + overall.n_rated_sides + '</b> with a pre-match rating for the skill control. ' + (b.caveat || '');
+    host.appendChild(meta);
+  }
+
+  /* ── Agent comparison card ────────────────────────────────────────── */
+  function agentCard(a, host) {
+    var card = document.createElement('div');
+    card.className = 'glass-card';
+    var st = a.status || 'not_computed';
+    var stTxt = st === 'not_computed' ? 'Not computed yet' :
+                st === 'running' ? 'Computing (takes ~9 min for 21 pairs)…' :
+                st === 'done' ? 'Computed ' + (a.status_detail && a.status_detail.computed_at ? new Date(a.status_detail.computed_at).toLocaleString() : '') :
+                st === 'failed' ? 'Failed — ' + (a.status_detail && a.status_detail.error ? a.status_detail.error : 'unknown error') : st;
+    card.innerHTML =
+      '<div class="card-h"><h2>AI agent comparison</h2><span class="tag">7 built-ins</span></div>' +
+      '<div class="matrix-panel">' +
+      '<span class="status-chip status-' + st + '">' + stTxt + '</span>' +
+      '<button class="btn btn-secondary btn-sm" id="btn-recompute">Recompute matrix</button>' +
+      '</div>' +
+      '<div id="AgentsBody"></div>';
+    host.appendChild(card);
+
+    var body = document.getElementById('AgentsBody');
+    document.getElementById('btn-recompute').addEventListener('click', function () {
+      fetch('/api/analytics/matrix/recompute', { method: 'POST' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) {
+          if (j.error) { window.alert(j.error); return; }
+          setStatus('running');
+          pollMatrix();
+        });
+    });
+    function setStatus(s, detail) {
+      var chip = document.querySelector('.matrix-panel .status-chip');
+      var map = { 'not_computed':'Not computed yet', 'running':'Computing (takes ~9 min)…',
+        'done':'Computed', 'failed':'Failed' };
+      chip.className = 'status-chip status-' + s;
+      chip.textContent = map[s] || s;
+    }
+    function pollMatrix() {
+      fetch('/api/analytics').then(function (r) { return r.json(); }).then(function (j) {
+        var agents = j.agents || {};
+        var st = agents.status || 'not_computed';
+        if (st === 'running') { setTimeout(pollMatrix, 8000); return; }
+        if (st === 'done' && agents.analysis) { renderAgents(agents); return; }
+      });
+    }
+    function renderAgents(agents) {
+      body.innerHTML = '';
+      var an = agents.analysis;
+      var caption = document.createElement('p');
+      caption.className = 'caption';
+      caption.innerHTML = '<b>Question:</b> which agent is strongest overall, is any head-to-head relationship non-transitive, and how do user models stack up? <b>Method:</b> win matrix from ' +
+        (an.strength.length ? '' : '') + 'head-to-head sims; per-agent mean win rate across the 6 opponents, plus a 3-cycle search over strict-majority head-to-head edges. ' + (an.caveat || '');
+      body.appendChild(caption);
+
+      var box = ctx('AgentsBody');
+      var labels = an.strength.map(function (s) { return s.agent; });
+      var dataset = an.strength.map(function (s) { return { y: s.win_rate, n: s.total, ci: s.ci }; });
+      register(new Chart(box.canvas, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{ label: 'Mean win rate vs other built-ins', data: dataset, backgroundColor: 'rgba(99,102,241,.65)' }]
+        },
+        options: Object.assign(baseOpts(), {
+          plugins: { legend: { display: false },
+            tooltip: { callbacks: {
+              label: function (item) { return 'Win rate: ' + item.raw.y.toFixed(0) + '%'; },
+              afterLabel: function (item) { return 'games: ' + item.raw.n + (item.raw.ci ? '\n95% CI: ' + (item.raw.ci[0]*100).toFixed(0) + '–' + (item.raw.ci[1]*100).toFixed(0) + '%' : ''); }
+            } } },
+          y: { beginAtZero: true, max: 100, title: { display: true, text: 'Mean win rate %', font: { size: 10 } }, ticks: { font: { size: 10 } } },
+          x: { ticks: { font: { size: 10 } } }
+        })
+      }));
+
+      if (an.cycles && an.cycles.length) {
+        var cyc = an.cycles.map(function (c) {
+          return '<b class="pos">' + c.cycle.join(' → ') + '</b> (each beats the next)';
+        }).join(' · ');
+        var alertEl = document.createElement('div');
+        alertEl.className = 'cycle-alert';
+        alertEl.innerHTML = '<b>Candidate non-transitivity:</b> ' + cyc + '. With a small number of games per pair this is a pattern to watch, not a proven rock-paper-scissors effect.';
+        body.appendChild(alertEl);
+      }
+
+      if (agents.customs && agents.customs.length) {
+        var cTxt = '<p class="note" style="margin-top:12px"><b>User-submitted models vs built-in baseline.</b> Each row is one submitted model; the bar is its win rate versus a built-in opponent, and the grey range is what the 6 other built-ins score against that same opponent (built-in-vs-built-in distribution).</p>';
+        agents.customs.forEach(function (c) {
+          cTxt += '<div class="note"><b>' + c.model_name + '</b> (score ' + c.score + '%)';
+          c.rows.forEach(function (r) {
+            var pctW = Math.max(0, Math.min(100, r.model_win_rate));
+            var lo = Math.max(0, Math.min(100, (r.builtins_range ? r.builtins_range[0] : 0)));
+            var hi = Math.min(100, (r.builtins_range ? r.builtins_range[1] : 100));
+            cTxt += '<div class="pair-row"><span>' + r.opponent + '</span>' +
+              '<span class="pair-track"><span class="pair-fill" style="width:' + pctW + '%"></span></span>' +
+              '<span class="v">' + r.model_win_rate + '%</span></div>' +
+              '<div class="note" style="margin:-2px 0 8px 138px;font-size:.72rem">built-ins range ' + r.builtins_range[0] + '–' + r.builtins_range[1] + '% · mean ' + r.builtins_mean + '%</div>';
+          });
+          cTxt += '</div>';
+        });
+        var cEl = document.createElement('div');
+        cEl.innerHTML = cTxt;
+        body.appendChild(cEl);
+      }
+    }
+    if (st === 'done' && a.analysis) renderAgents(a);
+  }
+
+  /* ── Rating progression card ───────────────────────────────────────── */
+  function ratingCard(r, host) {
+    var card = document.createElement('div');
+    card.className = 'glass-card';
+    card.innerHTML =
+      '<div class="card-h"><h2>Rating &amp; skill progression</h2><span class="tag">ranked only</span></div>' +
+      '<p class="caption"><b>Question:</b> do players improve, and which ratings really matter? <b>Method:</b> only players with ≥ 8 ranked matches get a trajectory (smaller samples are noise); win rates are grouped by the player\u2019s <i>pre-match</i> rating so bracket membership can\u2019t be contaminated by the result itself.</p>' +
+      '<div id="ChTraj"></div>' +
+      '<div id="ChBracket"></div>' +
+      '<table class="an-table" id="SeasonTable"></table>' +
+      '<div id="RatingNote"></div>';
+    host.appendChild(card);
+
+    var note = document.getElementById('RatingNote');
+    if (r.status !== 'ok') {
+      note.innerHTML = '<div class="empty"><div class="ico">📈</div><div>' + (r.message || 'No rated matches yet.') + '</div></div>';
+      return;
+    }
+    var traj = r.trajectories || [];
+    if (traj.length) {
+      var box = ctx('ChTraj');
+      var colors = ['#0ea5e9', '#6366f1', '#f97316', '#16a34a', '#ef4444'];
+      var dataSets = traj.map(function (t, i) {
+        return {
+          label: t.player, data: t.points.map(function (p) { return p.rating_after; }),
+          borderColor: colors[i % colors.length], backgroundColor: colors[i % colors.length],
+          pointRadius: 2, tension: .25, borderWidth: 2
+        };
+      });
+      register(new Chart(box.canvas, {
+        type: 'line',
+        data: { labels: traj[0].points.map(function (_, i) { return i + 1; }), datasets: dataSets },
+        options: Object.assign(baseOpts(), {
+          plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10 } } } },
+          scales: {
+            y: { title: { display: true, text: 'Rating', font: { size: 10 } }, ticks: { font: { size: 10 } } },
+            x: { title: { display: true, text: 'Matches played', font: { size: 10 } }, ticks: { font: { size: 10 } } }
+          }
+        })
+      }));
+    } else {
+      note.innerHTML += '<div class="note">' + (r.trajectory_note || '') + ' No player has reached ' + 8 + ' ranked matches yet — trajectories appear as history accumulates.</div>';
+    }
+    var brackets = r.brackets || [];
+    if (brackets.length) {
+      var bbox = ctx('ChBracket');
+      register(new Chart(bbox.canvas, {
+        type: 'bar',
+        data: {
+          labels: brackets.map(function (b) { return b.bracket + '–' + (b.bracket + 99); }),
+          datasets: [{
+            label: 'Win rate', data: brackets.map(function (b) { return { y: b.win_rate, n: b.n, ci: b.ci }; }),
+            backgroundColor: 'rgba(249,115,22,.65)'
+          }]
+        },
+        options: Object.assign(baseOpts(), {
+          plugins: { legend: { display: false },
+            tooltip: { callbacks: {
+              label: function (item) { return 'Win rate: ' + item.raw.y.toFixed(0) + '%'; },
+              afterLabel: function (item) { return 'n = ' + item.raw.n + (item.raw.ci ? '\n95% CI: ' + (item.raw.ci[0]*100).toFixed(0) + '–' + (item.raw.ci[1]*100).toFixed(0) + '%' : ''); }
+            } } },
+          y: { beginAtZero: true, max: 100, title: { display: true, text: 'Win rate %', font: { size: 10 } }, ticks: { font: { size: 10 } } },
+          x: { ticks: { font: { size: 10 } } }
+        })
+      }));
+      var bt = r.bracket_test;
+      var bnote = document.createElement('div');
+      bnote.className = 'note';
+      bnote.innerHTML = bt && bt.p !== null && bt.p !== undefined
+        ? 'Bracket difference test: p = ' + bt.p.toFixed(3) + ' (' + bt.method + ').'
+        : 'Brackets shown only where a rating bracket has ≥ ' + 5 + ' observations.';
+      document.getElementById('ChBracket').appendChild(bnote);
+    } else {
+      var e = document.createElement('div');
+      e.className = 'note';
+      e.innerHTML = 'No rating bracket has ' + 5 + '+ observations yet — win-by-bracket appears as ranked play grows.';
+      document.getElementById('ChBracket').appendChild(e);
+    }
+    var sos = window.__SOS__ || { pairs: [] };
+    var stbl = document.getElementById('SeasonTable');
+    if (sos.pairs && sos.pairs.length) {
+      var h = '<thead><tr><th>Transition</th><th>Returning</th><th>Retention</th><th>Mean ⌀ change</th></tr></thead><tbody>';
+      sos.pairs.forEach(function (p) {
+        h += '<tr><td>S' + p.from_season + ' → S' + p.to_season + '</td><td>' + p.returning + ' of ' + p.players_in_from + '</td>' +
+          '<td>' + p.retention + '%</td><td>' + (p.mean_rating_change !== null && p.mean_rating_change !== undefined
+            ? (p.mean_rating_change >= 0 ? '<span class="pos">+' + p.mean_rating_change + '</span>' : '<span class="neg">' + p.mean_rating_change + '</span>')
+            : '—') + ' <span style="color:var(--text-muted)">(n=' + p.n_deltas + ')</span></td></tr>';
+      });
+      h += '</tbody>';
+      stbl.innerHTML = h;
+    } else {
+      stbl.innerHTML = '<tbody><tr><td style="color:var(--text-muted)">Season-over-season retention shows up after the first season boundary.</td></tr></tbody>';
+    }
+  }
+
+  /* ── Match dynamics card ───────────────────────────────────────────── */
+  function dynamicsCard(d, host) {
+    var card = document.createElement('div');
+    card.className = 'glass-card';
+    card.innerHTML =
+      '<div class="card-h"><h2>Match dynamics</h2><span class="tag">from trajectories</span></div>' +
+      '<p class="caption"><b>Question:</b> how many goals does a typical match see, how fast does the first one arrive, and do near misses convert into goals?</p>' +
+      '<div class="stat-hero" id="GoalsHero"></div>' +
+      '<div id="ChGoals" style="margin-top:var(--space-3)"></div>' +
+      '<div id="ChFirstGoal" style="margin-top:var(--space-4)"></div>' +
+      '<div class="note" id="NearMiss"></div>' +
+      '<div class="note" style="margin-top:6px">' + (d.caveat || '') + '</div>';
+    host.appendChild(card);
+
+    var g = d.goals_per_match || {};
+    var hero = document.getElementById('GoalsHero');
+    if (!g.n_matches) {
+      hero.innerHTML = '<div class="empty"><div class="ico">⚽</div><div>No matches recorded yet.</div></div>';
+      return;
+    }
+    hero.innerHTML = '<span class="big">' + (g.mean || 0).toFixed(2) + '</span><span class="sub">avg goals per match over ' + g.n_matches + ' matches (95% CI ' + (g.ci ? g.ci[0] + '–' + g.ci[1] : '—') + ')</span>';
+
+    var dist = {};
+    (g.distribution || []).forEach(function (x) { dist[x] = (dist[x] || 0) + 1; });
+    var keys = Object.keys(dist).map(Number).sort(function (a, b) { return a - b; });
+    if (keys.length) {
+      var box = ctx('ChGoals');
+      register(new Chart(box.canvas, {
+        type: 'bar',
+        data: {
+          labels: keys.map(function (k) { return k + (k === 1 ? ' goal' : ' goals'); }),
+          datasets: [{ label: 'Matches', data: keys.map(function (k) { return dist[k]; }), backgroundColor: 'rgba(34,197,94,.60)' }]
+        },
+        options: Object.assign(baseOpts(), { plugins: { legend: { display: false } },
+          y: { beginAtZero: true, ticks: { font: { size: 10 }, precision: 0 } },
+          x: { ticks: { font: { size: 10 } } } })
+      }));
+    }
+
+    var ff = d.first_goal;
+    var fgEl = document.getElementById('ChFirstGoal');
+    if (ff) {
+      var fcap = document.createElement('p');
+      fcap.className = 'caption';
+      fcap.innerHTML = '<b>First goal:</b> mean ' + ff.mean_kick + ' kicks into the match (95% CI ' + (ff.ci ? ff.ci[0] + '–' + ff.ci[1] : '—') + ', n=' + ff.n_matches_with_goal + '). Line below shows the share of matches still goalless after k kicks.';
+      fgEl.appendChild(fcap);
+      var fbox = ctx('ChFirstGoal');
+      var cum = (ff.cumulative_no_goal || []);
+      register(new Chart(fbox.canvas, {
+        type: 'line',
+        data: {
+          labels: cum.map(function (c) { return c.kick; }),
+          datasets: [{ label: '% of matches still goalless', data: cum.map(function (c) { return c.no_goal_yet; }),
+            borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,.15)', fill: true, pointRadius: 3, tension: .25 }]
+        },
+        options: Object.assign(baseOpts(), {
+          plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } } },
+          scales: { y: { beginAtZero: true, max: 100, ticks: { font: { size: 10 } } }, x: { title: { display: true, text: 'Kick number', font: { size: 10 } }, ticks: { font: { size: 10 } } } }
+        })
+      }));
+    } else {
+      var fe = document.createElement('div');
+      fe.className = 'note';
+      fe.innerHTML = 'First-goal timing needs tournament replays (or online matches with kick capture); none recorded yet.';
+      fgEl.appendChild(fe);
+    }
+    var nm = d.near_miss || {};
+    document.getElementById('NearMiss').innerHTML = nm.near_misses
+      ? '<b>Near-miss → goal:</b> ' + nm.converted + ' of ' + nm.near_misses + ' near misses (from ' + nm.n_matches + ' matches) converted within the next few kicks — <b>' + nm.conversion_rate + '%</b> (95% CI ' + (nm.ci ? (nm.ci[0]*100).toFixed(0) + '–' + (nm.ci[1]*100).toFixed(0) + '%' : '—') + ').'
+      : '<b>Near-miss → goal:</b> no near misses detected in stored replays yet.';
+  }
+
+  /* ── Hero ──────────────────────────────────────────────────────────── */
+  function hero(m) {
+    var root = document.getElementById('hero-root');
+    var chips = '';
+    var meta = m || {};
+    root.innerHTML =
+      '<div class="hero-eyebrow"><span class="badge badge-brand"><span class="badge-dot"></span>Play data analytics</span></div>' +
+      '<h1>What the matches actually tell us</h1>' +
+      '<p>Aggregate analyses of real games — win rates by stat build, AI agent strength, rating progression and match flow — computed with sample-size-aware statistics. Everything is aggregate: no emails, and the only names shown are already public on the leaderboards.</p>' +
+      '<div class="an-meta">' +
+      '<span class="an-chip">' + (meta.summaries || 0) + ' online matches</span>' +
+      '<span class="an-chip">' + (meta.ranked_matches || 0) + ' ranked matches</span>' +
+      '<span class="an-chip">' + (meta.custom_models || 0) + ' AI models rated</span>' +
+      '<span class="an-chip">' + (meta.tournament_replays || 0) + ' tournament replays</span>' +
+      '<span class="an-chip">' + (meta.seasons || 0) + ' season(s)</span>' +
+      '</div>' +
+      '<div class="an-meta">' +
+      '<span class="an-chip">generated ' + (window.__GEN ? new Date(window.__GEN).toLocaleString() : '—') + '</span>' +
+      '<span class="an-chip cached">' + (window.__CACHED ? 'served from cache (24 h)' : 'freshly computed') + '</span>' +
+      '</div>';
+  }
+
+  /* ── Methodology ───────────────────────────────────────────────────── */
+  function methods() {
+    var root = document.getElementById('methods-root');
+    root.innerHTML =
+      '<li><span class="q">Stat builds —</span> <b>Q:</b> do Size/Power/Weight/Agility allocations correlate with wins? <b>M:</b> archetype buckets (largest above-baseline stat), k×2 homogeneity test (Fisher when cells are small), Wilson 95% CIs, and a median-rating skill split to separate build strength from who picks a build. <b>Confidence:</b> claims need ≥ 10 finished matches and ≥ 10 observations per bucket; below that the page says "directional only".</li>' +
+      '<li><span class="q">Agent matrix —</span> <b>Q:</b> which built-in agent is strongest, and is there a rock-paper-scissors effect? <b>M:</b> 21 head-to-head sims (5 games each), per-agent mean win rate, strict-majority 3-cycle search. <b>Confidence:</b> per-pair n is small, so cycles are flagged as candidates only.</li>' +
+      '<li><span class="q">Rating progression —</span> <b>Q:</b> do players improve? <b>M:</b> trajectories only for ≥ 8-match players; win rate bucketed by pre-match rating (no self-contamination); retention + rating change across season boundaries from frozen snapshots. <b>Confidence:</b> brackets need ≥ 5 observations to render.</li>' +
+      '<li><span class="q">Match dynamics —</span> <b>Q:</b> goals/match, first-goal timing, near-miss conversion? <b>M:</b> Poisson CI for the goals rate, a goalless-after-k-kicks survival curve, and a near-miss→goal-within-a-few-kicks conversion with a binomial CI. <b>Confidence:</b> trajectory stats only cover the recent stored replays (they expire after 24 h).</li>' +
+      '<li><b>No causal overreach:</b> a correlation here is never dressed as a cause. Where a confounder is real (skill), it is controlled for; where the sample cannot support the claim, the page says so instead of showing a shaky result.</li>';
+  }
+
+  /* ── Load ──────────────────────────────────────────────────────────── */
+  function render(j) {
+    destroyCharts();
+    window.__GEN = j.generated_at; window.__CACHED = j.cached;
+    window.__SOS__ = j.season_over_season || { pairs: [] };
+    hero(j.meta);
+    var root = document.getElementById('dash-root');
+    root.innerHTML = '';
+    buildCard(j.stat_builds || {}, root);
+    agentCard(j.agents || {}, root);
+    ratingCard(j.rating || {}, root);
+    dynamicsCard(j.dynamics || {}, root);
+    methods();
+  }
+  fetch('/api/analytics')
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(render)
+    .catch(function (err) {
+      document.getElementById('dash-root').innerHTML =
+        '<div style="grid-column:1/-1" class="empty"><div class="ico">⚠️</div><div><b>Could not load analytics.</b><br>' + String(err) + '</div></div>';
+    });
+})();
+</script>
+</body>
+</html>
