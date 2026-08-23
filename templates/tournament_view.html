@@ -3,178 +3,98 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tournament View — Agent Soccer</title>
+<title>{{ t.name }} — Tournament — Agent Soccer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='design-system.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <style>
-.match-card {
-  background: var(--glass-bg); border: 1px solid var(--glass-border); border-radius: 8px;
-  padding: 12px; margin-bottom: 12px;
-}
-.match-part { display:flex; justify-content:space-between; margin-bottom:4px; font-size: 0.85rem; font-weight:600;}
-.match-winner { color: var(--accent-success); }
-.bracket-col { flex: 1; padding: 0 10px; border-right: 1px solid var(--glass-border); }
-.bracket-col:last-child { border-right: none; }
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Be+Vietnam+Pro:wght@400;600&display=swap');
+.page-hero h1{font-family:'Space Grotesk',sans-serif;font-size:1.8rem;font-weight:700;letter-spacing:-.02em;background:linear-gradient(135deg,#0ea5e9 0%,#8b5cf6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:0}
+.bracket-wrap{display:flex;gap:16px;overflow-x:auto;padding:12px 4px}
+.bracket-col{flex:1;min-width:220px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:14px}
+.bracket-col h3{font-family:'Space Grotesk',sans-serif;font-size:.85rem;font-weight:700;text-align:center;margin:0 0 14px;color:#0f172a;background:rgba(255,255,255,.7);border-radius:999px;padding:6px}
+.match-card{background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.7);border-radius:14px;padding:12px;margin-bottom:12px;box-shadow:0 4px 16px rgba(2,6,23,.08);transition:transform .15s}
+.match-card:hover{transform:translateY(-2px)}
+.match-part{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-radius:10px;margin-bottom:4px;font-size:.85rem;font-weight:600}
+.match-part.winner{background:linear-gradient(135deg,#dcfce7,#86efac);color:#14532d;border:1px solid #86efac}
+.participant-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.7);border:1px solid rgba(148,163,184,.3);border-radius:999px;padding:5px 10px;font-size:.8rem;font-weight:600;margin:4px}
 </style>
 </head>
 <body>
-
-<nav>
-  <a class="nav-brand title-gradient" href="/play3d">Agent Soccer</a>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
   <div class="nav-links">
-    <a href="/play3d" class="nav-link">Game</a>
-    <a href="/playground" class="nav-link">Playground</a>
-    <a href="/arena" class="nav-link">AI Arena</a>
-    <a href="/my-models" class="nav-link">My Models</a>
-    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/play3d" class="nav-link">Play</a>
     <a href="/tournaments" class="nav-link active">Tournaments</a>
-    <a href="/research" class="nav-link">Research</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
-    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="/profile" class="nav-link">Profile</a>
     <a href="/customize" class="nav-link">Customize</a>
     <span class="nav-user">{{ username }}</span>
-    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
   </div>
 </nav>
+<main style="max-width:1200px;margin:0 auto;padding:28px 16px">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px">
+    <div class="page-hero"><h1>🏆 {{ t.name }}</h1><p style="font-size:.85rem;color:#64748b;margin:4px 0 0">Status: <span class="badge" style="background:#0ea5e9;color:#fff;border-radius:999px;padding:3px 10px;font-size:.7rem;text-transform:uppercase">{{ t.status }}</span></p></div>
+    <a href="/tournaments" class="btn btn-ghost">← All Tournaments</a>
+  </div>
 
-<main>
-  <h1>Tournament: {{ t.name }}</h1>
-  
   {% if t.status == 'pending' %}
-  <div class="glass-card" style="margin-bottom: 20px;">
-    <h3>Add Participants</h3>
-    <div style="display:flex;gap:10px;margin-top:10px;">
-      <select id="modelSelect">
-        <option value="">-- Select AI Model --</option>
-        {% for m in models %}
-        <option value="{{ m.id }}">{{ m.name }}</option>
-        {% endfor %}
-      </select>
-      <button class="btn btn-primary" onclick="addParticipant('model')">Add Model</button>
+  <div class="glass-card" style="margin-bottom:18px">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 12px">Add Participants</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div style="display:flex;gap:8px">
+        <select id="modelSelect" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid rgba(148,163,184,.4)"><option value="">— AI Model —</option>{% for m in models %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select>
+        <button class="btn btn-primary" onclick="addParticipant('model')">Add Model</button>
+      </div>
+      <div style="display:flex;gap:8px">
+        <select id="friendSelect" style="flex:1;padding:9px 12px;border-radius:10px;border:1px solid rgba(148,163,184,.4)"><option value="">— Friend —</option>{% for f in friends %}<option value="friend:{{ f.uid }}">{{ f.username }}</option>{% endfor %}</select>
+        <button class="btn btn-primary" onclick="addParticipant('friend')">Add Friend</button>
+      </div>
     </div>
-    <div style="display:flex;gap:10px;margin-top:10px;">
-      <select id="friendSelect">
-        <option value="">-- Select Friend --</option>
-        {% for f in friends %}
-        <option value="friend:{{ f.uid }}">{{ f.username }}</option>
-        {% endfor %}
-      </select>
-      <button class="btn btn-primary" onclick="addParticipant('friend')">Add Friend</button>
+    <div style="margin-top:16px">
+      <h4 style="font-size:.85rem;font-weight:700;margin:0 0 8px;color:#334155">Participants ({{ t.participants|length }})</h4>
+      {% if t.participants %}<div>{% for p in t.participants %}<span class="participant-pill">👤 {{ p.name }}</span>{% endfor %}</div>{% else %}<p style="font-size:.85rem;color:#94a3b8">No one yet — add at least 2 to start.</p>{% endif %}
     </div>
-    
-    <hr style="margin:20px 0; border:none; border-top:1px solid var(--glass-border);">
-    
-    <h4>Current Participants ({{ t.participants|length }})</h4>
-    <ul style="padding-left:20px; font-size:0.9rem; margin-bottom:15px">
-      {% for p in t.participants %}
-      <li>{{ p.name }}</li>
-      {% endfor %}
-    </ul>
-    
-    {% if t.participants|length >= 2 %}
-    <button class="btn btn-green" onclick="generateBracket()">Generate Bracket</button>
-    {% endif %}
+    {% if t.participants|length >= 2 %}<div style="margin-top:16px"><button class="btn btn-primary" style="width:100%;padding:12px" onclick="generateBracket()">⚔️ Generate Bracket</button></div>{% endif %}
   </div>
   {% else %}
-  <div class="glass-card" style="display:flex;">
-    {% set rounds = [] %}
-    {% for m in t.matches %}
-      {% if m.round_num not in rounds %}
-        {% set _ = rounds.append(m.round_num) %}
-      {% endif %}
-    {% endfor %}
-    
-    {% for r in rounds|sort %}
-    <div class="bracket-col">
-      <h3 style="text-align:center; font-size:0.9rem; margin-bottom:15px;">Round {{ r }}</h3>
-      {% for m in t.matches %}
-        {% if m.round_num == r %}
+  <div class="glass-card" style="padding:16px;overflow:auto">
+    <div class="bracket-wrap">
+      {% set rounds = [] %}{% for m in t.matches %}{% if m.round_num not in rounds %}{% set _ = rounds.append(m.round_num) %}{% endif %}{% endfor %}
+      {% for r in rounds|sort %}
+      <div class="bracket-col">
+        <h3>Round {{ r }}</h3>
+        {% for m in t.matches %}{% if m.round_num == r %}
           <div class="match-card">
-            {% set pa_name = "TBD" %}
-            {% set pb_name = "TBD" %}
-            {% for p in t.participants %}
-              {% if p.id == m.participant_a %}{% set pa_name = p.name %}{% endif %}
-              {% if p.id == m.participant_b %}{% set pb_name = p.name %}{% endif %}
-            {% endfor %}
-            <div class="match-part {% if m.winner == m.participant_a %}match-winner{% endif %}">{{ pa_name }}</div>
-            <div class="match-part {% if m.winner == m.participant_b %}match-winner{% endif %}">{{ pb_name }}</div>
-            
-            <div style="margin-top:10px; text-align:center;">
-              {% if m.status == 'pending' and m.participant_a and m.participant_b %}
-                <button class="btn btn-sm btn-primary" onclick="simulateMatch('{{ m.id }}')">Simulate</button>
-              {% elif m.status == 'completed' and m.participant_a and m.participant_b and m.replay_data %}
-                <a href="/tournaments/{{ t.id }}/watch/{{ m.id }}" class="btn btn-sm btn-ghost">Watch</a>
-              {% endif %}
+            {% set pa_name = "TBD" %}{% set pb_name = "TBD" %}{% for p in t.participants %}{% if p.id == m.participant_a %}{% set pa_name = p.name %}{% endif %}{% if p.id == m.participant_b %}{% set pb_name = p.name %}{% endif %}{% endfor %}
+            <div class="match-part {% if m.winner == m.participant_a %}winner{% endif %}"><span>{{ pa_name }}</span>{% if m.winner == m.participant_a %}🏆{% endif %}</div>
+            <div class="match-part {% if m.winner == m.participant_b %}winner{% endif %}"><span>{{ pb_name }}</span>{% if m.winner == m.participant_b %}🏆{% endif %}</div>
+            <div style="text-align:center;margin-top:10px">
+              {% if m.status == 'pending' and m.participant_a and m.participant_b %}<button class="btn btn-primary btn-sm" onclick="simulateMatch('{{ m.id }}')">▶ Simulate</button>
+              {% elif m.status == 'completed' and m.participant_a and m.participant_b and m.replay_data %}<a href="/tournaments/{{ t.id }}/watch/{{ m.id }}" class="btn btn-ghost btn-sm">👁 Watch</a>{% else %}<span style="font-size:.72rem;color:#94a3b8">Waiting</span>{% endif %}
             </div>
           </div>
-        {% endif %}
+        {% endif %}{% endfor %}
+      </div>
       {% endfor %}
     </div>
-    {% endfor %}
   </div>
   {% endif %}
+
+  <div class="glass-card" style="margin-top:18px">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 4px">💬 Tournament Chat</h3>
+    <p style="font-size:.82rem;color:#64748b;margin:0 0 10px">Chat with organiser and invited friends</p>
+    <div id="lobby-chat" style="height:340px"></div>
+  </div>
 </main>
-
-<div class="glass-card" style="margin-top:20px;">
-  <h3>Tournament Chat</h3>
-  <p style="font-size:0.82rem;color:var(--muted);margin-top:4px;">
-    Chat with the tournament organiser and invited friends.
-  </p>
-  <div id="lobby-chat" style="height:340px;margin-top:10px;"></div>
-</div>
-
 <script>
-function addParticipant(type) {
-  let select = document.getElementById(type + 'Select');
-  let val = select.value;
-  let text = select.options[select.selectedIndex].text;
-  if(!val) return;
-  
-  fetch('/tournaments/{{ t.id }}/add', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ participant_id: val, name: text })
-  }).then(res => res.json()).then(data => {
-    if(data.ok) location.reload();
-    else alert(data.error);
-  });
-}
-
-function generateBracket() {
-  fetch('/tournaments/{{ t.id }}/generate', { method: 'POST' })
-    .then(res => res.json()).then(data => {
-      if(data.ok) location.reload();
-      else alert(data.error);
-    });
-}
-
-function simulateMatch(matchId) {
-  fetch('/tournaments/{{ t.id }}/simulate/' + matchId, { method: 'POST' })
-    .then(res => res.json()).then(data => {
-      if(data.ok) {
-        if (data.achievements && data.achievements.length) {
-          AW.handle(data);
-          setTimeout(() => location.reload(), 2600);
-        } else {
-          location.reload();
-        }
-      }
-      else alert(data.error);
-    });
-}
+function addParticipant(type){let s=document.getElementById(type+'Select'),v=s.value,t=s.options[s.selectedIndex].text;if(!v)return;fetch('/tournaments/{{ t.id }}/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({participant_id:v,name:t})}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();else alert(d.error);});}
+function generateBracket(){fetch('/tournaments/{{ t.id }}/generate',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();else alert(d.error);});}
+function simulateMatch(id){fetch('/tournaments/{{ t.id }}/simulate/'+id,{method:'POST'}).then(r=>r.json()).then(d=>{if(d.ok){if(d.achievements&&d.achievements.length){AW.handle(d);setTimeout(()=>location.reload(),2200);}else location.reload();}else alert(d.error);});}
 </script>
-<script src="/static/feedback.js"></script>
 <script src="/static/chat.js"></script>
 <script src="/static/achievements.js"></script>
-<script>
-  new ChatPanel({
-    mount: document.getElementById('lobby-chat'),
-    scope: 'tournament',
-    scopeId: '{{ t.id }}',
-    name: 'Tournament Chat',
-    quickReactions: false,
-    pollMs: 3000,
-    collapsed: false,
-  });
-</script>
+<script>new ChatPanel({mount:document.getElementById('lobby-chat'),scope:'tournament',scopeId:'{{ t.id }}',name:'Tournament Chat',quickReactions:false,pollMs:3000,collapsed:false});</script>
+<script src="/static/feedback.js"></script>
 </body>
 </html>

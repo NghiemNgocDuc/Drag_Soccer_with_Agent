@@ -4,64 +4,77 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tournaments — Agent Soccer</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='design-system.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
+.page-hero{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:16px;margin-bottom:24px}
+.page-hero h1{font-family:'Space Grotesk',sans-serif;font-size:2rem;font-weight:700;letter-spacing:-0.03em;background:linear-gradient(135deg,#0ea5e9 0%,#f97316 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin:0}
+.page-hero p{font-size:.9rem;color:var(--muted,#64748b);margin:4px 0 0}
+.tourney-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.tourney-card{position:relative;overflow:hidden;transition:transform .18s, box-shadow .18s}
+.tourney-card:hover{transform:translateY(-3px);box-shadow:0 12px 32px rgba(2,6,23,.12)}
+.tourney-card h3{font-family:'Space Grotesk',sans-serif;font-size:1.05rem;font-weight:700;margin:0 0 6px;color:#0f172a}
+.tourney-meta{font-size:.78rem;color:#64748b;display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:.7rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:4px 10px;border-radius:999px}
+.badge-pending{background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+.badge-active{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.badge-completed{background:#e0e7ff;color:#3730a3;border:1px solid #a5b4fc}
+.empty-state{text-align:center;padding:40px 20px;color:#64748b}
+.empty-state .ico{font-size:2.5rem;margin-bottom:10px}
+</style>
 </head>
 <body>
-
-<nav>
-  <a class="nav-brand title-gradient" href="/play3d">Agent Soccer</a>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
   <div class="nav-links">
-    <a href="/play3d" class="nav-link">Game</a>
+    <a href="/play3d" class="nav-link">Play</a>
     <a href="/playground" class="nav-link">Playground</a>
-    <a href="/arena" class="nav-link">AI Arena</a>
-    <a href="/my-models" class="nav-link">My Models</a>
-    <a href="/profile" class="nav-link">Profile</a>
+    <a href="/arena" class="nav-link">Arena</a>
     <a href="/tournaments" class="nav-link active">Tournaments</a>
     <a href="/research" class="nav-link">Research</a>
     <a href="/leaderboard" class="nav-link">Leaderboard</a>
-    <a href="/feedback" class="nav-link">Feedback</a>
+    <a href="/achievements" class="nav-link">Achievements</a>
+    <a href="/profile" class="nav-link">Profile</a>
     <a href="/customize" class="nav-link">Customize</a>
     <span class="nav-user">{{ username }}</span>
-    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
   </div>
 </nav>
 
-<main>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
-    <h1>Tournaments</h1>
-    <button class="btn btn-primary" onclick="createTournament()">+ New Tournament</button>
+<main style="max-width:1100px;margin:0 auto;padding:28px 16px">
+  <div class="page-hero">
+    <div>
+      <h1>Tournaments</h1>
+      <p>Compete in brackets • Invite friends or AIs • Watch replays</p>
+    </div>
+    <button class="btn btn-primary" onclick="createTournament()" style="padding:12px 22px;font-size:.95rem">+ New Tournament</button>
   </div>
-  
-  <div class="glass-card">
-    {% if tournaments %}
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Status</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for t in tournaments %}
-        <tr>
-          <td style="font-weight:600">{{ t.name }}</td>
-          <td>
-            <span class="turn-badge {% if t.status == 'active' %}turn-a{% elif t.status == 'completed' %}turn-b{% endif %}">
-              {{ t.status | upper }}
-            </span>
-          </td>
-          <td>
-            <a href="/tournaments/{{ t.id }}" class="btn btn-sm btn-ghost">View</a>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="empty">No tournaments yet. Be the first to create one!</div>
-    {% endif %}
+
+  {% if tournaments %}
+  <div class="tourney-grid">
+    {% for t in tournaments %}
+    <div class="glass-card tourney-card">
+      <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+        <h3>{{ t.name }}</h3>
+        <span class="badge {% if t.status == 'active' %}badge-active{% elif t.status == 'completed' %}badge-completed{% else %}badge-pending{% endif %}">{{ t.status }}</span>
+      </div>
+      <div class="tourney-meta">
+        <span>🏟️ {{ t.participants|length if t.participants is defined else '—' }} players</span>
+        <span>🕒 {{ t.created_at[:10] if t.created_at else '' }}</span>
+      </div>
+      <a href="/tournaments/{{ t.id }}" class="btn btn-primary btn-sm" style="width:100%">View Bracket →</a>
+    </div>
+    {% endfor %}
   </div>
+  {% else %}
+  <div class="glass-card empty-state">
+    <div class="ico">🏆</div>
+    <h3 style="margin:0 0 6px;color:#0f172a">No tournaments yet</h3>
+    <p style="margin:0 0 14px">Be the first to create one and invite your squad!</p>
+    <button class="btn btn-primary" onclick="createTournament()">Create Tournament</button>
+  </div>
+  {% endif %}
 </main>
 
 <script>
@@ -73,7 +86,7 @@ function createTournament() {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: name })
   }).then(res => res.json()).then(data => {
-    AW.handle(data);
+    if(window.AW) AW.handle(data);
     if(data.ok) window.location.href = '/tournaments/' + data.tournament.id;
     else alert(data.error || 'Failed to create');
   });

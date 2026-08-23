@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Agent Soccer 3D</title>
+<link rel="stylesheet" href="/static/design-system.css">
 <link rel="stylesheet" href="/static/style.css">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
@@ -147,6 +148,14 @@
       <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1" oninput="setAnimSpeed(+this.value)">
     </div>
     <button class="btn btn-ghost" id="aivai-btn" style="display:none" onclick="triggerAI()">Run AI</button>
+    <div class="sep"></div>
+    <div class="pass-types" style="display:flex;gap:4px;align-items:center">
+      <span style="font-size:.68rem;color:var(--muted);font-weight:600">Pass:</span>
+      <button class="btn btn-ghost btn-sm" id="pass-normal" onclick="setPassType('normal')" style="background:var(--accent);color:#fff">Normal</button>
+      <button class="btn btn-ghost btn-sm" id="pass-short" onclick="setPassType('short')">S Short</button>
+      <button class="btn btn-ghost btn-sm" id="pass-long" onclick="setPassType('long')">A Long</button>
+      <button class="btn btn-ghost btn-sm" id="pass-through" onclick="setPassType('through')">W Through</button>
+    </div>
     <div class="sep"></div>
     <button class="btn btn-ghost" id="online-btn" onclick="showOnlineLobby(true)">&#x1F517; Online</button>
     <div class="sep"></div>
@@ -2284,6 +2293,39 @@ function updatePlayerPositions() {
   }
 }
 
+// ── Pass types & player switching (open-soccer style: S/A/W + Q/C) ──────
+let passType = 'normal';
+window.setPassType = function(t) {
+  passType = t;
+  document.querySelectorAll('.pass-types .btn').forEach(b => { b.style.background=''; b.style.color=''; });
+  const el = document.getElementById('pass-' + t);
+  if (el) { el.style.background='var(--accent)'; el.style.color='#fff'; }
+};
+let _selectedPlayerIdx = 0;
+function cyclePlayer(dir=1) {
+  if (!gameState || !myTeamPlayers()) return;
+  const n = myTeamPlayers().length;
+  _selectedPlayerIdx = (_selectedPlayerIdx + dir + n) % n;
+  // visual highlight: pulse selected player's mesh scale
+  const meshes = (ONLINE.active ? (ONLINE.side==='a'?playerMeshesA:playerMeshesB) : playerMeshesA);
+  meshes.forEach((m,i) => { m.scale.setScalar(i===_selectedPlayerIdx?1.18:1); });
+  setTimeout(()=>{ meshes.forEach(m=>m.scale.setScalar(1)); }, 400);
+}
+document.addEventListener('keydown', (e) => {
+  const k = e.key.toLowerCase();
+  if (k==='s') setPassType('short');
+  else if (k==='a') setPassType('long');
+  else if (k==='w') setPassType('through');
+  else if (k==='q') { e.preventDefault(); cyclePlayer(1); }
+  else if (k==='c') { /* contain/jockey — handled as defend */ }
+  else if (k==='e') { /* sprint — temp power boost */ }
+  else if (k==='d' && !e.repeat) { /* shot — already via drag */ }
+});
+// Sprint hold E → power cap +20%
+let _isSprinting = false;
+document.addEventListener('keydown', e=>{ if(e.key.toLowerCase()==='e') _isSprinting=true; });
+document.addEventListener('keyup', e=>{ if(e.key.toLowerCase()==='e') _isSprinting=false; });
+
 // ── Referee (cosmetic, driven by server state / trajectory "ref" frames) ────
 const refereeMesh = (() => {
   const group = new THREE.Group();
@@ -2646,7 +2688,7 @@ function getGroundPoint(clientX, clientY) {
   return target;
 }
 
-// calcPull in server space — same math as 2D version
+// calcPull in server space — same math as 2D version + pass-type + sprint (open-soccer style)
 function calcPull(homeServer) {
   const dragServer = worldToServer(dragWorldPos);
   const ddx = dragServer.x - homeServer.x;
@@ -2657,9 +2699,17 @@ function calcPull(homeServer) {
   const ratio = dist > 0 ? capped / dist : 0;
   const pullX = homeServer.x + ddx * ratio;
   const pullY = homeServer.y + ddy * ratio;
+  let power = dist > 0 ? capped / effectiveMax * 100 : 0;
+  // Pass types: S short 62% (ground), A long 108% (chip), W through 88% + aim assist handled elsewhere
+  if (typeof passType !== 'undefined') {
+    if (passType === 'short') power *= 0.62;
+    else if (passType === 'long') power = Math.min(100, power * 1.08);
+    else if (passType === 'through') power *= 0.88;
+  }
+  if (typeof _isSprinting !== 'undefined' && _isSprinting) power = Math.min(100, power * 1.18);
   return {
     pullX, pullY,
-    power: dist > 0 ? capped / effectiveMax * 100 : 0,
+    power,
     kickAngle: Math.atan2(homeServer.y - pullY, homeServer.x - pullX),
   };
 }
