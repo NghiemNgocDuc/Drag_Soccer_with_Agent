@@ -143,8 +143,10 @@ def inject_player_stats(state: dict, team_a_stats: list[dict] | None = None, tea
                 "agility": max(0, min(100, s.get("agility", _STAT_DEFAULT))),
             }
 
-def _home_positions(count: int, side: str) -> list[tuple[float, float]]:
-    """Generate realistic soccer formation. Index 0 = GK."""
+def _home_positions(count: int, side: str, formation: str | None = None) -> list[tuple[float, float]]:
+    """Generate realistic soccer formation. Index 0 = GK.
+    formation: for 7 players, e.g. "3-2-1" (DEF-MID-FWD). If provided, overrides default.
+    """
     center_y = FIELD_H / 2
     # gk/def/mid are ratios of FIELD_W (auto-widen with the field);
     # atk is an ABSOLUTE 95px from center — the tuned kicker-to-ball gap
@@ -165,20 +167,47 @@ def _home_positions(count: int, side: str) -> list[tuple[float, float]]:
 
     outfield = count - 1
     # Define formations as (defenders, midfielders, forwards) — must sum to outfield
-    formations = {
-        1:  (0, 0, 1),
-        2:  (1, 0, 1),
-        3:  (1, 0, 2),
-        4:  (2, 0, 2),
-        5:  (2, 1, 2),
-        6:  (3, 1, 2),
-        7:  (3, 2, 2),
-        8:  (4, 2, 2),
-        9:  (4, 3, 2),
-        10: (4, 3, 3),
-        11: (4, 4, 2),
-    }
-    n_def, n_mid, n_atk = formations.get(count, (outfield, 0, 0))
+    from db.managers import FORMATIONS_7, DEFAULT_FORMATION_7
+    # Use manager default if no formation provided for 7
+    if count == 7 and not formation:
+        formation = DEFAULT_FORMATION_7
+    if count == 7 and formation and formation in FORMATIONS_7:
+        vals = FORMATIONS_7[formation]
+        if len(vals) == 4:
+            n_def, n_dm, n_am, n_atk = vals
+            # need to handle 4 rows for diamond
+            y_range = min(FIELD_H * 0.6, 80 + outfield * 25)
+            min_y = center_y - y_range / 2
+            def add_row(x_pos, n):
+                if n <= 0: return
+                for i in range(n):
+                    y = min_y + (i + 0.5) / n * y_range
+                    positions.append((x_pos, y))
+            # x for 4 rows: DEF, DM, AM, FWD
+            dm_x = (def_x + mid_x) / 2
+            am_x = (mid_x + atk_x) / 2
+            add_row(def_x, n_def)
+            add_row(dm_x, n_dm)
+            add_row(am_x, n_am)
+            add_row(atk_x, n_atk)
+            return positions[:count]
+        else:
+            n_def, n_mid, n_atk = vals
+    else:
+        formations = {
+            1:  (0, 0, 1),
+            2:  (1, 0, 1),
+            3:  (1, 0, 2),
+            4:  (2, 0, 2),
+            5:  (2, 1, 2),
+            6:  (3, 1, 2),
+            7:  (3, 2, 2),
+            8:  (4, 2, 2),
+            9:  (4, 3, 2),
+            10: (4, 3, 3),
+            11: (4, 4, 2),
+        }
+        n_def, n_mid, n_atk = formations.get(count, (outfield, 0, 0))
     total = n_def + n_mid + n_atk
     if total > outfield:
         n_atk -= total - outfield
@@ -204,8 +233,8 @@ HOME_B: list[tuple[float, float]] = _home_positions(PLAYER_COUNT, "b")
 
 def _reset_players(state: dict) -> None:
     cnt = state.get("player_count", PLAYER_COUNT)
-    ha = _home_positions(cnt, "a")
-    hb = _home_positions(cnt, "b")
+    ha = _home_positions(cnt, "a", state.get("formation_a"))
+    hb = _home_positions(cnt, "b", state.get("formation_b"))
     old_a = state.get("players_a", [])
     old_b = state.get("players_b", [])
     state["players_a"] = [
@@ -220,7 +249,8 @@ def _reset_players(state: dict) -> None:
 def _reset_outfield(state: dict, side: str) -> None:
     """Reset all outfield players (index >= 1) for one side to home positions."""
     cnt = state.get("player_count", PLAYER_COUNT)
-    ha = _home_positions(cnt, side)
+    formation = state.get(f"formation_{side}")
+    ha = _home_positions(cnt, side, formation)
     players = state["players_a"] if side == "a" else state["players_b"]
     for i in range(1, len(players)):
         if i < len(ha):
@@ -291,9 +321,21 @@ def new_soccer_state(
     half_length: int = _HALF_DEFAULT,
     win_goal_limit: int = _WIN_DEFAULT,
     power_cap: int = 100,
+    formation_a: str | None = None,
+    formation_b: str | None = None,
+    referee_name: str | None = None,
 ) -> dict:
-    home_a = _home_positions(player_count, "a")
-    home_b = _home_positions(player_count, "b")
+    # default formation from manager if not provided and count==7
+    if player_count == 7:
+        try:
+            from db.managers import DEFAULT_FORMATION_7
+            if not formation_a:
+                formation_a = DEFAULT_FORMATION_7
+            if not formation_b:
+                formation_b = DEFAULT_FORMATION_7
+        except: pass
+    home_a = _home_positions(player_count, "a", formation_a)
+    home_b = _home_positions(player_count, "b", formation_b)
     return {
         "ball":          {"x": FIELD_W / 2, "y": FIELD_H / 2, "z": 0.0},
         "field":         {"width": FIELD_W, "height": FIELD_H},
@@ -325,7 +367,10 @@ def new_soccer_state(
         "penalty_goalkeeper_move": None,
         "keeper_style_a": "default",
         "keeper_style_b": "default",
+        "formation_a": formation_a,
+        "formation_b": formation_b,
         "referee":       {"x": REFEREE_POS[0], "y": REFEREE_POS[1]},
+        "referee_name":  referee_name or __import__("db.managers", fromlist=["pick_referee"]).pick_referee().get("name", "Referee"),
         "_finalized":    False,
         "turn_start_time": time.time(),
     }
