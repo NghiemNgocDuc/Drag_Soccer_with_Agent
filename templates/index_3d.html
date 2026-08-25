@@ -186,6 +186,15 @@
         </div>
       </div>
       <div id="online-lobby-waiting">Waiting for your opponent to join&hellip;</div>
+      <div id="team-chooser" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
+        <p style="font-size:.82rem;font-weight:700;margin-bottom:6px">🌍 Choose Team — 2 players cannot pick same team</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="team-a-select" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team A — loading...</option></select>
+          <select id="team-b-select" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team B — loading...</option></select>
+        </div>
+        <p id="team-error" style="font-size:.72rem;color:#ef4444;margin-top:6px;display:none"></p>
+        <p style="font-size:.68rem;color:#64748b;margin-top:4px">Player names will appear above kits</p>
+      </div>
       <div id="online-lobby-ranked" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
         <p style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Ranked matches pair you with a player of similar skill &mdash; your ELO rating changes with every result.</p>
         <p id="ranked-season-line" style="font-size:.72rem;color:var(--muted);margin-bottom:8px"></p>
@@ -1611,6 +1620,19 @@ function createPlayerMesh(teamColor, isKeeper = false, stats, number) {
 
   return group;
 }
+function makeNameSprite(name) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(15,23,42,0.88)'; 
+  // rounded rect
+  const r=12;
+  g.beginPath(); g.moveTo(r,0); g.lineTo(256-r,0); g.quadraticCurveTo(256,0,256,r); g.lineTo(256,64-r); g.quadraticCurveTo(256,64,256-r,64); g.lineTo(r,64); g.quadraticCurveTo(0,64,0,64-r); g.lineTo(0,r); g.quadraticCurveTo(0,0,r,0); g.closePath(); g.fill();
+  g.fillStyle = '#ffffff'; g.font = '600 22px Be Vietnam Pro, sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(name, 128, 34);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
+  const spr = new THREE.Sprite(mat); spr.scale.set(48, 12, 1); spr.position.y = 42; return spr;
+}
 
 function addBenchPlayers() {
   const group = new THREE.Group();
@@ -2363,6 +2385,11 @@ function rebuildPlayers() {
     const num = i === 0 ? 1 : (i === 1 ? 7 : 10);
     const mesh = createPlayerMesh(hexToThree(CUST_TEAM_A), i === 0, p.stats, num);
     mesh.position.copy(serverToWorld(p.x, p.y));
+    if (p.name) {
+      const lbl = makeNameSprite(p.name);
+      lbl.position.y = 38;
+      mesh.add(lbl);
+    }
     playerMeshesA.push(mesh);
     scene.add(mesh);
   }
@@ -2371,6 +2398,11 @@ function rebuildPlayers() {
     const num = i === 0 ? 1 : (i === 1 ? 7 : 10);
     const mesh = createPlayerMesh(hexToThree(CUST_TEAM_B), i === 0, p.stats, num);
     mesh.position.copy(serverToWorld(p.x, p.y));
+    if (p.name) {
+      const lbl = makeNameSprite(p.name);
+      lbl.position.y = 38;
+      mesh.add(lbl);
+    }
     playerMeshesB.push(mesh);
     scene.add(mesh);
   }
@@ -2423,6 +2455,82 @@ document.addEventListener('keydown', (e) => {
 let _isSprinting = false;
 document.addEventListener('keydown', e=>{ if(e.key.toLowerCase()==='e') _isSprinting=true; });
 document.addEventListener('keyup', e=>{ if(e.key.toLowerCase()==='e') _isSprinting=false; });
+
+
+// ── Teams — choose team, cannot pick same, player names ─────────────────
+let TEAMS_CACHE = [];
+async function loadTeams() {
+  try {
+    const r = await fetch('/api/teams');
+    const teams = await r.json();
+    TEAMS_CACHE = teams;
+    const aSel = document.getElementById('team-a-select');
+    const bSel = document.getElementById('team-b-select');
+    if (!aSel || !bSel) return;
+    aSel.innerHTML = '<option value="">— Team A —</option>';
+    bSel.innerHTML = '<option value="">— Team B —</option>';
+    for (const tm of teams) {
+      const o1 = document.createElement('option'); o1.value = tm.id; o1.textContent = tm.crest + ' ' + tm.name;
+      const o2 = o1.cloneNode(true);
+      aSel.appendChild(o1); bSel.appendChild(o2);
+    }
+    // set defaults from current gameState or room
+    if (typeof gameState !== 'undefined' && gameState) {
+      if (gameState.team_a) aSel.value = gameState.team_a;
+      if (gameState.team_b) bSel.value = gameState.team_b;
+    }
+  } catch(e) {}
+}
+loadTeams();
+async function chooseTeam(side, teamId) {
+  const errEl = document.getElementById('team-error');
+  if (errEl) errEl.style.display='none';
+  // offline: just save to local and reset game with team
+  if (!ONLINE.active) {
+    // store in localStorage and trigger reset with team
+    localStorage.setItem('team_' + side, teamId);
+    // disable same team on other select
+    const other = side === 'a' ? document.getElementById('team-b-select') : document.getElementById('team-a-select');
+    if (other) {
+      for (const opt of other.options) { opt.disabled = (opt.value && opt.value === teamId); }
+    }
+    // if both chosen, auto reset with teams
+    const a = document.getElementById('team-a-select').value;
+    const b = document.getElementById('team-b-select').value;
+    if (a && b) {
+      if (a === b) {
+        if (errEl) { errEl.textContent = 'Teams must be different — 2 players cannot choose same team'; errEl.style.display='block'; }
+        return;
+      }
+      // inject colors and names via reset
+      const teamA = TEAMS_CACHE.find(t=>t.id===a);
+      const teamB = TEAMS_CACHE.find(t=>t.id===b);
+      if (teamA) CUST_TEAM_A = teamA.primary;
+      if (teamB) CUST_TEAM_B = teamB.primary;
+      await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b})});
+      const st = await fetch('/state').then(r=>r.json());
+      gameState = st; rebuildPlayers(); updateHUD(st);
+    }
+    return;
+  }
+  // online: POST to room
+  if (!ONLINE.roomId) return;
+  const r = await fetch('/online/' + ONLINE.roomId + '/team', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_id: teamId})});
+  const d = await r.json();
+  if (!r.ok) {
+    if (errEl) { errEl.textContent = d.error || 'Team taken'; errEl.style.display='block'; }
+    // revert select
+    loadTeams();
+    return;
+  }
+  // success: update UI, disable same team on other side
+  const otherSel = side === 'a' ? document.getElementById('team-b-select') : document.getElementById('team-a-select');
+  if (otherSel) {
+    for (const opt of otherSel.options) { opt.disabled = (opt.value && opt.value === teamId); }
+  }
+}
+document.getElementById('team-a-select')?.addEventListener('change', e=> chooseTeam('a', e.target.value));
+document.getElementById('team-b-select')?.addEventListener('change', e=> chooseTeam('b', e.target.value));
 
 // ── Referee (cosmetic, driven by server state / trajectory "ref" frames) ────
 const refereeMesh = (() => {

@@ -184,6 +184,10 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "ai_model_a":   state.get("model_name_a", "greedy"),
         "move_history": state.get("move_history", []),
         "referee":     state.get("referee", {"x": 400.0, "y": 420.0}),
+        "team_a":      state.get("team_a"),
+        "team_a_name": state.get("team_a_name"),
+        "team_b":      state.get("team_b"),
+        "team_b_name": state.get("team_b_name"),
     }
     if extra:
         result.update(extra)
@@ -887,6 +891,43 @@ def reset_game():
         from models.soccer_logic import inject_player_stats
         pstats = cust.get("player_stats", {})
         inject_player_stats(state, pstats.get("a"), pstats.get("b"))
+        # Teams (choose team) — inject names and colors
+        try:
+            from db.teams import get_team, team_for_players
+            # allow client to pass team_a/team_b in reset payload
+            team_a_id = (data.get("team_a") or cust.get("team_a") or "brazil")
+            team_b_id = (data.get("team_b") or cust.get("team_b") or "argentina")
+            # enforce not same (server authoritative)
+            if team_a_id == team_b_id:
+                from db.teams import TEAMS as _TL
+                for _cand in _TL:
+                    if _cand["id"] != team_a_id:
+                        team_b_id = _cand["id"]
+                        break
+            ta = get_team(team_a_id)
+            tb = get_team(team_b_id)
+            if ta:
+                state["team_a"] = ta["id"]
+                state["team_a_name"] = ta["name"]
+                state["team_a_crest"] = ta["crest"]
+                # inject player names
+                names_a = team_for_players(ta["id"], pc)
+                for i, pl in enumerate(state["players_a"]):
+                    if i < len(names_a):
+                        pl["name"] = names_a[i]
+                # team colors override customization if team chosen
+                cust["team_a_color"] = ta["primary"]
+            if tb:
+                state["team_b"] = tb["id"]
+                state["team_b_name"] = tb["name"]
+                state["team_b_crest"] = tb["crest"]
+                names_b = team_for_players(tb["id"], pc)
+                for i, pl in enumerate(state["players_b"]):
+                    if i < len(names_b):
+                        pl["name"] = names_b[i]
+                cust["team_b_color"] = tb["primary"]
+        except Exception as e:
+            pass
         # Keeper PlayStyles (EA FC 25 — 6 keeper styles)
         state["keeper_style_a"] = cust.get("keeper_style_a", "default")
         state["keeper_style_b"] = cust.get("keeper_style_b", "default")
@@ -2439,6 +2480,59 @@ def spectate_room(room_id):
                            highlights=[], highlight=None, live_room=room_id,
                            loss_model=None, loss_model_name=None)
 
+
+
+# ── Teams (choose team, cannot pick same as opponent) ─────────────────────
+@app.route("/api/teams")
+def api_teams():
+    from db.teams import list_teams
+    return jsonify(list_teams())
+
+@app.route("/online/<room_id>/team", methods=["POST"])
+def online_choose_team(room_id):
+    room = _get_room(room_id)
+    if not room:
+        return jsonify({"error": "Room not found"}), 404
+    if "user_id" not in session:
+        return jsonify({"error": "Not in session"}), 401
+    my_uid = uid()
+    my_side = ("a" if my_uid == room["player_a"] else "b" if my_uid == room["player_b"] else None)
+    if not my_side:
+        return jsonify({"error": "Not a player in this room"}), 403
+    data = request.get_json(silent=True) or {}
+    team_id = (data.get("team_id") or "").strip()
+    from db.teams import TEAMS_BY_ID, team_for_players
+    if team_id not in TEAMS_BY_ID:
+        return jsonify({"error": "Unknown team"}), 400
+    other_team = room.get("team_b") if my_side == "a" else room.get("team_a")
+    if other_team == team_id:
+        return jsonify({"error": "Team already taken by opponent — choose another"}), 409
+    # assign
+    if my_side == "a":
+        room["team_a"] = team_id
+    else:
+        room["team_b"] = team_id
+    # inject player names into game state for that side
+    count = room["game"].get("player_count", 3)
+    names = team_for_players(team_id, count)
+    players = room["game"]["players_a"] if my_side == "a" else room["game"]["players_b"]
+    for i, p in enumerate(players):
+        if i < len(names):
+            p["name"] = names[i]
+    # also update room and game team fields
+    team = TEAMS_BY_ID[team_id]
+    if my_side == "a":
+        room["name_a"] = f"{team['crest']} {team['name']}"
+        room["team_a"] = team_id
+        room["game"]["team_a"] = team_id
+        room["game"]["team_a_name"] = team["name"]
+    else:
+        room["name_b"] = f"{team['crest']} {team['name']}"
+        room["team_b"] = team_id
+        room["game"]["team_b"] = team_id
+        room["game"]["team_b_name"] = team["name"]
+    _save_room(room_id, room)
+    return jsonify({"ok": True, "team_id": team_id, "team": team, "room": {"team_a": room.get("team_a"), "team_b": room.get("team_b")}})
 
 # ── Friend system ─────────────────────────────────────────────────────────────
 
