@@ -1207,12 +1207,17 @@ function makeJerseyTexture(teamHex, num, isKeeper) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 256;
   const g = c.getContext('2d');
   g.fillStyle = teamHex; g.fillRect(0, 0, 256, 256);
-  if (isKeeper) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#facc15'; g.fillRect(0, 92, 256, 28); }
-  else { g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(0, 88, 256, 22); }
+  if (!isKeeper) {
+    const isBlue = teamHex.toLowerCase().includes('3b') || teamHex.toLowerCase().includes('22') || teamHex.toLowerCase().includes('06b6d4');
+    if (isBlue) { g.fillStyle = 'rgba(255,255,255,0.16)'; for (let x=0;x<256;x+=32) g.fillRect(x,0,16,256); }
+    else { g.fillStyle = 'rgba(0,0,0,0.13)'; for (let y=0;y<256;y+=28) g.fillRect(0,y,256,14); g.fillStyle='rgba(255,255,255,0.10)'; for(let y=14;y<256;y+=28) g.fillRect(0,y,256,6); }
+  }
+  if (isKeeper) { g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, 0, 256, 256); g.fillStyle = '#facc15'; g.fillRect(0, 92, 256, 28); g.fillStyle='rgba(0,0,0,0.12)'; g.fillRect(0,120,256,4); }
+  else { g.fillStyle = 'rgba(255,255,255,0.22)'; g.fillRect(0, 86, 256, 24); g.fillStyle='rgba(0,0,0,0.10)'; g.fillRect(0,110,256,3); }
   g.fillStyle = isKeeper ? '#1e293b' : '#ffffff'; g.font = 'bold 96px Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  const txt = String(num ?? 7); g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 6; g.strokeText(txt, 128, 172); g.fillText(txt, 128, 172);
-  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.ellipse(128, 38, 42, 14, 0, 0, Math.PI*2); g.fill();
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; _jerseyCache.set(key, tex); return tex;
+  const txt = String(num ?? 7); g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 7; g.strokeText(txt, 128, 172); g.fillText(txt, 128, 172);
+  g.fillStyle = 'rgba(255,255,255,0.92)'; g.beginPath(); g.ellipse(128, 38, 44, 15, 0, 0, Math.PI*2); g.fill(); g.strokeStyle='rgba(0,0,0,0.15)'; g.lineWidth=2; g.stroke();
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy=8; _jerseyCache.set(key, tex); return tex;
 }
 
 function hexToThree(c) { return new THREE.Color(c); }
@@ -1223,23 +1228,61 @@ function createPlayerMesh(teamColor, isKeeper = false, stats, number) {
   const group = new THREE.Group();
   const hex = teamColor instanceof THREE.Color ? '#' + teamColor.getHexString() : teamColor;
   const jerseyTex = makeJerseyTexture(hex, number ?? (isKeeper ? 1 : 7 + Math.floor(Math.random()*6)), isKeeper);
-  const bodyMat = new THREE.MeshStandardMaterial({ map: jerseyTex, roughness: 0.55, metalness: 0.08 });
-  const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.7 });
-  const shortsMat = new THREE.MeshStandardMaterial({ color: isKeeper ? 0x1e293b : new THREE.Color(hex).offsetHSL(0, -0.1, -0.18).getHex(), roughness: 0.65 });
-  const socksMat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.6 });
-  const bodyH = isKeeper ? 15 : 19;
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.72, r * 0.88, bodyH, 14), bodyMat);
-  torso.position.y = bodyH / 2 + 8; torso.castShadow = true; group.add(torso);
-  const shorts = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.9, r * 0.92, 7, 12), shortsMat);
-  shorts.position.y = 8 + 3.5; shorts.castShadow = true; group.add(shorts);
-  const legGeo = new THREE.CylinderGeometry(r * 0.28, r * 0.22, 9, 8);
-  for (const sx of [-1, 1]) { const leg = new THREE.Mesh(legGeo, skinMat); leg.position.set(sx * r * 0.38, 4, 0); group.add(leg); const sock = new THREE.Mesh(new THREE.CylinderGeometry(r*0.30,r*0.26,6,8), socksMat); sock.position.set(sx*r*0.38,1.2,0); group.add(sock); }
-  const armGeo = new THREE.CylinderGeometry(r * 0.18, r * 0.15, 10, 8);
-  for (const sx of [-1, 1]) { const arm = new THREE.Mesh(armGeo, skinMat); arm.position.set(sx * r * 0.85, bodyH/2+6, 0); arm.rotation.z = sx*0.35; group.add(arm); }
-  const head = new THREE.Mesh(new THREE.SphereGeometry(r * 0.42, 14, 12), skinMat);
-  head.position.y = bodyH + 8 + r * 0.38; head.castShadow = true; group.add(head);
-  const pShadow = new THREE.Mesh(new THREE.CircleGeometry(r * 0.92, 14), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false }));
-  pShadow.rotation.x = -Math.PI / 2; pShadow.position.y = 0.06; group.add(pShadow);
+  const bodyMat = new THREE.MeshStandardMaterial({ map: jerseyTex, roughness: 0.52, metalness: 0.09 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.68 });
+  const shortsMat = new THREE.MeshStandardMaterial({ color: isKeeper ? 0x0f172a : new THREE.Color(hex).offsetHSL(0, -0.12, -0.20).getHex(), roughness: 0.62 });
+  const socksMat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.58 });
+  const bootMat = new THREE.MeshStandardMaterial({ color: 0x0f0f0f, roughness: 0.45, metalness: 0.18 });
+  const hairColors = [0x2b1d0e, 0x3d2817, 0x1a1a1a, 0x8b5a2b, 0xd4a574];
+  const hairCol = hairColors[(number || 7) % hairColors.length];
+  const bodyH = isKeeper ? 15.5 : 19.5;
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.74, r * 0.90, bodyH, 16), bodyMat);
+  torso.position.y = bodyH / 2 + 8.5; torso.castShadow = true; group.add(torso);
+  const shorts = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.92, r * 0.94, 7.5, 14), shortsMat);
+  shorts.position.y = 8.5 + 3.8; shorts.castShadow = true; group.add(shorts);
+  const waist = new THREE.Mesh(new THREE.TorusGeometry(r*0.88, 0.9, 6, 16), new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.5}));
+  waist.position.y = 8.5 + 7.2; waist.rotation.x = Math.PI/2; group.add(waist);
+  const legGeo = new THREE.CylinderGeometry(r * 0.30, r * 0.24, 9.5, 10);
+  const sockGeo = new THREE.CylinderGeometry(r * 0.32, r * 0.28, 6.5, 10);
+  const bootGeo = new THREE.BoxGeometry(r*0.62, 3.2, r*0.95);
+  for (const sx of [-1, 1]) {
+    const leg = new THREE.Mesh(legGeo, skinMat); leg.position.set(sx * r * 0.40, 4.4, 0); group.add(leg);
+    const sock = new THREE.Mesh(sockGeo, socksMat); sock.position.set(sx * r * 0.40, 1.4, 0); group.add(sock);
+    const boot = new THREE.Mesh(bootGeo, bootMat); boot.position.set(sx * r * 0.40, 0.9, r*0.18); boot.castShadow = true; group.add(boot);
+    for (const dx of [-0.18,0.18]) for (const dz of [-0.22,0.22]) {
+      const stud = new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,1.2,6), new THREE.MeshStandardMaterial({color:0x44403c}));
+      stud.position.set(sx*r*0.40 + dx*r, 0.15, dz*r + r*0.18); group.add(stud);
+    }
+  }
+  const armGeo = new THREE.CylinderGeometry(r * 0.19, r * 0.16, 10.5, 10);
+  for (const sx of [-1, 1]) {
+    const arm = new THREE.Mesh(armGeo, skinMat); arm.position.set(sx * r * 0.88, bodyH/2 + 6.5, 0); arm.rotation.z = sx * 0.32; group.add(arm);
+    if (isKeeper) {
+      const glove = new THREE.Mesh(new THREE.SphereGeometry(r*0.28, 10, 8), new THREE.MeshStandardMaterial({color:0xfacc15, roughness:0.5}));
+      glove.position.set(sx * r * 1.18, bodyH/2 -0.5, 0); glove.scale.set(1,0.85,1.15); group.add(glove);
+    } else {
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(r*0.18, 8, 6), skinMat);
+      hand.position.set(sx * r * 1.12, bodyH/2 -0.2, 0); group.add(hand);
+    }
+  }
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r * 0.44, 16, 12), skinMat);
+  head.position.y = bodyH + 8.5 + r * 0.36; head.castShadow = true; group.add(head);
+  const eyeMat = new THREE.MeshBasicMaterial({color:0x1e293b});
+  for (const sx of [-1,1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(r*0.07,6,6), eyeMat);
+    eye.position.set(sx * r*0.18, bodyH+8.5+r*0.42, r*0.36); group.add(eye);
+  }
+  const mouth = new THREE.Mesh(new THREE.CapsuleGeometry(r*0.04, r*0.14, 4, 6), new THREE.MeshBasicMaterial({color:0x7f1d1d}));
+  mouth.position.set(0, bodyH+8.5+r*0.22, r*0.38); mouth.rotation.z = Math.PI/2; group.add(mouth);
+  const hairMat = new THREE.MeshStandardMaterial({color:hairCol, roughness:0.9});
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(r*0.46, 12, 10, 0, Math.PI*2, 0, Math.PI*0.55), hairMat);
+  hair.position.y = bodyH + 8.5 + r*0.62; hair.scale.set(1,0.72,1); group.add(hair);
+  if ((number||0)%3===0) {
+    const tuft = new THREE.Mesh(new THREE.ConeGeometry(r*0.18, r*0.55, 7), hairMat);
+    tuft.position.set(0, bodyH+8.5+r*0.95, 0); tuft.rotation.x = -0.4; group.add(tuft);
+  }
+  const pShadow = new THREE.Mesh(new THREE.CircleGeometry(r * 0.98, 16), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.20, depthWrite: false }));
+  pShadow.rotation.x = -Math.PI / 2; pShadow.position.y = 0.07; group.add(pShadow);
   return group;
 }
 

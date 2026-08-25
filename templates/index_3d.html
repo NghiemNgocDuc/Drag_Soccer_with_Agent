@@ -1468,22 +1468,41 @@ function makeJerseyTexture(teamHex, num, isKeeper) {
   const c = document.createElement('canvas'); c.width = 256; c.height = 256;
   const g = c.getContext('2d');
   g.fillStyle = teamHex; g.fillRect(0, 0, 256, 256);
+  // kit pattern — Team A vertical stripes, Team B hoops (AAA detail)
+  if (!isKeeper) {
+    const isBlue = teamHex.toLowerCase().includes('3b') || teamHex.toLowerCase().includes('22') || teamHex.toLowerCase().includes('06b6d4');
+    if (isBlue) {
+      g.fillStyle = 'rgba(255,255,255,0.16)';
+      for (let x = 0; x < 256; x += 32) g.fillRect(x, 0, 16, 256);
+    } else {
+      g.fillStyle = 'rgba(0,0,0,0.13)';
+      for (let y = 0; y < 256; y += 28) g.fillRect(0, y, 256, 14);
+      g.fillStyle = 'rgba(255,255,255,0.10)';
+      for (let y = 14; y < 256; y += 28) g.fillRect(0, y, 256, 6);
+    }
+  }
   // chest stripe / keeper distinct
   if (isKeeper) {
     g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, 0, 256, 256);
     g.fillStyle = '#facc15'; g.fillRect(0, 92, 256, 28);
+    g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, 120, 256, 4);
   } else {
-    g.fillStyle = 'rgba(255,255,255,0.18)'; g.fillRect(0, 88, 256, 22);
+    g.fillStyle = 'rgba(255,255,255,0.22)'; g.fillRect(0, 86, 256, 24);
+    g.fillStyle = 'rgba(0,0,0,0.10)'; g.fillRect(0, 110, 256, 3);
   }
-  // number
+  // number with double stroke
   g.fillStyle = isKeeper ? '#1e293b' : '#ffffff';
   g.font = 'bold 96px Inter, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   const txt = String(num ?? 7);
-  g.strokeStyle = 'rgba(0,0,0,0.35)'; g.lineWidth = 6; g.strokeText(txt, 128, 172);
+  g.strokeStyle = 'rgba(0,0,0,0.45)'; g.lineWidth = 7; g.strokeText(txt, 128, 172);
   g.fillText(txt, 128, 172);
+  // shoulder piping
+  g.strokeStyle = 'rgba(255,255,255,0.55)'; g.lineWidth = 3;
+  g.beginPath(); g.moveTo(0, 56); g.lineTo(256, 56); g.stroke();
   // collar
-  g.fillStyle = 'rgba(255,255,255,0.85)'; g.beginPath(); g.ellipse(128, 38, 42, 14, 0, 0, Math.PI * 2); g.fill();
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.needsUpdate = true;
+  g.fillStyle = 'rgba(255,255,255,0.92)'; g.beginPath(); g.ellipse(128, 38, 44, 15, 0, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,0.15)'; g.lineWidth = 2; g.stroke();
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; tex.needsUpdate = true;
   _jerseyCache.set(key, tex);
   return tex;
 }
@@ -1494,54 +1513,99 @@ function createPlayerMesh(teamColor, isKeeper = false, stats, number) {
   const group = new THREE.Group();
   const hex = teamColor instanceof THREE.Color ? '#' + teamColor.getHexString() : teamColor;
   const jerseyTex = makeJerseyTexture(hex, number ?? (isKeeper ? 1 : 7 + Math.floor(Math.random()*6)), isKeeper);
-  const bodyMat = new THREE.MeshStandardMaterial({ map: jerseyTex, roughness: 0.55, metalness: 0.08 });
-  const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.7 });
-  const shortsMat = new THREE.MeshStandardMaterial({ color: isKeeper ? 0x1e293b : new THREE.Color(hex).offsetHSL(0, -0.1, -0.18).getHex(), roughness: 0.65 });
-  const socksMat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.6 });
+  const bodyMat = new THREE.MeshStandardMaterial({ map: jerseyTex, roughness: 0.52, metalness: 0.09 });
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0xffccaa, roughness: 0.68 });
+  const shortsMat = new THREE.MeshStandardMaterial({ color: isKeeper ? 0x0f172a : new THREE.Color(hex).offsetHSL(0, -0.12, -0.20).getHex(), roughness: 0.62 });
+  const socksMat = new THREE.MeshStandardMaterial({ color: hex, roughness: 0.58 });
+  const bootMat = new THREE.MeshStandardMaterial({ color: 0x0f0f0f, roughness: 0.45, metalness: 0.18 });
+  const hairColors = [0x2b1d0e, 0x3d2817, 0x1a1a1a, 0x8b5a2b, 0xd4a574];
+  const hairCol = hairColors[(number || 7) % hairColors.length];
 
-  const bodyH = isKeeper ? 15 : 19;
-  const torso = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.72, r * 0.88, bodyH, 14), bodyMat);
-  torso.position.y = bodyH / 2 + 8;
+  const bodyH = isKeeper ? 15.5 : 19.5;
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.74, r * 0.90, bodyH, 16), bodyMat);
+  torso.position.y = bodyH / 2 + 8.5;
   torso.castShadow = true;
   group.add(torso);
 
-  // shorts
-  const shorts = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.9, r * 0.92, 7, 12), shortsMat);
-  shorts.position.y = 8 + 3.5;
+  // shorts with waistband
+  const shorts = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.92, r * 0.94, 7.5, 14), shortsMat);
+  shorts.position.y = 8.5 + 3.8;
   shorts.castShadow = true;
   group.add(shorts);
+  const waist = new THREE.Mesh(new THREE.TorusGeometry(r*0.88, 0.9, 6, 16), new THREE.MeshStandardMaterial({color:0xffffff, roughness:0.5}));
+  waist.position.y = 8.5 + 7.2; waist.rotation.x = Math.PI/2; group.add(waist);
 
-  // legs
-  const legGeo = new THREE.CylinderGeometry(r * 0.28, r * 0.22, 9, 8);
+  // legs + socks + boots with studs
+  const legGeo = new THREE.CylinderGeometry(r * 0.30, r * 0.24, 9.5, 10);
+  const sockGeo = new THREE.CylinderGeometry(r * 0.32, r * 0.28, 6.5, 10);
+  const bootGeo = new THREE.BoxGeometry(r*0.62, 3.2, r*0.95);
   for (const sx of [-1, 1]) {
     const leg = new THREE.Mesh(legGeo, skinMat);
-    leg.position.set(sx * r * 0.38, 4, 0);
+    leg.position.set(sx * r * 0.40, 4.4, 0);
     group.add(leg);
-    const sock = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.30, r * 0.26, 6, 8), socksMat);
-    sock.position.set(sx * r * 0.38, 1.2, 0);
+    const sock = new THREE.Mesh(sockGeo, socksMat);
+    sock.position.set(sx * r * 0.40, 1.4, 0);
     group.add(sock);
+    const boot = new THREE.Mesh(bootGeo, bootMat);
+    boot.position.set(sx * r * 0.40, 0.9, r*0.18);
+    boot.castShadow = true;
+    group.add(boot);
+    // studs
+    for (const dx of [-0.18,0.18]) for (const dz of [-0.22,0.22]) {
+      const stud = new THREE.Mesh(new THREE.CylinderGeometry(0.9,0.9,1.2,6), new THREE.MeshStandardMaterial({color:0x44403c}));
+      stud.position.set(sx*r*0.40 + dx*r, 0.15, dz*r + r*0.18);
+      group.add(stud);
+    }
   }
-  // arms
-  const armGeo = new THREE.CylinderGeometry(r * 0.18, r * 0.15, 10, 8);
+  // arms + keeper gloves
+  const armGeo = new THREE.CylinderGeometry(r * 0.19, r * 0.16, 10.5, 10);
   for (const sx of [-1, 1]) {
     const arm = new THREE.Mesh(armGeo, skinMat);
-    arm.position.set(sx * r * 0.85, bodyH/2 + 6, 0);
-    arm.rotation.z = sx * 0.35;
+    arm.position.set(sx * r * 0.88, bodyH/2 + 6.5, 0);
+    arm.rotation.z = sx * 0.32;
     group.add(arm);
+    if (isKeeper) {
+      const glove = new THREE.Mesh(new THREE.SphereGeometry(r*0.28, 10, 8), new THREE.MeshStandardMaterial({color:0xfacc15, roughness:0.5}));
+      glove.position.set(sx * r * 1.18, bodyH/2 -0.5, 0);
+      glove.scale.set(1,0.85,1.15);
+      group.add(glove);
+    } else {
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(r*0.18, 8, 6), skinMat);
+      hand.position.set(sx * r * 1.12, bodyH/2 -0.2, 0);
+      group.add(hand);
+    }
   }
 
-  const head = new THREE.Mesh(new THREE.SphereGeometry(r * 0.42, 14, 12), skinMat);
-  head.position.y = bodyH + 8 + r * 0.38;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(r * 0.44, 16, 12), skinMat);
+  head.position.y = bodyH + 8.5 + r * 0.36;
   head.castShadow = true;
   group.add(head);
+  // face
+  const eyeMat = new THREE.MeshBasicMaterial({color:0x1e293b});
+  for (const sx of [-1,1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(r*0.07,6,6), eyeMat);
+    eye.position.set(sx * r*0.18, bodyH+8.5+r*0.42, r*0.36);
+    group.add(eye);
+  }
+  const mouth = new THREE.Mesh(new THREE.CapsuleGeometry(r*0.04, r*0.14, 4, 6), new THREE.MeshBasicMaterial({color:0x7f1d1d}));
+  mouth.position.set(0, bodyH+8.5+r*0.22, r*0.38); mouth.rotation.z = Math.PI/2; group.add(mouth);
+  // hair
+  const hairMat = new THREE.MeshStandardMaterial({color:hairCol, roughness:0.9});
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(r*0.46, 12, 10, 0, Math.PI*2, 0, Math.PI*0.55), hairMat);
+  hair.position.y = bodyH + 8.5 + r*0.62; hair.scale.set(1,0.72,1); group.add(hair);
+  // hair tuft
+  if ((number||0)%3===0) {
+    const tuft = new THREE.Mesh(new THREE.ConeGeometry(r*0.18, r*0.55, 7), hairMat);
+    tuft.position.set(0, bodyH+8.5+r*0.95, 0); tuft.rotation.x = -0.4; group.add(tuft);
+  }
 
-  // Player shadow
+  // Player shadow soft
   const pShadow = new THREE.Mesh(
-    new THREE.CircleGeometry(r * 0.92, 14),
-    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.18, depthWrite: false })
+    new THREE.CircleGeometry(r * 0.98, 16),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.20, depthWrite: false })
   );
   pShadow.rotation.x = -Math.PI / 2;
-  pShadow.position.y = 0.06;
+  pShadow.position.y = 0.07;
   pShadow.name = 'shadow';
   group.add(pShadow);
 
@@ -1579,6 +1643,40 @@ function addBenchPlayers() {
     }
   }
   scene.add(group);
+}
+function addStadiumDetails() {
+  const roofMat = new THREE.MeshStandardMaterial({color:0x0f172a, roughness:0.85, metalness:0.12});
+  const roofH = 92;
+  // 4 roof slabs over stands
+  const northRoof = new THREE.Mesh(new THREE.BoxGeometry(W+280, 6, 62), roofMat);
+  northRoof.position.copy(serverToWorld(W/2, -34)); northRoof.position.y = roofH; scene.add(northRoof);
+  const southRoof = northRoof.clone(); southRoof.position.copy(serverToWorld(W/2, H+34)); southRoof.position.y = roofH; scene.add(southRoof);
+  const westRoof = new THREE.Mesh(new THREE.BoxGeometry(62, 6, H+100), roofMat);
+  westRoof.position.copy(serverToWorld(-34, H/2)); westRoof.position.y = roofH; scene.add(westRoof);
+  const eastRoof = westRoof.clone(); eastRoof.position.copy(serverToWorld(W+34, H/2)); eastRoof.position.y = roofH; scene.add(eastRoof);
+  // support pillars
+  for (const [sx,sy] of [[W*0.25, -28],[W*0.75,-28],[W*0.25,H+28],[W*0.75,H+28],[-28,H*0.3],[-28,H*0.7],[W+28,H*0.3],[W+28,H*0.7]]) {
+    const pill = new THREE.Mesh(new THREE.CylinderGeometry(3.5,4.2, roofH, 8), new THREE.MeshStandardMaterial({color:0x334155}));
+    pill.position.copy(serverToWorld(sx,sy)); pill.position.y = roofH/2; scene.add(pill);
+  }
+  // scoreboard north stand
+  const boardCan = document.createElement('canvas'); boardCan.width=512; boardCan.height=128;
+  const bctx=boardCan.getContext('2d');
+  bctx.fillStyle='#020617'; bctx.fillRect(0,0,512,128);
+  bctx.fillStyle='#e2e8f0'; bctx.font='bold 44px Space Grotesk'; bctx.textAlign='center'; bctx.fillText('AGENT SOCCER',256,58);
+  bctx.fillStyle='#38bdf8'; bctx.font='600 22px Be Vietnam Pro'; bctx.fillText('LIVE • 0 - 0',256,96);
+  const boardTex=new THREE.CanvasTexture(boardCan); boardTex.colorSpace=THREE.SRGBColorSpace;
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(260, 66), new THREE.MeshBasicMaterial({map:boardTex, transparent:true}));
+  board.position.copy(serverToWorld(W/2, -42)); board.position.y=62; board.lookAt(0,62,0); scene.add(board);
+  window._scoreboardTex = boardTex; window._scoreboardCan = boardCan;
+}
+function updateScoreboard(a,b) {
+  if (!window._scoreboardCan) return;
+  const c=window._scoreboardCan.getContext('2d');
+  c.fillStyle='#020617'; c.fillRect(0,0,512,128);
+  c.fillStyle='#e2e8f0'; c.font='bold 44px Space Grotesk'; c.textAlign='center'; c.fillText('AGENT SOCCER',256,58);
+  c.fillStyle='#38bdf8'; c.font='600 26px Be Vietnam Pro'; c.fillText(a+' - '+b,256,96);
+  window._scoreboardTex.needsUpdate=true;
 }
 
 // ── Game State ──────────────────────────────────────────────────────────────
@@ -2501,6 +2599,7 @@ function updateHUD(st) {
   }
   document.getElementById('score-a').textContent = st.score_a;
   document.getElementById('score-b').textContent = st.score_b;
+  try { updateScoreboard(st.score_a, st.score_b); } catch(_){}
   const tb = document.getElementById('turn-badge');
   const wb = document.getElementById('winner-banner');
   const over = st.game_over;
@@ -3366,6 +3465,7 @@ function setOverlay(show, text) {
   } catch (e) {}
 
   addBenchPlayers();
+  addStadiumDetails();
 
   // Ambient crowd noise starts on first user gesture (unlockAudio above)
 
