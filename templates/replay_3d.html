@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='design-system.css') }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
+@import url('/static/vendor/fonts/space-grotesk.css');
 .replay-controls { display:flex; justify-content:center; gap:15px; margin-top:20px; }
 .btn-play { font-size:1.1rem; padding:10px 25px; }
 .canvas-wrap{
@@ -232,8 +232,8 @@
 <script type="importmap">
 {
   "imports": {
-    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    "three": "/static/vendor/three/three.module.js",
+    "three/addons/": "/static/vendor/three/addons/"
   }
 }
 </script>

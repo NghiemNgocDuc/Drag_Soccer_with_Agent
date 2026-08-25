@@ -18,6 +18,18 @@ from game.session import (
 )
 from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions
 
+# ── Mem0-style memory (short/long) ──────────────────────────────────────────
+try:
+    from services.memory import add_short_game as _mem_short, add_long_preference as _mem_long, summarize_match_to_long as _mem_summ, search as _mem_search, get_all as _mem_all
+    _MEM_ENABLED=True
+except Exception:
+    _MEM_ENABLED=False
+    def _mem_short(*a,**k): return []
+    def _mem_long(*a,**k): return []
+    def _mem_summ(*a,**k): return []
+    def _mem_search(*a,**k): return {"results":[]}
+    def _mem_all(*a,**k): return []
+
 # ── External service initialisation ───────────────────────────────────────
 from services.sentry import init as _sentry_init
 _sentry_init()
@@ -52,6 +64,7 @@ MODELS: dict[str, str] = {
     "value_iteration":  "models.value_iteration",
     "policy_iteration": "models.policy_iteration",
     "q_learning":       "models.q_learning",
+    "langchain":        "models.langchain_model",
 }
 
 _builtin_cache: dict = {}
@@ -196,6 +209,8 @@ def _persist_result(state: dict) -> None:
         )
         _ph.track_game_end(uid(), state.get("game_mode", "hvai"), winner, state["score_a"], state["score_b"])
         _check_casual_achievements(state, uid())
+        try: _mem_summ(uid(), state)
+        except: pass
         _auto_clear_state(uid())
     except Exception as e:
         app.logger.warning("Failed to save game result: %s", e)
@@ -728,6 +743,11 @@ def human_move():
 
     save_game(user_id, state)
     _auto_save_state(user_id, state)
+    try:
+        _mem_short(user_id, state, result)
+        if state.get("game_over"):
+            _mem_summ(user_id, state)
+    except: pass
     return jsonify(_full_state(state, extra))
 
 
@@ -761,6 +781,11 @@ def trigger_ai_move():
         _goal_moment_achievements(result.get("trajectory"))
     save_game(user_id, state)
     _auto_save_state(user_id, state)
+    try:
+        _mem_short(user_id, state, result)
+        if state.get("game_over"):
+            _mem_summ(user_id, state)
+    except: pass
     return jsonify(_full_state(state, {"ai_result": result}))
 
 
@@ -1153,6 +1178,12 @@ def customize_save():
                               f"({defn.get('description', '')})."),
                 }), 403
     ok = save_customization(uid(), cleaned)
+    if ok and cleaned:
+        try:
+            for k,v in cleaned.items():
+                if k != "player_stats":
+                    _mem_long(uid(), k, str(v))
+        except: pass
     return jsonify({"ok": ok})
 
 
@@ -1162,6 +1193,24 @@ def api_customization():
     from db.customization import get_customization
     cust = get_customization(uid())
     return jsonify(cust)
+
+# ── Mem0-style memory API (short vs long) ───────────────────────────────────
+@app.route("/api/memory/search")
+@login_required
+def api_memory_search():
+    q = request.args.get("q","")
+    cat = request.args.get("category")  # long/short or None
+    try: topk=int(request.args.get("top_k",3))
+    except: topk=3
+    if not q:
+        return jsonify({"error":"q required"}),400
+    return jsonify(_mem_search(q, uid(), top_k=topk, category=cat))
+
+@app.route("/api/memory/all")
+@login_required
+def api_memory_all():
+    cat = request.args.get("category")
+    return jsonify({"memories": _mem_all(uid(), category=cat)})
 
 
 @app.route("/my-models")
@@ -2236,6 +2285,8 @@ def online_move(room_id):
         "kick_count": game.get("kick_count", 0),
     })
     room["move_log"] = room["move_log"][-20:]
+    try: _mem_short(my_uid, game, move_res)
+    except: pass
     if game.get("game_over"):
         room["status"] = "done"
         _mark_room_inactive(room_id)
@@ -2246,6 +2297,12 @@ def online_move(room_id):
             # lazily on state polls if the storage write fails.
             _process_ranked_result(room_id, room)
         _save_match_summary(room_id, room)
+        # long-term summarize for both players
+        try:
+            _mem_summ(my_uid, game)
+            other = room["player_b"] if my_side=="a" else room["player_a"]
+            if other: _mem_summ(other, game)
+        except: pass
         _save_room(room_id, room)
     else:
         _save_room(room_id, room)
@@ -2586,6 +2643,9 @@ def chat_send():
             msg = send_dm(my_uid, my_name, conv_id(my_uid, to_uid), body)
     except ChatUnavailable:
         return jsonify({"error": "Chat storage is unavailable right now"}), 503
+    try:
+        _mem_short(uid(), [{"role": "user", "content": body}], category="short", metadata={"scope": scope, "scope_id": data.get("scope_id") or data.get("to_uid")})
+    except: pass
     return jsonify({"ok": True, "message": msg})
 
 

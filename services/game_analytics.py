@@ -17,6 +17,7 @@ _BUILTIN_MODEL_PATHS: dict[str, str] = {
     "value_iteration":  "models.value_iteration",
     "policy_iteration": "models.policy_iteration",
     "q_learning":       "models.q_learning",
+    "langchain":        "models.langchain_model",
 }
 
 MODEL_CATALOG: list[dict] = [
@@ -27,6 +28,7 @@ MODEL_CATALOG: list[dict] = [
     {"id": "value_iteration",  "name": "Value Iteration"},
     {"id": "policy_iteration", "name": "Policy Iteration"},
     {"id": "q_learning",       "name": "Q-Learning"},
+    {"id": "langchain",        "name": "LangChain Tactician"},
 ]
 
 _MODULE_CACHE: dict = {}
