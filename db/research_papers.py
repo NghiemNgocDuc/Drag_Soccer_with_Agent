@@ -85,7 +85,7 @@ def update_paper_notes(user_id: str, paper_id: str, notes: str, tags: list[str] 
         return _dev_update_notes(user_id, paper_id, notes, tags)
 
 
-# ── In-memory dev fallback ───────────────────────────────────────────────
+#  In-memory dev fallback 
 
 _DEV_STORE: dict[str, list[dict]] = {}
 

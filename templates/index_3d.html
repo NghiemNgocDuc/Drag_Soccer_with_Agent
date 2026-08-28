@@ -102,7 +102,7 @@
         <div class="turn-badge turn-a" id="turn-badge">Your turn</div>
         <div class="kick-counter" id="game-clock">00:00</div>
         <div class="winner-banner" id="winner-banner"></div>
-        <button class="btn btn-primary btn-sm" id="match-share-btn" style="display:none;margin-top:6px" onclick="shareMatchSummary()">🔗 Share match summary</button>
+        <button class="btn btn-primary btn-sm" id="match-share-btn" style="display:none;margin-top:6px" onclick="shareMatchSummary()"> Share match summary</button>
         <span id="match-share-msg" style="font-size:.75rem;color:#059669;display:none;margin-top:4px"></span>
       </div>
       <div class="team team-b">
@@ -161,7 +161,7 @@
     <div class="sep"></div>
     <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
     <div class="sep"></div>
-    <button class="btn btn-ghost" id="view-settings-btn" onclick="showViewSettings(true)" title="View settings — 120s to choose">⚙️ View</button>
+    <button class="btn btn-ghost" id="view-settings-btn" onclick="showViewSettings(true)" title="View settings — 120s to choose"> View</button>
   </div>
 
   <div class="glass log-panel" id="log-panel"></div>
@@ -187,13 +187,26 @@
       </div>
       <div id="online-lobby-waiting">Waiting for your opponent to join&hellip;</div>
       <div id="team-chooser" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
-        <p style="font-size:.82rem;font-weight:700;margin-bottom:6px">🌍 Choose Team — 2 players cannot pick same team</p>
+        <p style="font-size:.82rem;font-weight:700;margin-bottom:6px"> Choose Team — 2 players cannot pick same team</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <select id="team-a-select" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team A — loading...</option></select>
           <select id="team-b-select" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team B — loading...</option></select>
         </div>
         <p id="team-error" style="font-size:.72rem;color:#ef4444;margin-top:6px;display:none"></p>
-        <p style="font-size:.68rem;color:#64748b;margin-top:4px">Player names will appear above kits</p>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <div style="flex:1">
+            <label style="font-size:.68rem;font-weight:600;color:#475569">Formation A</label>
+            <select id="formation-a-select" style="width:100%;padding:6px;border-radius:8px;border:1px solid rgba(148,163,184,.4);font-size:.78rem"></select>
+            <div id="manager-a" style="font-size:.68rem;color:#64748b;margin-top:2px"></div>
+          </div>
+          <div style="flex:1">
+            <label style="font-size:.68rem;font-weight:600;color:#475569">Formation B</label>
+            <select id="formation-b-select" style="width:100%;padding:6px;border-radius:8px;border:1px solid rgba(148,163,184,.4);font-size:.78rem"></select>
+            <div id="manager-b" style="font-size:.68rem;color:#64748b;margin-top:2px"></div>
+          </div>
+        </div>
+        <p style="font-size:.68rem;color:#64748b;margin-top:4px">Player names will appear above kits — default 7 players (formation tied to manager, changeable before kickoff)</p>
+        <p id="referee-display" style="font-size:.75rem;color:#334155;margin-top:6px;font-weight:600"></p>
       </div>
       <div id="online-lobby-ranked" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
         <p style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Ranked matches pair you with a player of similar skill &mdash; your ELO rating changes with every result.</p>
@@ -210,11 +223,11 @@
   <!-- View settings (multiplayer) — 120s timeout to choose -->
   <div class="online-modal" id="view-settings-modal">
     <div class="online-modal-card">
-      <h3>⚙️ View Settings</h3>
+      <h3> View Settings</h3>
       <p style="font-size:.84rem;color:#475569">Choose camera view. <span id="view-timeout-text" style="font-weight:700;color:#0ea5e9">120s</span> to decide — auto-closes after timeout.</p>
       <div style="display:flex;gap:10px;margin-top:10px">
-        <button class="btn btn-primary" id="view-top-btn" onclick="setViewMode('top')">⬆️ From Above (Top)</button>
-        <button class="btn btn-ghost" id="view-player-btn" onclick="setViewMode('player')">🎮 Player View</button>
+        <button class="btn btn-primary" id="view-top-btn" onclick="setViewMode('top')"> From Above (Top)</button>
+        <button class="btn btn-ghost" id="view-player-btn" onclick="setViewMode('player')"> Player View</button>
       </div>
       <p id="view-current" style="font-size:.78rem;color:#64748b;margin-top:10px">Current: Top View</p>
       <div class="row" style="margin-top:12px"><button class="btn btn-ghost" onclick="showViewSettings(false)">Close</button></div>
@@ -222,6 +235,35 @@
   </div>
   <div id="match-chat-wrap"></div>
 
+  <!-- Offline Chatbot (no API) -->
+  <button id="bot-btn" onclick="toggleBot()" title="Ask the offline assistant" style="position:fixed;right:16px;bottom:90px;z-index:60;background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.7);border-radius:999px;padding:8px 12px;font-size:.85rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(2,6,23,.15)"> Assistant</button>
+  <div id="bot-panel" style="display:none;flex-direction:column;position:fixed;right:16px;bottom:130px;width:340px;height:380px;z-index:60;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.7);border-radius:16px;box-shadow:0 12px 32px rgba(2,6,23,.18);overflow:hidden">
+    <div style="padding:10px 12px;border-bottom:1px solid rgba(226,232,240,.8);display:flex;justify-content:space-between;align-items:center">
+      <strong style="font-size:.85rem">Assistant (offline)</strong><button onclick="toggleBot()" style="border:none;background:transparent;cursor:pointer;font-size:1.1rem"></button>
+    </div>
+    <div id="bot-log" style="flex:1;overflow:auto;padding:10px;font-size:.82rem;line-height:1.45"></div>
+    <div style="display:flex;gap:6px;padding:8px;border-top:1px solid rgba(226,232,240,.8)">
+      <input id="bot-in" placeholder="Ask about rules, teams, formations..." style="flex:1;padding:8px 10px;border-radius:10px;border:1px solid #cbd5e1;font-size:.85rem" onkeydown="if(event.key==='Enter')sendBot()">
+      <button onclick="sendBot()" class="btn btn-primary btn-sm">Send</button>
+    </div>
+  </div>
+  <script>
+  function toggleBot(){ const p=document.getElementById('bot-panel'); p.style.display = (p.style.display==='none'||!p.style.display||p.style.display==='') ? 'flex' : 'none'; if(p.style.display==='flex') document.getElementById('bot-in').focus(); }
+  async function sendBot(){
+    const i=document.getElementById('bot-in'), m=i.value.trim(); if(!m) return; i.value='';
+    const log=document.getElementById('bot-log');
+    const esc=s=>{const d=document.createElement('div'); d.textContent=s; return d.innerHTML;};
+    log.innerHTML += '<div style="margin:6px 0"><span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:4px 8px;font-size:.75rem">You</span> '+esc(m)+'</div>';
+    log.scrollTop=log.scrollHeight;
+    try{
+      const r=await fetch('/api/chatbot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m})});
+      const d=await r.json();
+      const ans=d.response||d.error||'No response';
+      log.innerHTML += '<div style="margin:6px 0;background:rgba(241,245,249,.9);border-radius:10px;padding:8px">'+esc(ans)+'</div>';
+    }catch(e){ log.innerHTML += '<div style="color:#ef4444">Network error</div>'; }
+    log.scrollTop=log.scrollHeight;
+  }
+  </script>
   <!-- Voice chat (1v1 online only) -->
   <button id="voice-btn" onclick="voiceToggle()" title="Enable voice chat (microphone)">&#127908; Voice</button>
   <div id="voice-panel">
@@ -253,11 +295,11 @@
 </script>
 
 <script type="module">
-// ── Imports ─────────────────────────────────────────────────────────────────
+//  Imports 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// ── Constants (server-space) ────────────────────────────────────────────────
+//  Constants (server-space) 
 const W = 1400, H = 875;
 const PLAYER_R = 20, BALL_R = 12;
 const GOAL_Y1 = 356, GOAL_Y2 = 519, GOAL_DEPTH = 50;
@@ -265,7 +307,7 @@ const PLAYER_TRAVEL = 8.0;
 const PENALTY_SPOT_X_A = W * 0.79, PENALTY_SPOT_X_B = W * 0.21;
 const PENALTY_KEEPER_X_A = W * 0.95, PENALTY_KEEPER_X_B = W * 0.05;
 
-// ── Coordinate mapping (the ONE place axis-swap lives) ───────────────────────
+//  Coordinate mapping (the ONE place axis-swap lives) 
 // Server space: x 0-W (left-right), y 0-H (top-left origin, y-down), z 0+ (height)
 function serverToWorld(sx, sy, sz) {
   if (sz === undefined) sz = 0;
@@ -311,7 +353,7 @@ controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MO
 controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
 controls.update();
 
-// ── Audio: synthesized SoundManager (zero assets) + 3D positional sound ─────
+//  Audio: synthesized SoundManager (zero assets) + 3D positional sound 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 SoundManager.attach(audioCtx);
 const listener = new THREE.AudioListener(audioCtx);
@@ -349,7 +391,7 @@ function playPositional(buf, worldPos, opts) {
   }
 })();
 
-// ── Lights ──────────────────────────────────────────────────────────────────
+//  Lights 
 const ambientLight = new THREE.AmbientLight(0x8899bb, 0.6);
 scene.add(ambientLight);
 
@@ -373,7 +415,7 @@ const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
 fillLight.position.set(-200, 300, -300);
 scene.add(fillLight);
 
-// ── Sky & environment (scene presets from customization bg_scene) ───────────
+//  Sky & environment (scene presets from customization bg_scene) 
 const FLOODLIGHT_COLORS = {
   warm: 0xffd9a0, cool: 0xa8d8ff, red: 0xff7b7b, purple: 0xc084fc,
 };
@@ -469,7 +511,7 @@ const starField = new THREE.Points(
 starField.visible = false;
 scene.add(starField);
 
-// ── Sun (visible disc + soft halo) ────────────────────────────────────────
+//  Sun (visible disc + soft halo) 
 const sunMesh = new THREE.Mesh(
   new THREE.SphereGeometry(170, 32, 32),
   new THREE.MeshBasicMaterial({ color: 0xfff6d6, fog: false })
@@ -481,7 +523,7 @@ const sunHalo = new THREE.Mesh(
 sunMesh.add(sunHalo);
 scene.add(sunMesh);
 
-// ── Clouds (fluffy billboard clusters, slow drift) ────────────────────────
+//  Clouds (fluffy billboard clusters, slow drift) 
 const cloudGroup = new THREE.Group();
 function makeCloudCluster(cx, cy, cz, scale, opacity) {
   const g = new THREE.Group();
@@ -628,7 +670,7 @@ window.__sceneInfo = () => ({
 });
 window.__setScene = applyScene;
 
-// ── Field ───────────────────────────────────────────────────────────────────
+//  Field 
 const fieldGroup = new THREE.Group();
 scene.add(fieldGroup);
 
@@ -691,7 +733,7 @@ fieldGroup.add(line2d(W, 0, W, H));
 fieldGroup.add(line2d(W, H, 0, H));
 fieldGroup.add(line2d(0, H, 0, 0));
 
-// ── FIFA Law 1 markings (105m × 68m → 1400×875 → 13.33/12.87 px/m) ──
+//  FIFA Law 1 markings (105m × 68m → 1400×875 → 13.33/12.87 px/m) 
 // Reference: github.com/roboflow/sports SoccerPitchConfiguration + IFAB Law 1
 // PA 16.5m depth, 40.32m width; GA 5.5m depth, 18.32m width; spot 11m; center/arc 9.15m; corner 1m
 const FIFA_LEN = 105, FIFA_WID = 68;
@@ -795,7 +837,7 @@ for (const [cx, cy] of [[0,0],[W,0],[0,H],[W,H]]) {
     ll.position.y = 0.3;     fieldGroup.add(ll);
   }
 }
-// ── LED perimeter boards (stadium) ───────────────────────────────────────
+//  LED perimeter boards (stadium) 
 (() => {
   const ledH = 14, ledY = 7;
   function makeLEDCanvas(text) {
@@ -823,7 +865,7 @@ for (const [cx, cy] of [[0,0],[W,0],[0,H],[W,H]]) {
   tick();
 })();
 
-// ── Goals ───────────────────────────────────────────────────────────────────
+//  Goals 
 const goalGroup = new THREE.Group();
 scene.add(goalGroup);
 const POST_R = 4;
@@ -905,7 +947,7 @@ function buildGoal(side) {
     g.add(cb);
   }
 
-  // ── Net: back + top + 2 side panels, static sag (baked once at build) ─────
+  //  Net: back + top + 2 side panels, static sag (baked once at build) 
   // Real-net shape: back panel + sloped top panel (crossbar → lower back edge)
   // + side panels. Vertices are displaced once to a fixed sag curve — zero
   // per-frame cost, no physics involvement.
@@ -1033,7 +1075,7 @@ if (new URLSearchParams(location.search).has('netinfo')) {
   document.title = JSON.stringify(window.__netInfo());
 }
 
-// ── Crowd ────────────────────────────────────────────────────────────────────
+//  Crowd 
 const CROWD_PALETTES = {
   classic:['#ef4444','#3b82f6','#f59e0b','#10b981','#8b5cf6','#ec4899','#f8fafc','#6366f1','#14b8a6','#f97316'],
   team_a:null, team_b:null,
@@ -1076,7 +1118,7 @@ function _genSpriteSheet() {
 
 function createCrowd(paletteArr) {
   const tex = _genSpriteSheet();
-  // ── Expanded stadium bowl: extends 34–146px beyond pitch, 8 rows tiered ──
+  //  Expanded stadium bowl: extends 34–146px beyond pitch, 8 rows tiered 
   // Crowd sits on rising bleachers; each row is 10px higher and 16px further out.
   // North half blue, south half red everywhere (z>0 → blue).
   const endZ0 = H / 2 + 34, endZStep = 16, endRows = 8;
@@ -1089,7 +1131,7 @@ function createCrowd(paletteArr) {
     { x0: sideX0, xStep: sideXStep, xRows: sideRows, z0: -sideZSpan, zStep: 14 },
     { x0: -sideX0, xStep: -sideXStep, xRows: sideRows, z0: -sideZSpan, zStep: 14 },
   ];
-  // ── Stadium concrete tiers (visible bowl under the crowd) ──
+  //  Stadium concrete tiers (visible bowl under the crowd) 
   const bowl = new THREE.Group();
   const tierMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
   const tierDark = new THREE.MeshStandardMaterial({ color: 0x0f1a2a, roughness: 0.9 });
@@ -1318,7 +1360,7 @@ function tickFallbackCrowd(dt) {
   }
 }
 
-// ── Ball ────────────────────────────────────────────────────────────────────
+//  Ball 
 // Procedural classic-ball texture (white + dark patches + seams) so spin reads
 function makeBallTexture() {
   const c = document.createElement('canvas');
@@ -1394,7 +1436,7 @@ shadowMesh.rotation.x = -Math.PI / 2;
 shadowMesh.position.set(0, 0.1, 0);
 scene.add(shadowMesh);
 
-// ── Bounce dust (small puff on ground impact) ──────────────────────────────
+//  Bounce dust (small puff on ground impact) 
 const DUST_COUNT = 10;
 let dustMesh = null;
 let dust = null;
@@ -1467,7 +1509,7 @@ let prevBz = 0;
 let squashActive = false;
 let squashT = 0;
 
-// ── Players (improved — jersey texture, kit, limbs) ─────────────────────────
+//  Players (improved — jersey texture, kit, limbs) 
 const playerMeshesA = [];
 const playerMeshesB = [];
 const _jerseyCache = new Map();
@@ -1701,14 +1743,14 @@ function updateScoreboard(a,b) {
   window._scoreboardTex.needsUpdate=true;
 }
 
-// ── Game State ──────────────────────────────────────────────────────────────
+//  Game State 
 let gameState = null;
 let isAnimating = false;
 let animSpeed = 1.0;
 let _skipKickerIdx = -1;
 let _skipKickerTeam = '';
 
-// ── Online match (chat-enabled 1v1 room mode) ───────────────────────────────
+//  Online match (chat-enabled 1v1 room mode) 
 const ONLINE = {
   active: false, roomId: null, side: null, ranked: false,
   nameA: '', nameB: '', lastKick: -1,
@@ -1909,7 +1951,7 @@ async function shareMatchSummary() {
 }
 window.shareMatchSummary = shareMatchSummary;
 
-// ── Ranked queue (ELO matchmaking, human players) ─────────────────────────
+//  Ranked queue (ELO matchmaking, human players) 
 const RANKED = { active: false, timer: null, delta: null };
 
 window.rankedJoin = async function() {
@@ -1984,7 +2026,7 @@ window.rankedCancel = async function() {
   try { await fetch('/ranked/cancel', { method: 'POST' }); } catch (e) { /* ignore */ }
 };
 
-// ── Voice chat (1v1 P2P WebRTC, STUN-only) ────────────────────────────────
+//  Voice chat (1v1 P2P WebRTC, STUN-only) 
 const VOICE = {
   pc: null, localStream: null, localTrack: null, audioEl: null,
   enabled: false, connected: false, after: -1, oppMuted: false,
@@ -2089,7 +2131,7 @@ function updateVoiceState() {
 
 function updateVoiceMicBtn() {
   const muted = !VOICE.localTrack || !VOICE.localTrack.enabled;
-  voiceMicBtn().textContent = muted ? '🔇' : '🎤';
+  voiceMicBtn().textContent = muted ? '' : '';
   voiceMicBtn().classList.toggle('muted', muted);
   voiceMicBtn().title = muted ? 'Unmute microphone' : 'Mute microphone';
 }
@@ -2423,7 +2465,7 @@ function updatePlayerPositions() {
   }
 }
 
-// ── Pass types & player switching (open-soccer style: S/A/W + Q/C) ──────
+//  Pass types & player switching (open-soccer style: S/A/W + Q/C) 
 let passType = 'normal';
 window.setPassType = function(t) {
   passType = t;
@@ -2457,7 +2499,7 @@ document.addEventListener('keydown', e=>{ if(e.key.toLowerCase()==='e') _isSprin
 document.addEventListener('keyup', e=>{ if(e.key.toLowerCase()==='e') _isSprinting=false; });
 
 
-// ── Teams — choose team, cannot pick same, player names ─────────────────
+//  Teams — choose team, cannot pick same, player names 
 let TEAMS_CACHE = [];
 async function loadTeams() {
   try {
@@ -2482,6 +2524,56 @@ async function loadTeams() {
   } catch(e) {}
 }
 loadTeams();
+async function loadFormations() {
+  try {
+    const r = await fetch('/api/formations');
+    const data = await r.json();
+    const aSel = document.getElementById('formation-a-select');
+    const bSel = document.getElementById('formation-b-select');
+    if (!aSel || !bSel) return;
+    aSel.innerHTML = ''; bSel.innerHTML = '';
+    for (const f of data.formations) {
+      const o1 = document.createElement('option'); o1.value=f; o1.textContent=f;
+      const o2 = o1.cloneNode(true);
+      aSel.appendChild(o1); bSel.appendChild(o2);
+    }
+    // set to manager defaults
+    const updateManager = (teamId, side) => {
+      const mgr = data.managers[teamId];
+      const el = document.getElementById(side==='a' ? 'manager-a' : 'manager-b');
+      const sel = document.getElementById(side==='a' ? 'formation-a-select' : 'formation-b-select');
+      if (mgr && el) el.textContent = 'Manager: ' + mgr.name + ' (' + mgr.style + ')';
+      if (mgr && sel) sel.value = mgr.formation;
+    };
+    // hook team change to update manager/formation
+    document.getElementById('team-a-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'a'); });
+    document.getElementById('team-b-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'b'); });
+    // also listen formation change to trigger reset
+    aSel.addEventListener('change', async e => {
+      const a = document.getElementById('team-a-select').value;
+      const b = document.getElementById('team-b-select').value;
+      if (a && b && a!==b) {
+        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: e.target.value, formation_b: bSel.value})});
+        const st = await fetch('/state').then(r=>r.json()); gameState=st; rebuildPlayers(); updateHUD(st);
+      }
+    });
+    bSel.addEventListener('change', async e => {
+      const a = document.getElementById('team-a-select').value;
+      const b = document.getElementById('team-b-select').value;
+      if (a && b && a!==b) {
+        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: aSel.value, formation_b: e.target.value})});
+        const st = await fetch('/state').then(r=>r.json()); gameState=st; rebuildPlayers(); updateHUD(st);
+      }
+    });
+    // referee
+    const refR = await fetch('/api/referees').then(r=>r.json());
+    const ref = refR[Math.floor(Math.random()*refR.length)];
+    const refEl = document.getElementById('referee-display');
+    if (refEl) refEl.textContent = 'Referee: ' + ref.name + ' (' + ref.country + ')';
+  } catch(e) {}
+}
+loadFormations();
+
 async function chooseTeam(side, teamId) {
   const errEl = document.getElementById('team-error');
   if (errEl) errEl.style.display='none';
@@ -2494,20 +2586,28 @@ async function chooseTeam(side, teamId) {
     if (other) {
       for (const opt of other.options) { opt.disabled = (opt.value && opt.value === teamId); }
     }
-    // if both chosen, auto reset with teams
+    // also update formation to manager default
+    try {
+      const r = await fetch('/api/formations').then(x=>x.json());
+      const mgr = r.managers[teamId];
+      const fSel = document.getElementById(side==='a' ? 'formation-a-select' : 'formation-b-select');
+      if (mgr && fSel) { fSel.value = mgr.formation; document.getElementById(side==='a' ? 'manager-a' : 'manager-b').textContent = 'Manager: ' + mgr.name; }
+    } catch(e) {}
+    // if both chosen, auto reset with teams + formations
     const a = document.getElementById('team-a-select').value;
     const b = document.getElementById('team-b-select').value;
+    const fa = document.getElementById('formation-a-select').value;
+    const fb = document.getElementById('formation-b-select').value;
     if (a && b) {
       if (a === b) {
         if (errEl) { errEl.textContent = 'Teams must be different — 2 players cannot choose same team'; errEl.style.display='block'; }
         return;
       }
-      // inject colors and names via reset
       const teamA = TEAMS_CACHE.find(t=>t.id===a);
       const teamB = TEAMS_CACHE.find(t=>t.id===b);
       if (teamA) CUST_TEAM_A = teamA.primary;
       if (teamB) CUST_TEAM_B = teamB.primary;
-      await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b})});
+      await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: fa, formation_b: fb})});
       const st = await fetch('/state').then(r=>r.json());
       gameState = st; rebuildPlayers(); updateHUD(st);
     }
@@ -2521,6 +2621,56 @@ async function chooseTeam(side, teamId) {
     if (errEl) { errEl.textContent = d.error || 'Team taken'; errEl.style.display='block'; }
     // revert select
     loadTeams();
+async function loadFormations() {
+  try {
+    const r = await fetch('/api/formations');
+    const data = await r.json();
+    const aSel = document.getElementById('formation-a-select');
+    const bSel = document.getElementById('formation-b-select');
+    if (!aSel || !bSel) return;
+    aSel.innerHTML = ''; bSel.innerHTML = '';
+    for (const f of data.formations) {
+      const o1 = document.createElement('option'); o1.value=f; o1.textContent=f;
+      const o2 = o1.cloneNode(true);
+      aSel.appendChild(o1); bSel.appendChild(o2);
+    }
+    // set to manager defaults
+    const updateManager = (teamId, side) => {
+      const mgr = data.managers[teamId];
+      const el = document.getElementById(side==='a' ? 'manager-a' : 'manager-b');
+      const sel = document.getElementById(side==='a' ? 'formation-a-select' : 'formation-b-select');
+      if (mgr && el) el.textContent = 'Manager: ' + mgr.name + ' (' + mgr.style + ')';
+      if (mgr && sel) sel.value = mgr.formation;
+    };
+    // hook team change to update manager/formation
+    document.getElementById('team-a-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'a'); });
+    document.getElementById('team-b-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'b'); });
+    // also listen formation change to trigger reset
+    aSel.addEventListener('change', async e => {
+      const a = document.getElementById('team-a-select').value;
+      const b = document.getElementById('team-b-select').value;
+      if (a && b && a!==b) {
+        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: e.target.value, formation_b: bSel.value})});
+        const st = await fetch('/state').then(r=>r.json()); gameState=st; rebuildPlayers(); updateHUD(st);
+      }
+    });
+    bSel.addEventListener('change', async e => {
+      const a = document.getElementById('team-a-select').value;
+      const b = document.getElementById('team-b-select').value;
+      if (a && b && a!==b) {
+        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: aSel.value, formation_b: e.target.value})});
+        const st = await fetch('/state').then(r=>r.json()); gameState=st; rebuildPlayers(); updateHUD(st);
+      }
+    });
+    // referee
+    const refR = await fetch('/api/referees').then(r=>r.json());
+    const ref = refR[Math.floor(Math.random()*refR.length)];
+    const refEl = document.getElementById('referee-display');
+    if (refEl) refEl.textContent = 'Referee: ' + ref.name + ' (' + ref.country + ')';
+  } catch(e) {}
+}
+loadFormations();
+
     return;
   }
   // success: update UI, disable same team on other side
@@ -2532,7 +2682,7 @@ async function chooseTeam(side, teamId) {
 document.getElementById('team-a-select')?.addEventListener('change', e=> chooseTeam('a', e.target.value));
 document.getElementById('team-b-select')?.addEventListener('change', e=> chooseTeam('b', e.target.value));
 
-// ── Referee (cosmetic, driven by server state / trajectory "ref" frames) ────
+//  Referee (cosmetic, driven by server state / trajectory "ref" frames) 
 const refereeMesh = (() => {
   const group = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.1 });
@@ -2570,7 +2720,7 @@ function updateRefereeMesh(sx, sy) {
   refereeMesh.visible = !hidden;
   if (!hidden) refereeMesh.position.copy(serverToWorld(sx, sy));
 }
-// ── Penalty camera: two views (web: FIFA broadcast kicker vs keeper) ───────
+//  Penalty camera: two views (web: FIFA broadcast kicker vs keeper) 
 const _defaultCamPos = new THREE.Vector3(-1500, 790, 320);
 const _defaultCamTarget = new THREE.Vector3(0, 0, 0);
 let _penaltyCamActive = false;
@@ -2600,7 +2750,7 @@ function updatePenaltyCamera(st) {
   controls.target.lerp(tgtW, 0.08);
   controls.update();
 }
-// ── Multiplayer view (top vs player) + 120s settings timeout ───────────────
+//  Multiplayer view (top vs player) + 120s settings timeout 
 let currentView = localStorage.getItem('viewMode') || 'top';
 let viewTimeout = null, viewCountdown = null;
 function applyViewMode(mode) {
@@ -2636,7 +2786,7 @@ window.showViewSettings = function(show) {
   }
 };
 
-// ── Render loop ─────────────────────────────────────────────────────────────
+//  Render loop 
 function animate() {
   requestAnimationFrame(animate);
   // Player view follows ball/my side (120s settings view) — overrides OrbitControls when active and not in penalty
@@ -2676,7 +2826,7 @@ function animate() {
 }
 animate();
 
-// ── HUD helpers ─────────────────────────────────────────────────────────────
+//  HUD helpers 
 function showThinking() {
   const tb = document.getElementById('turn-badge');
   if (!tb) return;
@@ -2799,7 +2949,7 @@ function logMove(text, isGoal) {
   while (panel.children.length > 20) panel.lastChild.remove();
 }
 
-// ── Penalty Shootout ──────────────────────────────────────────────────────
+//  Penalty Shootout 
 async function chooseKeeperDir(dir) {
   if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
   document.getElementById('penalty-keeper-btns').style.display = 'none';
@@ -2875,7 +3025,7 @@ async function autoPenaltyKick() {
   updateHUD(data);
 }
 
-// ── Drag / Slingshot (3D raycast to y=0 ground plane) ──────────────────────
+//  Drag / Slingshot (3D raycast to y=0 ground plane) 
 const raycaster = new THREE.Raycaster();
 const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
 const mouse = new THREE.Vector2();
@@ -2978,7 +3128,7 @@ function updateDragVisuals(homeServer, pull) {
   }
 }
 
-// ── Input handlers ─────────────────────────────────────────────────────────
+//  Input handlers 
 function getHoveredPlayer(sx, sy) {
   if (!gameState || gameState.game_over || isAnimating) return null;
   if (ONLINE.active) {
@@ -3089,7 +3239,7 @@ renderer.domElement.addEventListener('touchend', e => {
   if (power > 5) submitKick(idx, kickAngle * 180 / Math.PI, power);
 }, { passive: false });
 
-// ── Trajectory animation (3D) ──────────────────────────────────────────────
+//  Trajectory animation (3D) 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 function animateTrajectory3D(trajectory, onDone) {
@@ -3263,7 +3413,7 @@ function animateTrajectory3D(trajectory, onDone) {
   requestAnimationFrame(frame);
 }
 
-// ── Kicker launch animation ────────────────────────────────────────────────
+//  Kicker launch animation 
 function animatePlayerMove3D(playerIdx, team, fromPos, toPos, onDone) {
   const meshes = team === 'a' ? playerMeshesA : playerMeshesB;
   const mesh = meshes[playerIdx];
@@ -3300,7 +3450,7 @@ function animatePlayerMove3D(playerIdx, team, fromPos, toPos, onDone) {
   requestAnimationFrame(tick);
 }
 
-// ── Move submission ─────────────────────────────────────────────────────────
+//  Move submission 
 function kickEndpoint(from, angleDeg, power) {
   const rad = angleDeg * Math.PI / 180;
   const travel = power * PLAYER_TRAVEL;
@@ -3479,7 +3629,7 @@ async function triggerAI() {
   }
 }
 
-// ── Controls ────────────────────────────────────────────────────────────────
+//  Controls 
 window.resetGame = async function() {
   if (isAnimating || ONLINE.active) return;
   const body = { player_count: 3 };
@@ -3559,7 +3709,7 @@ function setOverlay(show, text) {
   if (show) document.getElementById('overlay-text').textContent = text || 'AI thinking…';
 }
 
-// ── Init ────────────────────────────────────────────────────────────────────
+//  Init 
 (async () => {
   // Load customization
   try {

@@ -47,7 +47,7 @@ def base_replay():
     ])
 
 
-# ── Detection ────────────────────────────────────────────────────────────────
+#  Detection 
 
 def test_goal_detected_with_clip_window():
     hls = detect_highlights(base_replay())
@@ -112,7 +112,7 @@ def test_empty_and_single_frame_trajectories_safe():
     assert detect_highlights(rd) == []
 
 
-# ── Caching + share registry ─────────────────────────────────────────────────
+#  Caching + share registry 
 
 def _seed_match(replay_data):
     with flask_app.test_client() as c:
@@ -146,7 +146,7 @@ def test_get_highlights_missing_match_returns_none():
     assert get_highlights("nope", "nope") is None
 
 
-# ── HTTP routes ──────────────────────────────────────────────────────────────
+#  HTTP routes 
 
 def test_highlights_api_requires_login():
     c = flask_app.test_client()

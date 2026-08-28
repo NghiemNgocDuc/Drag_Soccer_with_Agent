@@ -17,7 +17,7 @@ def _svc():
     return service
 
 
-# ── In-memory fallback (dev: no Supabase) ────────────────────────────────
+#  In-memory fallback (dev: no Supabase) 
 _MEM: dict[str, dict] = {}
 _MEM_SEQ = 0
 
@@ -148,7 +148,7 @@ def _decorate(rows: list[dict]) -> list[dict]:
     return out
 
 
-# ── Benchmark status (Redis-or-in-memory, survives across the long run) ──────
+#  Benchmark status (Redis-or-in-memory, survives across the long run) 
 
 def _status_key(model_id: str) -> str:
     return f"lb_bench:{model_id}"

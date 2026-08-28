@@ -44,7 +44,7 @@ nav{position:relative;z-index:2;display:flex;align-items:center;gap:18px;
 .workspace{position:relative;z-index:1;display:grid;grid-template-columns:minmax(420px,46%) 1fr;
   gap:0;height:calc(100vh - 62px);min-height:600px}
 
-/* ── Editor pane ── */
+/*  Editor pane  */
 .editor-pane{display:flex;flex-direction:column;border-right:1px solid rgba(255,255,255,.07);min-width:0}
 .ep-header{display:flex;align-items:center;gap:10px;padding:12px 16px;
   border-bottom:1px solid rgba(255,255,255,.06)}
@@ -64,7 +64,7 @@ nav{position:relative;z-index:2;display:flex;align-items:center;gap:18px;
   font-size:.73rem;min-height:34px;display:flex;align-items:center;gap:8px;white-space:pre-wrap}
 .status-ok{color:#a6e3a1}.status-err{color:#f38ba8}.status-info{color:#89b4fa}.status-warn{color:#f9e2af}
 
-/* ── Game pane ── */
+/*  Game pane  */
 .game-pane{display:flex;flex-direction:column;overflow-y:auto;padding:16px;gap:12px;background:transparent}
 .g-card{background:var(--glass-bg);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
   border:1px solid var(--glass-border);border-radius:12px;box-shadow:var(--glass-shadow)}
@@ -122,7 +122,7 @@ select.opp-sel option{background:#1a1a2e;color:var(--text)}
 .score-card .s-kicks{font-size:.68rem;color:var(--dim);margin-top:4px}
 .vs-badge{font-size:.82rem;font-weight:600;color:var(--dim);text-align:center}
 
-/* ── Pitch canvas ── */
+/*  Pitch canvas  */
 .pitch-wrap{padding:14px 14px 8px}
 .pitch-canvas{display:block;width:100%;border-radius:10px;cursor:crosshair;touch-action:manipulation}
 .kick-hud{display:flex;align-items:center;gap:12px;padding:10px 14px 12px;flex-wrap:wrap}
@@ -154,7 +154,7 @@ input[type=range]{cursor:pointer}
 .log-b{color:rgba(251,191,36,.85)}
 .log-num{color:var(--dim);margin-right:4px}
 
-/* ── Instructions panel ── */
+/*  Instructions panel  */
 .ins-card{padding:0;overflow:hidden}
 .ins-summary{list-style:none;padding:11px 16px;cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none}
 .ins-summary::-webkit-details-marker{display:none}
@@ -203,7 +203,7 @@ details[open] .ins-toggle{transform:rotate(180deg)}
 
 <div class="workspace">
 
-  <!-- ── LEFT: Code editor ── -->
+  <!--  LEFT: Code editor  -->
   <div class="editor-pane">
     <div class="ep-header">
       <span class="ep-title">Code Editor</span>
@@ -223,15 +223,15 @@ details[open] .ins-toggle{transform:rotate(180deg)}
     </div>
   </div>
 
-  <!-- ── RIGHT: Game panel ── -->
+  <!--  RIGHT: Game panel  -->
   <div class="game-pane">
 
     <!-- Instructions -->
     <details class="g-card ins-card" id="ins-card">
       <summary class="ins-summary">
-        <span class="ins-summary-icon">📋</span>
+        <span class="ins-summary-icon"></span>
         <span class="ins-summary-title">How to write your Soccer AI — code contract</span>
-        <span class="ins-toggle">▾</span>
+        <span class="ins-toggle"></span>
       </summary>
       <div class="ins-body">
         <p class="ins-lead">
@@ -275,9 +275,9 @@ state["game_over"]   # bool</pre>
           </div>
         </div>
         <div class="ins-section-title">Allowed imports / forbidden calls</div>
-        <pre class="ins-code">✓ import math    ✓ import random    ✓ import copy
-✗ import os / sys / subprocess / requests / socket / pickle
-✗ open()   eval()   exec()   getattr()   setattr()   globals()</pre>
+        <pre class="ins-code"> import math     import random     import copy
+ import os / sys / subprocess / requests / socket / pickle
+ open()   eval()   exec()   getattr()   setattr()   globals()</pre>
       </div>
     </details>
 
@@ -296,7 +296,7 @@ state["game_over"]   # bool</pre>
         {% endfor %}
       </select>
       <div class="config-sep"></div>
-      <button class="btn btn-blue"  onclick="startGame()">▶ Start</button>
+      <button class="btn btn-blue"  onclick="startGame()"> Start</button>
       <button class="btn btn-ghost" onclick="resetGame()">↺ Reset</button>
     </div>
 
@@ -339,7 +339,7 @@ state["game_over"]   # bool</pre>
       <span class="kh-label">Power</span>
       <input type="range" id="power-range" min="0" max="100" value="80" step="1">
       <span class="kh-power" id="power-label">80</span>
-      <button class="btn btn-green" id="kick-btn" onclick="submitHumanKick()" disabled>⚽ Kick</button>
+      <button class="btn btn-green" id="kick-btn" onclick="submitHumanKick()" disabled> Kick</button>
     </div>
     <div class="hint-line" id="pitch-hint">
       Human vs My Code: click a target on the pitch to aim, adjust power, then Kick.
@@ -349,7 +349,7 @@ state["game_over"]   # bool</pre>
     <!-- Auto-play controls (code_vs_ai) -->
     <div class="g-card autoplay-bar" id="autoplay-bar">
       <button class="btn btn-ghost" id="btn-step" onclick="doStep()">Step ›</button>
-      <button class="btn btn-amber" id="btn-auto" onclick="toggleAutoPlay()">▶ Auto-play</button>
+      <button class="btn btn-amber" id="btn-auto" onclick="toggleAutoPlay()"> Auto-play</button>
       <span class="speed-label">Speed</span>
       <input type="range" id="speed-range" min="200" max="2500" value="900" step="100">
       <span id="speed-label" style="font-size:.7rem;color:var(--muted);white-space:nowrap">0.9 s/move</span>
@@ -376,7 +376,7 @@ state["game_over"]   # bool</pre>
 <script src="/static/vendor/codemirror/codemirror.min.js"></script>
 <script src="/static/vendor/codemirror/python.min.js"></script>
 <script>
-// ── State ────────────────────────────────────────────────────────────────────
+//  State 
 let editor;
 let currentMode   = 'human_vs_code'; // 'human_vs_code' | 'code_vs_ai'
 let isAutoPlaying = false;
@@ -389,7 +389,7 @@ let kickerIdx     = 0;      // selected kicker (human mode)
 const TEMPLATE = {{ template_code | tojson }};
 const FIELD_W = 1400, FIELD_H = 875;   // server space; canvas scales below
 
-// ── Init ─────────────────────────────────────────────────────────────────────
+//  Init 
 window.addEventListener('DOMContentLoaded', () => {
   editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
     mode:          'python',
@@ -401,7 +401,7 @@ window.addEventListener('DOMContentLoaded', () => {
     lineWrapping:  false,
   });
 
-  // Load pre-seeded code from My Models / Learn pages ("▶ Test" button)
+  // Load pre-seeded code from My Models / Learn pages (" Test" button)
   const preload = sessionStorage.getItem('pg_preload_code');
   if (preload) {
     editor.setValue(preload);
@@ -441,7 +441,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 });
 
-// ── Mode controls ─────────────────────────────────────────────────────────────
+//  Mode controls 
 function setMode(m) {
   currentMode = m;
   document.getElementById('mode-hvc').classList.toggle('active', m === 'human_vs_code');
@@ -469,7 +469,7 @@ function updateRoleLabels() {
   }
 }
 
-// ── Game controls ────────────────────────────────────────────────────────────
+//  Game controls 
 async function startGame() {
   stopAutoPlay();
   const opponent = document.getElementById('opponent-sel').value;
@@ -497,7 +497,7 @@ async function resetGame() {
   setStatus('Match reset.', 'info');
 }
 
-// ── Human kick (human_vs_code mode) ─────────────────────────────────────────
+//  Human kick (human_vs_code mode) 
 async function submitHumanKick() {
   if (!aimTarget || !lastState || !lastState.is_player_a) {
     setStatus('Click a target on the pitch first.', 'warn');
@@ -532,7 +532,7 @@ async function postHumanKick(idx, angle, power) {
   return state;
 }
 
-// ── Auto move (code_vs_ai mode) ──────────────────────────────────────────────
+//  Auto move (code_vs_ai mode) 
 async function doStep() {
   if (!gameStarted) { alert('Click Start first.'); return; }
   if (gameIsOver) return;
@@ -582,13 +582,13 @@ async function autoLoop() {
 
 function stopAutoPlay() {
   isAutoPlaying = false;
-  document.getElementById('btn-auto').textContent = '▶ Auto-play';
+  document.getElementById('btn-auto').textContent = ' Auto-play';
   document.getElementById('btn-auto').classList.add('btn-amber');
   document.getElementById('btn-auto').classList.remove('btn-ghost');
   document.getElementById('btn-step').disabled = false;
 }
 
-// ── Validate code ────────────────────────────────────────────────────────────
+//  Validate code 
 async function validateCode() {
   setStatus('Validating…', 'info');
   const r = await fetch('/api/models/user/validate', {
@@ -598,18 +598,18 @@ async function validateCode() {
   });
   const data = await r.json();
   if (data.ok) {
-    const msg = '✓ Valid — test move: ' + data.test_move;
+    const msg = ' Valid — test move: ' + data.test_move;
     if (data.warning) {
-      setStatus(msg + '\n⚠ ' + data.warning, 'warn');
+      setStatus(msg + '\n ' + data.warning, 'warn');
     } else {
       setStatus(msg, 'ok');
     }
   } else {
-    setStatus('✗ ' + data.error, 'err');
+    setStatus(' ' + data.error, 'err');
   }
 }
 
-// ── Save to My Models ────────────────────────────────────────────────────────
+//  Save to My Models 
 async function saveToMyModels() {
   const name = prompt('Model name:');
   if (!name) return;
@@ -624,10 +624,10 @@ async function saveToMyModels() {
   const data = await r.json();
   if (data.error) { alert(data.error); return; }
   if (data.warning) { alert(data.warning); }
-  setStatus(`✓ Saved as "${name}" — visible in My Models and game AI selector.`, 'ok');
+  setStatus(` Saved as "${name}" — visible in My Models and game AI selector.`, 'ok');
 }
 
-// ── Import .py file from disk ─────────────────────────────────────────────────
+//  Import .py file from disk 
 function handleFileImport(evt) {
   const file = evt.target.files[0];
   evt.target.value = ''; // allow re-importing the same file
@@ -645,7 +645,7 @@ function handleFileImport(evt) {
   reader.readAsText(file);
 }
 
-// ── Status bar ────────────────────────────────────────────────────────────────
+//  Status bar 
 function setStatus(msg, type) {
   const el = document.getElementById('ep-status');
   el.textContent = '';
@@ -668,7 +668,7 @@ function setThinking(on, label = 'Thinking…') {
   if (on) ind.classList.add('show'); else ind.classList.remove('show');
 }
 
-// ── Rendering ─────────────────────────────────────────────────────────────────
+//  Rendering 
 function renderAll(state) {
   if (!state || state.error) return;
   lastState = state;
@@ -761,7 +761,7 @@ function renderLog(history) {
   log.scrollTop = log.scrollHeight;
 }
 
-// ── Pitch drawing (server coords → canvas) ───────────────────────────────────
+//  Pitch drawing (server coords → canvas) 
 function drawPitch() {
   const canvas = document.getElementById('pitch');
   const ctx = canvas.getContext('2d');
@@ -846,7 +846,7 @@ function drawPitch() {
   }
 }
 
-// ── Test hooks (CDP / headless) ──────────────────────────────────────────────
+//  Test hooks (CDP / headless) 
 window.__pgState = () => ({
   mode: currentMode,
   gameStarted,

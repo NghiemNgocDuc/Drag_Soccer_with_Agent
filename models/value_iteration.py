@@ -1,4 +1,4 @@
-﻿"""Value Iteration Soccer AI: picks best-positioned player, fine goal-corner search."""
+"""Value Iteration Soccer AI: picks best-positioned player, fine goal-corner search."""
 from __future__ import annotations
 import math
 from models.soccer_logic import simulate_kick, FIELD_W, FIELD_H, GOAL_Y1, GOAL_Y2

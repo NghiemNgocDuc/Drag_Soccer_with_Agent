@@ -42,7 +42,11 @@ DEFAULT_CUSTOMIZATION = {
     "ref_color": "#fde68a",
     "ball_color": "#f8fafc",
     "bg_color": "#2a2518",
-    "player_count": 3,
+    "player_count": 7,
+    "formation_a": "3-2-1",
+    "formation_b": "3-2-1",
+    "team_a": "brazil",
+    "team_b": "argentina",
     "grass_shade": "dark",
     "pitch_pattern": "stripes",
     "field_line_color": "#ffffff",
@@ -72,7 +76,7 @@ DEFAULT_CUSTOMIZATION = {
 
 _ALLOWED = set(DEFAULT_CUSTOMIZATION.keys())
 
-# ── Achievement-gated cosmetics ─────────────────────────────────────────────
+#  Achievement-gated cosmetics 
 # (field, value) -> achievement_key that unlocks it. Only "special variant"
 # values are gated; every category keeps at least one always-available option,
 # and the defaults in DEFAULT_CUSTOMIZATION are never gated. Availability is a

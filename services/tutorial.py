@@ -47,7 +47,7 @@ _L6_STATS = [
 ]
 
 
-# ── Inline baseline bots (NOT part of the 7 built-ins) ──────────────────────
+#  Inline baseline bots (NOT part of the 7 built-ins) 
 
 class DoNothingBot:
     """Optimally cautious: never kicks the ball anywhere."""
@@ -79,7 +79,7 @@ def resolve_opponent(target: str | None):
     raise ValueError(f"Unknown tutorial opponent: {target}")
 
 
-# ── Lesson catalog (single source of truth for learn.html) ──────────────────
+#  Lesson catalog (single source of truth for learn.html) 
 
 def _starter(code: str) -> str:
     return code.lstrip("\n")
@@ -90,7 +90,7 @@ LESSONS: list[dict] = [
         "id": 1,
         "slug": "first-kick",
         "title": "Your First Kick",
-        "icon": "🦶",
+        "icon": "",
         "tagline": "Learn the code contract and get a valid model onto the field.",
         "kind": "runs_error_free",
         "games": 1,
@@ -149,7 +149,7 @@ def get_ai_move(state, is_player_a):
         "id": 2,
         "slug": "beat-random",
         "title": "Beat the Random Bot",
-        "icon": "🎲",
+        "icon": "",
         "tagline": "A random opponent only scores by luck — aim and finish.",
         "kind": "win_rate",
         "games": 5,
@@ -202,7 +202,7 @@ def get_ai_move(state, is_player_a):
         "id": 3,
         "slug": "beat-greedy",
         "title": "Beat Greedy Striker",
-        "icon": "🎯",
+        "icon": "",
         "tagline": "Greedy simulates kicks and aims at corners. Do the same, better.",
         "kind": "win_rate",
         "games": 5,
@@ -266,7 +266,7 @@ def get_ai_move(state, is_player_a):
         "id": 4,
         "slug": "beat-stochastic",
         "title": "Beat Monte Carlo (or Bayesian)",
-        "icon": "🎰",
+        "icon": "",
         "tagline": "Randomised opponents are sloppy. A steady, robust plan wins.",
         "kind": "win_rate",
         "games": 5,
@@ -328,7 +328,7 @@ def get_ai_move(state, is_player_a):
         "id": 5,
         "slug": "beat-minimax",
         "title": "Beat Minimax",
-        "icon": "🏰",
+        "icon": "",
         "tagline": "Minimax searches hard and punishes deflections. Out-plan it.",
         "kind": "win_rate",
         "games": 5,
@@ -390,7 +390,7 @@ def get_ai_move(state, is_player_a):
         "id": 6,
         "slug": "read-the-stats",
         "title": "Read the Stats (optional)",
-        "icon": "📊",
+        "icon": "",
         "tagline": "Players aren't identical. Size, Power, Weight and Agility change everything.",
         "kind": "win_rate",
         "games": 5,
@@ -452,7 +452,7 @@ def get_ai_move(state, is_player_a):
         "id": 7,
         "slug": "capstone",
         "title": "Capstone: Into the Arena",
-        "icon": "🏁",
+        "icon": "",
         "tagline": "Prove your model against every built-in and rank it publicly.",
         "kind": "leaderboard_submit",
         "games": 0,
@@ -513,7 +513,7 @@ def is_unlocked(lesson_id: int, completed: set[int] | dict) -> bool:
     return all(req in done for req in lesson["requires"])
 
 
-# ── Headless milestone check ────────────────────────────────────────────────
+#  Headless milestone check 
 
 def _run_one_match(code: str, opponent, lesson: dict) -> tuple[str | None, dict]:
     """Play one match. Returns (error, result); error != None on a failed run."""

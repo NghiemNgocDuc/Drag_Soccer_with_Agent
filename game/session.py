@@ -23,10 +23,13 @@ def new_game_state(
     mode: str = "hvai",
     model_b: str = "greedy",
     model_a: str = "greedy",
-    player_count: int = 3,
+    player_count: int = 7,
     half_length: int = 45,
     win_goal_limit: int = 5,
     power_cap: int = 100,
+    formation_a: str | None = None,
+    formation_b: str | None = None,
+    referee_name: str | None = None,
 ) -> dict:
     return new_soccer_state(
         mode=mode, model_b=model_b, model_a=model_a,
@@ -34,6 +37,9 @@ def new_game_state(
         half_length=half_length,
         win_goal_limit=win_goal_limit,
         power_cap=power_cap,
+        formation_a=formation_a,
+        formation_b=formation_b,
+        referee_name=referee_name,
     )
 
 
@@ -78,7 +84,7 @@ def pop_snapshot(state: dict) -> dict | None:
     return state["snapshots"].pop()
 
 
-# ── Playground state ───────────────────────────────────────────────────────────
+#  Playground state 
 
 PG_TTL = 3_600
 

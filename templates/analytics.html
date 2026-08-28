@@ -59,7 +59,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
 <nav class="navbar">
   <div class="nav-inner container">
     <a class="brand" href="/">Agent Soccer</a>
-    <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');document.getElementById('nav-links').classList.toggle('open')">☰</button>
+    <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');document.getElementById('nav-links').classList.toggle('open')"></button>
     <div class="nav-links" id="nav-links">
       <a class="nav-link" href="/play3d">Game</a>
       <a class="nav-link" href="/tournaments">Tournaments</a>
@@ -131,7 +131,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
 
   function pct(p) { return (p * 100).toFixed(0) + '%'; }
 
-  /* ── Stat-build meta card ─────────────────────────────────────────── */
+  /*  Stat-build meta card  */
   function buildCard(b, host) {
     var card = document.createElement('div');
     card.className = 'glass-card';
@@ -139,7 +139,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
     if (status !== 'ok') {
       card.innerHTML =
         '<div class="card-h"><h2>Stat-build outcomes</h2><span class="tag">Balanced design</span></div>' +
-        '<div class="empty"><div class="ico">📊</div><div><b>Not enough matches yet.</b></div>' +
+        '<div class="empty"><div class="ico"></div><div><b>Not enough matches yet.</b></div>' +
         '<div style="margin-top:6px">' + (b.message || '') + '</div></div>';
       host.appendChild(card);
       return;
@@ -213,7 +213,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
     host.appendChild(meta);
   }
 
-  /* ── Agent comparison card ────────────────────────────────────────── */
+  /*  Agent comparison card  */
   function agentCard(a, host) {
     var card = document.createElement('div');
     card.className = 'glass-card';
@@ -318,7 +318,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
     if (st === 'done' && a.analysis) renderAgents(a);
   }
 
-  /* ── Rating progression card ───────────────────────────────────────── */
+  /*  Rating progression card  */
   function ratingCard(r, host) {
     var card = document.createElement('div');
     card.className = 'glass-card';
@@ -333,7 +333,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
 
     var note = document.getElementById('RatingNote');
     if (r.status !== 'ok') {
-      note.innerHTML = '<div class="empty"><div class="ico">📈</div><div>' + (r.message || 'No rated matches yet.') + '</div></div>';
+      note.innerHTML = '<div class="empty"><div class="ico"></div><div>' + (r.message || 'No rated matches yet.') + '</div></div>';
       return;
     }
     var traj = r.trajectories || [];
@@ -413,7 +413,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
     }
   }
 
-  /* ── Match dynamics card ───────────────────────────────────────────── */
+  /*  Match dynamics card  */
   function dynamicsCard(d, host) {
     var card = document.createElement('div');
     card.className = 'glass-card';
@@ -430,7 +430,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
     var g = d.goals_per_match || {};
     var hero = document.getElementById('GoalsHero');
     if (!g.n_matches) {
-      hero.innerHTML = '<div class="empty"><div class="ico">⚽</div><div>No matches recorded yet.</div></div>';
+      hero.innerHTML = '<div class="empty"><div class="ico"></div><div>No matches recorded yet.</div></div>';
       return;
     }
     hero.innerHTML = '<span class="big">' + (g.mean || 0).toFixed(2) + '</span><span class="sub">avg goals per match over ' + g.n_matches + ' matches (95% CI ' + (g.ci ? g.ci[0] + '–' + g.ci[1] : '—') + ')</span>';
@@ -485,7 +485,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
       : '<b>Near-miss → goal:</b> no near misses detected in stored replays yet.';
   }
 
-  /* ── Hero ──────────────────────────────────────────────────────────── */
+  /*  Hero  */
   function hero(m) {
     var root = document.getElementById('hero-root');
     var chips = '';
@@ -507,7 +507,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
       '</div>';
   }
 
-  /* ── Methodology ───────────────────────────────────────────────────── */
+  /*  Methodology  */
   function methods() {
     var root = document.getElementById('methods-root');
     root.innerHTML =
@@ -518,7 +518,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
       '<li><b>No causal overreach:</b> a correlation here is never dressed as a cause. Where a confounder is real (skill), it is controlled for; where the sample cannot support the claim, the page says so instead of showing a shaky result.</li>';
   }
 
-  /* ── Load ──────────────────────────────────────────────────────────── */
+  /*  Load  */
   function render(j) {
     destroyCharts();
     window.__GEN = j.generated_at; window.__CACHED = j.cached;
@@ -537,7 +537,7 @@ table.an-table td { padding: 6px 8px; border-bottom: 1px solid var(--line-subtle
     .then(render)
     .catch(function (err) {
       document.getElementById('dash-root').innerHTML =
-        '<div style="grid-column:1/-1" class="empty"><div class="ico">⚠️</div><div><b>Could not load analytics.</b><br>' + String(err) + '</div></div>';
+        '<div style="grid-column:1/-1" class="empty"><div class="ico"></div><div><b>Could not load analytics.</b><br>' + String(err) + '</div></div>';
     });
 })();
 </script>

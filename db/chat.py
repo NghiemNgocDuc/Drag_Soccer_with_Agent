@@ -37,6 +37,7 @@ class ChatUnavailable(Exception):
 
 MATCH_TTL  = 6 * 3600     # matches ROOM_TTL
 LOBBY_TTL  = 24 * 3600    # matches tournament key TTL
+GLOBAL_TTL = 24 * 3600   # server-wide chat
 READ_TTL   = 30 * 86400   # read cursors
 MAX_BODY_LEN   = 280
 CHAT_RATE_MAX  = 10       # messages per window per user
@@ -58,7 +59,11 @@ _EMOJI_RE = re.compile(
 
 
 def _ttl(scope: str) -> int:
-    return MATCH_TTL if scope == "match" else LOBBY_TTL
+    if scope == "match":
+        return MATCH_TTL
+    if scope == "global":
+        return GLOBAL_TTL
+    return LOBBY_TTL
 
 
 def _now() -> float:
@@ -81,7 +86,7 @@ def contains_profanity(text: str) -> bool:
     return _profanity.contains_profanity(stripped)
 
 
-# ── Rate limiting ────────────────────────────────────────────────────────────
+#  Rate limiting 
 
 def check_rate_limit(user_key: str) -> tuple[bool, int]:
     """Sliding window: CHAT_RATE_MAX messages per CHAT_RATE_WINDOW seconds.
@@ -101,7 +106,7 @@ def check_rate_limit(user_key: str) -> tuple[bool, int]:
     return True, 0
 
 
-# ── Ephemeral (Redis) — match & tournament-lobby chat ────────────────────────
+#  Ephemeral (Redis) — match & tournament-lobby chat 
 
 def send_ephemeral(scope: str, scope_id: str, sender_id: str,
                    sender_name: str, body: str) -> dict:
@@ -143,7 +148,7 @@ def get_ephemeral(scope: str, scope_id: str, after: int | None,
     return out, last_mid
 
 
-# ── Persisted (Supabase) — friend DMs ────────────────────────────────────────
+#  Persisted (Supabase) — friend DMs 
 
 def conv_id(uid_a: str, uid_b: str) -> str:
     return "|".join(sorted([uid_a, uid_b]))
@@ -285,7 +290,7 @@ def get_conversations(user_id: str) -> list[dict]:
     return result[:CONV_LIMIT]
 
 
-# ── Blocks ───────────────────────────────────────────────────────────────────
+#  Blocks 
 
 def block_user(blocker_id: str, blocked_id: str) -> None:
     if service is None:
@@ -320,7 +325,7 @@ def get_blocked(user_id: str) -> set[str]:
     return {row["blocked_id"] for row in rows}
 
 
-# ── Reports ──────────────────────────────────────────────────────────────────
+#  Reports 
 
 def _lookup_message(scope: str, scope_id: str, mid) -> dict | None:
     if scope in ("match", "tournament"):

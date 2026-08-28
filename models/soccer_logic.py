@@ -40,12 +40,12 @@ PLAYER_COUNT: int = 3  # default, override via game state
 
 REFEREE_POS: tuple[float, float] = (FIELD_W / 2, FIELD_H - 80.0)  # (~700, ~795)
 
-# ── 3D vertical-axis physics constants ────────────────────────────────────────
+#  3D vertical-axis physics constants 
 G: float = 980.0                 # px/s² gravity (approximates real 9.8 m/s² in pixel world)
 _VERTICAL_RESTITUTION: float = 0.5  # bounce when ball lands
 _VZ_MIN: float = 5.0                # below this, treat vertical velocity as settled
 
-# ── Per-player stats ──────────────────────────────────────────────────────────
+#  Per-player stats 
 _STAT_MIN = 20
 _STAT_MAX = 80
 _STAT_DEFAULT = 50
@@ -64,7 +64,7 @@ def _stat_map_agility(stat: int) -> float:
 
 DEFAULT_STATS = {"size": _STAT_DEFAULT, "power": _STAT_DEFAULT, "weight": _STAT_DEFAULT, "agility": _STAT_DEFAULT}
 
-# ── Keeper PlayStyles (EA FC 25 — Footwork/Rush/Deflector/Cross Claimer/Far Reach/Far Throw) ─
+#  Keeper PlayStyles (EA FC 25 — Footwork/Rush/Deflector/Cross Claimer/Far Reach/Far Throw) 
 try:
     from db.customization import KEEPER_STYLE_EFFECTS as _KEEPER_EFFECTS
 except Exception:
@@ -265,7 +265,7 @@ _PLAYER_TRAVEL = 3.0
 _CONTACT = float(PLAYER_R + BALL_R)
 _P2P     = float(PLAYER_R * 2)
 
-# ── Referee (cosmetic) motion ────────────────────────────────────────────────
+#  Referee (cosmetic) motion 
 # The referee starts fixed at REFEREE_POS and uses the same collision body as a
 # player, so it only moves when struck by the ball or another player.
 _REF_WANDER_SPEED   = 75.0    # px/s ambient patrol speed (human jog)
@@ -279,7 +279,7 @@ _REF_YMAX           = FIELD_H - _MARGIN - 15.0
 _REF_GOAL_SAFE_X    = 70.0    # near a goal mouth: keep out of the goal band
 _REF_GOAL_SAFE_PAD  = 12.0    # px outside the goal band the ref keeps
 
-# ── Pymunk physics parameters ────────────────────────────────────────────────
+#  Pymunk physics parameters 
 # Tuned from web research (pymunk/Chipmunk docs, SO constant-deceleration model,
 # FIFA ball COR 0.6–0.8, Veryst FE restitution). Previous 1.0/1.0/1.0 was
 # perfectly elastic → endless bouncing, jittery player collisions.
@@ -498,7 +498,7 @@ def _build_space(state: dict):
     return space, bodies_a, bodies_b, ball_body, ref_body, ball_pivot
 
 
-# ── Penalty shootout ──────────────────────────────────────────────────────────
+#  Penalty shootout 
 
 def _setup_penalty_positions(state: dict, is_player_a: bool) -> None:
     """Place ball and players for a penalty kick.
@@ -1066,14 +1066,14 @@ def apply_kick(
 
     trajectory, scored, _ = _sim(space, bodies_a, bodies_b, ball_body, ref_body, player_idx, is_player_a, vz0=vz0, ball_pivot=ball_pivot)
 
-    # ── Decimate trajectory ─────────────────────────────────────────────────
+    #  Decimate trajectory 
     if len(trajectory) > 1:
         step = max(1, len(trajectory) // 100)
         traj_out = trajectory[::step] + [trajectory[-1]]
     else:
         traj_out = trajectory
 
-    # ── Update state ────────────────────────────────────────────────────────
+    #  Update state 
     final = traj_out[-1]
     state["ball"]["x"] = final["x"]
     state["ball"]["y"] = final["y"]
@@ -1092,10 +1092,10 @@ def apply_kick(
 
     kick_endpoint = {"x": round(kicker.position.x, 1), "y": round(kicker.position.y, 1)}
 
-    # ── Push result ─────────────────────────────────────────────────────────
+    #  Push result 
     push_result = None  # Legacy, now handled completely via full trajectory syncing
 
-    # ── Description ─────────────────────────────────────────────────────────
+    #  Description 
     player_label = "A" if is_player_a else "B"
     ball_hit = any(pt["x"] != trajectory[0]["x"] or pt["y"] != trajectory[0]["y"] for pt in trajectory)
     miss_text = " (missed!)" if not ball_hit else ""
@@ -1105,7 +1105,7 @@ def apply_kick(
         f"angle={round(angle_deg)}{chr(176)} power={round(power)}{scored_text}{miss_text}"
     )
 
-    # ── Score handling ──────────────────────────────────────────────────────
+    #  Score handling 
     if scored == "A":
         state["score_a"] += 1
         state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2, "z": 0.0}

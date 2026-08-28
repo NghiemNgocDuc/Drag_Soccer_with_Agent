@@ -36,13 +36,13 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# ── In-memory fallback (dev: no Supabase) ────────────────────────────────
+#  In-memory fallback (dev: no Supabase) 
 _MEM: dict[str, dict] = {}      # user_id -> ratings row
 _MEM_MATCHES: list[dict] = []   # ranked_matches rows (newest last)
 _MEM_HISTORY: list[dict] = []   # rating_history rows
 
 
-# ── ELO math ─────────────────────────────────────────────────────────────
+#  ELO math 
 
 def expected_score(ra: float, rb: float) -> float:
     """Expected score of player A vs player B (0..1)."""
@@ -86,7 +86,7 @@ def outcome_with_placement(ra: int, ga: int, rb: int, gb: int, winner: str) -> d
     }
 
 
-# ── Reads ────────────────────────────────────────────────────────────────
+#  Reads 
 
 def _default_row(user_id: str) -> dict:
     return {"user_id": user_id, "rating": START_RATING, "games_played": 0,
@@ -251,7 +251,7 @@ def get_all_ranked_matches(limit: int = 5000) -> list[dict]:
         return []
 
 
-# ── Result application (authoritative, atomic, idempotent) ───────────────
+#  Result application (authoritative, atomic, idempotent) 
 
 def record_result(room_id: str, player_a: str, player_b: str,
                   winner: str, score_a: int, score_b: int) -> dict:

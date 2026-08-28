@@ -10,7 +10,7 @@ create table if not exists public.achievement_definitions (
   category    text not null,
   name        text not null,
   description text not null default '',
-  emoji       text not null default '🏆',
+  emoji       text not null default '',
   sort_order  integer not null default 0
 );
 

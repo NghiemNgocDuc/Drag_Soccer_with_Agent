@@ -42,7 +42,7 @@ def new_uid(tag):
     return f"{tag}-{uuid.uuid4().hex[:8]}"
 
 
-# ── Map sanity ──────────────────────────────────────────────────────────────
+#  Map sanity 
 
 def test_unlock_map_keys_exist_in_catalog():
     for (field, value), key in UNLOCK_REQUIREMENTS.items():
@@ -87,7 +87,7 @@ def test_cosmetic_rewards_reverse_map_complete():
                    for r in COSMETIC_REWARDS[k])
 
 
-# ── Locked derivation ───────────────────────────────────────────────────────
+#  Locked derivation 
 
 def test_everything_locked_for_unknown_user():
     locks = locked_values(None)
@@ -116,7 +116,7 @@ def test_is_unlocked_helpers():
     assert is_unlocked(uid, "crowd_palette", "rainbow") is True
 
 
-# ── Server-side enforcement at /customize/save ──────────────────────────────
+#  Server-side enforcement at /customize/save 
 
 def _save(client, payload):
     return client.post("/customize/save", json=payload)
@@ -186,7 +186,7 @@ def test_save_requires_login():
         assert _save(c, {"ball_design": "gold"}).status_code in (302, 401)
 
 
-# ── Page lock rendering ─────────────────────────────────────────────────────
+#  Page lock rendering 
 
 def test_customize_page_marks_locked_options():
     uid = new_uid("page")
@@ -215,7 +215,7 @@ def test_customize_page_unlocks_after_achievement():
         assert '"ball_design:gold"' in body  # still locked
 
 
-# ── Toast reward enrichment ─────────────────────────────────────────────────
+#  Toast reward enrichment 
 
 def test_toast_carries_unlock_rewards(monkeypatch):
     uid = new_uid("toast")

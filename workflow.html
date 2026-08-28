@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Soccer — Overview</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@700&family=Be+Vietnam+Pro:wght@500;600&family=JetBrains+Mono:wght@500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#f8fafc;color:#0f172a;font-family:'Be Vietnam Pro',sans-serif}
+  header{padding:18px 24px 0 24px}
+  header h1{font-family:'Space Grotesk',sans-serif;font-size:22px;letter-spacing:.02em}
+  header p{font-family:'JetBrains Mono',monospace;font-size:11px;color:#64748b;margin-top:4px}
+  #wrap{padding:16px 20px 20px 20px}
+  svg{width:100%;height:auto;display:block;background:#fff;border:1px solid #e2e8f0;border-radius:16px}
+</style>
+</head>
+<body>
+<header>
+  <h1>AGENT SOCCER — System Overview</h1>
+  <p>Flask · Three.js · pymunk · Supabase · Redis — high-level only, no detail</p>
+</header>
+<div id="wrap">
+<svg viewBox="0 0 1180 760" xmlns="http://www.w3.org/2000/svg">
+<defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 L10 5 L0 10 z" fill="#94a3b8"/></marker>
+</defs>
+
+<!-- title bg -->
+<rect x="10" y="10" width="1160" height="34" rx="10" fill="#0f172a"/>
+<text x="24" y="30" font-family="JetBrains Mono" font-size="10" font-weight="700" fill="#7dd3fc">OVERVIEW — what links to what (simplified)</text>
+<text x="1060" y="30" font-family="JetBrains Mono" font-size="9" fill="#94a3b8">1180×760 · A3 PDF</text>
+
+<!-- ========== FRONTEND ========== -->
+<g>
+  <rect x="12" y="54" width="376" height="214" rx="14" fill="#f0f9ff" stroke="#0ea5e9" stroke-width="1.6"/>
+  <rect x="22" y="64" width="88" height="18" rx="9" fill="#0ea5e9"/><text x="30" y="77" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#fff">FRONTEND</text>
+  <text x="118" y="77" font-family="Space Grotesk" font-size="12" font-weight="700" fill="#0f172a">Client — HTML / CSS / JS</text>
+  <text x="22" y="98" font-family="JetBrains Mono" font-size="9" fill="#0f172a">templates/</text>
+  <text x="22" y="112" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">landing.html · login.html · register.html</text>
+  <text x="22" y="126" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">index_3d.html (play3d) · replay_3d.html</text>
+  <text x="22" y="140" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">customize.html · playground.html · my_models.html</text>
+  <text x="22" y="154" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">tournaments.html · leaderboard.html · profile.html</text>
+  <text x="22" y="168" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">analytics.html · research.html · spectate.html</text>
+  <text x="22" y="186" font-family="JetBrains Mono" font-size="9" fill="#0f172a">static/</text>
+  <text x="22" y="200" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">design-system.css · style.css · sound.js</text>
+  <text x="22" y="214" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">three.module.js · OrbitControls.js · chart.js</text>
+  <text x="22" y="232" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">CodeMirror · achievements.js · chat.js</text>
+  <text x="22" y="252" font-family="JetBrains Mono" font-size="8" fill="#64748b">→ Flask routes</text>
+</g>
+
+<!-- ========== BACKEND ========== -->
+<g>
+  <rect x="402" y="54" width="376" height="214" rx="14" fill="#eef2ff" stroke="#6366f1" stroke-width="1.6"/>
+  <rect x="412" y="64" width="86" height="18" rx="9" fill="#6366f1"/><text x="420" y="77" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#fff">BACKEND</text>
+  <text x="504" y="77" font-family="Space Grotesk" font-size="12" font-weight="700" fill="#0f172a">Flask — app.py</text>
+  <text x="412" y="98" font-family="JetBrains Mono" font-size="9" fill="#312e81">routes</text>
+  <text x="412" y="112" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">/ · /play3d · /login · /register</text>
+  <text x="412" y="126" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">/move · /ai_move · /state · /reset · /undo</text>
+  <text x="412" y="140" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">/online/* · /ranked/* · /spectate/*</text>
+  <text x="412" y="154" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">/customize · /api/models/user/*</text>
+  <text x="412" y="168" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">/tournaments · /leaderboard · /analytics</text>
+  <text x="412" y="186" font-family="JetBrains Mono" font-size="9" fill="#312e81">core</text>
+  <text x="412" y="200" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">config.py · game/session.py</text>
+  <text x="412" y="214" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">services/ (memory · chatbot · analytics)</text>
+  <text x="412" y="232" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">db/ (16 modules) · user_models/</text>
+  <text x="412" y="252" font-family="JetBrains Mono" font-size="8" fill="#64748b">↔ Frontend · Database · Engine</text>
+</g>
+
+<!-- ========== DATABASE ========== -->
+<g>
+  <rect x="792" y="54" width="376" height="214" rx="14" fill="#ecfdf5" stroke="#10b981" stroke-width="1.6"/>
+  <rect x="802" y="64" width="88" height="18" rx="9" fill="#10b981"/><text x="810" y="77" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#fff">DATABASE</text>
+  <text x="898" y="77" font-family="Space Grotesk" font-size="12" font-weight="700" fill="#0f172a">Supabase + Redis</text>
+  <text x="802" y="98" font-family="JetBrains Mono" font-size="9" fill="#065f46">Supabase Postgres</text>
+  <text x="802" y="112" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">profiles — id · username · password · avatar</text>
+  <text x="802" y="126" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">games — user_id · mode · winner · score</text>
+  <text x="802" y="140" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">user_models — name · code</text>
+  <text x="802" y="154" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">tournaments · saved_states · research_papers</text>
+  <text x="802" y="168" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">achievements · ranked · seasons · summaries</text>
+  <text x="802" y="186" font-family="JetBrains Mono" font-size="9" fill="#065f46">Redis (Upstash)</text>
+  <text x="802" y="200" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">game:{uid} · room:{id} · ranked:queue</text>
+  <text x="802" y="214" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">online:active · voice_signal · invites</text>
+  <text x="802" y="232" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">ach toasts · highlights cache</text>
+  <text x="802" y="252" font-family="JetBrains Mono" font-size="8" fill="#64748b">↔ Backend only</text>
+</g>
+
+<!-- ========== GAME ENGINE ========== -->
+<g>
+  <rect x="12" y="282" width="376" height="188" rx="14" fill="#fff7ed" stroke="#f59e0b" stroke-width="1.6"/>
+  <rect x="22" y="292" width="108" height="18" rx="9" fill="#f59e0b"/><text x="30" y="305" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#fff">GAME ENGINE</text>
+  <text x="136" y="305" font-family="Space Grotesk" font-size="12" font-weight="700" fill="#0f172a">pymunk</text>
+  <text x="22" y="326" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">models/soccer_logic.py</text>
+  <text x="22" y="342" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">FIELD 1400×875 · GOAL 163px</text>
+  <text x="22" y="358" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">_build_space · apply_kick · simulate_kick</text>
+  <text x="22" y="374" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">_referee_step · penalty shootout</text>
+  <text x="22" y="390" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">ball · players · walls · friction</text>
+  <text x="22" y="408" font-family="JetBrains Mono" font-size="9" fill="#92400e">stats</text>
+  <text x="22" y="422" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">Size · Power · Weight · Agility</text>
+  <text x="22" y="452" font-family="JetBrains Mono" font-size="8" fill="#64748b">↔ Backend · AI</text>
+</g>
+
+<!-- ========== AI ========== -->
+<g>
+  <rect x="402" y="282" width="376" height="188" rx="14" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.6"/>
+  <rect x="412" y="292" width="36" height="18" rx="9" fill="#8b5cf6"/><text x="420" y="305" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#fff">AI</text>
+  <text x="454" y="305" font-family="Space Grotesk" font-size="12" font-weight="700" fill="#0f172a">Agents + Custom Models</text>
+  <text x="412" y="326" font-family="JetBrains Mono" font-size="9" fill="#4c1d95">7 built-ins</text>
+  <text x="412" y="340" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">minimax · monte_carlo · greedy</text>
+  <text x="412" y="354" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">bayesian · value_iteration</text>
+  <text x="412" y="368" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">policy_iteration · q_learning</text>
+  <text x="412" y="386" font-family="JetBrains Mono" font-size="9" fill="#4c1d95">custom</text>
+  <text x="412" y="400" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">user_models/runner.py — sandbox</text>
+  <text x="412" y="414" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">validate_code · execute_user_model</text>
+  <text x="412" y="452" font-family="JetBrains Mono" font-size="8" fill="#64748b">↔ Game Engine</text>
+</g>
+
+<!-- ========== SERVICES ========== -->
+<g>
+  <rect x="792" y="282" width="376" height="188" rx="14" fill="#f8fafc" stroke="#64748b" stroke-width="1.6"/>
+  <rect x="802" y="292" width="78" height="18" rx="9" fill="#64748b"/><text x="810" y="305" font-family="JetBrains Mono" font-size="8" font-weight="700" fill="#fff">SERVICES</text>
+  <text x="886" y="305" font-family="Space Grotesk" font-size="12" font-weight="700" fill="#0f172a">Infra</text>
+  <text x="802" y="326" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">Supabase Auth · Clerk</text>
+  <text x="802" y="340" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">Upstash Redis</text>
+  <text x="802" y="354" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">Sentry · PostHog</text>
+  <text x="802" y="368" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">Resend · Pinecone</text>
+  <text x="802" y="382" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">ProductBridge</text>
+  <text x="802" y="400" font-family="Be Vietnam Pro" font-size="9.5" fill="#334155">Semantic Scholar</text>
+  <text x="802" y="452" font-family="JetBrains Mono" font-size="8" fill="#64748b">↔ Backend</text>
+</g>
+
+<!-- ========== ARROWS ========== -->
+<g fill="none" stroke="#94a3b8" stroke-width="1.4" marker-end="url(#a)">
+  <!-- frontend <-> backend -->
+  <path d="M388 161 L402 161"/>
+  <path d="M402 175 L388 175" stroke-dasharray="4 3" opacity="0.7"/>
+  <!-- backend <-> database -->
+  <path d="M778 161 L792 161"/>
+  <path d="M792 175 L778 175" stroke-dasharray="4 3" opacity="0.7"/>
+  <!-- backend -> engine -->
+  <path d="M520 268 L200 282"/>
+  <!-- engine <-> AI -->
+  <path d="M388 376 L402 376"/>
+  <path d="M402 390 L388 390" stroke-dasharray="4 3" opacity="0.7"/>
+  <!-- backend <-> services -->
+  <path d="M980 282 L980 268"/>
+  <path d="M994 268 L994 282" stroke-dasharray="4 3" opacity="0.7"/>
+  <!-- backend <-> AI via engine already, also direct -->
+  <path d="M590 268 L590 282" opacity="0.6"/>
+</g>
+<g font-family="JetBrains Mono" font-size="7.5" fill="#64748b" text-anchor="middle">
+  <text x="395" y="158">request / response</text>
+  <text x="785" y="158">read / write</text>
+  <text x="362" y="284">kick / trajectory</text>
+  <text x="395" y="372">simulate_kick</text>
+</g>
+
+<!-- footer -->
+<rect x="12" y="482" width="1156" height="44" rx="10" fill="#0f172a"/>
+<text x="22" y="500" font-family="JetBrains Mono" font-size="8.5" fill="#7dd3fc">FLOW:  Browser → Frontend → Flask Backend → Game Engine (+ AI lookahead) → Database → back to Frontend (Three.js render)</text>
+<text x="22" y="514" font-family="JetBrains Mono" font-size="8.5" fill="#94a3b8">Files: app.py · config.py · game/session.py · models/* · user_models/runner.py · db/* · services/* · static/* · templates/* · supabase_schema.sql</text>
+
+<!-- file counts -->
+<rect x="12" y="536" width="1156" height="32" rx="10" fill="#fff" stroke="#e2e8f0"/>
+<text x="22" y="556" font-family="JetBrains Mono" font-size="8.5" fill="#475569">26 templates · 5 static core · 16 db modules · 8 models · 11 services · 9 migrations · 14 test suites — see AGENTS.md / README.md</text>
+
+<!-- legend minimal -->
+<g font-family="JetBrains Mono" font-size="8" fill="#64748b">
+  <rect x="12" y="578" width="10" height="10" rx="2" fill="#f0f9ff" stroke="#0ea5e9"/><text x="28" y="586" fill="#334155">Frontend</text>
+  <rect x="90" y="578" width="10" height="10" rx="2" fill="#eef2ff" stroke="#6366f1"/><text x="106" y="586" fill="#334155">Backend</text>
+  <rect x="168" y="578" width="10" height="10" rx="2" fill="#ecfdf5" stroke="#10b981"/><text x="184" y="586" fill="#334155">Database</text>
+  <rect x="252" y="578" width="10" height="10" rx="2" fill="#fff7ed" stroke="#f59e0b"/><text x="268" y="586" fill="#334155">Engine</text>
+  <rect x="322" y="578" width="10" height="10" rx="2" fill="#f5f3ff" stroke="#8b5cf6"/><text x="338" y="586" fill="#334155">AI</text>
+  <rect x="370" y="578" width="10" height="10" rx="2" fill="#f8fafc" stroke="#64748b"/><text x="386" y="586" fill="#334155">Services</text>
+  <text x="450" y="586" fill="#94a3b8">— solid = request · dashed = response / lookahead</text>
+</g>
+</svg>
+</div>
+</body>
+</html>

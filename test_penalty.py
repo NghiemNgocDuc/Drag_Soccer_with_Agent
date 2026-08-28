@@ -38,7 +38,7 @@ def make_penalty_state(score_a=0, score_b=0, kick_num=0, is_player_a=True):
     return st
 
 
-# ── 1. _setup_penalty_positions ──────────────────────────────────────────────
+#  1. _setup_penalty_positions 
 
 def test_setup_positions():
     st = make_penalty_state(is_player_a=True)
@@ -55,7 +55,7 @@ def test_setup_positions():
 
     check("Goalkeeper move reset", st["penalty_goalkeeper_move"] is None)
 
-# ── 2. _build_penalty_space ──────────────────────────────────────────────────
+#  2. _build_penalty_space 
 
 def test_penalty_space_has_bodies():
     st = make_penalty_state(is_player_a=True)
@@ -71,7 +71,7 @@ def test_penalty_space_has_bodies():
     check("Team B keeper at left goal", abs(keeper2.position.x - _PENALTY_KEEPER_X_B) < 0.1)
     check("Team B ball at left spot", abs(ball2.position.x - _PENALTY_SPOT_X_B) < 0.1)
 
-# ── 3. _sim_penalty — goal detection via physcis ─────────────────────────────
+#  3. _sim_penalty — goal detection via physcis 
 
 def test_angled_shot_scores():
     """Angled shot past the keeper should score."""
@@ -122,7 +122,7 @@ def test_keeper_dives_wrong_way():
     check("Keeper dives wrong way, goal scored", scored == True,
           f"end=({traj[-1]['x']:.0f},{traj[-1]['y']:.0f})")
 
-# ── 4. apply_penalty_kick ────────────────────────────────────────────────────
+#  4. apply_penalty_kick 
 
 def test_apply_penalty_scored():
     st = make_penalty_state(is_player_a=True)
@@ -148,7 +148,7 @@ def test_penalty_trajectory_decimated():
     traj, scored, desc = apply_penalty_kick(st, 0, -20, 100, True)
     check("Trajectory decimated (<=80 pts)", len(traj) <= 80)
 
-# ── 5. Alternating kickers ──────────────────────────────────────────────────
+#  5. Alternating kickers 
 
 def test_alternating_kickers():
     st = make_penalty_state(is_player_a=True)
@@ -157,7 +157,7 @@ def test_alternating_kickers():
     apply_penalty_kick(st, 0, -20, 100, False)
     check("After B kicks, next is A", st["is_player_a"] == True)
 
-# ── 6. Shootout end conditions ──────────────────────────────────────────────
+#  6. Shootout end conditions 
 
 def test_shootout_ends_when_winner_after_5_each():
     """After 5 rounds each with different scores, game should end."""
@@ -241,13 +241,13 @@ def test_shootout_all_5_rounds_played():
           st["game_over"] and st["winner"] == "A",
           f"over={st['game_over']}, winner={st['winner']}")
 
-# ── 7. Transition from regular time ──────────────────────────────────────────
+#  7. Transition from regular time 
 
 def _safe_kick_no_score(st, is_player_a):
     """Kick that will not score (weak, wrong angle)."""
     return apply_kick(st, 0, 90, 10, is_player_a)
 
-# ── 10. Halftime transition ─────────────────────────────────────────────────
+#  10. Halftime transition 
 
 def test_halftime_switch():
     """At 45 min (135s), teams switch sides and kicker flips."""
@@ -313,7 +313,7 @@ def test_et_second_half():
     _safe_kick_no_score(st, True)
     check("Transitions to et_second", st.get("period") == "et_second")
 
-# ── 8. Regular goal detection still works ────────────────────────────────────
+#  8. Regular goal detection still works 
 
 def test_regular_kick_returns_valid():
     """Regular apply_kick returns valid structure (scoring depends on defenders)."""
@@ -330,7 +330,7 @@ def test_regular_goal_via_simulate():
     check("simulate_kick returns trajectory", len(traj) > 0)
     check("simulate_kick returns scored type", scored is None or isinstance(scored, str))
 
-# ── 9. Penalty keeper state management ──────────────────────────────────────
+#  9. Penalty keeper state management 
 
 def test_goalkeeper_move_reset():
     """Goalkeeper move should reset after each kick."""
@@ -349,7 +349,7 @@ def test_penalty_kick_history():
     check("Kick entry has keeper move", "keeper_move" in entry)
     check("Kick entry has goal status", "goal" in entry)
 
-# ── Run all ──────────────────────────────────────────────────────────────────
+#  Run all 
 
 def mark_failed():
     global failed

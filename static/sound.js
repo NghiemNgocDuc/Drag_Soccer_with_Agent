@@ -50,7 +50,7 @@ const SoundManager = {
     try { await this.resume(); } catch (_) {}
   },
 
-  // ── Shared buffer synthesis (used for positional kick/bounce) ─────────────
+  //  Shared buffer synthesis (used for positional kick/bounce) 
   // Pitch-dropping sine "thump" + lowpassed strike noise.
   makeImpactBuffer(opts) {
     const ctx = this._ctx;
@@ -87,7 +87,7 @@ const SoundManager = {
     return this.makeImpactBuffer({ f0: 205, f1: 82, dur: 0.10, strikeDur: 0.03, strikeGain: 0.40 });
   },
 
-  // ── Goal fanfare: bass + 4-note arpeggio with octave sparkle, 2 key variants ─
+  //  Goal fanfare: bass + 4-note arpeggio with octave sparkle, 2 key variants 
   async goal() {
     if (this.muted) return;
     await this._ensure();
@@ -128,7 +128,7 @@ const SoundManager = {
     }
   },
 
-  // ── Referee whistle: dual detuned squares + vibrato + pea warble ───────────
+  //  Referee whistle: dual detuned squares + vibrato + pea warble 
   async whistle() {
     if (this.muted) return;
     await this._ensure();
@@ -166,7 +166,7 @@ const SoundManager = {
     mk(2360);
   },
 
-  // ── Ambient crowd murmur: stereo filtered noise, formant humps, flutter ────
+  //  Ambient crowd murmur: stereo filtered noise, formant humps, flutter 
   async crowdAmbient() {
     if (this._ambientSource) return;
     await this._ensure();
@@ -212,7 +212,7 @@ const SoundManager = {
     this._ambientGain = g;
   },
 
-  // ── Crowd cheer: rising bandpass roar + rumble layer, ambient ducks ────────
+  //  Crowd cheer: rising bandpass roar + rumble layer, ambient ducks 
   async crowdCheer() {
     if (this.muted) return;
     await this._ensure();

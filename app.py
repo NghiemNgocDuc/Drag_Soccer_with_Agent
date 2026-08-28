@@ -56,6 +56,16 @@ def _security_headers(resp):
         resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return resp
 
+
+@app.before_request
+def _presence_heartbeat():
+    if "user_id" in session and request.path not in ("/static/workflow.png",):
+        try:
+            from db.friends import heartbeat as _hb_presence
+            _hb_presence(session["user_id"])
+        except Exception:
+            pass
+
 MODELS: dict[str, str] = {
     "minimax":          "models.minimax",
     "monte_carlo":      "models.monte_carlo",
@@ -1691,6 +1701,26 @@ def _save_room(room_id, room):
     r.setex(f"room:{room_id}", ROOM_TTL, _json.dumps(room))
 
 
+def _hash_room_pw(pw: str | None) -> str | None:
+    if not pw:
+        return None
+    pw = str(pw).strip()
+    if not pw or len(pw) > 32:
+        return None
+    import hashlib
+    return hashlib.sha256(pw.encode()).hexdigest()[:16]
+
+
+def _check_room_pw(room: dict, pw: str | None) -> bool:
+    need = room.get("password_hash")
+    if not need:
+        return True
+    if not pw:
+        return False
+    import hashlib
+    return hashlib.sha256(str(pw).encode()).hexdigest()[:16] == need
+
+
 #  Live-match index (spectator mode) 
 # A Redis set tracks rooms whose status is "active", so /spectate can list
 # open matches without scanning. Stale ids are pruned on read.
@@ -1825,6 +1855,8 @@ def _create_ranked_room(a_uid: str, b_uid: str) -> str:
     redis.sadd(RANKED_ROOMS_KEY, room_id)
     redis.setex(f"{RANKED_MATCH_KEY}:{a_uid}", RANKED_MATCH_GRACE, room_id)
     redis.setex(f"{RANKED_MATCH_KEY}:{b_uid}", RANKED_MATCH_GRACE, room_id)
+    _set_presence_in_match(a_uid, room_id)
+    _set_presence_in_match(b_uid, room_id)
     return room_id
 
 
@@ -2196,7 +2228,9 @@ def join_room_page(room_id):
 @app.route("/online/create", methods=["POST"])
 @login_required
 def online_create():
+    data = request.get_json(silent=True) or {}
     room_id = _uuid.uuid4().hex[:10]
+    pw_hash = _hash_room_pw(data.get("password"))
     room = {
         "game":      new_game_state(mode="hvh"),
         "player_a":  uid(),
@@ -2208,8 +2242,11 @@ def online_create():
         "move_log":  [],
         "started_at": _time.time(),
     }
+    if pw_hash:
+        room["password_hash"] = pw_hash
+        room["has_password"] = True
     _save_room(room_id, room)
-    return jsonify({"room_id": room_id})
+    return jsonify({"room_id": room_id, "has_password": bool(pw_hash)})
 
 
 @app.route("/online/<room_id>/join", methods=["POST"])
@@ -2242,11 +2279,17 @@ def online_join(room_id):
                         "ranked": True})
     if room["player_b"] is not None:
         return jsonify({"error": "Room is full"}), 400
+    # password rooms
+    pw = (request.get_json(silent=True) or {}).get("password") if request.is_json else request.form.get("password")
+    if not _check_room_pw(room, pw):
+        return jsonify({"error": "Incorrect room password", "has_password": True}), 403
     room["player_b"] = my_uid
     room["name_b"]   = session.get("username", "Guest")
     room["status"]   = "active"
     _save_room(room_id, room)
     _mark_room_active(room_id)
+    _set_presence_in_match(room["player_a"], room_id)
+    _set_presence_in_match(room["player_b"], room_id)
     return jsonify({"my_side": "b", "status": "active",
                     "room_id": room_id,
                     "name_a": room["name_a"], "name_b": room["name_b"],
@@ -2392,12 +2435,17 @@ def online_move(room_id):
         _mark_room_inactive(room_id)
         _check_online_achievements(room, game)
         if room.get("ranked"):
-            # Authoritative server-side rating update (winner/score were set
-            # by apply_kick above, never by a client). Idempotent + retried
-            # lazily on state polls if the storage write fails.
             _process_ranked_result(room_id, room)
         _save_match_summary(room_id, room)
-        # long-term summarize for both players
+        _push_recent_pair(room.get("player_a") or "", room.get("name_a") or "Player A", room.get("player_b") or "", room.get("name_b") or "Player B")
+        try:
+            from db.friends import set_presence as _sp2
+            if room.get("player_a"):
+                _sp2(room["player_a"], "online")
+            if room.get("player_b"):
+                _sp2(room["player_b"], "online")
+        except Exception:
+            pass
         try:
             _mem_summ(my_uid, game)
             other = room["player_b"] if my_side=="a" else room["player_a"]
@@ -2418,10 +2466,23 @@ def online_invite_search():
     try:
         from db.supabase_client import service
         if not service:
-            return jsonify([])
-        rows = (service.table("profiles").select("id,username")
-                .ilike("username", f"%{q}%").limit(8).execute().data or [])
-        return jsonify([r for r in rows if r["id"] != uid()])
+            from db.profiles import _MEM_USERS
+            res = [{"id": _uid, "username": _name} for _uid, _name in _MEM_USERS.items() if q.lower() in _name.lower() and _uid != uid()]
+            # exact first
+            res.sort(key=lambda r: (r["username"].lower() != q.lower(), r["username"].lower()))
+            return jsonify(res[:10])
+        # exact match first (EA FC style), then ilike
+        exact = service.table("profiles").select("id,username").eq("username", q).maybe_single().execute()
+        rows = []
+        if exact and exact.data and exact.data.get("id") != uid():
+            rows.append(exact.data)
+        ilike = (service.table("profiles").select("id,username").ilike("username", f"%{q}%").limit(10).execute().data or [])
+        for r in ilike:
+            if r["id"] != uid() and r["id"] not in {x["id"] for x in rows}:
+                rows.append(r)
+            if len(rows) >= 10:
+                break
+        return jsonify(rows)
     except Exception:
         return jsonify([])
 
@@ -2435,17 +2496,23 @@ def online_invite_send():
     if not to_uid or to_uid == uid():
         return jsonify({"error": "Invalid target"}), 400
     room_id = _uuid.uuid4().hex[:10]
+    pw_hash = _hash_room_pw(data.get("password"))
     room = {
         "game": new_game_state(mode="hvh"), "player_a": uid(), "player_b": None,
         "name_a": session.get("username", "Player A"), "name_b": None,
         "status": "waiting", "last_move": None, "started_at": _time.time(),
     }
+    if pw_hash:
+        room["password_hash"] = pw_hash
+        room["has_password"] = True
     _save_room(room_id, room)
     invite_id = _uuid.uuid4().hex[:12]
     invite = {
         "from_uid": uid(), "from_name": session.get("username", "Player"),
         "to_uid": to_uid, "room_id": room_id, "status": "pending",
     }
+    if pw_hash:
+        invite["has_password"] = True
     redis.setex(f"invite:{invite_id}", INVITE_TTL, _json.dumps(invite))
     redis.lpush(f"user_invites:{to_uid}", invite_id)
     redis.expire(f"user_invites:{to_uid}", INVITE_TTL)
@@ -2489,6 +2556,8 @@ def online_accept_invite(invite_id):
     room.setdefault("started_at", _time.time())
     _save_room(inv["room_id"], room)
     _mark_room_active(inv["room_id"])
+    _set_presence_in_match(room["player_a"], inv["room_id"])
+    _set_presence_in_match(room["player_b"], inv["room_id"])
     inv["status"] = "accepted"
     redis.setex(f"invite:{invite_id}", INVITE_TTL, _json.dumps(inv))
     redis.lrem(f"user_invites:{uid()}", 0, invite_id)
@@ -2622,39 +2691,86 @@ def online_choose_team(room_id):
     _save_room(room_id, room)
     return jsonify({"ok": True, "team_id": team_id, "team": team, "room": {"team_a": room.get("team_a"), "team_b": room.get("team_b")}})
 
-#  Friend system 
+#  Friend system — persistent (Supabase) + presence (Redis) — EA FC / eFootball inspired
 
-FRIEND_TTL = 3600 * 24 * 30   # 30 days
+FRIEND_TTL = 3600 * 24 * 30   # legacy cache TTL (Supabase is source of truth now)
 
 
 def _get_friends(user_id: str) -> list:
-    from db.redis_client import r as redis
-    raw = redis.get(f"friends:{user_id}")
-    return _json.loads(raw) if raw else []
+    try:
+        from db.friends import list_friends as _lf
+        return _lf(user_id)
+    except Exception:
+        from db.redis_client import r as redis
+        raw = redis.get(f"friends:{user_id}")
+        return _json.loads(raw) if raw else []
 
 
 def _save_friends(user_id: str, friends: list) -> None:
     from db.redis_client import r as redis
-    redis.setex(f"friends:{user_id}", FRIEND_TTL, _json.dumps(friends))
+    try:
+        redis.setex(f"friends:{user_id}", FRIEND_TTL, _json.dumps(friends))
+    except Exception:
+        pass
 
 
 def _get_friend_reqs(user_id: str) -> list:
-    from db.redis_client import r as redis
-    raw = redis.get(f"friend_reqs:{user_id}")
-    return _json.loads(raw) if raw else []
+    try:
+        from db.friends import list_requests as _lr
+        return _lr(user_id)
+    except Exception:
+        from db.redis_client import r as redis
+        raw = redis.get(f"friend_reqs:{user_id}")
+        return _json.loads(raw) if raw else []
 
 
 def _save_friend_reqs(user_id: str, reqs: list) -> None:
     from db.redis_client import r as redis
-    redis.setex(f"friend_reqs:{user_id}", FRIEND_TTL, _json.dumps(reqs))
+    try:
+        redis.setex(f"friend_reqs:{user_id}", FRIEND_TTL, _json.dumps(reqs))
+    except Exception:
+        pass
+
+
+def _friend_heartbeat(uid_: str) -> None:
+    try:
+        from db.friends import heartbeat as _hb
+        _hb(uid_)
+    except Exception:
+        pass
 
 
 @app.route("/api/friends")
 @login_required
 def api_list_friends():
+    _friend_heartbeat(uid())
+    from db.friends import get_presence, get_recent
+    friends = _get_friends(uid())
+    # enrich with presence + avatar + stats head-to-head lightweight
+    try:
+        pres = get_presence([f["uid"] for f in friends]) if friends else {}
+        for f in friends:
+            p = pres.get(f["uid"], {"status": "offline", "last_seen": 0})
+            f["presence"] = p.get("status", "offline")
+            f["last_seen"] = p.get("last_seen", 0)
+            f["in_match"] = p.get("status") == "in_match"
+            f["room_id"] = p.get("room_id")
+    except Exception:
+        pass
+    requests = _get_friend_reqs(uid())
+    recent = []
+    try:
+        recent = get_recent(uid())
+        # filter out existing friends
+        fids = {f["uid"] for f in friends}
+        recent = [r for r in recent if r.get("uid") not in fids][:30]
+    except Exception:
+        pass
     return jsonify({
-        "friends":  _get_friends(uid()),
-        "requests": _get_friend_reqs(uid()),
+        "friends":  friends,
+        "requests": requests,
+        "recent": recent,
+        "cap": 32,
     })
 
 
@@ -2662,6 +2778,7 @@ def api_list_friends():
 @login_required
 def api_send_friend_request():
     from db.supabase_client import service
+    from db.friends import FRIEND_CAP
     data   = request.get_json(silent=True) or {}
     target = (data.get("username") or "").strip()
     if not target:
@@ -2670,43 +2787,93 @@ def api_send_friend_request():
     my_username = session.get("username", "")
     if target.lower() == my_username.lower():
         return jsonify({"error": "You can't add yourself"}), 400
+    # cap 32
+    if len(_get_friends(my_uid)) >= FRIEND_CAP:
+        return jsonify({"error": f"Friend list full (max {FRIEND_CAP})"}), 400
+    # exact match first, then ilike fallback — EA FC style
+    target_uid = target_name = None
     try:
-        res = (service.table("profiles").select("id,username")
-               .ilike("username", target).limit(1).execute())
-        row = (res.data or [None])[0] if res.data else None
-        if not row:
+        if service:
+            exact = service.table("profiles").select("id,username").eq("username", target).maybe_single().execute()
+            if exact and exact.data:
+                target_uid, target_name = exact.data["id"], exact.data["username"]
+            else:
+                res = (service.table("profiles").select("id,username").ilike("username", target).limit(1).execute())
+                row = (res.data or [None])[0] if res.data else None
+                if row:
+                    target_uid, target_name = row["id"], row["username"]
+        else:
+            from db.profiles import _MEM_USERS
+            for _uid, _name in _MEM_USERS.items():
+                if _name.lower() == target.lower():
+                    target_uid, target_name = _uid, _name
+                    break
+            if not target_uid:
+                for _uid, _name in _MEM_USERS.items():
+                    if target.lower() in _name.lower():
+                        target_uid, target_name = _uid, _name
+                        break
+        if not target_uid:
             return jsonify({"error": "User not found"}), 404
-        target_uid  = row["id"]
-        target_name = row["username"]
     except Exception:
         return jsonify({"error": "User lookup failed"}), 500
     if any(f["uid"] == target_uid for f in _get_friends(my_uid)):
         return jsonify({"error": "Already friends"}), 400
-    reqs = _get_friend_reqs(target_uid)
-    if any(r_["from_uid"] == my_uid for r_ in reqs):
-        return jsonify({"error": "Request already sent"}), 400
-    req_id = _uuid.uuid4().hex[:12]
-    reqs.append({
-        "id":            req_id,
-        "from_uid":      my_uid,
-        "from_username": my_username,
-        "ts":            _time.time(),
-    })
-    _save_friend_reqs(target_uid, reqs)
+    # use persistent check
+    try:
+        from db.friends import has_pending
+        if has_pending(my_uid, target_uid):
+            return jsonify({"error": "Request already sent"}), 400
+    except Exception:
+        if any(r_["from_uid"] == my_uid for r_ in _get_friend_reqs(target_uid)):
+            return jsonify({"error": "Request already sent"}), 400
+    try:
+        from db.friends import create_request
+        create_request(my_uid, my_username, target_uid)
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception:
+        # fallback Redis
+        reqs = _get_friend_reqs(target_uid)
+        reqs.append({"id": _uuid.uuid4().hex[:12], "from_uid": my_uid, "from_username": my_username, "ts": _time.time()})
+        _save_friend_reqs(target_uid, reqs)
     return jsonify({"ok": True, "to": target_name})
 
 
 @app.route("/api/friends/accept/<req_id>", methods=["POST"])
 @login_required
 def api_accept_friend(req_id):
-    my_uid        = uid()
-    reqs          = _get_friend_reqs(my_uid)
-    req           = next((r_ for r_ in reqs if r_["id"] == req_id), None)
+    my_uid = uid()
+    # persistent path first
+    try:
+        from db.friends import delete_request, add_friend_pair, FRIEND_CAP
+        # find request owner
+        req = None
+        # try persistent lookup
+        for r in _get_friend_reqs(my_uid):
+            if r.get("id") == req_id:
+                req = r
+                break
+        if not req:
+            return jsonify({"error": "Request not found"}), 404
+        if len(_get_friends(my_uid)) >= FRIEND_CAP:
+            return jsonify({"error": f"Friend list full (max {FRIEND_CAP})"}), 400
+        # also check target cap
+        if len(_get_friends(req["from_uid"])) >= FRIEND_CAP:
+            return jsonify({"error": "Their friend list is full"}), 400
+        add_friend_pair(my_uid, session.get("username", ""), req["from_uid"], req.get("from_username", "Player"))
+        delete_request(my_uid, req_id)
+        return jsonify({"ok": True, "friend": {"uid": req["from_uid"], "username": req.get("from_username", "Player")}} )
+    except Exception:
+        pass
+    # legacy fallback
+    reqs = _get_friend_reqs(my_uid)
+    req = next((r_ for r_ in reqs if r_["id"] == req_id), None)
     if not req:
         return jsonify({"error": "Request not found"}), 404
-    ts             = _time.time()
-    my_friends     = _get_friends(my_uid)
-    their_friends  = _get_friends(req["from_uid"])
+    ts = _time.time()
+    my_friends = _get_friends(my_uid)
+    their_friends = _get_friends(req["from_uid"])
     my_friends.append({"uid": req["from_uid"], "username": req["from_username"], "since": ts})
     their_friends.append({"uid": my_uid, "username": session.get("username", ""), "since": ts})
     _save_friends(my_uid, my_friends)
@@ -2718,20 +2885,132 @@ def api_accept_friend(req_id):
 @app.route("/api/friends/decline/<req_id>", methods=["POST"])
 @login_required
 def api_decline_friend(req_id):
-    my_uid = uid()
-    _save_friend_reqs(my_uid, [r_ for r_ in _get_friend_reqs(my_uid) if r_["id"] != req_id])
+    try:
+        from db.friends import delete_request
+        delete_request(uid(), req_id)
+        return jsonify({"ok": True})
+    except Exception:
+        pass
+    _save_friend_reqs(uid(), [r_ for r_ in _get_friend_reqs(uid()) if r_["id"] != req_id])
     return jsonify({"ok": True})
 
 
 @app.route("/api/friends/<friend_uid>", methods=["DELETE"])
 @login_required
 def api_remove_friend(friend_uid):
-    my_uid        = uid()
-    my_friends    = [f for f in _get_friends(my_uid)      if f["uid"] != friend_uid]
-    their_friends = [f for f in _get_friends(friend_uid)  if f["uid"] != my_uid]
+    try:
+        from db.friends import remove_friend_pair
+        remove_friend_pair(uid(), friend_uid)
+        return jsonify({"ok": True})
+    except Exception:
+        pass
+    my_uid = uid()
+    my_friends = [f for f in _get_friends(my_uid) if f["uid"] != friend_uid]
+    their_friends = [f for f in _get_friends(friend_uid) if f["uid"] != my_uid]
     _save_friends(my_uid, my_friends)
     _save_friends(friend_uid, their_friends)
     return jsonify({"ok": True})
+
+
+@app.route("/api/friends/<friend_uid>", methods=["PATCH"])
+@login_required
+def api_update_friend(friend_uid):
+    data = request.get_json(silent=True) or {}
+    # allow nickname and favorite
+    nickname_set = "nickname" in data
+    favorite_set = "favorite" in data
+    if not nickname_set and not favorite_set:
+        return jsonify({"error": "No fields to update"}), 400
+    nickname = data.get("nickname") if nickname_set else None
+    favorite = data.get("favorite") if favorite_set else None
+    if nickname is not None and len(str(nickname).strip()) > 24:
+        return jsonify({"error": "Nickname max 24 chars"}), 400
+    if favorite is not None:
+        favorite = bool(favorite)
+    try:
+        from db.friends import update_friend
+        row = update_friend(uid(), friend_uid, nickname=nickname if nickname_set else None, favorite=favorite if favorite_set else None)
+        if not row:
+            return jsonify({"error": "Not friends"}), 404
+        return jsonify({"ok": True, "friend": row})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/friends/heartbeat", methods=["POST"])
+@login_required
+def api_friend_heartbeat():
+    _friend_heartbeat(uid())
+    # also sweep stale presence (covers in-memory fallback)
+    try:
+        from db.friends import sweep_presence
+        sweep_presence()
+    except Exception:
+        pass
+    return jsonify({"ok": True})
+
+
+@app.route("/api/friends/recent")
+@login_required
+def api_friends_recent():
+    try:
+        from db.friends import get_recent
+        recent = get_recent(uid())
+        # filter friends out
+        fids = {f["uid"] for f in _get_friends(uid())}
+        recent = [r for r in recent if r.get("uid") not in fids]
+        return jsonify({"recent": recent})
+    except Exception:
+        return jsonify({"recent": []})
+
+
+@app.route("/api/friends/<friend_uid>/stats")
+@login_required
+def api_friend_stats(friend_uid):
+    try:
+        from db.friends import head_to_head, are_friends
+        if not are_friends(uid(), friend_uid):
+            return jsonify({"error": "Not friends"}), 403
+        return jsonify(head_to_head(uid(), friend_uid))
+    except Exception:
+        return jsonify({"w": 0, "l": 0, "d": 0})
+
+
+@app.route("/api/friends/invite-match", methods=["POST"])
+@login_required
+def api_friends_invite_match():
+    """One-click invite a friend to a match lobby (EA FC style)."""
+    data = request.get_json(silent=True) or {}
+    friend_uid = (data.get("friend_uid") or data.get("to_uid") or "").strip()
+    if not friend_uid:
+        return jsonify({"error": "friend_uid required"}), 400
+    try:
+        from db.friends import are_friends
+        if not are_friends(uid(), friend_uid):
+            return jsonify({"error": "Not friends"}), 403
+    except Exception:
+        if not any(f["uid"] == friend_uid for f in _get_friends(uid())):
+            return jsonify({"error": "Not friends"}), 403
+    # reuse invite logic: create room + push invite
+    from db.redis_client import r as redis
+    pw_hash = _hash_room_pw(data.get("password"))
+    room_id = _uuid.uuid4().hex[:10]
+    room = {"game": new_game_state(mode="hvh"), "player_a": uid(), "player_b": None, "name_a": session.get("username", "Player A"), "name_b": None, "status": "waiting", "last_move": None, "started_at": _time.time()}
+    if pw_hash:
+        room["password_hash"] = pw_hash
+        room["has_password"] = True
+    _save_room(room_id, room)
+    invite_id = _uuid.uuid4().hex[:12]
+    invite = {"from_uid": uid(), "from_name": session.get("username", "Player"), "to_uid": friend_uid, "room_id": room_id, "status": "pending"}
+    if pw_hash:
+        invite["has_password"] = True
+    try:
+        redis.setex(f"invite:{invite_id}", 86400, _json.dumps(invite))
+        redis.lpush(f"user_invites:{friend_uid}", invite_id)
+        redis.expire(f"user_invites:{friend_uid}", 86400)
+    except Exception:
+        pass
+    return jsonify({"ok": True, "room_id": room_id, "invite_id": invite_id})
 
 
 #  Chat (match / tournament-lobby / friend DMs) 
@@ -2757,9 +3036,30 @@ def _can_lobby_chat(tid: str, user_id: str) -> bool:
 
 
 def _is_friends_with(a: str, b: str) -> bool:
-    a_has_b = any(f["uid"] == b for f in _get_friends(a))
-    b_has_a = any(f["uid"] == a for f in _get_friends(b))
-    return a_has_b and b_has_a
+    try:
+        from db.friends import are_friends as _af
+        return _af(a, b)
+    except Exception:
+        a_has_b = any(f["uid"] == b for f in _get_friends(a))
+        b_has_a = any(f["uid"] == a for f in _get_friends(b))
+        return a_has_b and b_has_a
+
+
+def _push_recent_pair(a_uid: str, a_name: str, b_uid: str, b_name: str) -> None:
+    try:
+        from db.friends import push_recent
+        push_recent(a_uid, b_uid, b_name)
+        push_recent(b_uid, a_uid, a_name)
+    except Exception:
+        pass
+
+
+def _set_presence_in_match(uid_: str, room_id: str) -> None:
+    try:
+        from db.friends import set_presence as _sp
+        _sp(uid_, "in_match", room_id)
+    except Exception:
+        pass
 
 
 @app.route("/messages")

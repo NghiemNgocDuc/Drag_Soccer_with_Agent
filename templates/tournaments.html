@@ -42,8 +42,8 @@
         <span class="badge {% if t.status == 'active' %}badge-active{% elif t.status == 'completed' %}badge-completed{% else %}badge-pending{% endif %}">{{ t.status }}</span>
       </div>
       <div class="tourney-meta">
-        <span>🏟️ {{ t.participants|length if t.participants is defined else '—' }} players</span>
-        <span>🕒 {{ t.created_at[:10] if t.created_at else '' }}</span>
+        <span> {{ t.participants|length if t.participants is defined else '—' }} players</span>
+        <span> {{ t.created_at[:10] if t.created_at else '' }}</span>
       </div>
       <a href="/tournaments/{{ t.id }}" class="btn btn-primary btn-sm" style="width:100%">View Bracket →</a>
     </div>
@@ -51,7 +51,7 @@
   </div>
   {% else %}
   <div class="glass-card empty-state">
-    <div class="ico">🏆</div>
+    <div class="ico"></div>
     <h3 style="margin:0 0 6px;color:#0f172a">No tournaments yet</h3>
     <p style="margin:0 0 14px">Be the first to create one and invite your squad!</p>
     <button class="btn btn-primary" onclick="createTournament()">Create Tournament</button>

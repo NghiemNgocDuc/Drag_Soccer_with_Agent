@@ -13,14 +13,14 @@
   'use strict';
 
   var EMOJI_GRID = [
-    '⚽', '🥅', '🏆', '⭐', '🔥', '💯', '👏', '🎉',
-    '😀', '😂', '🤣', '😅', '😊', '😎', '🥳', '😢',
-    '😭', '😡', '🤔', '😴', '👍', '👎', '🙏', '❤️',
-    '💪', '🤝', '👋', '🎯', '🚀', '⚡', '💥', '🍀',
-    '🧠', '🤖', '👀', '😬', '🙃', '😇', '🤯', '😤',
-    '🫠', '✌️', '🤙', '🖐️', '🫡', '🥶', '🍿', '☕'
+    '⚽','🔥','😂','😍','🥰','😎','🤩','😭',
+    '😡','🥳','🤔','🙏','💪','👏','❤️','💙',
+    '💚','💛','💜','🖤','🏆','🥅','👟','🎯',
+    '🚀','⭐','🌟','✨','💯','🎉','🎊','👑',
+    '💀','👻','🤖','👾','🎮','😅','😆','🤣',
+    '😇','🥺','😤','🤯','🥶','🤠','👊','🤝'
   ];
-  var QUICK_REACTIONS = ['⚽', '🥅', '🎯', '💪', '👏', '🔥', '😂', '😤'];
+  var QUICK_REACTIONS = ['⚽','🔥','👏','💯','😂','❤️','🎉','🏆'];
   var MAX_LEN = 280;
 
   var styleId = 'chat-panel-styles';
@@ -135,7 +135,7 @@
     this._toggleEl = document.createElement('button');
     this._toggleEl.className = 'chat-toggle';
     this._toggleEl.type = 'button';
-    this._toggleEl.textContent = this.opts.collapsed ? '▲' : '▼';
+    this._toggleEl.textContent = this.opts.collapsed ? '＋' : '−';
     this._toggleEl.title = this.opts.collapsed ? 'Open chat' : 'Minimize chat';
     this._toggleEl.addEventListener('click', function (e) {
       e.stopPropagation();
@@ -180,7 +180,7 @@
     this._emojiBtn = document.createElement('button');
     this._emojiBtn.type = 'button';
     this._emojiBtn.className = 'chat-emoji-btn';
-    this._emojiBtn.textContent = '😊';
+    this._emojiBtn.textContent = '😀';
     this._emojiBtn.title = 'Emoji';
     this._emojiBtn.addEventListener('click', function () {
       self._grid.style.display = (self._grid.style.display === 'grid') ? 'none' : 'grid';
@@ -266,7 +266,7 @@
   ChatPanel.prototype.toggle = function () {
     var collapsed = !this._el.classList.contains('collapsed');
     this._el.classList.toggle('collapsed', collapsed);
-    this._toggleEl.textContent = collapsed ? '▲' : '▼';
+    this._toggleEl.textContent = collapsed ? '＋' : '−';
     this._toggleEl.title = collapsed ? 'Open chat' : 'Minimize chat';
     if (!collapsed) {
       this.unread = 0;
@@ -378,12 +378,12 @@
       actions.className = 'chat-msg-actions';
       var rep = document.createElement('button');
       rep.type = 'button';
-      rep.textContent = '🚩 Report';
+      rep.textContent = ' Report';
       rep.title = 'Report this message';
       rep.addEventListener('click', function () { self._report(m); });
       var blk = document.createElement('button');
       blk.type = 'button';
-      blk.textContent = '🚫 Block';
+      blk.textContent = ' Block';
       blk.title = 'Block this user';
       blk.addEventListener('click', function () { self._block(m); });
       actions.appendChild(rep);

@@ -21,7 +21,7 @@
 </nav>
 <main style="max-width:1200px;margin:0 auto;padding:28px 16px">
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;flex-wrap:wrap;gap:12px">
-    <div class="page-hero"><h1>🏆 {{ t.name }}</h1><p style="font-size:.85rem;color:#64748b;margin:4px 0 0">Status: <span class="badge" style="background:#0ea5e9;color:#fff;border-radius:999px;padding:3px 10px;font-size:.7rem;text-transform:uppercase">{{ t.status }}</span></p></div>
+    <div class="page-hero"><h1> {{ t.name }}</h1><p style="font-size:.85rem;color:#64748b;margin:4px 0 0">Status: <span class="badge" style="background:#0ea5e9;color:#fff;border-radius:999px;padding:3px 10px;font-size:.7rem;text-transform:uppercase">{{ t.status }}</span></p></div>
     <a href="/tournaments" class="btn btn-ghost">← All Tournaments</a>
   </div>
 
@@ -40,9 +40,9 @@
     </div>
     <div style="margin-top:16px">
       <h4 style="font-size:.85rem;font-weight:700;margin:0 0 8px;color:#334155">Participants ({{ t.participants|length }})</h4>
-      {% if t.participants %}<div>{% for p in t.participants %}<span class="participant-pill">👤 {{ p.name }}</span>{% endfor %}</div>{% else %}<p style="font-size:.85rem;color:#94a3b8">No one yet — add at least 2 to start.</p>{% endif %}
+      {% if t.participants %}<div>{% for p in t.participants %}<span class="participant-pill"> {{ p.name }}</span>{% endfor %}</div>{% else %}<p style="font-size:.85rem;color:#94a3b8">No one yet — add at least 2 to start.</p>{% endif %}
     </div>
-    {% if t.participants|length >= 2 %}<div style="margin-top:16px"><button class="btn btn-primary" style="width:100%;padding:12px" onclick="generateBracket()">⚔️ Generate Bracket</button></div>{% endif %}
+    {% if t.participants|length >= 2 %}<div style="margin-top:16px"><button class="btn btn-primary" style="width:100%;padding:12px" onclick="generateBracket()"> Generate Bracket</button></div>{% endif %}
   </div>
   {% else %}
   <div class="glass-card" style="padding:16px;overflow:auto">
@@ -54,11 +54,11 @@
         {% for m in t.matches %}{% if m.round_num == r %}
           <div class="match-card">
             {% set pa_name = "TBD" %}{% set pb_name = "TBD" %}{% for p in t.participants %}{% if p.id == m.participant_a %}{% set pa_name = p.name %}{% endif %}{% if p.id == m.participant_b %}{% set pb_name = p.name %}{% endif %}{% endfor %}
-            <div class="match-part {% if m.winner == m.participant_a %}winner{% endif %}"><span>{{ pa_name }}</span>{% if m.winner == m.participant_a %}🏆{% endif %}</div>
-            <div class="match-part {% if m.winner == m.participant_b %}winner{% endif %}"><span>{{ pb_name }}</span>{% if m.winner == m.participant_b %}🏆{% endif %}</div>
+            <div class="match-part {% if m.winner == m.participant_a %}winner{% endif %}"><span>{{ pa_name }}</span>{% if m.winner == m.participant_a %}{% endif %}</div>
+            <div class="match-part {% if m.winner == m.participant_b %}winner{% endif %}"><span>{{ pb_name }}</span>{% if m.winner == m.participant_b %}{% endif %}</div>
             <div style="text-align:center;margin-top:10px">
-              {% if m.status == 'pending' and m.participant_a and m.participant_b %}<button class="btn btn-primary btn-sm" onclick="simulateMatch('{{ m.id }}')">▶ Simulate</button>
-              {% elif m.status == 'completed' and m.participant_a and m.participant_b and m.replay_data %}<a href="/tournaments/{{ t.id }}/watch/{{ m.id }}" class="btn btn-ghost btn-sm">👁 Watch</a>{% else %}<span style="font-size:.72rem;color:#94a3b8">Waiting</span>{% endif %}
+              {% if m.status == 'pending' and m.participant_a and m.participant_b %}<button class="btn btn-primary btn-sm" onclick="simulateMatch('{{ m.id }}')"> Simulate</button>
+              {% elif m.status == 'completed' and m.participant_a and m.participant_b and m.replay_data %}<a href="/tournaments/{{ t.id }}/watch/{{ m.id }}" class="btn btn-ghost btn-sm"> Watch</a>{% else %}<span style="font-size:.72rem;color:#94a3b8">Waiting</span>{% endif %}
             </div>
           </div>
         {% endif %}{% endfor %}
@@ -69,7 +69,7 @@
   {% endif %}
 
   <div class="glass-card" style="margin-top:18px">
-    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 4px">💬 Tournament Chat</h3>
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 4px"> Tournament Chat</h3>
     <p style="font-size:.82rem;color:#64748b;margin:0 0 10px">Chat with organiser and invited friends</p>
     <div id="lobby-chat" style="height:340px"></div>
   </div>

@@ -100,66 +100,66 @@ def get_ai_move(state, is_player_a):
 ## Project Structure
 
 ```
-├── app.py                   # Flask routes (game, online, playground, friends, auth, tournaments, research, arena)
-├── config.py                # Environment variable loading (dev-mode fallback for production safety)
-├── render.yaml              # Render deployment config
-├── requirements.txt
-├── supabase_schema.sql      # Run once in Supabase SQL Editor to create tables
-│
-├── models/
-│   ├── soccer_logic.py      # Physics engine (kicks, collisions, goals, penalties)
-│   ├── minimax.py
-│   ├── monte_carlo.py
-│   ├── q_learning.py
-│   ├── bayes.py
-│   ├── value_iteration.py
-│   ├── policy_iteration.py
-│   └── greedy_model.py
-│
-├── game/
-│   └── session.py           # Redis-backed game/playground state
-│
-├── db/
-│   ├── redis_client.py      # Upstash Redis client with in-memory fallback for dev
-│   ├── supabase_client.py   # Supabase anon + service clients
-│   ├── games.py             # Save results, leaderboard queries
-│   ├── user_models.py       # CRUD for user-uploaded AI models
-│   ├── tournaments.py       # Tournament creation, bracket generation, match results
-│   ├── research_papers.py   # DB layer for saved research papers
-│   └── saved_states.py      # Persist/load game states
-│
-├── services/
-│   ├── clerk.py             # Clerk JWT verification
-│   ├── resend.py            # Transactional email
-│   ├── posthog.py           # Product analytics
-│   ├── sentry.py            # Error monitoring
-│   ├── productbridge.py     # Feedback collection
-│   ├── pinecone.py          # Vector database for paper search
-│   └── paper_search.py      # Semantic Scholar API integration
-│
-├── user_models/
-│   └── runner.py            # Sandboxed Python execution for custom AI (AST scan + timeout)
-│
-├── static/
-│   ├── style.css            # Glass-morphism theme, light mode
-│   ├── sound.js             # Game sound effects
-│   └── feedback.js          # In-app feedback widget
-│
-└── templates/
-    ├── index.html           # Main game (slingshot canvas)
-    ├── online.html          # Online multiplayer lobby + game
-    ├── playground.html      # Code editor + live game
-    ├── my_models.html       # Manage saved AI models
-    ├── leaderboard.html
-    ├── profile.html
-    ├── login.html
-    ├── register.html
-    ├── customize.html       # Match customization (players, colors, field)
-    ├── tournaments.html     # Tournament listings
-    ├── tournament_view.html # Tournament bracket view
-    ├── replay.html          # Match replay viewer
-    ├── arena.html           # AI Arena benchmarking
-    └── research.html        # Research hub
+ app.py                   # Flask routes (game, online, playground, friends, auth, tournaments, research, arena)
+ config.py                # Environment variable loading (dev-mode fallback for production safety)
+ render.yaml              # Render deployment config
+ requirements.txt
+ supabase_schema.sql      # Run once in Supabase SQL Editor to create tables
+
+ models/
+    soccer_logic.py      # Physics engine (kicks, collisions, goals, penalties)
+    minimax.py
+    monte_carlo.py
+    q_learning.py
+    bayes.py
+    value_iteration.py
+    policy_iteration.py
+    greedy_model.py
+
+ game/
+    session.py           # Redis-backed game/playground state
+
+ db/
+    redis_client.py      # Upstash Redis client with in-memory fallback for dev
+    supabase_client.py   # Supabase anon + service clients
+    games.py             # Save results, leaderboard queries
+    user_models.py       # CRUD for user-uploaded AI models
+    tournaments.py       # Tournament creation, bracket generation, match results
+    research_papers.py   # DB layer for saved research papers
+    saved_states.py      # Persist/load game states
+
+ services/
+    clerk.py             # Clerk JWT verification
+    resend.py            # Transactional email
+    posthog.py           # Product analytics
+    sentry.py            # Error monitoring
+    productbridge.py     # Feedback collection
+    pinecone.py          # Vector database for paper search
+    paper_search.py      # Semantic Scholar API integration
+
+ user_models/
+    runner.py            # Sandboxed Python execution for custom AI (AST scan + timeout)
+
+ static/
+    style.css            # Glass-morphism theme, light mode
+    sound.js             # Game sound effects
+    feedback.js          # In-app feedback widget
+
+ templates/
+     index.html           # Main game (slingshot canvas)
+     online.html          # Online multiplayer lobby + game
+     playground.html      # Code editor + live game
+     my_models.html       # Manage saved AI models
+     leaderboard.html
+     profile.html
+     login.html
+     register.html
+     customize.html       # Match customization (players, colors, field)
+     tournaments.html     # Tournament listings
+     tournament_view.html # Tournament bracket view
+     replay.html          # Match replay viewer
+     arena.html           # AI Arena benchmarking
+     research.html        # Research hub
 ```
 
 ---

@@ -86,7 +86,7 @@ def _seed_season():
     return season
 
 
-# ── Initialization & soft reset ──────────────────────────────────────────
+#  Initialization & soft reset 
 
 def test_season_initialization_creates_season_1():
     s1 = _fresh_season()
@@ -104,7 +104,7 @@ def test_soft_reset_formula():
     assert soft_reset_rating(1000) == 1100
 
 
-# ── Per-season accounting ────────────────────────────────────────────────
+#  Per-season accounting 
 
 def test_apply_match_creates_and_accumulates_season_row():
     season = _fresh_season()
@@ -161,7 +161,7 @@ def test_build_snapshot_ordering_and_placed_flag():
     assert snap[1]["placed"] is True and snap[2]["placed"] is True
 
 
-# ── The transition ───────────────────────────────────────────────────────
+#  The transition 
 
 def test_transition_archives_rewards_and_soft_resets():
     season = _seed_season()
@@ -250,7 +250,7 @@ def test_achievements_and_all_time_untouched_by_transition():
     assert row["peak_rating"] == 1600            # all-time peak untouched
 
 
-# ── Standings, history, career ───────────────────────────────────────────
+#  Standings, history, career 
 
 def test_standings_read_archived_snapshot_after_transition():
     season = _seed_season()
@@ -288,7 +288,7 @@ def test_crash_tail_resume_creates_next_season():
     assert len(get_earned("p1")) == 3            # awards still idempotent
 
 
-# ── API surface ──────────────────────────────────────────────────────────
+#  API surface 
 
 def test_api_leaderboard_season_scoping_and_past_browse():
     season = _seed_season()

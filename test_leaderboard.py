@@ -11,7 +11,7 @@ from app import app as flask_app
 from services.game_analytics import benchmark_model_vs_builtins
 
 
-# ── Fast deterministic stand-ins (no real built-ins: ~56s/game each) ─────────
+#  Fast deterministic stand-ins (no real built-ins: ~56s/game each) 
 
 class _NoOpUser:
     MODEL_NAME = "NoOp User"
@@ -34,7 +34,7 @@ def _clean_mem():
     lb._MEM.clear()
 
 
-# ── Benchmark orchestration ──────────────────────────────────────────────────
+#  Benchmark orchestration 
 
 def test_benchmark_score_is_mean_of_per_opponent_win_rates():
     res = benchmark_model_vs_builtins(_NoOpUser(), n_games=1,
@@ -57,7 +57,7 @@ def test_benchmark_progress_callback_reports_total():
     assert seen and seen[-1][1] == 2  # total = 2 opponents × 1 game
 
 
-# ── Storage (in-memory fallback) ─────────────────────────────────────────────
+#  Storage (in-memory fallback) 
 
 def _seed(user="u1"):
     lb.save_submission("m1", user, "Alpha", 80.0, 5,
@@ -102,7 +102,7 @@ def test_list_user_submissions_filters_by_user():
     assert subs["m1"]["score"] == 80.0
 
 
-# ── HTTP routes ──────────────────────────────────────────────────────────────
+#  HTTP routes 
 
 def _register(c, name="lbuser"):
     c.post("/auth/register", data={"username": name, "email": f"{name}@t.com",

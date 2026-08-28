@@ -24,7 +24,7 @@ from models.soccer_logic import (
 
 from db import decision_traces as _traces
 
-# ── Outcome tags ─────────────────────────────────────────────────────────────
+#  Outcome tags 
 TAG_GOAL = "goal"
 TAG_CHANCE = "good_chance"
 TAG_NEUTRAL = "neutral"
@@ -36,31 +36,31 @@ TAG_ORDER = [TAG_GOAL, TAG_CHANCE, TAG_NEUTRAL, TAG_POOR, TAG_OWN_GOAL]
 TAG_META = {
     TAG_GOAL: {
         "label": "Goal",
-        "emoji": "⚽",
+        "emoji": "",
         "cls": "tag-goal",
         "description": "This kick went in. The model's read of the situation worked — learn what made this position good.",
     },
     TAG_CHANCE: {
         "label": "Good chance",
-        "emoji": "🎯",
+        "emoji": "",
         "cls": "tag-chance",
         "description": "Reached the goal mouth but the keeper just kept it out. The decision was reasonable — the ball ended up on target.",
     },
     TAG_NEUTRAL: {
         "label": "Neutral",
-        "emoji": "➖",
+        "emoji": "",
         "cls": "tag-neutral",
         "description": "Neither threatening nor harmful. The ball moved but never threatened the goal.",
     },
     TAG_POOR: {
         "label": "Poor",
-        "emoji": "📉",
+        "emoji": "",
         "cls": "tag-poor",
         "description": "Made no forward progress (or went backwards) — this decision wasted the turn. Compare with a stronger agent below.",
     },
     TAG_OWN_GOAL: {
         "label": "Own-goal risk",
-        "emoji": "🆘",
+        "emoji": "",
         "cls": "tag-own",
         "description": "This kick went into the model's OWN goal and the opponent scored. If this repeats, the model has a serious direction bug.",
     },
@@ -74,7 +74,7 @@ _TAP_SPEED = 90        # per-frame speed below this with little progress ⇒ poo
 _TAP_PROGRESS = 60
 
 
-# ── Snapshot building ────────────────────────────────────────────────────────
+#  Snapshot building 
 def build_snapshot(state: dict) -> dict:
     """Deep-copy a state dict minus bulky/irrelevant keys, for storage.
 
@@ -102,7 +102,7 @@ def reconstruct_state(snapshot: dict) -> dict:
     return st
 
 
-# ── Outcome tagging ──────────────────────────────────────────────────────────
+#  Outcome tagging 
 def tag_outcome(snapshot: dict, decision: dict, scored: str | None, trajectory: list | None) -> str:
     """Classify one traced kick from the traced model's perspective.
 
@@ -142,7 +142,7 @@ def tag_outcome(snapshot: dict, decision: dict, scored: str | None, trajectory: 
     return TAG_NEUTRAL
 
 
-# ── Persistence helper (called from sim call sites) ──────────────────────────
+#  Persistence helper (called from sim call sites) 
 def save_traced_turn(
     *,
     owner_id: str,
@@ -188,7 +188,7 @@ def save_traced_turn(
         pass
 
 
-# ── On-demand comparison ─────────────────────────────────────────────────────
+#  On-demand comparison 
 def builtin_decision(snapshot: dict, model_key: str) -> dict | None:
     """What would built-in `model_key` have done at this exact turn?
 
@@ -247,7 +247,7 @@ def playback_turn(snapshot: dict, decision: dict) -> dict:
     }
 
 
-# ── Aggregate patterns ───────────────────────────────────────────────────────
+#  Aggregate patterns 
 def aggregate_patterns(rows: list[dict]) -> dict:
     """Roll up a model's traced turns into loss patterns for the summary page.
 

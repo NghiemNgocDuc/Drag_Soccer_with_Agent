@@ -42,7 +42,7 @@ def check_keys(obj, keys, label):
     missing = [k for k in keys if k not in obj]
     test(f"{label}: has keys", not missing, f"missing: {missing}")
 
-# ── Test suite ────────────────────────────────────────────────────────────
+#  Test suite 
 
 def test_homepage():
     r = requests.get(BASE)
@@ -198,7 +198,7 @@ def run_server():
     )
     return proc
 
-# ── Main ──────────────────────────────────────────────────────────────────
+#  Main 
 
 if __name__ == "__main__":
 
@@ -216,7 +216,7 @@ if __name__ == "__main__":
 
     print("\n[server] Flask started\n")
 
-    # ── Run tests ────────────────────────────────────────────────────────────
+    #  Run tests 
 
     test_frontend_templates()
 
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     print("\n--- Penalty shootout ---\n")
     test_penalty_shootout()
 
-    # ── Cleanup ────────────────────────────────────────────────────────────────
+    #  Cleanup 
     server.kill()
     server.wait()
 

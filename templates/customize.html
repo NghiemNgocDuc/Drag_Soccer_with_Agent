@@ -388,7 +388,7 @@ select option:disabled{color:#94a3b8}
 
   <!-- Player Stats (Point-Buy) -->
   <details class="glass-card" style="margin-top:18px">
-    <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;padding:8px 0">Player Stats ⚙️ <span style="font-weight:400;font-size:.8rem;color:var(--muted)">200 pts per player, 20–80 per stat</span></summary>
+    <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;padding:8px 0">Player Stats  <span style="font-weight:400;font-size:.8rem;color:var(--muted)">200 pts per player, 20–80 per stat</span></summary>
     <div id="stat-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
       <div><h3 style="margin:0 0 8px 0">Team A</h3><div id="team-a-stats"></div></div>
       <div><h3 style="margin:0 0 8px 0">Team B</h3><div id="team-b-stats"></div></div>
@@ -458,7 +458,7 @@ document.querySelectorAll('input[type=color]').forEach(function(el){el.addEventL
 document.querySelectorAll('select').forEach(function(el){el.addEventListener('change',function(){syncFromInputs();renderPreview()})});
 document.querySelectorAll('input[type=range]').forEach(function(el){el.addEventListener('input',function(){syncFromInputs();renderPreview()})});
 
-// ── Player stats point-buy ───────────────────────────────────────────────────
+//  Player stats point-buy 
 var STAT_NAMES = ['size','power','weight','agility'];
 var STAT_LABELS = {size:'Size',power:'Power',weight:'Weight',agility:'Agility'};
 
@@ -532,7 +532,7 @@ function showFlash(msg,type){
   el.textContent=msg;el.className='flash-msg '+type;
   setTimeout(function(){el.className='flash-msg'},4000);
 }
-// ── Achievement-gated cosmetics ───────────────────────────────────────────
+//  Achievement-gated cosmetics 
 function lockedSet(){
   var s=new Set();
   LOCKED.forEach(function(k){s.add(k)});
@@ -553,7 +553,7 @@ function applyLocks(){
         opt.disabled=true;
         opt.setAttribute('data-locked','1');
         opt.title='Locked — unlock by earning "'+info.name+'"';
-        notes.push('🔒 '+value+' — '+info.name);
+        notes.push(' '+value+' — '+info.name);
       }else{
         opt.disabled=false;
         opt.removeAttribute('data-locked');
@@ -567,7 +567,7 @@ function applyLocks(){
       if(row){
         var note=document.createElement('div');
         note.className='lock-note';
-        note.innerHTML='<span class="lock-ico">🔒</span> '+notes.join(' · ');
+        note.innerHTML='<span class="lock-ico"></span> '+notes.join(' · ');
         row.appendChild(note);
       }
     }
@@ -601,7 +601,7 @@ async function saveSettings(){
   btn.disabled=false;btn.textContent='Save All Settings';
 }
 
-// ── Preview Render ──────────────────────────────────────────────────
+//  Preview Render 
 function renderPreview(){
   syncFromInputs();
   var c=document.getElementById('preview-canvas'),ctx=c.getContext('2d'),W=1400,H=875;

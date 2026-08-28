@@ -30,7 +30,7 @@ def _svc():
     return service
 
 
-# ── In-memory fallback (dev: no Supabase) ────────────────────────────────
+#  In-memory fallback (dev: no Supabase) 
 _MEM: dict[str, dict] = {}
 
 

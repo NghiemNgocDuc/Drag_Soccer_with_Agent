@@ -33,7 +33,7 @@ from collections import defaultdict, Counter
 
 from db.redis_client import r as _redis
 
-# ── Config ──────────────────────────────────────────────────────────────────
+#  Config 
 SHORT_TTL = 6 * 3600  # match ROM_TTL
 LONG_TTL = 365 * 86400
 _SHORT_PREFIX = "mem:short:"
@@ -49,7 +49,7 @@ def _now() -> float:
 def _id_for(text: str, user_id: str) -> str:
     return hashlib.sha256(f"{user_id}:{text}:{_now()}".encode()).hexdigest()[:12]
 
-# ── Extraction (rule-based, mem0 single-pass ADD-only) ─────────────────────
+#  Extraction (rule-based, mem0 single-pass ADD-only) 
 def _extract_facts(messages: list[dict], category: str) -> list[str]:
     """Extract atomic facts from messages. Very fast, no LLM."""
     facts = []
@@ -131,7 +131,7 @@ def _store_long(user_id: str, facts: list[str], metadata: dict | None = None):
     # cap 100
     _LONG_MEM[user_id]=_LONG_MEM[user_id][-100:]
 
-# ── Public API (mem0-like) ──────────────────────────────────────────────────
+#  Public API (mem0-like) 
 def add(messages, user_id: str, category: str = "long", metadata: dict | None = None) -> list[dict]:
     """
     messages: str | list[dict] with {role, content}
@@ -231,7 +231,7 @@ def delete(user_id: str, memory_id: str) -> bool:
             return True
     return False
 
-# ── Helpers for Agent Soccer ────────────────────────────────────────────────
+#  Helpers for Agent Soccer 
 def add_short_game(user_id: str, state: dict, last_move: dict | None = None):
     """Call after each kick."""
     msgs=[{"role":"user","content": f"Ball {state['ball']['x']:.0f},{state['ball']['y']:.0f} score {state['score_a']}-{state['score_b']} period {state.get('period')} is_player_a {state.get('is_player_a')}"}]

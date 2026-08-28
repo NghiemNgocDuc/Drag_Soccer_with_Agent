@@ -77,7 +77,7 @@
 <nav class="navbar">
   <div class="nav-inner container">
     <a class="brand" href="/">Agent Soccer</a>
-    <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');document.getElementById('nav-links').classList.toggle('open')">☰</button>
+    <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');document.getElementById('nav-links').classList.toggle('open')"></button>
     <div class="nav-links" id="nav-links">
       <a class="nav-link" href="/play3d">Game</a>
       <a class="nav-link" href="/learn" style="color:var(--accent-b)">Learn</a>
@@ -96,7 +96,7 @@
 
 <main class="container">
   <div class="learn-hero">
-    <h1>Learn to Build a Soccer AI 🎓</h1>
+    <h1>Learn to Build a Soccer AI </h1>
     <p>Seven short lessons take you from "never written a game AI" to a model that
        can beat <strong>every built-in agent</strong>. Each lesson ends with a
        machine-checked milestone: the server quietly plays 5 full matches against
@@ -121,7 +121,7 @@
           <div class="lesson-tag">{{ lesson.tagline }}</div>
         </div>
         <span class="lesson-status {{ st }}" data-status="{{ st }}">{{ st }}</span>
-        <span class="lesson-open">▾</span>
+        <span class="lesson-open"></span>
       </div>
       <div class="lesson-body">
         {% for heading, body in lesson.sections %}
@@ -136,8 +136,8 @@
           {% endfor %}
         </div>
         {% endfor %}
-        <div class="milestone-chip">🎯 Milestone: {{ lesson.milestone }}</div>
-        {% if lesson.hint %}<div class="note">💡 Hint: {{ lesson.hint }}</div>{% endif %}
+        <div class="milestone-chip"> Milestone: {{ lesson.milestone }}</div>
+        {% if lesson.hint %}<div class="note"> Hint: {{ lesson.hint }}</div>{% endif %}
       </div>
     </div>
     {% endfor %}
@@ -150,7 +150,7 @@
         <span class="et-tag" style="font-size:.72rem;color:var(--text-muted)">Python</span>
         <span class="et-spacer"></span>
         <button class="btn btn-ghost btn-sm" onclick="loadStarter()">↺ Reset to starter</button>
-        <button class="btn btn-secondary btn-sm" onclick="openInPlayground()">▶ Open in Playground</button>
+        <button class="btn btn-secondary btn-sm" onclick="openInPlayground()"> Open in Playground</button>
       </div>
       <div class="cm-wrap"><textarea id="code-editor"></textarea></div>
       <div class="check-state" id="check-state">Pick a lesson to start. Your code is checked automatically — no saving needed.</div>
@@ -162,7 +162,7 @@
         <label><input type="radio" name="tut-target" value="bayesian"> Bayesian</label>
       </div>
       <div class="editor-toolbar" style="justify-content:flex-start;border-bottom:none">
-        <button class="btn btn-primary check-btn" id="check-btn" onclick="runCheck()" disabled>✓ Check milestone</button>
+        <button class="btn btn-primary check-btn" id="check-btn" onclick="runCheck()" disabled> Check milestone</button>
         <button class="btn btn-ghost btn-sm" id="stop-btn" onclick="stopPoll()" style="display:none">Stop</button>
       </div>
       <div class="result-line" id="result-line" style="padding:0 14px 16px"></div>
@@ -211,7 +211,7 @@
     return null;
   }
 
-  // ── Editor ────────────────────────────────────────────────────────────────
+  //  Editor 
   function initEditor() {
     editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
       mode: 'python', lineNumbers: true, indentUnit: 4, tabSize: 4,
@@ -237,7 +237,7 @@
     window.location.href = '/playground';
   }
 
-  // ── Lesson selection ──────────────────────────────────────────────────────
+  //  Lesson selection 
   var heads = document.querySelectorAll('.lesson-head');
   Array.prototype.forEach.call(heads, function (head) {
     head.addEventListener('click', function () {
@@ -271,7 +271,7 @@
     resultEl.innerHTML = '';
     // Show existing completed state.
     var stEl = cardStatus(id);
-    if (stEl === 'completed') setStatus('✅ This lesson is already complete. Re-running won\'t undo it.', 'pass');
+    if (stEl === 'completed') setStatus(' This lesson is already complete. Re-running won\'t undo it.', 'pass');
   }
 
   function cardStatus(id) {
@@ -306,7 +306,7 @@
     return true;
   }
 
-  // ── Check flow ────────────────────────────────────────────────────────────
+  //  Check flow 
   function runCheck() {
     if (!lessonId) return;
     var m = meta(lessonId);
@@ -377,14 +377,14 @@
     var r = d.result || {};
     var kind = meta(d.lesson_id) && meta(d.lesson_id).kind;
     if (d.passed) {
-      setStatus('✅ Milestone passed! Lesson ' + d.lesson_id + ' completed.', 'pass');
+      setStatus(' Milestone passed! Lesson ' + d.lesson_id + ' completed.', 'pass');
       if (kind === 'leaderboard_submit' && d.submitted) {
         resultEl.innerHTML = 'Leaderboard entry confirmed: <b>' + (d.submitted.length) + '</b> submitted model(s).';
       }
     } else if (kind === 'leaderboard_submit') {
       setStatus('Not yet — submit a model to the leaderboard first (My Models → Submit to Leaderboard).', 'fail');
     } else {
-      setStatus('❌ Not this time — ' + (d.error || (r.wins || 0) + ' wins out of ' + (r.games || 0) + ' matches.'), 'fail');
+      setStatus(' Not this time — ' + (d.error || (r.wins || 0) + ' wins out of ' + (r.games || 0) + ' matches.'), 'fail');
     }
     if (kind !== 'leaderboard_submit' && r.games) {
       resultEl.innerHTML =
@@ -406,7 +406,7 @@
     }
   }
 
-  // ── Boot ──────────────────────────────────────────────────────────────────
+  //  Boot 
   window.__tutorialState = function () {
     return {
       lessonId: lessonId,

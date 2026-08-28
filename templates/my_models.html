@@ -15,10 +15,10 @@
 }
 nav,div.page{position:relative;z-index:1}
 .btn-nav-logout:hover{border-color:var(--accent);color:var(--accent)}
-/* ── Layout ── */
+/*  Layout  */
 .page{display:grid;grid-template-columns:300px 1fr;gap:20px;max-width:1200px;margin:0 auto;padding:24px 16px;min-height:calc(100vh - 60px)}
 @media(max-width:860px){.page{grid-template-columns:1fr}}
-/* ── Sidebar ── */
+/*  Sidebar  */
 .sidebar-header{
   background:linear-gradient(135deg,rgba(6,182,212,.12),rgba(249,115,22,.08));
   border:1px solid rgba(255,255,255,.5);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
@@ -53,7 +53,7 @@ nav,div.page{position:relative;z-index:1}
   background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.25);
 }
 .outdated-warning code{font-family:ui-monospace,Consolas,monospace;font-size:.62rem;color:#fde68a}
-/* ── Leaderboard (per-model) ── */
+/*  Leaderboard (per-model)  */
 .mc-lb{display:flex;gap:8px;align-items:center;margin-top:8px}
 .lb-score{
   font-size:.66rem;font-weight:700;color:#fbbf24;
@@ -66,16 +66,16 @@ nav,div.page{position:relative;z-index:1}
 .validate-result.warn{display:block;background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.25)}
 .empty-state{text-align:center;padding:40px 16px;color:var(--muted);font-size:.82rem;background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--glass-border);border-radius:12px}
 .empty-state strong{display:block;font-size:1rem;font-weight:600;color:var(--text);margin-bottom:6px}
-/* ── Buttons ── */
+/*  Buttons  */
 .btn-blue{background:linear-gradient(135deg,#06b6d4 0%,#0891b2 50%,#6366f1 100%);color:#fff;box-shadow:0 4px 16px rgba(6,182,212,.3)}
 .btn-blue:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(6,182,212,.45)}
 .btn-orange{background:linear-gradient(135deg,#f97316 0%,#ef4444 100%);color:#fff;box-shadow:0 4px 16px rgba(249,115,22,.3)}
 .btn-orange:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(249,115,22,.45)}
 .btn-sm{padding:6px 14px;font-size:.76rem;border-radius:9px}
 .btn-xs{padding:4px 10px;font-size:.68rem;border-radius:7px}
-/* ── Main Panel ── */
+/*  Main Panel  */
 .main-panel{display:flex;flex-direction:column;gap:0}
-/* ── Reference Docs ── */
+/*  Reference Docs  */
 .ref-panel{
   background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
   border:1px solid var(--glass-border);border-radius:16px;box-shadow:var(--glass-shadow);
@@ -103,7 +103,7 @@ pre.ref-code{
   border:1px solid rgba(6,182,212,.15);
   padding:2px 6px;border-radius:5px;font-size:.85em;color:#06b6d4;font-weight:500;
 }
-/* ── Editor Panel ── */
+/*  Editor Panel  */
 .editor-panel{
   display:none;flex-direction:column;
   background:rgba(15,23,42,.92);border:1px solid rgba(255,255,255,.08);
@@ -162,7 +162,7 @@ pre.ref-code{
 .editor-save-row{margin-left:auto;display:flex;gap:8px;align-items:center}
 .public-toggle{display:flex;align-items:center;gap:6px;font-size:.74rem;color:rgba(148,163,184,.7);cursor:pointer}
 .public-toggle input{cursor:pointer;accent-color:#06b6d4}
-/* ── Blank slate ── */
+/*  Blank slate  */
 .blank-slate{
   background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));
   border:1px solid var(--glass-border);border-radius:16px;box-shadow:var(--glass-shadow);
@@ -216,7 +216,7 @@ pre.ref-code{
     </div>
 
     <a href="/learn" class="tutorial-cta">
-      <span class="tc-icon">🎓</span>
+      <span class="tc-icon"></span>
       <span>
         <strong>New to building AIs?</strong><br>
         <span class="tc-sub">Take the 7-lesson Learn curriculum — milestones are checked automatically.</span>
@@ -242,7 +242,7 @@ pre.ref-code{
           <div class="mc-desc">{{ m.description or 'No description' }}</div>
           {% if m.maybe_outdated %}
           <div class="outdated-warning" title="Detected numeric constants matching the old 1000×625 field dimensions in this model's code">
-            ⚠ May reference field coordinates from before the pitch was resized to 1400×875 and could underperform — consider using <code>state['field']</code> instead of hardcoded values.
+             May reference field coordinates from before the pitch was resized to 1400×875 and could underperform — consider using <code>state['field']</code> instead of hardcoded values.
           </div>
           {% endif %}
           <div class="mc-meta">
@@ -250,9 +250,9 @@ pre.ref-code{
             <span>{{ m.updated_at[:10] if m.updated_at else '' }}</span>
             <div style="margin-left:auto;display:flex;gap:4px">
               <button class="btn btn-ghost btn-xs"
-                onclick="event.stopPropagation(); testInPlayground('{{ m.id }}')">▶ Test</button>
+                onclick="event.stopPropagation(); testInPlayground('{{ m.id }}')"> Test</button>
               <button class="btn btn-ghost btn-xs"
-                onclick="event.stopPropagation(); location.href='/loss-analysis?model={{ m.id }}'">🔍 Why did it lose?</button>
+                onclick="event.stopPropagation(); location.href='/loss-analysis?model={{ m.id }}'"> Why did it lose?</button>
               <button class="btn btn-ghost btn-xs"
                 onclick="event.stopPropagation(); submitToLeaderboard('{{ m.id }}')">{{ 'Re-benchmark' if m.lb else 'Submit to Leaderboard' }}</button>
               <button class="btn btn-danger btn-xs"
@@ -261,7 +261,7 @@ pre.ref-code{
           </div>
           <div class="mc-lb" id="lb-{{ m.id }}">
             {% if m.lb %}
-            <span class="lb-score">🏆 {{ m.lb.score }}%</span>
+            <span class="lb-score"> {{ m.lb.score }}%</span>
             <span class="lb-updated">vs built-ins · {{ m.lb.benchmarked_at[:10] if m.lb.benchmarked_at else '' }}</span>
             {% else %}
             <span class="lb-hint">Not ranked — benchmark against the 7 built-in agents</span>
@@ -283,10 +283,10 @@ pre.ref-code{
 
     <!-- Reference docs (shown when no editor is open) -->
     <div class="ref-panel" id="ref-panel">
-      <h3>✍️ How to write a Soccer AI</h3>
+      <h3> How to write a Soccer AI</h3>
 
       <div class="ref-section">
-        <h4>🎯 Required function</h4>
+        <h4> Required function</h4>
         <pre class="ref-code">def get_ai_move(state, is_player_a):
     # state        — dict describing the full game state (see below)
     # is_player_a  — True → you control Team A (attacks RIGHT toward the far goal)
@@ -298,7 +298,7 @@ pre.ref-code{
       </div>
 
       <div class="ref-section">
-        <h4>📋 State dict keys</h4>
+        <h4> State dict keys</h4>
         <pre class="ref-code">state["ball"]       = {"x": float, "y": float}   # ball position
 state["players_a"]  = [{"x":float,"y":float}, ...]  # Team A (3 players)
 state["players_b"]  = [{"x":float,"y":float}, ...]  # Team B (3 players)
@@ -317,31 +317,31 @@ state["win_goal_limit"] = int  # goals to win (default 5)</pre>
       </div>
 
       <div class="ref-section">
-        <h4>⚽ Field layout (1400 × 875)</h4>
-        <pre class="ref-code">  (0,0) ─────────────────────────────── (1400,0)
-    │  ┌──────────┐         ┌──────────┐  │
-    │  │ GOAL_B   │         │ GOAL_A   │  │
-    │  │ x=0      │         │ x=1400   │  │
-    │  │ y=356-519│         │ y=356-519│  │
-    │  └──────────┘         └──────────┘  │
-    │        ═══  ════════  ═══          │
-    │         ⚽     ║        ║           │
-    │        ═══     ║        ║           │
-    │  ┌──────────┘         └──────────┐  │
-    │  │ GOAL_B   │         │ GOAL_A   │  │
-    │  │ x=0      │         │ x=1400   │  │
-  (0,875) ───────────────────────────── (1400,875)
+        <h4> Field layout (1400 × 875)</h4>
+        <pre class="ref-code">  (0,0)  (1400,0)
+                 
+       GOAL_B             GOAL_A     
+       x=0                x=1400     
+       y=356-519          y=356-519  
+                 
+                          
+                                     
+                                    
+                 
+       GOAL_B             GOAL_A     
+       x=0                x=1400     
+  (0,875)  (1400,875)
 
   Centre spot:  (700, 437.5)
   Goals: width=50, height ≈ 163 (y 356 → 519)
   Kick-off spots: Team A ~(1106, 350), Team B ~(294, 350)
 
-  ⚠ These numbers are the CURRENT field — they may change again.
+   These numbers are the CURRENT field — they may change again.
     In code, always use state["field"]["width"] / state["field"]["height"].</pre>
       </div>
 
       <div class="ref-section">
-        <h4>📦 Available imports & builtins</h4>
+        <h4> Available imports & builtins</h4>
         <p class="ref-note">
           Full access to <code>random</code>, <code>math</code>, <code>copy</code>
           plus common builtins (<code>min</code>, <code>max</code>, <code>sum</code>,
@@ -352,7 +352,7 @@ state["win_goal_limit"] = int  # goals to win (default 5)</pre>
       </div>
 
       <div class="ref-section">
-        <h4>🧠 Strategy tips</h4>
+        <h4> Strategy tips</h4>
         <pre class="ref-code"># 1. Pick the right player
 #    Use the player closest to the ball for quick response.
 #    Use a different player to intercept / position defensively.
@@ -378,7 +378,7 @@ state["win_goal_limit"] = int  # goals to win (default 5)</pre>
       </div>
 
       <div class="ref-section">
-        <h4>🎲 Example — shoot at goal</h4>
+        <h4> Example — shoot at goal</h4>
         <pre class="ref-code">import math
 
 MODEL_NAME  = "Shooter"
@@ -404,7 +404,7 @@ def get_ai_move(state, is_player_a):
       </div>
 
       <div class="ref-section">
-        <h4>🎲 Example — pass & advance</h4>
+        <h4> Example — pass & advance</h4>
         <pre class="ref-code">import math
 
 MODEL_NAME  = "Passer"
@@ -561,11 +561,11 @@ async function validateCode() {
   if (data.ok) {
     el.className = data.warning ? 'validate-result warn' : 'validate-result ok';
     el.textContent = data.warning
-      ? `✓ Valid — test move: ${data.test_move}\n⚠ ${data.warning}`
-      : `✓ Valid — test move: ${data.test_move}`;
+      ? ` Valid — test move: ${data.test_move}\n ${data.warning}`
+      : ` Valid — test move: ${data.test_move}`;
   } else {
     el.className = 'validate-result err';
-    el.textContent = `✗ ${data.error}`;
+    el.textContent = ` ${data.error}`;
   }
 }
 
@@ -607,7 +607,7 @@ async function testInPlayground(id) {
   window.location.href = '/playground';
 }
 
-// ── Leaderboard submission (background benchmark + poll) ────────────────────
+//  Leaderboard submission (background benchmark + poll) 
 async function submitToLeaderboard(id) {
   const row = document.getElementById('lb-' + id);
   const btn = event.target.closest('button');
@@ -641,7 +641,7 @@ async function pollLeaderboard(id) {
   } catch (e) { return; }
   AW.handle(st);
   if (st.status === 'done') {
-    row.innerHTML = '<span class="lb-score">🏆 ' + Number(st.score).toFixed(1) + '%</span>' +
+    row.innerHTML = '<span class="lb-score"> ' + Number(st.score).toFixed(1) + '%</span>' +
       '<span class="lb-updated">vs built-ins · ' + (st.benchmarked_at ? st.benchmarked_at.slice(0, 10) : '') + '</span>' +
       '<button class="btn btn-ghost btn-xs" style="margin-left:auto" onclick="event.stopPropagation();submitToLeaderboard(\'' + id + '\')">Re-benchmark</button>';
     return;

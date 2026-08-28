@@ -8,7 +8,7 @@ from models.soccer_logic import new_soccer_state, apply_kick, FIELD_W, FIELD_H, 
 
 GOAL_CENTER_Y = (GOAL_Y1 + GOAL_Y2) / 2
 
-# ── Built-in model registry ────────────────────────────────────────────────
+#  Built-in model registry 
 _BUILTIN_MODEL_PATHS: dict[str, str] = {
     "minimax":          "models.minimax",
     "monte_carlo":      "models.monte_carlo",
@@ -334,7 +334,7 @@ def compute_goal_zones(move_history: list[dict]) -> dict:
     return {k: round(v / total * 100, 1) for k, v in zones.items()}
 
 
-# ── Leaderboard benchmark (orchestration only; reuses run_model_battle) ──────
+#  Leaderboard benchmark (orchestration only; reuses run_model_battle) 
 
 def benchmark_model_vs_builtins(
     model,

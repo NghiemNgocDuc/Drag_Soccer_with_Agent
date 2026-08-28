@@ -43,7 +43,7 @@
         ach.unlock.map(function (u) { return '<b>' + esc(u) + '</b>'; }).join(', ') + '</div>';
     }
     el.innerHTML =
-      '<span class="ach-emoji">' + (ach.emoji || '🏆') + '</span>' +
+      '<span class="ach-emoji">' + (ach.emoji || '') + '</span>' +
       '<span><div class="ach-name">' + esc(ach.name) + '</div>' +
       '<div class="ach-sub">' + esc(ach.description || 'Achievement unlocked') + '</div>' +
       unlockLine + '</span>';

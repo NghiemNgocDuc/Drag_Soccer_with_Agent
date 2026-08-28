@@ -1,23 +1,23 @@
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    Agent Soccer — Design System (Phase 0)
    Single source of truth for the visual language. Loaded by landing/login/
    signup; later phases migrate the rest of the site onto it.
    Fonts: body = Be Vietnam Pro (de-facto site font), display = Space Grotesk.
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 
 @import url('https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap');
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    1. DESIGN TOKENS (:root)
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 :root {
-  /* ── Fonts ── */
+  /*  Fonts  */
   --font-display: 'Space Grotesk', 'Be Vietnam Pro', system-ui, sans-serif;
   --font-body:    'Be Vietnam Pro', system-ui, sans-serif;
   --font-mono:    Consolas, 'Fira Mono', 'Courier New', monospace;
 
-  /* ── Brand ── */
+  /*  Brand  */
   --brand-500: #0ea5e9;            /* primary — sky (site signature) */
   --brand-600: #0284c7;            /* primary hover/dark */
   --brand-400: #38bdf8;            /* light tint for glows */
@@ -28,14 +28,14 @@
   --gradient-brand: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 45%, #ec4899 100%);
   --gradient-btn-primary: linear-gradient(135deg, #0ea5e9 0%, #0284c7 50%, #6366f1 100%);
 
-  /* ── Neutral scale (slate) ── */
+  /*  Neutral scale (slate)  */
   --neutral-50:  #f8fafc;
   --neutral-200: #e2e8f0;
   --neutral-500: #64748b;
   --neutral-700: #334155;
   --neutral-900: #0f172a;
 
-  /* ── Text ── */
+  /*  Text  */
   --text-main:      var(--neutral-900);
   --text-secondary: var(--neutral-700);
   --text-muted:     var(--neutral-500);
@@ -43,7 +43,7 @@
   --text-faint:     #cbd5e1;
   --text-on-brand:  #ffffff;
 
-  /* ── Semantic ── */
+  /*  Semantic  */
   --success:     #10b981;
   --success-dark: #059669;
   --warning:     #f59e0b;
@@ -51,7 +51,7 @@
   --error:       #ef4444;
   --error-dark:  #dc2626;
 
-  /* ── Glass recipe — every panel sitewide uses exactly this ── */
+  /*  Glass recipe — every panel sitewide uses exactly this  */
   --glass-bg:         rgba(255, 255, 255, 0.72);
   --glass-bg-hover:   rgba(255, 255, 255, 0.86);
   --glass-bg-solid:   rgba(255, 255, 255, 0.94);
@@ -59,7 +59,7 @@
   --glass-border-strong: rgba(255, 255, 255, 0.9);
   --glass-blur:       20px;
 
-  /* ── Typography scale ── */
+  /*  Typography scale  */
   --text-display: 3rem / 700 / 1.1;
   --text-h1:      2rem / 700 / 1.2;
   --text-h2:      1.5rem / 700 / 1.25;
@@ -69,7 +69,7 @@
   --text-caption: 0.75rem / 600 / 1.4;
   --text-label:   0.8125rem / 600 / 1.4;
 
-  /* ── Spacing (8px base + 12px half-step) ── */
+  /*  Spacing (8px base + 12px half-step)  */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -80,23 +80,23 @@
   --space-8: 64px;
   --container: 1100px;
 
-  /* ── Radii ── */
+  /*  Radii  */
   --radius-sm:   10px;
   --radius-md:   14px;
   --radius-lg:   20px;
   --radius-xl:   28px;
   --radius-pill: 999px;
 
-  /* ── Elevation (diffused, glass-consistent) ── */
+  /*  Elevation (diffused, glass-consistent)  */
   --shadow-sm: 0 2px 12px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   --shadow-md: 0 8px 32px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   --shadow-lg: 0 24px 64px rgba(15, 23, 42, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 
-  /* ── Motion ── */
+  /*  Motion  */
   --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ── Background ── */
+  /*  Background  */
   --bg-gradient: linear-gradient(
     135deg,
     #e0f2fe 0%,     /* very light sky */
@@ -108,9 +108,9 @@
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    2. RESET & BASE
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html { -webkit-text-size-adjust: 100%; }
@@ -179,7 +179,7 @@ a { color: var(--brand-600); }
   outline-offset: 2px;
 }
 
-/* ── Scrollbar ── */
+/*  Scrollbar  */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.25); border-radius: 4px; }
 ::-webkit-scrollbar-thumb {
@@ -187,9 +187,9 @@ a { color: var(--brand-600); }
   border-radius: 4px;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    3. LAYOUT HELPERS
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 .container {
   max-width: var(--container);
   margin: 0 auto;
@@ -203,11 +203,11 @@ a { color: var(--brand-600); }
 .section-head h2 { margin-bottom: var(--space-2); }
 .section-head p { color: var(--text-muted); }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    4. GLASS PANEL / CARD
    The one and only glass recipe. Usage:
    <div class="glass-card"><h3>Card title</h3><p>Body text</p></div>
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 .glass-card {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur));
@@ -230,7 +230,7 @@ a { color: var(--brand-600); }
   border-color: var(--glass-border-strong);
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    5. BUTTONS
    Usage:
    <a class="btn btn-primary" href="/play3d">Play Now</a>
@@ -240,7 +240,7 @@ a { color: var(--brand-600); }
    <button class="btn btn-primary btn-lg btn-block" type="submit">Sign In</button>
    Variants: btn-primary (brand gradient), btn-secondary (glass), btn-ghost
    (text), btn-danger, btn-success, btn-warning. Sizes: btn-sm / btn-lg / btn-block.
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -356,7 +356,7 @@ a { color: var(--brand-600); }
 .btn-lg { padding: 14px var(--space-6); font-size: 1rem; }
 .btn-block { width: 100%; }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    6. FORM INPUTS
    Usage:
    <div class="field">
@@ -369,7 +369,7 @@ a { color: var(--brand-600); }
      <input class="input input-error" type="password" id="password" name="password" required>
      <p class="field-error">Password must be at least 6 characters.</p>
    </div>
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 .field { margin-bottom: var(--space-4); }
 
 label, .field-label {
@@ -451,20 +451,20 @@ select {
   padding-right: 40px;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    7. NAVIGATION BAR
    Usage (desktop): brand + links right-aligned + user area.
    Mobile (<=768px): hamburger toggle reveals a dropdown panel of links.
    <nav class="navbar">
      <a class="nav-brand" href="/">…logo…</a>
-     <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-label="Menu">☰</button>
+     <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-label="Menu"></button>
      <div class="nav-links" id="nav-links">
        <a class="nav-link" href="#features">Features</a>
        <a class="nav-link" href="/leaderboard">Leaderboard</a>
        <div class="nav-user"><span class="nav-avatar">E</span><span>edward</span></div>
      </div>
    </nav>
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 .navbar {
   position: sticky;
   top: 0;
@@ -567,10 +567,10 @@ select {
   line-height: 0;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    8. BADGES / PILLS
-   Usage: <span class="badge badge-success">● Live</span>
-   ═══════════════════════════════════════════════════════════════════════════ */
+   Usage: <span class="badge badge-success"> Live</span>
+    */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -595,7 +595,7 @@ select {
   background: currentColor;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    9. MODAL / DIALOG
    Usage:
    <div class="modal-overlay" id="confirm-modal">
@@ -609,7 +609,7 @@ select {
      </div>
    </div>
    Toggle via JS: overlay.classList.toggle('open')
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -661,12 +661,12 @@ select {
   flex-wrap: wrap;
 }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    10. FLASH MESSAGES, TOAST, MISC
    Usage (server-side flash, usually inside a form card):
    <div class="flash" role="alert">Incorrect email or password.</div>
    <div class="flash flash-success" role="status">Saved!</div>
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 .flash {
   display: flex;
   align-items: center;
@@ -710,14 +710,14 @@ select {
 }
 .toast.show { opacity: 1; }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    11. FOOTER
    Usage:
    <footer class="footer">
      <nav class="footer-links"><a href="/login">Sign in</a>…</nav>
      <p class="footer-credit">Agent Soccer © 2026 · Flask · Three.js · pymunk</p>
    </footer>
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 .footer {
   margin-top: var(--space-8);
   padding: var(--space-6) var(--space-4) var(--space-7);
@@ -741,7 +741,7 @@ select {
 .footer-links a:hover { color: var(--brand-600); }
 .footer-credit { font-size: 0.8125rem; color: var(--text-disabled); }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    12. AUTH LAYOUT (login / signup / forgot / reset)
    Two-column: brand visual panel left, centered glass card right.
    Stacks on tablet/mobile (visual becomes a compact header band).
@@ -752,7 +752,7 @@ select {
        <div class="auth-card">…form…</div>
      </div>
    </div>
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 .auth-layout {
   display: flex;
   min-height: 100vh;
@@ -870,12 +870,12 @@ select {
 }
 .auth-demo-copy:hover { background: rgba(59, 130, 246, 0.10); color: var(--brand-600); }
 
-/* ═══════════════════════════════════════════════════════════════════════════
+/* 
    13. RESPONSIVE BREAKPOINTS
    Desktop >=1200px — defaults above (container 1100, side-by-side layouts).
    Tablet <=1024px — hero/feature layouts collapse toward stacking.
    Mobile <=768px  — hamburger nav, single column, larger touch targets.
-   ═══════════════════════════════════════════════════════════════════════════ */
+    */
 @media (max-width: 1024px) {
   .auth-form { width: 460px; }
 }

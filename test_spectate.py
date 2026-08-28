@@ -56,7 +56,7 @@ def _active_ids():
         return set()
 
 
-# ── Active-match listing ───────────────────────────────────────────────────
+#  Active-match listing 
 
 def test_waiting_room_not_listed():
     _cleanup()
@@ -154,7 +154,7 @@ def test_game_over_removes_room_from_active(monkeypatch):
         _cleanup()
 
 
-# ── Open state delivery ────────────────────────────────────────────────────
+#  Open state delivery 
 
 def test_spectator_state_poll_open_and_read_only():
     _cleanup()
@@ -182,7 +182,7 @@ def test_spectator_state_poll_open_and_read_only():
         _cleanup()
 
 
-# ── Write-path enforcement (server-side, spectator = not a participant) ────
+#  Write-path enforcement (server-side, spectator = not a participant) 
 
 def test_spectator_move_rejected():
     _cleanup()
@@ -237,7 +237,7 @@ def test_spectator_cannot_take_full_room_slot():
         _cleanup()
 
 
-# ── Read-only match chat ───────────────────────────────────────────────────
+#  Read-only match chat 
 
 def test_spectator_reads_chat_but_cannot_post():
     _cleanup()
@@ -292,7 +292,7 @@ def test_spectator_chat_read_closes_when_match_ends():
         _cleanup()
 
 
-# ── Pages ──────────────────────────────────────────────────────────────────
+#  Pages 
 
 def test_spectate_pages():
     _cleanup()

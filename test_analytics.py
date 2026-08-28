@@ -13,7 +13,7 @@ from services import analytics as A
 from db.redis_client import r
 
 
-# ── Stats helpers ──────────────────────────────────────────────────────────
+#  Stats helpers 
 
 def test_wilson_ci_small_sample_bounds():
     assert A.wilson_ci(0, 0) == (0.0, 0.0)
@@ -60,7 +60,7 @@ def test_confidence_label():
     assert A.confidence_label(25, 10) == "25 observations"
 
 
-# ── Stat-build meta ────────────────────────────────────────────────────────
+#  Stat-build meta 
 
 def _summaries(n, winner_bias=0.6, power_share=0.5):
     """n summaries; side a uses a Power-heavy build, side b Balanced.
@@ -134,7 +134,7 @@ def test_stat_build_arch_effect_detected():
     assert res["test"]["p"] is not None and res["test"]["p"] < 0.05
 
 
-# ── Agent matrix ───────────────────────────────────────────────────────────
+#  Agent matrix 
 
 def _matrix_with_cycle():
     return [
@@ -205,7 +205,7 @@ def test_custom_models_vs_builtins():
     assert rows["b"]["above_builtin_mean"] is False
 
 
-# ── Rating progression ─────────────────────────────────────────────────────
+#  Rating progression 
 
 def _matches_for(players, games=10):
     matches = []
@@ -270,7 +270,7 @@ def test_season_over_season():
     assert p["mean_rating_change"] == -50.0 and p["n_deltas"] == 1
 
 
-# ── Match dynamics ─────────────────────────────────────────────────────────
+#  Match dynamics 
 
 def _near_miss_traj():
     return [{"x": 1000 + i * 20, "y": 437, "z": 0} for i in range(15)]  # ends at 1280
@@ -329,7 +329,7 @@ def test_match_dynamics_conversion():
     assert nm["conversion_rate"] == 50.0 and nm["ci"][0] < nm["ci"][1]
 
 
-# ── Data access + API/caching routes ───────────────────────────────────────
+#  Data access + API/caching routes 
 
 def test_db_read_all_paths(monkeypatch):
     from db import ranked, summaries

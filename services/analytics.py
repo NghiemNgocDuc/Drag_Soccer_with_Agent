@@ -28,7 +28,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import chi2_contingency, fisher_exact, binomtest
 
-# ── Sample-size floors (the honesty thresholds) ───────────────────────────
+#  Sample-size floors (the honesty thresholds) 
 MIN_MATCHES_FOR_BUILD_ANALYSIS = 10   # total summaries before any build claim
 MIN_ARCHETYPE_N                = 10   # per-archetype observations for a firm claim
 MIN_EXPECTED_FOR_CHI2          = 5.0  # expected cell count: chi-square vs Fisher
@@ -47,7 +47,7 @@ ARCHETYPE_NAMES = {
 }
 
 
-# ── Statistics helpers (small-sample correct) ─────────────────────────────
+#  Statistics helpers (small-sample correct) 
 
 def wilson_ci(k: int, n: int, z: float = Z) -> tuple[float, float]:
     """Wilson score interval for a proportion k/n (robust at small n)."""
@@ -123,7 +123,7 @@ def confidence_label(n: int, floor: int) -> str:
     return f"{n} observations"
 
 
-# ── Stat-build meta analysis ──────────────────────────────────────────────
+#  Stat-build meta analysis 
 
 def _archetype(stats: list[dict]) -> tuple[str, dict]:
     """Classify a side's 3-player lineup into an interpretable archetype.
@@ -237,7 +237,7 @@ def stat_build_analysis(summaries: list[dict],
     }
 
 
-# ── AI agent comparison matrix ────────────────────────────────────────────
+#  AI agent comparison matrix 
 
 def _agent_vs_opponent(matrix: list[dict], agent: str, opponent: str) -> dict | None:
     for row in matrix:
@@ -364,7 +364,7 @@ def custom_models_vs_builtins(entries: list[dict],
     return out
 
 
-# ── Rating / skill progression ────────────────────────────────────────────
+#  Rating / skill progression 
 
 def rating_progression(matches: list[dict], history: list[dict],
                        min_games: int = MIN_TRAJECTORY_GAMES,
@@ -484,7 +484,7 @@ def _snapshot_players(season: dict) -> list[dict]:
     return []
 
 
-# ── Match dynamics ────────────────────────────────────────────────────────
+#  Match dynamics 
 
 def _real_replay_moves(replay_data) -> list[dict]:
     return [m for m in (replay_data or [])

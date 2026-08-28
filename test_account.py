@@ -24,7 +24,7 @@ def _no_rate_limit(monkeypatch):
     monkeypatch.setattr(appmod, "_check_rate_limit", lambda path: True)
 
 
-# ── Fakes ──────────────────────────────────────────────────────────────────
+#  Fakes 
 
 class FakeStorageFile:
     def __init__(self, parent):
@@ -168,7 +168,7 @@ def _patch_supabase_create_client(monkeypatch, client):
     monkeypatch.setattr("supabase.create_client", lambda url, key: client)
 
 
-# ── Photo upload ───────────────────────────────────────────────────────────
+#  Photo upload 
 
 def test_photo_upload_success(monkeypatch):
     svc = FakeService()
@@ -269,7 +269,7 @@ def test_photo_routes_require_login():
     assert r.status_code in (302, 401)
 
 
-# ── Forgot password ────────────────────────────────────────────────────────
+#  Forgot password 
 
 def test_forgot_password_calls_supabase(monkeypatch):
     anon = FakeClient()
@@ -305,7 +305,7 @@ def test_forgot_password_does_not_leak_existence(monkeypatch):
     assert r.status_code == 502
 
 
-# ── Reset password ─────────────────────────────────────────────────────────
+#  Reset password 
 
 def test_reset_password_success(monkeypatch):
     enable_supabase_env(monkeypatch)
@@ -352,7 +352,7 @@ def test_reset_password_dev_mode(monkeypatch):
     assert r.status_code == 503
 
 
-# ── Change email ───────────────────────────────────────────────────────────
+#  Change email 
 
 def test_change_email_success(monkeypatch):
     anon = FakeClient()

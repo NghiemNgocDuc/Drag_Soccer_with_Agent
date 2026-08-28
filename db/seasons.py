@@ -61,7 +61,7 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# ── In-memory fallback (dev: no Supabase) ────────────────────────────────
+#  In-memory fallback (dev: no Supabase) 
 _MEM_SEASONS: dict[int, dict] = {}                    # id -> season row
 _MEM_SEASON_RATINGS: dict[tuple[str, int], dict] = {}  # (user_id, season_id) -> row
 _SEQ = 0
@@ -83,14 +83,14 @@ def reset_mem() -> None:
     _LOCK = False
 
 
-# ── Soft reset ───────────────────────────────────────────────────────────
+#  Soft reset 
 
 def soft_reset_rating(rating: int) -> int:
     """Pull a rating toward START_RATING by the compression factor."""
     return int(round(START_RATING + (rating - START_RATING) * SOFT_RESET_COMPRESSION))
 
 
-# ── Season lifecycle (reads) ─────────────────────────────────────────────
+#  Season lifecycle (reads) 
 
 def _new_season_row(number: int, starts_at: datetime, ends_at: datetime) -> dict:
     return {
@@ -229,7 +229,7 @@ def season_for_time(ts) -> dict | None:
     return None
 
 
-# ── Per-season rating accounting (written on every ranked result) ────────
+#  Per-season rating accounting (written on every ranked result) 
 
 def apply_match(season: dict, user_id: str, rating_before: int,
                 rating_after: int, won: bool) -> None:
@@ -281,7 +281,7 @@ def apply_match(season: dict, user_id: str, rating_before: int,
         }).execute()
 
 
-# ── Standings / history ──────────────────────────────────────────────────
+#  Standings / history 
 
 def _season_rows(season_id: int) -> list[dict]:
     svc = _svc()
@@ -410,7 +410,7 @@ def _season_snapshot_for(season_id: int) -> list[dict]:
     return build_snapshot(season_id)
 
 
-# ── Season transition (the periodic boundary job) ────────────────────────
+#  Season transition (the periodic boundary job) 
 
 def _acquire_lock() -> bool:
     """Cross-process guard so two workers can't transition the same
@@ -529,7 +529,7 @@ def _grant(user_id: str, badge_key: str, season_number: int, rank: int) -> int:
     try:
         push_toast(user_id, {
             "key": "season_summary",
-            "emoji": "🏁",
+            "emoji": "",
             "name": f"Season {season_number} ended",
             "description": f"You finished rank #{rank} — {badge['name']} unlocked.",
             "season_summary": True,

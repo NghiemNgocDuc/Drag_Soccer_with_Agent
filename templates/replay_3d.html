@@ -45,7 +45,7 @@
   padding:4px 10px;cursor:pointer;font-size:.8rem}
 .hl-banner button:hover{background:rgba(14,165,233,.5)}
 
-/* ── Live spectator mode ── */
+/*  Live spectator mode  */
 .live-bar{
   display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
   margin:18px 0 14px;
@@ -71,7 +71,7 @@
 .live-chat .lc-name{font-weight:600;color:#7dd3fc}
 .live-chat .lc-readonly{margin-top:8px;font-size:.75rem;color:#64748b}
 
-/* ── Loss analysis mode ── */
+/*  Loss analysis mode  */
 .hl-badge{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;
   border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:4px 12px}
 .hl-cell.tag-goal{background:rgba(74,222,128,.45)}
@@ -242,12 +242,12 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// ── Constants ────────────────────────────────────────────────────────────────
+//  Constants 
 const W = 1400, H = 875;
 const PLAYER_R = 20, BALL_R = 12;
 const GOAL_Y1 = 356, GOAL_Y2 = 519, GOAL_DEPTH = 50;
 
-// ── Coordinate mapping ───────────────────────────────────────────────────────
+//  Coordinate mapping 
 function serverToWorld(sx, sy, sz) {
   if (sz === undefined) sz = 0;
   return new THREE.Vector3(sx - W / 2, sz, -(sy - H / 2));
@@ -256,7 +256,7 @@ function worldToServer(v) {
   return { x: v.x + W / 2, y: -v.z + H / 2, z: v.y };
 }
 
-// ── Replay data ──────────────────────────────────────────────────────────────
+//  Replay data 
 const replayData = {% if match %}{{ match.replay_data | tojson }}{% else %}[]{% endif %};
 const highlights = {{ highlights | tojson }};
 const clipHighlight = {{ highlight | tojson }};
@@ -274,7 +274,7 @@ replayData.forEach((m, i) => { if (m.trajectory && m.trajectory.length > 0) real
 const hlByStart = {};
 (highlights || []).forEach(h => { hlByStart[h.start] = h; });
 
-// ── Renderer ─────────────────────────────────────────────────────────────────
+//  Renderer 
 const container = document.getElementById('three-container');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -290,7 +290,7 @@ function resizeRenderer() {
 resizeRenderer();
 window.addEventListener('resize', resizeRenderer);
 
-// ── Scene & Camera ─────────────────────────────────────────────────────────
+//  Scene & Camera 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0f172a);
 scene.fog = new THREE.Fog(0x0f172a, 1500, 4500);
@@ -311,7 +311,7 @@ controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MO
 controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
 controls.update();
 
-// ── Audio: synthesized SoundManager (zero assets) + 3D positional sound ─────
+//  Audio: synthesized SoundManager (zero assets) + 3D positional sound 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 SoundManager.attach(audioCtx);
 const listener = new THREE.AudioListener(audioCtx);
@@ -339,7 +339,7 @@ function playPositional(buf, worldPos, opts) {
 // Browsers suspend AudioContext until a user gesture — resume on first one
 window.addEventListener('pointerdown', () => SoundManager.resume(), { once: true });
 
-// ── Goal celebration particles ──────────────────────────────────────────────
+//  Goal celebration particles 
 let goalParticles = null;
 let goalParticlesMesh = null;
 
@@ -402,7 +402,7 @@ function tickGoalParticles() {
   }
 }
 
-// ── Lights ──────────────────────────────────────────────────────────────────
+//  Lights 
 const ambientLight = new THREE.AmbientLight(0x8899bb, 0.6);
 scene.add(ambientLight);
 const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x362d1e, 0.8);
@@ -423,7 +423,7 @@ const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
 fillLight.position.set(-200, 300, -300);
 scene.add(fillLight);
 
-// ── Sky & environment (scene presets from customization bg_scene) ───────────
+//  Sky & environment (scene presets from customization bg_scene) 
 const FLOODLIGHT_COLORS = {
   warm: 0xffd9a0, cool: 0xa8d8ff, red: 0xff7b7b, purple: 0xc084fc,
 };
@@ -515,7 +515,7 @@ const starField = new THREE.Points(
 starField.visible = false;
 scene.add(starField);
 
-// ── Sun (visible disc + soft halo) ────────────────────────────────────────
+//  Sun (visible disc + soft halo) 
 const sunMesh = new THREE.Mesh(
   new THREE.SphereGeometry(170, 32, 32),
   new THREE.MeshBasicMaterial({ color: 0xfff6d6, fog: false })
@@ -527,7 +527,7 @@ const sunHalo = new THREE.Mesh(
 sunMesh.add(sunHalo);
 scene.add(sunMesh);
 
-// ── Clouds (fluffy billboard clusters, slow drift) ────────────────────────
+//  Clouds (fluffy billboard clusters, slow drift) 
 const cloudGroup = new THREE.Group();
 function makeCloudCluster(cx, cy, cz, scale, opacity) {
   const g = new THREE.Group();
@@ -669,7 +669,7 @@ window.__sceneInfo = () => ({
 });
 window.__setScene = applyScene;
 
-// ── Field ───────────────────────────────────────────────────────────────────
+//  Field 
 const fieldGroup = new THREE.Group();
 scene.add(fieldGroup);
 
@@ -692,7 +692,7 @@ function tickReplayCrowd() {
 
 function createReplayAudience() {
   const group = new THREE.Group();
-  // ── Expanded tiered stadium bowl — 8 rows, 34–162px beyond pitch ──
+  //  Expanded tiered stadium bowl — 8 rows, 34–162px beyond pitch 
   const tierMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
   const tierDark = new THREE.MeshStandardMaterial({ color: 0x0f1a2a, roughness: 0.9 });
   const endRows = 8, sideRows = 8;
@@ -800,7 +800,7 @@ fieldGroup.add(line2d(W, 0, W, H));
 fieldGroup.add(line2d(W, H, 0, H));
 fieldGroup.add(line2d(0, H, 0, 0));
 fieldGroup.add(line2d(W / 2, 0, W / 2, H));
-// ── FIFA Law 1 markings (105m × 68m → 1400×875 → 13.33/12.87 px/m) ──
+//  FIFA Law 1 markings (105m × 68m → 1400×875 → 13.33/12.87 px/m) 
 const FIFA_LEN = 105, FIFA_WID = 68;
 const pxPerMx = W / FIFA_LEN, pxPerMy = H / FIFA_WID, pxPerM = (pxPerMx + pxPerMy) / 2;
 const PA_DEPTH = 16.5 * pxPerMx, PA_HALF_W = (40.32 / 2) * pxPerMy;
@@ -861,7 +861,7 @@ for (const [cx, cy] of [[0,0],[W,0],[0,H],[W,H]]) {
     fieldGroup.add(ll);
   }
 }
-// ── LED perimeter boards (stadium) ───────────────────────────────────────
+//  LED perimeter boards (stadium) 
 (() => {
   const ledH = 14, ledY = 7;
   function makeLEDCanvas(text) {
@@ -886,7 +886,7 @@ for (const [cx, cy] of [[0,0],[W,0],[0,H],[W,H]]) {
   let off = 0; const tick = () => { off = (off + 0.003) % 1; tex.offset.x = off; requestAnimationFrame(tick); }; tick();
 })();
 
-// ── Goals ───────────────────────────────────────────────────────────────────
+//  Goals 
 const goalGroup = new THREE.Group();
 scene.add(goalGroup);
 const POST_R = 4, CROSSBAR_R = 4, goalColor = 0xf8fafc;
@@ -927,7 +927,7 @@ function buildGoal(side) {
     cb.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), new THREE.Vector3().subVectors(b, a).normalize());
     g.add(cb);
   }
-  // ── Net: back + top + 2 side panels, static sag (baked once at build) ─────
+  //  Net: back + top + 2 side panels, static sag (baked once at build) 
   const backH  = d * 0.7;           // back top edge (top net slopes down)
   const outDir = isLeft ? -1 : 1;   // outward = away from field center
   const CELL   = 13;                // world px per netting square
@@ -1048,7 +1048,7 @@ if (new URLSearchParams(location.search).has('netinfo')) {
   document.title = JSON.stringify(window.__netInfo());
 }
 
-// ── Ball ────────────────────────────────────────────────────────────────────
+//  Ball 
 // Procedural classic-ball texture (white + dark patches + seams) so spin reads
 function makeBallTexture() {
   const c = document.createElement('canvas');
@@ -1121,7 +1121,7 @@ const shadowMesh = new THREE.Mesh(new THREE.CircleGeometry(BALL_R * 1.5, 16), sh
 shadowMesh.rotation.x = -Math.PI / 2;
 shadowMesh.position.set(0, 0.1, 0);
 
-// ── Bounce dust (small puff on ground impact) ──────────────────────────────
+//  Bounce dust (small puff on ground impact) 
 const DUST_COUNT = 10;
 let dustMesh = null;
 let dust = null;
@@ -1195,7 +1195,7 @@ let squashActive = false;
 let squashT = 0;
 scene.add(shadowMesh);
 
-// ── Players (improved — jersey texture, kit, limbs) ───────────────────────
+//  Players (improved — jersey texture, kit, limbs) 
 const playerMeshesA = [];
 const playerMeshesB = [];
 const TEAM_A_COLOR = '#3b82f6';
@@ -1377,7 +1377,7 @@ function replayHomePositions(count, side) {
   return positions.slice(0, count);
 }
 
-// ── Referee (cosmetic, driven by trajectory "ref" frames) ───────────────────
+//  Referee (cosmetic, driven by trajectory "ref" frames) 
 const refereeMesh = (() => {
   const group = new THREE.Group();
   const body = new THREE.Mesh(new THREE.CapsuleGeometry(5.5, 12, 4, 10), new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7, metalness: 0.1 }));
@@ -1406,7 +1406,7 @@ function updateRefereeMesh(sx, sy) {
   if (!hidden) refereeMesh.position.copy(serverToWorld(sx, sy));
 }
 
-// ── State ───────────────────────────────────────────────────────────────────
+//  State 
 let state = {
   ball: { x: W / 2, y: H / 2 },
   players_a: [],
@@ -1443,8 +1443,8 @@ function updateUI() {
   }
 }
 
-// ── Highlights UI ───────────────────────────────────────────────────────────
-const HL_ICON = { goal: '⚽', near: '🎯', fast: '⚡' };
+//  Highlights UI 
+const HL_ICON = { goal: '', near: '', fast: '' };
 
 function buildHighlightsUI() {
   const section = document.getElementById('hl-section');
@@ -1574,7 +1574,7 @@ window.__hlState = () => ({
   bannerShown: document.getElementById('hl-banner').style.display !== 'none',
 });
 
-// ── Animation (reuses same signature as index_3d.html) ──────────────────────
+//  Animation (reuses same signature as index_3d.html) 
 function lerp(a, b, t) { return a + (b - a) * t; }
 
 let _skipKickerIdx = -1;
@@ -1751,7 +1751,7 @@ function animatePlayerMove3D(playerIdx, team, fromPos, toPos, onDone) {
   requestAnimationFrame(tick);
 }
 
-// ── Playback ────────────────────────────────────────────────────────────────
+//  Playback 
 window.playNextMove3D = function() {
   if (isAnimating || currentMove >= replayData.length) return;
   const move = replayData[currentMove];
@@ -1875,7 +1875,7 @@ window.__ballFX = () => ({
   pos: [ballMesh.position.x, ballMesh.position.y, ballMesh.position.z],
 });
 
-// ── Live spectator mode ─────────────────────────────────────────────────────
+//  Live spectator mode 
 // Watches an online room through the same HTTP-polled /state endpoint the
 // players use (1500ms). Full game state on each poll; when a new last_move
 // arrives, animate its trajectory, then re-snap to the authoritative game
@@ -2045,7 +2045,7 @@ async function initLive() {
 }
 
 
-// ── Loss analysis mode ─────────────────────────────────────────────────────
+//  Loss analysis mode 
 // Turn-by-turn viewer over a user's own model's decision traces ("why did
 // my model lose this match?"). All heavy work (rebuilding the pre-kick
 // state, re-running the kick, comparisons) happens server-side from the
@@ -2083,11 +2083,11 @@ const LOSS = {
 };
 
 const LOSS_TAG = {
-  goal:          { label: 'Goal',         emoji: '⚽', cls: 'tag-goal' },
-  good_chance:   { label: 'Good chance',  emoji: '🎯', cls: 'tag-chance' },
-  neutral:       { label: 'Neutral',      emoji: '➖', cls: 'tag-neutral' },
-  poor:          { label: 'Poor',         emoji: '📉', cls: 'tag-poor' },
-  own_goal_risk: { label: 'Own-goal risk', emoji: '🆘', cls: 'tag-own' },
+  goal:          { label: 'Goal',         emoji: '', cls: 'tag-goal' },
+  good_chance:   { label: 'Good chance',  emoji: '', cls: 'tag-chance' },
+  neutral:       { label: 'Neutral',      emoji: '', cls: 'tag-neutral' },
+  poor:          { label: 'Poor',         emoji: '', cls: 'tag-poor' },
+  own_goal_risk: { label: 'Own-goal risk', emoji: '', cls: 'tag-own' },
 };
 
 function lossEls() {
@@ -2194,7 +2194,7 @@ function selectLossTurn(i) {
     '</div>' +
     '<div class="loss-desc">' + meta.description + '</div>' +
     '<div class="loss-actions">' +
-      '<button class="btn btn-ghost btn-sm" onclick="window.playLossTurn()">▶ Play this kick</button> ' +
+      '<button class="btn btn-ghost btn-sm" onclick="window.playLossTurn()"> Play this kick</button> ' +
       '<span class="loss-compare-hint">What would a stronger agent do?</span>' +
       '<span class="loss-chips">' + LOSS.builtins.map(function (b) {
         return '<button class="btn btn-ghost btn-sm loss-chip" onclick="window.compareLossTurn(\'' + b + '\')">' + b.replace(/_/g, ' ') + '</button>';
@@ -2297,7 +2297,7 @@ async function renderLossPatterns() {
       '<div class="loss-pattern-block"><b>By match phase:</b><br>early [' + fmt(thirds.early) + ']<br>' +
       'middle [' + fmt(thirds.middle) + ']<br>late [' + fmt(thirds.late) + ']</div>';
     if (p.own_goal_match_ids && p.own_goal_match_ids.length) {
-      html += '<div class="loss-pattern-warn">⚠ Your model kicked toward its own goal in ' +
+      html += '<div class="loss-pattern-warn"> Your model kicked toward its own goal in ' +
               p.own_goal_match_ids.length + ' match(es) — check those first.</div>';
     }
     html += p.caveats.map(function (c) { return '<div class="loss-caveat">' + c + '</div>'; }).join('');
@@ -2320,7 +2320,7 @@ window.__lossState = function () {
   };
 };
 
-// ── Render loop ─────────────────────────────────────────────────────────────
+//  Render loop 
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
@@ -2342,7 +2342,7 @@ function animate() {
 }
 animate();
 
-// ── Init ────────────────────────────────────────────────────────────────────
+//  Init 
 (async () => {
   try {
     const cust = await fetch('/api/customization').then(r => r.json());

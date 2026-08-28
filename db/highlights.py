@@ -14,7 +14,7 @@ import math
 
 from db.redis_client import r
 
-# ── Tunable detection constants (calibrated against real AI sims) ──────────
+#  Tunable detection constants (calibrated against real AI sims) 
 # Ball speeds are derived from consecutive decimated frames:
 #   speed ≈ dist * 60 / step_est,  step_est = round((len-1)/100)
 # Real kicks measured 400–1060 px/s; ~50% of AI kicks are zero-speed no-ops.

@@ -65,7 +65,7 @@ def _snap_a():
     return {"is_player_a": True}
 
 
-# ── Outcome tagging ─────────────────────────────────────────────────────────
+#  Outcome tagging 
 
 def test_tag_goal():
     assert tag_outcome(_snap_a(), {"angle": 0}, "A", _traj([(600, 400), (1380, 430)])) == TAG_GOAL
@@ -106,7 +106,7 @@ def test_goal_mouth_geometry():
     assert la.GOAL_CENTER_Y == 437.5
 
 
-# ── Snapshot / rebuild ──────────────────────────────────────────────────────
+#  Snapshot / rebuild 
 
 def test_snapshot_roundtrip():
     st = new_soccer_state()
@@ -126,7 +126,7 @@ def test_snapshot_roundtrip():
     assert snap["ball"]["x"] == 700.0
 
 
-# ── Playback (real physics, deterministic) ─────────────────────────────────
+#  Playback (real physics, deterministic) 
 
 def test_playback_deterministic_and_advances_ball():
     st = new_soccer_state()
@@ -156,7 +156,7 @@ def test_playback_miss_reflects_engine_truth():
     assert end_x <= 700.0 + 5  # no progress toward the opponent goal
 
 
-# ── Comparison (on-demand, no pre-storage) ─────────────────────────────────
+#  Comparison (on-demand, no pre-storage) 
 
 def test_builtin_decision_minimax():
     st = new_soccer_state()
@@ -177,7 +177,7 @@ def test_default_comparison_is_minimax():
     assert la.default_comparison_model() == "minimax"
 
 
-# ── Store (in-memory fallback) ──────────────────────────────────────────────
+#  Store (in-memory fallback) 
 
 def _seed_turns(owner, model_id, n=6, opp="Greedy Striker", match_id="arena:u1:A:0",
                 result="loss", sf=0, sa=2):
@@ -279,7 +279,7 @@ def _old_iso(t):
     return datetime.fromtimestamp(t, tz=timezone.utc).isoformat()
 
 
-# ── Aggregate patterns ──────────────────────────────────────────────────────
+#  Aggregate patterns 
 
 def test_aggregate_patterns():
     owner = new_uid("ag")
@@ -322,7 +322,7 @@ def test_aggregate_patterns_own_goal_detection():
     assert p["own_goal_match_ids"] == ["m1"]
 
 
-# ── Routes (owner-only) ─────────────────────────────────────────────────────
+#  Routes (owner-only) 
 
 def test_page_requires_login():
     c = app.test_client()

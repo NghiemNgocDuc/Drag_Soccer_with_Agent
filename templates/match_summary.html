@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/static/design-system.css">
 <style>
-/* ── Match summary card ── */
+/*  Match summary card  */
 .summary-hero {
   display: flex;
   align-items: flex-end;
@@ -86,7 +86,7 @@
 <nav class="navbar">
   <div class="nav-inner container">
     <a class="brand" href="/">Agent Soccer</a>
-    <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');document.getElementById('nav-links').classList.toggle('open')">☰</button>
+    <button class="nav-toggle" aria-label="Menu" aria-expanded="false" onclick="this.setAttribute('aria-expanded', this.getAttribute('aria-expanded') === 'true' ? 'false' : 'true');document.getElementById('nav-links').classList.toggle('open')"></button>
     <div class="nav-links" id="nav-links">
       <a class="nav-link" href="/play3d">Game</a>
       <a class="nav-link" href="/tournaments">Tournaments</a>
@@ -110,7 +110,7 @@
       <h1>{{ s.name_a }} vs {{ s.name_b }}</h1>
       <p>{% if s.ranked %}Ranked match{% else %}Casual match{% endif %}{% if s.season %} · played in Season {{ s.season }}{% endif %} — shared from the game.</p>
     </div>
-    {% if s.season %}<div class="season-chip">🏆 Season {{ s.season }}</div>{% endif %}
+    {% if s.season %}<div class="season-chip"> Season {{ s.season }}</div>{% endif %}
   </div>
 
   <div class="glass-card">
@@ -194,7 +194,7 @@
     <h2 class="section-title">Highlights &amp; replay</h2>
     <div class="glass-card">
       <div class="hl-none">
-        <div class="hl-ico">🎬</div>
+        <div class="hl-ico"></div>
         <div><b>No highlights were detected for this match.</b></div>
         <div>Online 1v1 replays aren't stored yet — highlights appear for tournament matches.</div>
       </div>

@@ -33,7 +33,7 @@ from models.common import needs_clear, progress_score, goal_targets, aim_through
 MODEL_NAME = "LangChain Tactician"
 DESCRIPTION = "LLM-guided (LangChain) + physics-verified. Fast 1-2s, fallback to minimax sweep if LLM unavailable."
 
-# ── Tunables ────────────────────────────────────────────────────────────────
+#  Tunables 
 _LLM_TIMEOUT = 0.75  # seconds for LLM call alone
 _TOTAL_BUDGET = 1.5  # seconds for entire get_ai_move
 _CACHE = {}  # board_hash -> LLM candidates

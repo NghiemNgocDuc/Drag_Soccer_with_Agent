@@ -61,7 +61,7 @@ def _cleanup():
             r.delete(key)
 
 
-# ── ELO math ─────────────────────────────────────────────────────────────
+#  ELO math 
 
 def test_expected_score_symmetric():
     assert expected_score(START_RATING, START_RATING) == pytest.approx(0.5)
@@ -138,7 +138,7 @@ def test_peak_rating_grows_only_upward():
     assert ra["peak_rating"] == max(1220, ra["rating"])
 
 
-# ── Ranked leaderboard (placement gating) ────────────────────────────────
+#  Ranked leaderboard (placement gating) 
 
 def test_leaderboard_excludes_provisional_players():
     ranked._MEM["placedA"] = {"user_id": "placedA", "rating": 1400,
@@ -188,7 +188,7 @@ def test_leaderboard_route_smoke():
         _cleanup()
 
 
-# ── Queue: join / cancel / status ────────────────────────────────────────
+#  Queue: join / cancel / status 
 
 def test_ranked_join_rejects_guests():
     _cleanup()
@@ -236,7 +236,7 @@ def test_double_join_keeps_original_wait():
         _cleanup()
 
 
-# ── Matching algorithm ───────────────────────────────────────────────────
+#  Matching algorithm 
 
 def test_matches_close_ratings():
     _cleanup()
@@ -325,7 +325,7 @@ def test_stale_unstarted_match_requeued():
         _cleanup()
 
 
-# ── End-to-end: ranked match plays out, ratings update ──────────────────
+#  End-to-end: ranked match plays out, ratings update 
 
 def test_ranked_match_updates_ratings_end_to_end(monkeypatch):
     _cleanup()
@@ -430,7 +430,7 @@ def test_no_client_reachable_route_writes_ratings():
         _cleanup()
 
 
-# ── helpers ──────────────────────────────────────────────────────────────
+#  helpers 
 
 def _casual_room(c, ua, na, ub, nb):
     login(c, ua, na)

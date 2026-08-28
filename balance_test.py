@@ -38,9 +38,9 @@ def _make_state(home_build, away_build=None):
     return state
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # TIER 1: PHYSICS UNIT TESTS
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 
 def test_kick_distance(build, power=100.0):
     """Kicker is right next to the ball; measure ball travel."""
@@ -173,9 +173,9 @@ def run_physics():
     return d, c, r, s
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # TIER 2: AI SENSITIVITY
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 
 def run_ai_sensitivity():
     print("=" * 60)
@@ -229,9 +229,9 @@ def run_ai_sensitivity():
     print()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 # TIER 3: QUICK SCRIMMAGES
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 
 def _realistic_game_state(build_a=None, build_b=None):
     """Create state with players in home positions (realistic)."""
@@ -287,7 +287,7 @@ def run_scrimmages():
     print()
 
 
-# ═══════════════════════════════════════════════════════════════════════════
+# 
 
 def main():
     t0 = time.time()

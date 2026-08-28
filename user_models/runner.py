@@ -14,7 +14,7 @@ import math
 import random
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as _Timeout
 
-# ── Deny-list ────────────────────────────────────────────────────────────────
+#  Deny-list 
 
 _FORBIDDEN_IMPORTS = {
     "os", "sys", "subprocess", "socket", "requests", "urllib", "http",
@@ -31,7 +31,7 @@ _FORBIDDEN_CALLS = {
     "breakpoint",
 }
 
-# ── Static validation ─────────────────────────────────────────────────────────
+#  Static validation 
 
 # Numeric literals from the pre-resize field (1000x625, goal line y=312/312.5,
 # goal aperture y=231-394). Best-effort heads-up — NOT a correctness guarantee.
@@ -109,7 +109,7 @@ def validate_code(code: str) -> tuple[bool, str]:
     return True, "OK"
 
 
-# ── Restricted execution environment ─────────────────────────────────────────
+#  Restricted execution environment 
 
 def _safe_globals() -> dict:
     return {
@@ -172,16 +172,16 @@ def execute_user_model(
     return player_idx, angle_deg, power
 
 
-# ── Default code template shown to new users ─────────────────────────────────
+#  Default code template shown to new users 
 
 TEMPLATE = '''\
-# ─────────────────────────────────────────────────────────────────────
+# 
 #  Soccer AI — write your strategy below!
 #
 #  Field: 1400 × 875  (Team A → RIGHT, goal at x=1400, y=356–519)
 #                    (Team B → LEFT,  goal at x=0,    y=356–519)
 #
-#  ⚠ IMPORTANT: always read the real field size from the state —
+#   IMPORTANT: always read the real field size from the state —
 #    don\'t hardcode these numbers in your code!
 #
 #  state["ball"]       = {"x": float, "y": float}
@@ -200,7 +200,7 @@ TEMPLATE = '''\
 #    power         — 0.0–100.0
 #
 #  Available: math, random, copy + common builtins
-# ─────────────────────────────────────────────────────────────────────
+# 
 
 MODEL_NAME  = "My Soccer AI"
 DESCRIPTION = "Describe your strategy here"

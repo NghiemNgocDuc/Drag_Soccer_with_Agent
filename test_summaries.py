@@ -81,7 +81,7 @@ def _make_room(rid, ua, na, ub, nb, ranked_flag=True, winner="A"):
     }
 
 
-# ── Summaries store (in-memory + redis fallback) ─────────────────────────
+#  Summaries store (in-memory + redis fallback) 
 
 def test_summary_save_get_roundtrip():
     save_summary("roomAbc", {"room_id": "roomAbc", "score_a": 2, "score_b": 1})
@@ -110,7 +110,7 @@ def test_summary_redis_fallback_read_when_mem_cleared():
     assert get_summary("rid2")["score_a"] == 7
 
 
-# ── season_for_time ──────────────────────────────────────────────────────
+#  season_for_time 
 
 def test_season_for_time_inside_window():
     from db.seasons import initialize, season_for_time
@@ -120,7 +120,7 @@ def test_season_for_time_inside_window():
     assert season_for_time(time.time() - 10 ** 9) is None
 
 
-# ── Aggregation at match end ─────────────────────────────────────────────
+#  Aggregation at match end 
 
 def test_ranked_summary_snapshots_deltas_builds_season():
     from db.seasons import initialize
@@ -164,7 +164,7 @@ def test_casual_summary_stores_no_rating():
     assert s["winner"] == "A"
 
 
-# ── best-highlight priority (goal > near-miss > fast-play, confirmed) ───
+#  best-highlight priority (goal > near-miss > fast-play, confirmed) 
 
 def test_best_highlight_priority():
     def mk(t, k):
@@ -176,7 +176,7 @@ def test_best_highlight_priority():
     assert best_highlight([mk("fast", 1)])["type"] == "fast"
 
 
-# ── Public route + page rendering ────────────────────────────────────────
+#  Public route + page rendering 
 
 def test_summary_page_public_and_renders_everything():
     _cleanup()

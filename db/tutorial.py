@@ -32,7 +32,7 @@ def _svc():
     return service
 
 
-# ── In-memory fallback (dev: no Supabase) ────────────────────────────────
+#  In-memory fallback (dev: no Supabase) 
 _MEM: dict[str, dict[int, float]] = {}  # user_id -> {lesson_id: completed_at_epoch}
 
 
@@ -84,7 +84,7 @@ def mark_complete(user_id: str, lesson_id: int, completed_at: float | None = Non
     return newly
 
 
-# ── Milestone-check status (Redis-or-in-memory) ──────────────────────────
+#  Milestone-check status (Redis-or-in-memory) 
 
 def _status_key(user_id: str, lesson_id: int) -> str:
     return f"tut_bench:{user_id}:{lesson_id}"

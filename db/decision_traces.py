@@ -31,7 +31,7 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# ── In-memory fallback (dev: no Supabase) ────────────────────────────────
+#  In-memory fallback (dev: no Supabase) 
 _MEM: list[dict] = []          # rows, newest appended last
 _MEM_HORIZON: float = 0.0      # last age-prune time (monotonic)
 
@@ -47,7 +47,7 @@ def _fmt(row: dict, *, with_snapshot: bool = True) -> dict:
     return out
 
 
-# ── Write ────────────────────────────────────────────────────────────────────
+#  Write 
 
 def save_trace(row: dict) -> None:
     """Insert/overwrite one trace row; lazy-prunes once in a while.
@@ -91,7 +91,7 @@ def _lazy_prune() -> None:
         pass
 
 
-# ── Pruning (30-day window + per-owner cap) ──────────────────────────────────
+#  Pruning (30-day window + per-owner cap) 
 
 def prune_expired(max_age_days: int = MAX_AGE_DAYS,
                   max_matches: int = MAX_MATCHES_PER_OWNER) -> int:
@@ -163,7 +163,7 @@ def _trim_owner_surplus(rows: list[dict], max_matches: int) -> tuple[list[dict],
     return out, dropped
 
 
-# ── Read ─────────────────────────────────────────────────────────────────────
+#  Read 
 
 def list_matches(owner_id: str, model_id: str | None = None, limit: int = 200) -> list[dict]:
     """Distinct traced matches for an owner, newest first.
