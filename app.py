@@ -1078,6 +1078,13 @@ def benchmark():
 def about_page():
     return render_template("about.html", username=session.get("username", "Player"))
 
+
+@app.route("/workflow")
+@app.route("/about/workflow")
+def workflow_page():
+    """Workflow overview — displays static/workflow.png. Under About."""
+    return render_template("workflow.html", username=session.get("username", "Player"))
+
 @app.route("/profile")
 @login_required
 def profile():

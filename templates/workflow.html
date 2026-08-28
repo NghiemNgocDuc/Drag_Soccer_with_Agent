@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workflow — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>
+  .workflow-wrap{max-width:1100px;margin:0 auto;padding:24px 16px}
+  .breadcrumb{font-size:.82rem;color:#64748b;margin-bottom:10px}
+  .breadcrumb a{color:#0284c7;text-decoration:none;font-weight:600}
+  .breadcrumb a:hover{text-decoration:underline}
+  .hero{padding:20px 22px;border-radius:20px;background:linear-gradient(135deg,rgba(14,165,233,.13),rgba(139,92,246,.12));border:1px solid rgba(255,255,255,.65);backdrop-filter:blur(18px);margin-bottom:16px}
+  .hero h1{font-family:'Space Grotesk',sans-serif;font-size:1.7rem;font-weight:700;letter-spacing:-.03em;margin:0;background:linear-gradient(135deg,#0ea5e9 0%,#8b5cf6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+  .hero p{font-size:.88rem;color:#475569;line-height:1.6;margin:8px 0 0;max-width:760px}
+  .figure{border-radius:20px;overflow:hidden;background:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.75);box-shadow:0 12px 40px rgba(15,23,42,.12);backdrop-filter:blur(18px);padding:12px}
+  .figure img{width:100%;height:auto;display:block;border-radius:14px;border:1px solid rgba(226,232,240,.9);cursor:zoom-in}
+  .figure-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .meta{font-size:.8rem;color:#64748b;margin-top:10px;line-height:1.6}
+  /* lightbox */
+  .lightbox{position:fixed;inset:0;background:rgba(15,23,42,.88);display:none;align-items:center;justify-content:center;z-index:999;padding:18px}
+  .lightbox.open{display:flex}
+  .lightbox img{max-width:100%;max-height:100%;border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.45);cursor:zoom-out}
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
+  <button class="nav-toggle" id="nav-toggle" aria-label="Menu" aria-expanded="false">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="nav-links" id="nav-links">
+    <a href="/play3d" class="nav-link">Play</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/about" class="nav-link active">About</a>
+    <a href="/customize" class="nav-link">Customize</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+  </div>
+</nav>
+<script>
+  document.getElementById('nav-toggle')?.addEventListener('click', function(){
+    const l=document.getElementById('nav-links');
+    const o=l.classList.toggle('open');
+    this.setAttribute('aria-expanded', o?'true':'false');
+  });
+</script>
+<main class="workflow-wrap">
+  <div class="breadcrumb"><a href="/about">About</a> <span style="margin:0 6px">›</span> <span style="color:#0f172a;font-weight:700">Workflow</span></div>
+  <div class="hero">
+    <h1>Workflow</h1>
+    <p>High-level system overview — how the frontend, backend, database and game engine link together. This is the same diagram as <code>workflow.png</code> (overview only, no deep detail).</p>
+  </div>
+  <div class="figure glass-card">
+    <img id="wf-img" src="/static/workflow.png" alt="Agent Soccer workflow overview diagram" loading="lazy">
+    <div class="figure-actions">
+      <a class="btn btn-primary btn-sm" href="/static/workflow.png" download="agent-soccer-workflow.png">Download PNG</a>
+      <a class="btn btn-secondary btn-sm" href="/about">Back to About</a>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('wf-img').scrollIntoView({behavior:'smooth',block:'center'})">Focus diagram</button>
+    </div>
+    <p class="meta">File: <code>/static/workflow.png</code> — also available as <code>workflow.pdf</code> in the repo root. Click the image to enlarge.</p>
+  </div>
+</main>
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('open')"><img src="/static/workflow.png" alt="Workflow enlarged"></div>
+<script>
+  document.getElementById('wf-img').addEventListener('click', ()=> document.getElementById('lightbox').classList.add('open'));
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.getElementById('lightbox').classList.remove('open'); });
+</script>
+<script src="/static/feedback.js"></script>
+</body>
+</html>
