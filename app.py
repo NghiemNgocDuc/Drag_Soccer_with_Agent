@@ -18,7 +18,7 @@ from game.session import (
 )
 from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions
 
-# ── Mem0-style memory (short/long) ──────────────────────────────────────────
+#  Mem0-style memory (short/long) 
 try:
     from services.memory import add_short_game as _mem_short, add_long_preference as _mem_long, summarize_match_to_long as _mem_summ, search as _mem_search, get_all as _mem_all
     _MEM_ENABLED=True
@@ -30,7 +30,7 @@ except Exception:
     def _mem_search(*a,**k): return {"results":[]}
     def _mem_all(*a,**k): return []
 
-# ── External service initialisation ───────────────────────────────────────
+#  External service initialisation 
 from services.sentry import init as _sentry_init
 _sentry_init()
 
@@ -107,7 +107,7 @@ def _load_user_model(model_id: str) -> _UserModelWrapper:
     return cache[model_id]
 
 
-# ── Rate limiter (Redis-backed) ─────────────────────────────────────────
+#  Rate limiter (Redis-backed) 
 
 _RATE_LIMITS: dict[str, tuple[int, int]] = {
     "/auth/login":    (5, 60),     # 5 requests per 60 seconds
@@ -184,10 +184,17 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "ai_model_a":   state.get("model_name_a", "greedy"),
         "move_history": state.get("move_history", []),
         "referee":     state.get("referee", {"x": 400.0, "y": 420.0}),
+        "referee_name": state.get("referee_name"),
         "team_a":      state.get("team_a"),
         "team_a_name": state.get("team_a_name"),
+        "team_a_crest": state.get("team_a_crest"),
+        "manager_a":   state.get("manager_a"),
+        "formation_a": state.get("formation_a"),
         "team_b":      state.get("team_b"),
         "team_b_name": state.get("team_b_name"),
+        "team_b_crest": state.get("team_b_crest"),
+        "manager_b":   state.get("manager_b"),
+        "formation_b": state.get("formation_b"),
     }
     if extra:
         result.update(extra)
@@ -220,7 +227,7 @@ def _persist_result(state: dict) -> None:
         app.logger.warning("Failed to save game result: %s", e)
 
 
-# ── Achievements (badges) — detection helpers ──────────────────────────────
+#  Achievements (badges) — detection helpers 
 # Award hooks live at natural completion points: ranked result application,
 # casual match persist, online game-over, goal moments, bench completion,
 # tournament create/final, avatar upload, model create, match start (scene).
@@ -595,7 +602,7 @@ def auth_logout():
     return redirect(url_for("index"))
 
 
-# ── Password reset (Supabase Auth recovery link flow) ─────────────────────
+#  Password reset (Supabase Auth recovery link flow) 
 
 _EMAIL_RE = r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
 
@@ -872,7 +879,7 @@ def reset_game():
         state["keeper_style_b"] = _cust.get("keeper_style_b", "default")
         _setup_penalty_positions(state, True)
     else:
-        pc = int(data.get("player_count", old_state.get("player_count", 3)))
+        pc = int(data.get("player_count", old_state.get("player_count", 7)))
         pc = max(1, min(11, pc))
         from db.customization import get_customization
         cust = get_customization(user_id)
@@ -891,12 +898,17 @@ def reset_game():
         from models.soccer_logic import inject_player_stats
         pstats = cust.get("player_stats", {})
         inject_player_stats(state, pstats.get("a"), pstats.get("b"))
-        # Teams (choose team) — inject names and colors
+        # Teams (choose team) — inject names and colors + formation tied to manager
         try:
             from db.teams import get_team, team_for_players
-            # allow client to pass team_a/team_b in reset payload
+            from db.managers import get_manager, DEFAULT_FORMATION_7, pick_referee
+            # allow client to pass team_a/team_b and formation_a/b in reset payload
             team_a_id = (data.get("team_a") or cust.get("team_a") or "brazil")
             team_b_id = (data.get("team_b") or cust.get("team_b") or "argentina")
+            # formation: client can override manager's default
+            form_a = data.get("formation_a") or cust.get("formation_a") or get_manager(team_a_id).get("formation", DEFAULT_FORMATION_7)
+            form_b = data.get("formation_b") or cust.get("formation_b") or get_manager(team_b_id).get("formation", DEFAULT_FORMATION_7)
+            ref_info = pick_referee(team_a_id + team_b_id)
             # enforce not same (server authoritative)
             if team_a_id == team_b_id:
                 from db.teams import TEAMS as _TL
@@ -910,6 +922,8 @@ def reset_game():
                 state["team_a"] = ta["id"]
                 state["team_a_name"] = ta["name"]
                 state["team_a_crest"] = ta["crest"]
+                state["manager_a"] = get_manager(ta["id"])["name"]
+                state["formation_a"] = form_a
                 # inject player names
                 names_a = team_for_players(ta["id"], pc)
                 for i, pl in enumerate(state["players_a"]):
@@ -921,11 +935,24 @@ def reset_game():
                 state["team_b"] = tb["id"]
                 state["team_b_name"] = tb["name"]
                 state["team_b_crest"] = tb["crest"]
+                state["manager_b"] = get_manager(tb["id"])["name"]
+                state["formation_b"] = form_b
                 names_b = team_for_players(tb["id"], pc)
                 for i, pl in enumerate(state["players_b"]):
                     if i < len(names_b):
                         pl["name"] = names_b[i]
                 cust["team_b_color"] = tb["primary"]
+            # referee
+            state["referee_name"] = ref_info["name"]
+            # re-apply formation-aware positions (new_game_state already did, but ensure)
+            from models.soccer_logic import _home_positions
+            if pc == 7:
+                ha = _home_positions(pc, "a", form_a)
+                hb = _home_positions(pc, "b", form_b)
+                for i, (x,y) in enumerate(ha):
+                    state["players_a"][i]["x"] = float(x); state["players_a"][i]["y"] = float(y)
+                for i, (x,y) in enumerate(hb):
+                    state["players_b"][i]["x"] = float(x); state["players_b"][i]["y"] = float(y)
         except Exception as e:
             pass
         # Keeper PlayStyles (EA FC 25 — 6 keeper styles)
@@ -969,7 +996,7 @@ def history():
     return jsonify({"history": state.get("move_history", [])})
 
 
-# ── Auto-save / load game progress ──────────────────────────────────────────
+#  Auto-save / load game progress 
 
 def _auto_save_state(user_id: str, state: dict) -> None:
     if state.get("game_over"):
@@ -1047,6 +1074,10 @@ def benchmark():
     })
 
 
+@app.route("/about")
+def about_page():
+    return render_template("about.html", username=session.get("username", "Player"))
+
 @app.route("/profile")
 @login_required
 def profile():
@@ -1091,7 +1122,7 @@ def achievements_page():
                            categories=CATEGORY_LABELS)
 
 
-# ── Profile photo (Supabase Storage, per-user scoped) ─────────────────────
+#  Profile photo (Supabase Storage, per-user scoped) 
 
 @app.route("/api/profile/photo", methods=["POST"])
 @login_required
@@ -1132,7 +1163,7 @@ def api_remove_photo():
     return jsonify({"ok": True, "avatar_url": None})
 
 
-# ── Change email (confirmation sent to the new address) ───────────────────
+#  Change email (confirmation sent to the new address) 
 
 @app.route("/api/account/change-email", methods=["POST"])
 @login_required
@@ -1235,7 +1266,7 @@ def api_customization():
     cust = get_customization(uid())
     return jsonify(cust)
 
-# ── Mem0-style memory API (short vs long) ───────────────────────────────────
+#  Mem0-style memory API (short vs long) 
 @app.route("/api/memory/search")
 @login_required
 def api_memory_search():
@@ -1252,6 +1283,27 @@ def api_memory_search():
 def api_memory_all():
     cat = request.args.get("category")
     return jsonify({"memories": _mem_all(uid(), category=cat)})
+
+@app.route("/api/chatbot", methods=["POST"])
+def api_chatbot():
+    # offline, no API key needed — uses services/chatbot.py (rule + local DialoGPT)
+    try:
+        from services.chatbot import get_response
+    except Exception as e:
+        return jsonify({"response": "Chatbot not available."}), 500
+    data = request.get_json(silent=True) or {}
+    msg = (data.get("message") or "").strip()
+    if not msg:
+        return jsonify({"error": "message required"}), 400
+    # short-term memory for context (mem0)
+    try:
+        _mem_short(uid() or "guest:chatbot", [{"role": "user", "content": msg}], category="short")
+    except: pass
+    resp = get_response(msg)
+    try:
+        _mem_short(uid() or "guest:chatbot", [{"role": "assistant", "content": resp}], category="short")
+    except: pass
+    return jsonify({"response": resp})
 
 
 @app.route("/my-models")
@@ -1485,7 +1537,7 @@ def pg_reset():
     return jsonify(_full_state(state))
 
 
-# ── AI-builder tutorial (Learn page + machine-checked milestones) ──────────
+#  AI-builder tutorial (Learn page + machine-checked milestones) 
 
 @app.route("/learn")
 @login_required
@@ -1632,7 +1684,7 @@ def _save_room(room_id, room):
     r.setex(f"room:{room_id}", ROOM_TTL, _json.dumps(room))
 
 
-# ── Live-match index (spectator mode) ─────────────────────────────────────
+#  Live-match index (spectator mode) 
 # A Redis set tracks rooms whose status is "active", so /spectate can list
 # open matches without scanning. Stale ids are pruned on read.
 
@@ -1669,7 +1721,7 @@ def _active_room_list():
     return rooms
 
 
-# ── Ranked matchmaking (ELO for human players) ─────────────────────────────
+#  Ranked matchmaking (ELO for human players) 
 # A "Play Ranked" queue pairs human players by similar rating. ONLY matches
 # created from this queue affect rating — casual create/link/invite rooms stay
 # unranked (the hook only fires when room["ranked"] is set). The queue lives
@@ -2038,7 +2090,7 @@ def ranked_status():
     return jsonify(_ranked_payload(uid()))
 
 
-# ── Ranked leaderboard (human players, distinct from the AI-model board) ──
+#  Ranked leaderboard (human players, distinct from the AI-model board) 
 
 @app.route("/api/leaderboard/ranked")
 @login_required
@@ -2452,7 +2504,7 @@ def online_decline_invite(invite_id):
     return jsonify({"ok": True})
 
 
-# ── Live Spectator Mode (open: any user or logged-out visitor) ─────────────
+#  Live Spectator Mode (open: any user or logged-out visitor) 
 # Spectators watch live online matches through the same HTTP-polled /state
 # endpoint the players use. They get the full game + last_move, my_side=None,
 # and every write path (move/voice/chat) is already rejected server-side for
@@ -2482,11 +2534,21 @@ def spectate_room(room_id):
 
 
 
-# ── Teams (choose team, cannot pick same as opponent) ─────────────────────
+#  Teams (choose team, cannot pick same as opponent) 
 @app.route("/api/teams")
 def api_teams():
     from db.teams import list_teams
     return jsonify(list_teams())
+
+@app.route("/api/formations")
+def api_formations():
+    from db.managers import FORMATIONS_7, list_formations, MANAGERS
+    return jsonify({"formations": list_formations(), "map": FORMATIONS_7, "managers": MANAGERS})
+
+@app.route("/api/referees")
+def api_referees():
+    from db.managers import REFEREES
+    return jsonify(REFEREES)
 
 @app.route("/online/<room_id>/team", methods=["POST"])
 def online_choose_team(room_id):
@@ -2521,20 +2583,39 @@ def online_choose_team(room_id):
             p["name"] = names[i]
     # also update room and game team fields
     team = TEAMS_BY_ID[team_id]
+    from db.managers import get_manager
+    mgr = get_manager(team_id)
     if my_side == "a":
         room["name_a"] = f"{team['crest']} {team['name']}"
         room["team_a"] = team_id
         room["game"]["team_a"] = team_id
         room["game"]["team_a_name"] = team["name"]
+        room["game"]["manager_a"] = mgr["name"]
+        room["game"]["formation_a"] = mgr["formation"]
+        # update positions for new formation if 7 players
+        if room["game"].get("player_count", 7) == 7:
+            from models.soccer_logic import _home_positions
+            ha = _home_positions(7, "a", mgr["formation"])
+            for i, (x,y) in enumerate(ha):
+                if i < len(room["game"]["players_a"]):
+                    room["game"]["players_a"][i]["x"] = float(x); room["game"]["players_a"][i]["y"] = float(y)
     else:
         room["name_b"] = f"{team['crest']} {team['name']}"
         room["team_b"] = team_id
         room["game"]["team_b"] = team_id
         room["game"]["team_b_name"] = team["name"]
+        room["game"]["manager_b"] = mgr["name"]
+        room["game"]["formation_b"] = mgr["formation"]
+        if room["game"].get("player_count", 7) == 7:
+            from models.soccer_logic import _home_positions
+            hb = _home_positions(7, "b", mgr["formation"])
+            for i, (x,y) in enumerate(hb):
+                if i < len(room["game"]["players_b"]):
+                    room["game"]["players_b"][i]["x"] = float(x); room["game"]["players_b"][i]["y"] = float(y)
     _save_room(room_id, room)
     return jsonify({"ok": True, "team_id": team_id, "team": team, "room": {"team_a": room.get("team_a"), "team_b": room.get("team_b")}})
 
-# ── Friend system ─────────────────────────────────────────────────────────────
+#  Friend system 
 
 FRIEND_TTL = 3600 * 24 * 30   # 30 days
 
@@ -2646,7 +2727,7 @@ def api_remove_friend(friend_uid):
     return jsonify({"ok": True})
 
 
-# ── Chat (match / tournament-lobby / friend DMs) ─────────────────────────────
+#  Chat (match / tournament-lobby / friend DMs) 
 # Delivery is polling (GET /chat/messages?after=<mid>) — same pattern as the
 # room state endpoints. Match + lobby chat are ephemeral Redis lists with TTL;
 # DMs persist in Supabase (migration_chat.sql). Rate limit, profanity filter,
@@ -2688,7 +2769,7 @@ def chat_send():
     data  = request.get_json(silent=True) or {}
     scope = (data.get("scope") or "").strip()
     body  = (data.get("body") or "").strip()
-    if scope not in ("match", "tournament", "dm"):
+    if scope not in ("match", "tournament", "dm", "global"):
         return jsonify({"error": "Invalid scope"}), 400
     if not body:
         return jsonify({"error": "Message is empty"}), 400
@@ -2724,6 +2805,10 @@ def chat_send():
             if not _can_lobby_chat(scope_id, my_uid):
                 return jsonify({"error": "You're not in this tournament"}), 403
             msg = send_ephemeral("tournament", scope_id, my_uid, my_name, body)
+        elif scope == "global":
+            # Server-wide chat — any logged-in user, no scope_id needed
+            scope_id = "global"
+            msg = send_ephemeral("global", scope_id, my_uid, my_name, body)
         else:
             to_uid = (data.get("to_uid") or "").strip()
             if not to_uid or to_uid == my_uid:
@@ -2749,7 +2834,7 @@ def chat_messages():
                          conv_id, conv_parties)
     from db.chat import ChatUnavailable
     scope = (request.args.get("scope") or "").strip()
-    if scope not in ("match", "tournament", "dm"):
+    if scope not in ("match", "tournament", "dm", "global"):
         return jsonify({"error": "Invalid scope"}), 400
     if scope in ("tournament", "dm") and "user_id" not in session:
         return jsonify({"error": "Not authenticated"}), 401
@@ -2766,10 +2851,16 @@ def chat_messages():
     blocked = get_blocked(my_uid) if my_uid else set()
 
     try:
-        if scope in ("match", "tournament"):
+        if scope in ("match", "tournament", "global"):
             scope_id = (request.args.get("scope_id") or "").strip()
-            if not scope_id:
-                return jsonify({"error": "scope_id required"}), 400
+            if scope == "global":
+                scope_id = "global"
+                # any logged-in user can read global
+                if "user_id" not in session:
+                    return jsonify({"error": "Not authenticated"}), 401
+            else:
+                if not scope_id:
+                    return jsonify({"error": "scope_id required"}), 400
             if scope == "match":
                 room = _get_room(scope_id)
                 if not room:
@@ -2779,6 +2870,8 @@ def chat_messages():
                     # Once the match ends (or the room is gone) read access closes.
                     if room.get("status") != "active":
                         return jsonify({"error": "You're not in this match"}), 403
+            elif scope == "global":
+                pass
             else:
                 if not _can_lobby_chat(scope_id, my_uid):
                     return jsonify({"error": "You're not in this tournament"}), 403
@@ -2875,7 +2968,7 @@ def chat_blocked():
     return jsonify({"blocked": sorted(get_blocked(uid()))})
 
 
-# ── Tournaments ─────────────────────────────────────────────────────────────
+#  Tournaments 
 
 @app.route("/tournaments")
 @login_required
@@ -3116,7 +3209,7 @@ def match_summary_page(room_id):
                            s=summary)
 
 
-# ── Clerk — verify session ────────────────────────────────────────────────
+#  Clerk — verify session 
 @app.route("/api/auth/clerk/verify", methods=["POST"])
 def clerk_verify():
     data = request.get_json(silent=True) or {}
@@ -3134,14 +3227,14 @@ def clerk_verify():
     return jsonify({"verified": False, "error": "Invalid token"}), 401
 
 
-# ── Feedback page ────────────────────────────────────────────────────────
+#  Feedback page 
 @app.route("/feedback")
 @login_required
 def feedback_page():
     return render_template("feedback.html", username=session.get("username", "Player"))
 
 
-# ── ProductBridge — feedback ─────────────────────────────────────────────
+#  ProductBridge — feedback 
 @app.route("/api/feedback", methods=["POST"])
 @login_required
 def api_submit_feedback():
@@ -3170,7 +3263,7 @@ def api_list_feedback_boards():
     return jsonify({"boards": boards})
 
 
-# ── Pinecone — AI move embedding ─────────────────────────────────────────
+#  Pinecone — AI move embedding 
 @app.route("/api/embed/move", methods=["POST"])
 @login_required
 def api_embed_move():
@@ -3206,7 +3299,7 @@ def api_embed_stats():
     return jsonify(stats)
 
 
-# ── Research Hub — paper search & library ──────────────────────────────────────
+#  Research Hub — paper search & library 
 
 @app.route("/research")
 @login_required
@@ -3296,7 +3389,7 @@ def api_research_delete():
     return jsonify({"ok": ok})
 
 
-# ── AI Arena — model benchmarking & analytics ──────────────────────────────
+#  AI Arena — model benchmarking & analytics 
 _LB_DEFAULT_GAMES = 5
 
 
@@ -3565,7 +3658,7 @@ def arena_battle():
     return jsonify(result)
 
 
-# ── Loss analysis — "why did my model lose this match?" ─────────────────────
+#  Loss analysis — "why did my model lose this match?" 
 # Read side of the decision-trace feature (capture lives in the arena,
 # leaderboard-bench and tournament-sim call sites above). Every route is
 # owner-only: the model id must belong to the logged-in user.
@@ -3725,7 +3818,7 @@ def arena_matrix():
     return jsonify(result)
 
 
-# ── Analytics dashboard (public — aggregates only, portfolio piece) ────────
+#  Analytics dashboard (public — aggregates only, portfolio piece) 
 ANALYTICS_CACHE_TTL = 86400          # 24h: data only changes when matches finish
 _MATRIX_DEFAULT_GAMES = 5            # 7 agents -> 21 head-to-head pairs
 _MATRIX_STATUS_TTL = 7200

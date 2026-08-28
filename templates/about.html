@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<link rel="stylesheet" href="/static/style.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Be+Vietnam+Pro:wght@400;600&display=swap');
+.hero{padding:28px 22px;border-radius:20px;background:linear-gradient(135deg,rgba(14,165,233,.14),rgba(139,92,246,.12));border:1px solid rgba(255,255,255,.6);backdrop-filter:blur(18px);margin-bottom:18px}
+.hero h1{font-family:'Space Grotesk',sans-serif;font-size:2rem;font-weight:700;letter-spacing:-.03em;margin:0;background:linear-gradient(135deg,#0ea5e9 0%,#8b5cf6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.hero p{font-size:.92rem;color:#475569;line-height:1.6;margin:10px 0 0;max-width:780px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px;margin-bottom:16px}
+.card h3{font-family:'Space Grotesk',sans-serif;font-size:1rem;font-weight:700;margin:0 0 6px;color:#0f172a}
+.card p,.card li{font-size:.84rem;color:#475569;line-height:1.6}
+.card ul{margin:6px 0 0 18px}
+code{background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2);padding:2px 6px;border-radius:6px;font-size:.8em;color:#0284c7}
+.steps{counter-reset:step}
+.steps li{counter-increment:step;list-style:none;position:relative;padding-left:32px;margin-bottom:10px}
+.steps li::before{content:counter(step);position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;background:#0ea5e9;color:#fff;font-size:.75rem;font-weight:700;display:flex;align-items:center;justify-content:center;display:flex;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
+  <div class="nav-links">
+    <a href="/play3d" class="nav-link">Play</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/about" class="nav-link active">About</a>
+    <a href="/customize" class="nav-link">Customize</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+  </div>
+</nav>
+<main style="max-width:980px;margin:0 auto;padding:28px 16px">
+  <div class="hero">
+    <h1>Agent Soccer — 2D to 3D, human & AI</h1>
+    <p>Browser-based <b>2v2–11v11</b> 3D soccer. Human or AI players take turns kicking (slingshot drag). Physics is <b>pymunk</b> (Chipmunk2D) with ground-only ball, FIFA 105×68 field, 8-tier stadium, 2.2k crowd, sun+clouds. Choose from <b>48 WC2026 teams</b> + 10 formations, 6×2 keeper styles, 4 point-buy stats.</p>
+  </div>
+
+  <div class="grid">
+    <div class="glass-card card">
+      <h3>How to play (30 sec)</h3>
+      <ol class="steps">
+        <li><b>Pick teams</b> — 2 players cannot pick same team. Team chooser shows crest + manager + formation (default 7 players, 2-3-1). Change formation before kickoff.</li>
+        <li><b>Drag & kick</b> — drag your nearest player backward, release. Power = drag distance. Keys: <code>S</code> short, <code>A</code> long, <code>W</code> through, <code>Q</code> switch player, <code>E</code> hold sprint +18%.</li>
+        <li><b>Watch</b> — ball rolls (CatmullRom), players lerp eased, referee wanders, crowd cheers on goal.</li>
+        <li><b>Win</b> — first to <code>win_goal_limit</code> (5 default) or lead at 90' (extra time 2×15' → penalties). Clock runs 3 real sec = 1 game min.</li>
+      </ol>
+    </div>
+    <div class="glass-card card">
+      <h3>Views & controls</h3>
+      <ul>
+        <li><b>Top view</b> (−1500,790,320) broadcast, <b>Player view</b> behind ball (−260/+260,92,135) follows ball — toggle <code>View</code> (120s timeout, saved).</li>
+        <li><b>Penalty</b> — kicker view (behind spot) vs keeper view (behind goal), 5s keeper timer, auto-kick.</li>
+        <li><b>Camera:</b> OrbitControls, `min 300 max 2600`, damping 0.08.</li>
+        <li><b>Sound:</b> synth WebAudio — kick 0.16s, bounce 0.10s, goal fanfare 1s, whistle 0.8s, crowd ambient+cheer. `🔇` toggles.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="glass-card card">
+      <h3>Teams & formations</h3>
+      <p>48 WC2026 nations (USA ... Iraq) each with manager (e.g., Brazil Dorival 2-3-1) and 11 names (GK first). Default 7v7, 10 most popular 7v7: <code>2-3-1, 3-2-1, 2-1-2-1, 3-1-2, 2-2-2, 1-3-2, 3-3-0, 1-4-1, 2-1-3, 1-2-3</code>. Change in team chooser before reset.</p>
+    </div>
+    <div class="glass-card card">
+      <h3>Players & keeper</h3>
+      <p>4 stats 20–80 (200 per player): <code>Size→radius 12+stat*16, Power→kick 5+stat*10, Weight→mass 3+stat*4, Agility→friction 1000+stat*1000</code>. Keeper 6×2 PlayStyles: Footwork, Rush Out, Deflector, Cross Claimer, Far Reach, Far Throw (+ stronger).</p>
+    </div>
+  </div>
+
+  <div class="glass-card card">
+    <h3>AI & custom models</h3>
+    <p>7 built-ins + <b>LangChain Tactician</b> (LLM-guided + physics verify, &lt;1.5s, fallback pruned) + your own in <b>Playground / My Models</b>. Required function:</p>
+    <pre style="background:rgba(15,23,42,.9);color:#e2e8f0;border-radius:10px;padding:12px;overflow:auto;font-size:.78rem">def get_ai_move(state, is_player_a):
+    # state["ball"] {"x","y"}  state["players_a/b"] [{"x","y","name","stats"}]
+    # state["field"] {"width":1400,"height":875}  state["score_a/b"] int
+    # is_player_a True → attack RIGHT (x=1400)
+    return player_idx, angle_deg, power  # 0-2, 0=right 90=down, 0-100</pre>
+    <p>Short/long memory (mem0) remembers your kick tactics and team prefs; offline chatbot at 💬 needs no API.</p>
+  </div>
+
+  <div class="grid">
+    <div class="glass-card card">
+      <h3>Modes</h3>
+      <ul>
+        <li><b>Human vs AI / Human vs Human / AI vs AI</b> — switch in controls.</li>
+        <li><b>Online</b> — create/join room, ranked ELO (1200 K40<10 else K20, 10 placement), spectator <code>/spectate</code>, voice WebRTC.</li>
+        <li><b>Tournaments</b> — single elimination, add Model/Friend, simulate → Watch 3D replay.</li>
+        <li><b>Replays / Highlights</b> — goal/near-miss/fast 400/700 px/s, share <code>/highlight/&lt;id&gt;</code>.</li>
+      </ul>
+    </div>
+    <div class="glass-card card">
+      <h3>Run locally</h3>
+      <p><code>DEV_MODE=1 python app.py</code> → <code>http://localhost:5000/play3d</code> — in-memory Redis/Supabase, no keys, <code>static/vendor/</code> already vendored (Three.js, CodeMirror, Chart.js, fonts) — no CDN.</p>
+      <p>Tests: <code>python -m pytest -q --ignore=test_integration --ignore=balance_test</code> → <code>269 passed</code>.</p>
+    </div>
+  </div>
+
+  <div class="glass-card card" style="text-align:center">
+    <p style="margin:0">Built with Flask, pymunk, Three.js, Supabase, Redis. Enjoy — and may the best tactician win!</p>
+  </div>
+</main>
+<script src="/static/feedback.js"></script>
+</body>
+</html>
