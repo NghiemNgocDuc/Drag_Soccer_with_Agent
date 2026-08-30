@@ -1095,6 +1095,136 @@ def workflow_page():
     """Workflow overview — displays static/workflow.png. Under About."""
     return render_template("workflow.html", username=session.get("username", "Player"))
 
+
+#  Clans — create, open/request joins, leader transfer
+
+@app.route("/clans")
+@login_required
+def clans_page():
+    from db.clans import my_clan
+    mine = my_clan(uid())
+    return render_template("clans.html", username=session.get("username", "Player"), my_clan=mine)
+
+
+@app.route("/clans/<clan_id>")
+@login_required
+def clan_detail(clan_id):
+    from db.clans import get_clan, list_requests
+    c = get_clan(clan_id)
+    if not c:
+        flash("Clan not found")
+        return redirect(url_for("clans_page"))
+    reqs = list_requests(clan_id) if c.get("leader_id") == uid() else []
+    return render_template("clan.html", username=session.get("username", "Player"), clan=c, pending=reqs)
+
+
+@app.route("/api/clans", methods=["GET"])
+@login_required
+def api_clans_list():
+    from db.clans import list_clans, my_clan
+    return jsonify({"clans": list_clans(), "my_clan": my_clan(uid())})
+
+
+@app.route("/api/clans", methods=["POST"])
+@login_required
+def api_clans_create():
+    from db.clans import create_clan
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    desc = (data.get("description") or "").strip()
+    join_type = (data.get("join_type") or "request").strip()
+    limit = int(data.get("member_limit") or 20)
+    try:
+        clan = create_clan(uid(), name, description=desc, join_type=join_type, member_limit=limit)
+        return jsonify({"ok": True, "clan": clan}), 201
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": "Failed to create clan"}), 500
+
+
+@app.route("/api/clans/<clan_id>/join", methods=["POST"])
+@login_required
+def api_clans_join(clan_id):
+    from db.clans import request_join
+    data = request.get_json(silent=True) or {}
+    try:
+        res = request_join(uid(), clan_id, message=data.get("message") or "")
+        return jsonify({"ok": True, **res})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/clans/<clan_id>/requests/<req_id>/approve", methods=["POST"])
+@login_required
+def api_clans_approve(clan_id, req_id):
+    from db.clans import handle_request
+    try:
+        handle_request(uid(), clan_id, req_id, True)
+        return jsonify({"ok": True})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/clans/<clan_id>/requests/<req_id>/decline", methods=["POST"])
+@login_required
+def api_clans_decline(clan_id, req_id):
+    from db.clans import handle_request
+    try:
+        handle_request(uid(), clan_id, req_id, False)
+        return jsonify({"ok": True})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/clans/<clan_id>/leave", methods=["POST"])
+@login_required
+def api_clans_leave(clan_id):
+    from db.clans import leave_clan
+    try:
+        leave_clan(uid(), clan_id)
+        return jsonify({"ok": True})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/clans/<clan_id>/transfer", methods=["POST"])
+@login_required
+def api_clans_transfer(clan_id):
+    from db.clans import transfer_leader
+    data = request.get_json(silent=True) or {}
+    new_id = (data.get("new_leader_id") or "").strip()
+    if not new_id:
+        return jsonify({"error": "new_leader_id required"}), 400
+    try:
+        clan = transfer_leader(uid(), clan_id, new_id)
+        return jsonify({"ok": True, "clan": clan})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/clans/<clan_id>", methods=["DELETE"])
+@login_required
+def api_clans_delete(clan_id):
+    from db.clans import delete_clan
+    try:
+        delete_clan(uid(), clan_id)
+        return jsonify({"ok": True})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/clans/<clan_id>", methods=["GET"])
+@login_required
+def api_clans_get(clan_id):
+    from db.clans import get_clan, list_requests
+    c = get_clan(clan_id)
+    if not c:
+        return jsonify({"error": "Clan not found"}), 404
+    # leader sees pending
+    pending = list_requests(clan_id) if c.get("leader_id") == uid() else []
+    return jsonify({"clan": c, "pending": pending})
+
 @app.route("/profile")
 @login_required
 def profile():

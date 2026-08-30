@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ clan.name }} — Clan — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>
+.hero{padding:20px 22px;border-radius:20px;background:linear-gradient(135deg,rgba(14,165,233,.13),rgba(139,92,246,.12));border:1px solid rgba(255,255,255,.65);backdrop-filter:blur(18px);margin-bottom:16px}
+.badge{font-size:.68rem;padding:2px 8px;border-radius:999px;font-weight:700}
+.badge-open{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.badge-request{background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+.meta{font-size:.78rem;color:#64748b}
+.member-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.9);border:1px solid rgba(226,232,240,.9);margin-bottom:6px}
+.leader{font-size:.68rem;padding:2px 6px;border-radius:999px;background:linear-gradient(135deg,#0ea5e9,#6366f1);color:#fff;font-weight:700}
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
+  <div class="nav-links">
+    <a href="/play3d" class="nav-link">Play</a>
+    <a href="/clans" class="nav-link active">Clans</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/messages" class="nav-link">Messages</a>
+    <a href="/about" class="nav-link">About</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+  </div>
+</nav>
+<main style="max-width:900px;margin:0 auto;padding:24px 16px">
+  <a href="/clans" style="font-size:.82rem;color:#0284c7;text-decoration:none;font-weight:600">← All clans</a>
+  <div class="hero" style="margin-top:10px">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.5rem;font-weight:700;margin:0">{{ clan.name }}</h1>
+      <span class="badge {{ 'badge-open' if clan.join_type=='open' else 'badge-request' }}">{{ clan.join_type }}</span>
+      <span class="meta">{{ clan.member_count }}/{{ clan.member_limit }} members</span>
+    </div>
+    <p class="meta" style="margin-top:6px">{{ clan.description or 'No description' }}</p>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary btn-sm" onclick="join()">Join</button>
+      <button class="btn btn-secondary btn-sm" onclick="leave()">Leave</button>
+      <button class="btn btn-ghost btn-sm" onclick="delClan()" style="color:#dc2626">Delete (leader)</button>
+      <span id="c-msg" class="meta"></span>
+    </div>
+  </div>
+
+  <div class="glass-card" style="padding:14px;margin-bottom:14px">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Members</h3>
+    <div id="members"></div>
+  </div>
+
+  <div class="glass-card" id="req-card" style="padding:14px;{{ '' if pending else 'display:none' }}">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Pending requests</h3>
+    <div id="requests"></div>
+  </div>
+</main>
+<script>
+const CLAN_ID = "{{ clan.id }}";
+const IS_LEADER = "{{ clan.leader_id }}" === "{{ session.get('user_id','') }}"; // fallback checked server-side too
+
+async function load(){
+  const r=await fetch('/api/clans/'+CLAN_ID); const j=await r.json();
+  if(j.error){ document.getElementById('c-msg').textContent=j.error; return; }
+  const c=j.clan; const members=c.members||[];
+  const box=document.getElementById('members'); box.innerHTML='';
+  members.forEach(m=>{
+    const isLead = m.user_id===c.leader_id;
+    const row=document.createElement('div'); row.className='member-row';
+    row.innerHTML=`<b style="flex:1">${m.username}${isLead?' <span class=leader>LEADER</span>':''}</b><span class="meta">${m.joined_at?m.joined_at.slice(0,10):''}</span>
+      ${IS_LEADER && !isLead ? `<button class="btn btn-secondary btn-sm" onclick="transfer('${m.user_id}')">Make leader</button>`:''}`;
+    box.appendChild(row);
+  });
+  const rqBox=document.getElementById('requests'); const card=document.getElementById('req-card');
+  const pend=j.pending||[];
+  if(pend.length && IS_LEADER){
+    card.style.display=''; rqBox.innerHTML='';
+    pend.forEach(pr=>{
+      const row=document.createElement('div'); row.className='member-row';
+      row.innerHTML=`<span style="flex:1"><b>${pr.username||pr.user_id.slice(0,8)}</b> <span class="meta">${pr.created_at?pr.created_at.slice(0,16):''}</span></span>
+        <button class="btn btn-primary btn-sm" onclick="approve('${pr.id}')">Approve</button><button class="btn btn-secondary btn-sm" onclick="decline('${pr.id}')">Decline</button>`;
+      rqBox.appendChild(row);
+    });
+  } else if(card) { if(!pend.length) card.style.display='none'; }
+}
+async function join(){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}); const j=await r.json();
+  document.getElementById('c-msg').textContent=j.ok?(j.joined?'Joined!':'Request sent'): (j.error||'Failed'); load();
+}
+async function leave(){
+  if(!confirm('Leave clan?')) return;
+  const r=await fetch('/api/clans/'+CLAN_ID+'/leave',{method:'POST'}); const j=await r.json();
+  document.getElementById('c-msg').textContent=j.ok?'Left':(j.error||'Failed'); if(j.ok) location.href='/clans';
+}
+async function approve(id){
+  await fetch('/api/clans/'+CLAN_ID+'/requests/'+id+'/approve',{method:'POST'}); load();
+}
+async function decline(id){
+  await fetch('/api/clans/'+CLAN_ID+'/requests/'+id+'/decline',{method:'POST'}); load();
+}
+async function transfer(newId){
+  if(!confirm('Transfer leadership to this member? You will lose leader role.')) return;
+  const r=await fetch('/api/clans/'+CLAN_ID+'/transfer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_leader_id:newId})}); const j=await r.json();
+  document.getElementById('c-msg').textContent=j.ok?'Transferred':(j.error||'Failed'); load();
+}
+async function delClan(){
+  if(!confirm('Delete clan? This removes all members.')) return;
+  const r=await fetch('/api/clans/'+CLAN_ID,{method:'DELETE'}); const j=await r.json();
+  if(j.ok) location.href='/clans'; else document.getElementById('c-msg').textContent=j.error;
+}
+load();
+</script>
+<script src="/static/feedback.js"></script>
+</body>
+</html>

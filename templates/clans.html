@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clans — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>
+.hero{padding:20px 22px;border-radius:20px;background:linear-gradient(135deg,rgba(14,165,233,.13),rgba(139,92,246,.12));border:1px solid rgba(255,255,255,.65);backdrop-filter:blur(18px);margin-bottom:16px}
+.hero h1{font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;letter-spacing:-.03em;margin:0;background:linear-gradient(135deg,#0ea5e9 0%,#8b5cf6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.clan-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.clan-card{padding:14px;border-radius:16px}
+.clan-card h3{font-family:'Space Grotesk',sans-serif;font-size:1rem;margin:0 0 4px}
+.badge{font-size:.68rem;padding:2px 8px;border-radius:999px;font-weight:700}
+.badge-open{background:#dcfce7;color:#166534;border:1px solid #86efac}
+.badge-request{background:#fef3c7;color:#92400e;border:1px solid #fcd34d}
+.meta{font-size:.78rem;color:#64748b}
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
+  <div class="nav-links">
+    <a href="/play3d" class="nav-link">Play</a>
+    <a href="/clans" class="nav-link active">Clans</a>
+    <a href="/tournaments" class="nav-link">Tournaments</a>
+    <a href="/messages" class="nav-link">Messages</a>
+    <a href="/about" class="nav-link">About</a>
+    <a href="/customize" class="nav-link">Customize</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+  </div>
+</nav>
+<main style="max-width:1100px;margin:0 auto;padding:24px 16px">
+  <div class="hero">
+    <h1>Clans</h1>
+    <p style="font-size:.88rem;color:#475569;margin:6px 0 0">Create a clan, invite friends, or join an open clan instantly. Request clans need leader approval. Leader can transfer leadership — and loses it.</p>
+  </div>
+
+  {% if my_clan %}
+  <div class="glass-card" style="padding:14px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div><b>Your clan:</b> <a href="/clans/{{ my_clan.id }}" style="font-weight:700">{{ my_clan.name }}</a> <span class="badge {{ 'badge-open' if my_clan.join_type=='open' else 'badge-request' }}">{{ my_clan.join_type }}</span> <span class="meta">· {{ my_clan.member_count }}/{{ my_clan.member_limit }} · Leader: {{ my_clan.leader_id[:8] }}</span></div>
+    <a class="btn btn-secondary btn-sm" href="/clans/{{ my_clan.id }}">View</a>
+  </div>
+  {% endif %}
+
+  <div class="glass-card" style="padding:16px;margin-bottom:16px">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 10px">Create clan</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <input id="c-name" class="input" placeholder="Clan name (2-24, letters/numbers/_- )">
+      <select id="c-type" class="input"><option value="request">Request to join (leader approves)</option><option value="open">Open — free to join</option></select>
+    </div>
+    <input id="c-desc" class="input" placeholder="Description (optional, max 120)" style="margin-top:10px">
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+      <button class="btn btn-primary btn-sm" onclick="createClan()">Create</button>
+      <span id="c-msg" class="meta"></span>
+    </div>
+  </div>
+
+  <div id="clan-list" class="clan-grid"></div>
+</main>
+<script>
+async function loadClans(){
+  const r=await fetch('/api/clans'); const j=await r.json();
+  const list=document.getElementById('clan-list'); list.innerHTML='';
+  (j.clans||[]).forEach(c=>{
+    const card=document.createElement('div'); card.className='glass-card clan-card';
+    card.innerHTML=`<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><h3>${c.name}</h3><span class="badge ${c.join_type==='open'?'badge-open':'badge-request'}">${c.join_type}</span></div>
+      <div class="meta">${c.description||''}</div>
+      <div class="meta" style="margin-top:4px">${c.member_count}/${c.member_limit} members · Leader ${c.leader_id.slice(0,8)}</div>
+      <div style="margin-top:10px;display:flex;gap:8px"><a class="btn btn-secondary btn-sm" href="/clans/${c.id}">View</a><button class="btn btn-primary btn-sm" onclick="joinClan('${c.id}')">Join</button></div>`;
+    list.appendChild(card);
+  });
+  if(!(j.clans||[]).length) list.innerHTML='<div class="meta">No clans yet — create the first one!</div>';
+}
+async function createClan(){
+  const name=document.getElementById('c-name').value.trim();
+  const jt=document.getElementById('c-type').value;
+  const desc=document.getElementById('c-desc').value.trim();
+  const msg=document.getElementById('c-msg');
+  msg.textContent='Creating...';
+  const r=await fetch('/api/clans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, join_type:jt, description:desc})});
+  const j=await r.json();
+  if(j.ok){ msg.textContent='Created!'; msg.style.color='#059669'; loadClans(); setTimeout(()=>location.href='/clans/'+j.clan.id,400); }
+  else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+async function joinClan(id){
+  const r=await fetch('/api/clans/'+id+'/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+  const j=await r.json();
+  if(j.ok){
+    if(j.joined) { alert('Joined!'); location.href='/clans/'+id; }
+    else alert('Request sent — waiting for leader approval');
+  } else alert(j.error||'Failed');
+}
+loadClans();
+</script>
+<script src="/static/feedback.js"></script>
+</body>
+</html>
