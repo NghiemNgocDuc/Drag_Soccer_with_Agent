@@ -63,6 +63,8 @@ nav,div.page{position:relative;z-index:1}
 .lb-updated{font-size:.6rem;color:var(--dim)}
 .lb-hint{font-size:.63rem;color:var(--muted)}
 .lb-hint.lb-err{color:#ef4444}
+.lb-progress{height:6px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden;margin-top:6px}
+.lb-progress-bar{height:100%;width:0%;background:linear-gradient(90deg,#06b6d4,#6366f1);transition:width .3s}
 .validate-result.warn{display:block;background:rgba(251,191,36,.12);color:#fbbf24;border:1px solid rgba(251,191,36,.25)}
 .empty-state{text-align:center;padding:40px 16px;color:var(--muted);font-size:.82rem;background:var(--glass-bg);backdrop-filter:blur(var(--blur));-webkit-backdrop-filter:blur(var(--blur));border:1px solid var(--glass-border);border-radius:12px}
 .empty-state strong{display:block;font-size:1rem;font-weight:600;color:var(--text);margin-bottom:6px}
@@ -459,20 +461,27 @@ def get_ai_move(state, is_player_a):
         <div class="editor-actions">
           <button class="btn btn-ghost btn-sm" onclick="closeEditor()">Cancel</button>
           <button class="btn btn-ghost btn-sm" onclick="validateCode()">Validate</button>
+          <button class="btn btn-ghost btn-sm" onclick="runEditorBenchmark()">Benchmark (5 vs Greedy)</button>
           <button class="btn btn-blue btn-sm"  onclick="saveModel()">Save</button>
         </div>
       </div>
 
       <textarea id="code-editor"></textarea>
 
-      <div class="editor-footer">
-        <label class="public-toggle">
-          <input type="checkbox" id="f-public">
-          Make public (visible in benchmarks)
-        </label>
-        <div id="validate-result" class="validate-result"></div>
-        <div class="editor-save-row">
-          <button class="btn btn-orange" onclick="saveModel()" style="padding:8px 22px">Save Model</button>
+      <div class="editor-footer" style="flex-direction:column;align-items:stretch;gap:8px">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <label class="public-toggle">
+            <input type="checkbox" id="f-public">
+            Make public (visible in benchmarks)
+          </label>
+          <div id="validate-result" class="validate-result" style="flex:1"></div>
+          <div class="editor-save-row" style="margin-left:auto">
+            <button class="btn btn-orange" onclick="saveModel()" style="padding:8px 22px">Save Model</button>
+          </div>
+        </div>
+        <div id="bench-editor-progress" style="display:none">
+          <div class="lb-progress"><div id="bench-editor-bar" class="lb-progress-bar" style="width:0%"></div></div>
+          <div id="bench-editor-text" style="font-size:.72rem;color:var(--muted);margin-top:4px"></div>
         </div>
       </div>
     </div>
@@ -575,6 +584,38 @@ function clearValidateResult() {
   el.className = 'validate-result';
 }
 
+async function runEditorBenchmark(){
+  const code = editor.getValue();
+  const wrap = document.getElementById('bench-editor-progress');
+  const bar = document.getElementById('bench-editor-bar');
+  const txt = document.getElementById('bench-editor-text');
+  wrap.style.display = 'block';
+  bar.style.width = '0%';
+  txt.textContent = 'Starting benchmark...';
+  const r = await fetch('/api/playground/benchmark', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({code, opponent: 'greedy', games: 5})
+  });
+  const j = await r.json();
+  if(j.error){ txt.textContent = j.error; return; }
+  const poll = async ()=>{
+    const pr = await fetch('/api/playground/benchmark/status');
+    const s = await pr.json();
+    if(s.status === 'running'){
+      const pct = s.total ? Math.round(s.done/s.total*100) : 0;
+      bar.style.width = pct + '%';
+      txt.textContent = 'Benchmarking ' + s.done + '/' + s.total + ' games (' + pct + '%)' + (s.win_rate!==undefined ? ' — win ' + s.win_rate + '%' : '');
+      setTimeout(poll, 900);
+    } else if(s.status === 'done'){
+      bar.style.width = '100%';
+      txt.textContent = 'Done: ' + s.wins + '/' + s.games + ' wins (' + s.win_rate + '%) vs ' + s.opponent + ' — avg latency ' + s.avg_latency + 'ms';
+    } else if(s.status === 'failed'){
+      txt.textContent = 'Failed: ' + (s.error||'unknown');
+    }
+  };
+  setTimeout(poll, 800);
+}
+
 async function saveModel() {
   const name = document.getElementById('f-name').value.trim();
   const desc = document.getElementById('f-desc').value.trim();
@@ -652,9 +693,9 @@ async function pollLeaderboard(id) {
   }
   if (st.status === 'running' && st.total) {
     const pct = Math.round(st.done / st.total * 100);
-    row.innerHTML = '<span class="lb-hint">Benchmarking… ' + st.done + '/' + st.total + ' games (' + pct + '%)</span>';
+    row.innerHTML = '<span class="lb-hint">Benchmarking… ' + st.done + '/' + st.total + ' games (' + pct + '%)</span><div class="lb-progress"><div class="lb-progress-bar" style="width:' + pct + '%"></div></div>';
   } else {
-    row.innerHTML = '<span class="lb-hint">Benchmarking…</span>';
+    row.innerHTML = '<span class="lb-hint">Benchmarking…</span><div class="lb-progress"><div class="lb-progress-bar" style="width:15%"></div></div>';
   }
   setTimeout(() => pollLeaderboard(id), 5000);
 }

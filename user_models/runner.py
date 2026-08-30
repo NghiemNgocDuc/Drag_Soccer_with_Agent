@@ -178,8 +178,8 @@ TEMPLATE = '''\
 # 
 #  Soccer AI — write your strategy below!
 #
-#  Field: 1400 × 875  (Team A → RIGHT, goal at x=1400, y=356–519)
-#                    (Team B → LEFT,  goal at x=0,    y=356–519)
+#  Field: 1400 x 875  (Team A -> RIGHT, goal at x=1400, y=356-519)
+#                    (Team B -> LEFT,  goal at x=0,    y=356-519)
 #
 #   IMPORTANT: always read the real field size from the state —
 #    don\'t hardcode these numbers in your code!
@@ -195,11 +195,51 @@ TEMPLATE = '''\
 #  state["period"]     = str  # "regular_first", "regular_second", etc.
 #
 #  Return: (player_idx, angle_deg, power)
-#    player_idx    — 0, 1, or 2
-#    angle_degrees — 0=right, 90=down, 180=left, 270=up
-#    power         — 0.0–100.0
+#    player_idx    -- 0, 1, or 2
+#    angle_degrees -- 0=right, 90=down, 180=left, 270=up
+#    power         -- 0.0-100.0
 #
 #  Available: math, random, copy + common builtins
+#
+#  Benchmark helper (optional) -- run locally to test vs built-in:
+#  Uncomment the block below and run this file directly, or click
+#  Benchmark in the editor to run 5 games vs Greedy with progress.
+#
+
+
+# def _bench_progress(cur, total, width=20):
+#     pct = int(cur / total * 100)
+#     filled = pct * width // 100
+#     bar = "[" + "#" * filled + "-" * (width - filled) + "]"
+#     print(f"{bar} {pct}% ({cur}/{total})")
+#
+# def benchmark_vs_greedy(games=5):
+#     from models.soccer_logic import new_soccer_state, apply_kick
+#     import importlib, time
+#     greedy = importlib.import_module("models.greedy_model")
+#     wins = 0
+#     lat = []
+#     for i in range(games):
+#         _bench_progress(i, games)
+#         st = new_soccer_state()
+#         # alternate sides for fairness
+#         is_greedy_a = (i % 2 == 0)
+#         for _ in range(60):
+#             if st.get("game_over"):
+#                 break
+#             is_a = st["is_player_a"]
+#             if is_a == is_greedy_a:
+#                 t0 = time.perf_counter()
+#                 pidx, ang, pwr = greedy.get_ai_move(st, is_a)
+#                 lat.append((time.perf_counter() - t0) * 1000)
+#             else:
+#                 pidx, ang, pwr = get_ai_move(st, is_a)
+#             apply_kick(st, pidx, ang, pwr, is_a)
+#         _bench_progress(i + 1, games)
+#         if st.get("winner") == ("B" if is_greedy_a else "A"):
+#             wins += 1
+#     print(f"Win rate vs Greedy: {wins/games*100:.1f}%  avg latency {sum(lat)/len(lat) if lat else 0:.1f}ms")
+#     return wins / games
 # 
 
 MODEL_NAME  = "My Soccer AI"

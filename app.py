@@ -1685,6 +1685,100 @@ def pg_reset():
     return jsonify(_full_state(state))
 
 
+def _run_pg_benchmark(user_id: str, code: str, opponent: str, games: int):
+    from db.redis_client import r as redis
+    import json as _json
+    key = f"bench:pg:{user_id}"
+    try:
+        from user_models.runner import validate_code, execute_user_model
+        from models.soccer_logic import new_soccer_state, apply_kick
+        ok, msg = validate_code(code)
+        if not ok:
+            redis.setex(key, 600, _json.dumps({"status": "failed", "error": msg}))
+            return
+        opp_mod = _load_model(opponent)
+        wins = 0
+        lats: list[float] = []
+        redis.setex(key, 600, _json.dumps({"status": "running", "done": 0, "total": games, "wins": 0}))
+        for i in range(games):
+            st = new_soccer_state()
+            # alternate which side is the user's code for fairness
+            code_is_a = (i % 2 == 0)
+            for _ in range(60):
+                if st.get("game_over"):
+                    break
+                is_a = st["is_player_a"]
+                is_code_turn = (is_a == code_is_a)
+                if is_code_turn:
+                    t0 = time.time()
+                    pidx, ang, pwr = execute_user_model(code, st, is_a, timeout_s=5.0)
+                    lats.append((time.time() - t0) * 1000)
+                else:
+                    pidx, ang, pwr = opp_mod.get_ai_move(st, is_a)
+                apply_kick(st, pidx, ang, pwr, is_a)
+            winner = st.get("winner")
+            # code wins if winner matches code side
+            code_side = "A" if code_is_a else "B"
+            if winner == code_side:
+                wins += 1
+            redis.setex(key, 600, _json.dumps({"status": "running", "done": i+1, "total": games, "wins": wins, "win_rate": round(wins/(i+1)*100,1), "avg_latency": round(sum(lats)/len(lats),1) if lats else 0}))
+        avg_lat = round(sum(lats)/len(lats),1) if lats else 0
+        redis.setex(key, 600, _json.dumps({"status": "done", "done": games, "total": games, "wins": wins, "win_rate": round(wins/games*100,1), "avg_latency": avg_lat, "games": games, "opponent": opponent}))
+    except Exception as exc:
+        import traceback; traceback.print_exc()
+        try:
+            redis.setex(key, 600, _json.dumps({"status": "failed", "error": str(exc)}))
+        except Exception:
+            pass
+
+
+@app.route("/api/playground/benchmark", methods=["POST"])
+@login_required
+def api_pg_benchmark():
+    from db.redis_client import r as redis
+    import json as _json
+    data = request.get_json(silent=True) or {}
+    code = (data.get("code") or "").strip()
+    opponent = (data.get("opponent") or "greedy").strip()
+    try:
+        games = max(1, min(20, int(data.get("games", 5))))
+    except Exception:
+        games = 5
+    if opponent not in MODELS:
+        return jsonify({"error": "Unknown opponent"}), 400
+    from user_models.runner import validate_code
+    ok, msg = validate_code(code)
+    if not ok:
+        return jsonify({"error": f"Code error: {msg}"}), 400
+    key = f"bench:pg:{uid()}"
+    cur = redis.get(key)
+    if cur:
+        try:
+            curj = _json.loads(cur)
+            if curj.get("status") == "running":
+                return jsonify({"error": "Benchmark already running"}), 409
+        except Exception:
+            pass
+    import threading as _th
+    _th.Thread(target=_run_pg_benchmark, args=(uid(), code, opponent, games), daemon=True).start()
+    return jsonify({"ok": True, "games": games, "opponent": opponent})
+
+
+@app.route("/api/playground/benchmark/status", methods=["GET"])
+@login_required
+def api_pg_benchmark_status():
+    from db.redis_client import r as redis
+    import json as _json
+    key = f"bench:pg:{uid()}"
+    raw = redis.get(key)
+    if not raw:
+        return jsonify({"status": "idle"})
+    try:
+        return jsonify(_json.loads(raw))
+    except Exception:
+        return jsonify({"status": "idle"})
+
+
 #  AI-builder tutorial (Learn page + machine-checked milestones) 
 
 @app.route("/learn")

@@ -300,6 +300,26 @@ state["game_over"]   # bool</pre>
       <button class="btn btn-ghost" onclick="resetGame()">↺ Reset</button>
     </div>
 
+    <!-- Benchmark with progress bar -->
+    <div class="g-card" style="padding:12px 14px">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span class="config-label">Benchmark</span>
+        <button class="btn btn-ghost" onclick="runBenchmark()">Benchmark 5 vs Greedy</button>
+        <select class="opp-sel" id="bench-opp">
+          {% for m in builtin_models %}
+          <option value="{{ m.id }}">{{ m.name }}</option>
+          {% endfor %}
+        </select>
+        <span style="font-size:.7rem;color:var(--muted)">Tests your current editor code</span>
+      </div>
+      <div id="bench-progress" style="display:none;margin-top:10px">
+        <div style="height:8px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden">
+          <div id="bench-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#06b6d4,#6366f1);transition:width .3s"></div>
+        </div>
+        <div id="bench-text" style="font-size:.72rem;color:var(--muted);margin-top:6px"></div>
+      </div>
+    </div>
+
     <!-- Turn banner -->
     <div class="g-card turn-banner" id="turn-banner">
       <div class="turn-dot"></div>
@@ -625,6 +645,46 @@ async function saveToMyModels() {
   if (data.error) { alert(data.error); return; }
   if (data.warning) { alert(data.warning); }
   setStatus(` Saved as "${name}" — visible in My Models and game AI selector.`, 'ok');
+}
+
+//  Benchmark with progress bar
+async function runBenchmark(){
+  const code = editor.getValue();
+  const opp = document.getElementById('bench-opp')?.value || 'greedy';
+  const wrap = document.getElementById('bench-progress');
+  const bar = document.getElementById('bench-bar');
+  const txt = document.getElementById('bench-text');
+  wrap.style.display = 'block';
+  bar.style.width = '0%';
+  txt.textContent = 'Starting benchmark...';
+  const r = await fetch('/api/playground/benchmark', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({code, opponent: opp, games: 5})
+  });
+  const j = await r.json();
+  if(j.error){ txt.textContent = j.error; return; }
+  let tries = 0;
+  const poll = async ()=>{
+    tries++;
+    const pr = await fetch('/api/playground/benchmark/status');
+    const s = await pr.json();
+    if(s.status === 'running'){
+      const pct = s.total ? Math.round(s.done/s.total*100) : 0;
+      bar.style.width = pct + '%';
+      txt.textContent = 'Benchmarking ' + s.done + '/' + s.total + ' games (' + pct + '%)' + (s.win_rate!==undefined ? ' — win ' + s.win_rate + '%' : '');
+      setTimeout(poll, 900);
+    } else if(s.status === 'done'){
+      bar.style.width = '100%';
+      txt.textContent = 'Done: ' + s.wins + '/' + s.games + ' wins (' + s.win_rate + '%) vs ' + s.opponent + ' — avg latency ' + s.avg_latency + 'ms';
+      setStatus('Benchmark done: ' + s.win_rate + '% win rate vs ' + s.opponent, 'ok');
+    } else if(s.status === 'failed'){
+      txt.textContent = 'Failed: ' + (s.error||'unknown');
+    } else {
+      txt.textContent = '';
+    }
+    if(tries>60) return;
+  };
+  setTimeout(poll, 800);
 }
 
 //  Import .py file from disk 
