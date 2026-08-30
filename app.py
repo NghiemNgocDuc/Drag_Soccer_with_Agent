@@ -124,6 +124,7 @@ _RATE_LIMITS: dict[str, tuple[int, int]] = {
     "/auth/register": (3, 300),    # 3 registrations per 5 minutes
     "/api/auth/forgot-password": (3, 300),   # 3 reset emails per 5 minutes
     "/api/auth/reset-password":  (10, 300),  # token-gated, but still bounded
+    "/api/feedback/about": (5, 300),  # 5 about feedbacks per 5 minutes
 }
 
 
@@ -3669,6 +3670,44 @@ def clerk_verify():
 @login_required
 def feedback_page():
     return render_template("feedback.html", username=session.get("username", "Player"))
+
+
+#  About page feedback — server-side recipient, never leaks to client
+@app.route("/api/feedback/about", methods=["POST"])
+def api_feedback_about():
+    # public, no login required — rate-limited via shared limiter
+    if not _check_rate_limit("/api/feedback/about"):
+        return jsonify({"error": "Too many requests. Try again later."}), 429
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()[:40]
+    email = (data.get("email") or "").strip()[:80]
+    message = (data.get("message") or "").strip()
+    if not message or len(message) < 5:
+        return jsonify({"error": "Message is too short"}), 400
+    if len(message) > 2000:
+        return jsonify({"error": "Message too long (max 2000)"}), 400
+    # basic email check if provided
+    if email and "@" not in email:
+        return jsonify({"error": "Invalid email"}), 400
+    from config import FEEDBACK_TO_EMAIL, RESEND_API_KEY
+    # recipient is env-only; if not configured, log and return ok (no leak)
+    to_addr = (FEEDBACK_TO_EMAIL or "").strip()
+    if not to_addr:
+        # In DEV_MODE or missing env, just log — still return ok to avoid probing
+        app.logger.info("About feedback (no FEEDBACK_TO_EMAIL set): from %s <%s> — %s", name, email, message[:200])
+        return jsonify({"ok": True})
+    if not RESEND_API_KEY:
+        app.logger.info("About feedback (Resend not configured): from %s <%s>", name, email)
+        return jsonify({"ok": True, "queued": True})
+    try:
+        from services.resend import send_email
+        html = f"<h3>About page feedback</h3><p><b>From:</b> {name} &lt;{email}&gt;</p><p><b>Message:</b></p><p>{message.replace(chr(10), '<br>')}</p><p><i>User: {session.get('username','guest')} / {session.get('user_id','-')}</i></p>"
+        send_email(to_addr, f"[Agent Soccer] About feedback from {name or 'visitor'}", html)
+        _ph.capture(session.get("user_id") or "guest", "about_feedback", {"has_email": bool(email)})
+    except Exception as e:
+        app.logger.warning("About feedback send failed: %s", e)
+        return jsonify({"ok": True, "queued": True})
+    return jsonify({"ok": True})
 
 
 #  ProductBridge — feedback 

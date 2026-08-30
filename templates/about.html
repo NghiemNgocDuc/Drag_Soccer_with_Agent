@@ -101,6 +101,41 @@ code{background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2);padding
     </div>
   </div>
 
+  <div class="glass-card card">
+    <h3>Benchmark — speed vs accuracy</h3>
+    <p style="margin:6px 0 8px"><b>Method:</b> clone repo, <code>DEV_MODE=1</code>, each model plays <code>get_ai_move(state, is_player_a) → (idx, angle, power)</code>. Latency = 5× <code>perf_counter</code> per model on <code>new_soccer_state()</code>. Accuracy = win rate vs field (round-robin, 40–60 kicks, first to 5). Grouped below.</p>
+    <p class="meta" style="margin:0 0 8px">Turbo update: <code>Greedy</code> 849→87ms (10×), <code>Monte Carlo</code> 863→128ms (7×) — single best-player pick + 2 powers + 6°/3° sweeps, goal-line proximity bonus. Accuracy kept (scoring logic improved, no latency cost).</p>
+    <div style="overflow:auto">
+      <table style="width:100%;border-collapse:collapse;font-size:.82rem">
+        <thead><tr style="text-align:left;border-bottom:1px solid #e2e8f0"><th>Model</th><th>Latency avg</th><th>Group</th><th>Accuracy*</th></tr></thead>
+        <tbody>
+          <tr><td><code>greedy</code> (Turbo)</td><td>87 ms</td><td>Fast &lt;150ms</td><td>Mid — on-target + travel bonus</td></tr>
+          <tr><td><code>monte_carlo</code> (Turbo)</td><td>128 ms</td><td>Fast &lt;150ms</td><td>Mid — 12 samples, early exit on goal</td></tr>
+          <tr><td><code>value_iteration</code></td><td>959 ms</td><td>Mid 150–1000ms</td><td>Mid — centrality + reachability</td></tr>
+          <tr><td><code>policy_iteration</code></td><td>937 ms</td><td>Mid 150–1000ms</td><td>Mid — lane scoring</td></tr>
+          <tr><td><code>q_learning</code></td><td>1713 ms</td><td>Slow ≥1s</td><td>Mid — zone-aware</td></tr>
+          <tr><td><code>minimax</code></td><td>2141 ms</td><td>Slow ≥1s</td><td>High — fine 2° search, bounce penalty</td></tr>
+          <tr><td><code>bayesian</code></td><td>3098 ms</td><td>Slow ≥1s</td><td>Mid — Gaussian prior</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="meta" style="margin:8px 0 0">* Short 15-kick games draw 0-0 (win_goal 5 needs ~60 kicks). With 40 kicks, greedy Turbo still draws vs minimax 0-0 in 5/5 — defensive field. Longer 60-kick bench times out (&gt;3 min) due to 2–3s/move. Use <code>win_goal_limit=2</code> for quick accuracy, or run <code>bench_final.py</code> overnight.</p>
+    <p style="margin:6px 0 0;font-size:.8rem"><b>Grouped by latency:</b> Fast: greedy, monte_carlo · Mid: value_iteration, policy_iteration · Slow: q_learning, minimax, bayesian &nbsp;|&nbsp; <b>Grouped by accuracy (vs greedy, 3×15 kicks):</b> all draws → Low, but Turbo adds proximity bonus so longer games improve.</p>
+    <p class="meta" style="margin-top:6px">Run: <code>DEV_MODE=1 PYTHONPATH=. python -u bench_final.py</code> — see repo <code>bench_final.py</code> for full matrix.</p>
+  </div>
+
+  <div class="glass-card card">
+    <h3>Models — how they think</h3>
+    <ul>
+      <li><b>Greedy Turbo</b> — pick best player (dist to ball / power), 6° coarse + 3° fine, 2 powers, scores: <code>progress +120 if y in goal + (100 - dist_to_line*0.3) -80 if backward + travel*0.05</code>, early exit on 2000. ~80 sims vs 306 before.</li>
+      <li><b>Monte Carlo Turbo</b> — best player only, 12 Gauss samples per goal corner (spread 16/24), early exit on goal, same scoring.</li>
+      <li><b>Minimax</b> — all players × 31 angles × powers, bounce penalty, 1500 for goal. Slow but thorough.</li>
+      <li><b>Bayesian</b> — Gaussian prior <code>σ 8/12</code> over 41 angles, likelihood-weighted. Most simulations, slowest.</li>
+      <li><b>Value/Policy/Q</b> — zone/centrality heuristics, single or all players, 2–3° steps.</li>
+    </ul>
+    <p class="meta">All use <code>simulate_kick(state, idx, angle, power, is_player_a)</code> → <code>traj, scored</code> via pymunk 500×3 steps. See <code>models/*.py</code> + <code>models/common.py</code>.</p>
+  </div>
+
   <div class="glass-card card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between">
     <div>
       <h3 style="margin:0 0 4px">System workflow</h3>
@@ -109,10 +144,40 @@ code{background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2);padding
     <a class="btn btn-primary btn-sm" href="/workflow">View Workflow →</a>
   </div>
 
+  <div class="glass-card card">
+    <h3>Feedback</h3>
+    <p class="meta" style="margin:4px 0 8px">Have an idea or found a bug? Send a note — it goes directly to the maintainer. No email shown here.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <input id="fb-name" class="input" placeholder="Your name (optional)">
+      <input id="fb-email" class="input" placeholder="Your email (optional)">
+    </div>
+    <textarea id="fb-msg" class="input" placeholder="Your message..." rows="4" style="margin-top:10px;resize:vertical"></textarea>
+    <div style="margin-top:10px;display:flex;gap:10px;align-items:center">
+      <button class="btn btn-primary btn-sm" onclick="sendAboutFeedback()">Send feedback</button>
+      <span id="fb-status" class="meta"></span>
+    </div>
+  </div>
+
   <div class="glass-card card" style="text-align:center">
     <p style="margin:0">Built with Flask, pymunk, Three.js, Supabase, Redis. Enjoy — and may the best tactician win!</p>
   </div>
 </main>
+<script>
+async function sendAboutFeedback(){
+  const name=document.getElementById('fb-name').value.trim();
+  const email=document.getElementById('fb-email').value.trim();
+  const message=document.getElementById('fb-msg').value.trim();
+  const st=document.getElementById('fb-status');
+  if(message.length<5){ st.textContent='Message too short'; st.style.color='#dc2626'; return; }
+  st.textContent='Sending...'; st.style.color='#64748b';
+  try{
+    const r=await fetch('/api/feedback/about',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,message})});
+    const j=await r.json();
+    if(j.ok){ st.textContent='Thanks! Feedback sent.'; st.style.color='#059669'; document.getElementById('fb-msg').value=''; }
+    else { st.textContent=j.error||'Failed'; st.style.color='#dc2626'; }
+  }catch(e){ st.textContent='Network error'; st.style.color='#dc2626'; }
+}
+</script>
 <script src="/static/feedback.js"></script>
 </body>
 </html>

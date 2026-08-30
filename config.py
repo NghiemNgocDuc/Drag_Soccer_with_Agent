@@ -47,3 +47,7 @@ PINECONE_INDEX    = os.environ.get("PINECONE_INDEX", "soccer-agent")
 
 # Semantic Scholar — academic paper search
 SEMANTIC_SCHOLAR_API_KEY = os.environ.get("SEMANTIC_SCHOLAR_API_KEY", "")
+
+# About feedback — recipient is server-side only, never exposed to client
+# Set FEEDBACK_TO_EMAIL on Render dashboard to your inbox (e.g. via env var). No default in repo to avoid leaking.
+FEEDBACK_TO_EMAIL = os.environ.get("FEEDBACK_TO_EMAIL", "")

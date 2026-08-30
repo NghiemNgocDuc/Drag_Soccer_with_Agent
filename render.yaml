@@ -21,3 +21,9 @@ services:
         sync: false
       - key: UPSTASH_REDIS_URL
         sync: false
+      - key: FEEDBACK_TO_EMAIL
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        sync: false
