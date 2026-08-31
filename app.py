@@ -500,13 +500,37 @@ def _do_penalty_ai(state: dict, model_name: str, is_player_a: bool) -> dict:
     }
 
 
+def _get_ai_move_with_timeout(model, state, is_player_a, timeout=2.0):
+    """Run get_ai_move with 2s hard limit, fallback to greedy on timeout."""
+    try:
+        fut = _ai_pool.submit(model.get_ai_move, state, is_player_a)
+        return fut.result(timeout=timeout)
+    except Exception as e:
+        # Timeout or error -> fallback to greedy (fast, <150ms)
+        try:
+            fallback = _load_model("greedy")
+            return fallback.get_ai_move(state, is_player_a)
+        except Exception:
+            raise e
+
 def _do_ai_move(state: dict, model_name: str, is_player_a: bool) -> dict:
     model = _load_model(model_name)
     t0    = time.time()
-    player_idx, angle, power = model.get_ai_move(state, is_player_a)
+    try:
+        player_idx, angle, power = _get_ai_move_with_timeout(model, state, is_player_a, timeout=2.0)
+        timed_out = False
+    except Exception:
+        # final fallback
+        m2 = _load_model("greedy")
+        player_idx, angle, power = m2.get_ai_move(state, is_player_a)
+        timed_out = True
     elapsed = round((time.time() - t0) * 1000)
+    # enforce 2s cap on reported think time
+    elapsed = min(elapsed, 2000)
     result  = _apply_move(state, player_idx, angle, power, is_player_a)
     result["think_ms"] = elapsed
+    if timed_out or elapsed >= 1950:
+        result["timeout_fallback"] = True
     return result
 
 

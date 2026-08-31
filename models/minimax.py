@@ -34,26 +34,37 @@ def _kick_value(state: dict, pidx: int, angle: float, power: float, is_player_a:
     return val
 
 
+def _pick_best_player(players, bx, by, is_player_a):
+    best, best_s = 0, float("-inf")
+    for i, p in enumerate(players):
+        d_ball = math.hypot(p["x"]-bx, p["y"]-by)
+        power = (p.get("stats") or {}).get("power", 50)
+        s = -d_ball / max(0.6, power/50) - dist_to_goal(p["x"], p["y"], is_player_a)*0.12
+        if s > best_s: best, best_s = i, s
+    return best
+
 def get_ai_move(state: dict, is_player_a: bool) -> tuple[int, float, float]:
     players = state["players_a"] if is_player_a else state["players_b"]
     bx, by  = state["ball"]["x"], state["ball"]["y"]
-    best_val  = float("-inf")
-    best_move = (0, 0.0, 85.0)
+    # single best player -> 3x faster, keeps <2s
+    best_pidx = _pick_best_player(players, bx, by, is_player_a)
+    p = players[best_pidx]
+    dist = dist_to_goal(p["x"], p["y"], is_player_a)
+    powers = suggested_powers(dist)
+    # keep 2 powers only
+    powers = [powers[len(powers)//2], powers[-1]] if len(powers)>2 else powers
     goal_tgts = goal_targets(is_player_a)
-
-    for pidx in range(len(players)):
-        p = players[pidx]
-        dist = dist_to_goal(p["x"], p["y"], is_player_a)
-        powers = suggested_powers(dist)
-        base_angles = [aim_through(p["x"], p["y"], bx, by, tx, ty) for tx, ty in goal_tgts]
-
-        for base in base_angles:
-            for off in range(-30, 31, 2):
-                for power in powers:
-                    angle = base + off
-                    val = _kick_value(state, pidx, angle, power, is_player_a)
-                    if val > best_val:
-                        best_val  = val
-                        best_move = (pidx, angle, power)
-
+    base_angles = [aim_through(p["x"], p["y"], bx, by, tx, ty) for tx, ty in goal_tgts]
+    best_val  = float("-inf")
+    best_move = (best_pidx, 0.0, powers[-1])
+    for base in base_angles:
+        for off in range(-30, 31, 2):
+            for power in powers:
+                angle = base + off
+                val = _kick_value(state, best_pidx, angle, power, is_player_a)
+                if val > best_val:
+                    best_val = val
+                    best_move = (best_pidx, angle, power)
+                if best_val >= 1499:  # early exit on goal
+                    return best_move
     return best_move

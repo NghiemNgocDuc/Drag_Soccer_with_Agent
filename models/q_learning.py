@@ -18,7 +18,7 @@ def get_ai_move(state: dict, is_player_a: bool) -> tuple[int, float, float]:
     defensive = needs_clear(state, is_player_a)
     goal_tgts = goal_targets(is_player_a)
 
-    # Zone-based search parameters — much tighter in attacking zone
+    # Zone-based search parameters ï¿½ much tighter in attacking zone
     in_attack = (is_player_a and zx >= 2) or (not is_player_a and zx < 2)
     if in_attack:
         angle_step = 2
@@ -30,30 +30,31 @@ def get_ai_move(state: dict, is_player_a: bool) -> tuple[int, float, float]:
         angle_step = 3
         angle_range = 35
 
+    # single best player -> keep <2s
+    best_pidx = min(range(len(players)), key=lambda i: math.hypot(players[i]["x"]-bx, players[i]["y"]-by))
+    p = players[best_pidx]
+    dist = dist_to_goal(p["x"], p["y"], is_player_a)
+    powers = suggested_powers(dist)
+    powers = [powers[len(powers)//2], powers[-1]] if len(powers)>2 else powers
+    base_angles = [aim_through(p["x"], p["y"], bx, by, tx, ty) for tx, ty in goal_tgts]
     best_val  = float("-inf")
-    best_move = (0, 0.0, 78.0)
-
-    for pidx in range(len(players)):
-        p = players[pidx]
-        dist = dist_to_goal(p["x"], p["y"], is_player_a)
-        powers = suggested_powers(dist)
-        base_angles = [aim_through(p["x"], p["y"], bx, by, tx, ty) for tx, ty in goal_tgts]
-
-        for base in base_angles:
-            for off in range(-angle_range, angle_range + 1, angle_step):
-                angle = base + off
-                for power in powers:
-                    traj, scored = simulate_kick(state, pidx, angle, power, is_player_a)
-                    val = 1200.0 if scored == target else (-400.0 if scored else 0.0)
-                    if not scored and len(traj) > 1:
-                        end = traj[-1]
-                        val += progress_score(end["x"], is_player_a, defensive)
-                        if GOAL_Y1 <= end["y"] <= GOAL_Y2:
-                            val += 80.0
-                    elif len(traj) == 1:
-                        val -= 80.0
-                    if val > best_val:
-                        best_val  = val
-                        best_move = (pidx, angle, power)
-
+    best_move = (best_pidx, 0.0, powers[-1])
+    for base in base_angles:
+        for off in range(-angle_range, angle_range + 1, angle_step):
+            angle = base + off
+            for power in powers:
+                traj, scored = simulate_kick(state, best_pidx, angle, power, is_player_a)
+                if scored == target:
+                    return (best_pidx, angle, power)
+                val = -400.0 if scored else 0.0
+                if len(traj) > 1:
+                    end = traj[-1]
+                    val += progress_score(end["x"], is_player_a, defensive)
+                    if GOAL_Y1 <= end["y"] <= GOAL_Y2:
+                        val += 80.0
+                else:
+                    val -= 80.0
+                if val > best_val:
+                    best_val = val
+                    best_move = (best_pidx, angle, power)
     return best_move
