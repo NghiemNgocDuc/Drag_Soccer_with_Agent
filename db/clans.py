@@ -339,6 +339,109 @@ def delete_clan(leader_id: str, clan_id: str) -> None:
         return
     svc.table("clans").delete().eq("id", clan_id).execute()
 
+def rename_clan(leader_id: str, clan_id: str, new_name: str) -> dict:
+    clan = get_clan(clan_id)
+    if not clan or clan.get("leader_id") != leader_id:
+        raise ValueError("Only leader can rename")
+    new_name = (new_name or "").strip()
+    if len(new_name) < CLAN_NAME_MIN or len(new_name) > CLAN_NAME_MAX:
+        raise ValueError(f"Clan name must be {CLAN_NAME_MIN}-{CLAN_NAME_MAX} chars")
+    import re
+    if not re.match(r"^[a-zA-Z0-9_\- ]+$", new_name):
+        raise ValueError("Clan name: letters, numbers, space, _ - only")
+    svc = _svc()
+    use_mem = (not svc) or _is_dev(leader_id) or clan_id in _MEM_CLANS
+    if use_mem:
+        if any(c.get("name","").lower()==new_name.lower() and c.get("id")!=clan_id for c in _MEM_CLANS.values()):
+            raise ValueError("Clan name already taken")
+        _MEM_CLANS[clan_id]["name"] = new_name
+        return _hydrate(dict(_MEM_CLANS[clan_id]))
+    # check unique
+    existing = svc.table("clans").select("id").eq("name", new_name).maybe_single().execute()
+    if existing and existing.data and existing.data.get("id") != clan_id:
+        raise ValueError("Clan name already taken")
+    svc.table("clans").update({"name": new_name}).eq("id", clan_id).execute()
+    return get_clan(clan_id)
+
+def add_member_direct(leader_id: str, clan_id: str, target_username: str) -> dict:
+    clan = get_clan(clan_id)
+    if not clan or clan.get("leader_id") != leader_id:
+        raise ValueError("Only leader can add members")
+    target_username = (target_username or "").strip()
+    if not target_username:
+        raise ValueError("Username required")
+    # lookup target user id via profiles or mem
+    target_id = None
+    target_name = None
+    svc = _svc()
+    try:
+        if svc:
+            row = svc.table("profiles").select("id,username").eq("username", target_username).maybe_single().execute()
+            if row and row.data:
+                target_id = row.data["id"]
+                target_name = row.data["username"]
+            else:
+                # try ilike
+                res = svc.table("profiles").select("id,username").ilike("username", target_username).limit(1).execute()
+                if res.data:
+                    target_id = res.data[0]["id"]
+                    target_name = res.data[0]["username"]
+        if not target_id:
+            from db.profiles import _MEM_USERS
+            for uid, name in _MEM_USERS.items():
+                if name.lower() == target_username.lower():
+                    target_id = uid
+                    target_name = name
+                    break
+        if not target_id:
+            raise ValueError("User not found")
+    except ValueError:
+        raise
+    except Exception:
+        raise ValueError("User lookup failed")
+    if _user_clan_id(target_id):
+        raise ValueError("User already in a clan")
+    if len(list_members(clan_id)) >= int(clan.get("member_limit", CLAN_LIMIT_DEFAULT)):
+        raise ValueError("Clan is full")
+    use_mem = (not svc) or _is_dev(target_id) or clan_id in _MEM_CLANS
+    if use_mem:
+        _MEM_MEMBERS.setdefault(clan_id, set()).add(target_id)
+        _MEM_MEMBER_SINCE[(clan_id, target_id)] = _now_iso()
+        _MEM_USER_CLAN[target_id] = clan_id
+        return {"user_id": target_id, "username": target_name}
+    svc.table("clan_members").insert({"clan_id": clan_id, "user_id": target_id}).execute()
+    # clear any pending request
+    try:
+        svc.table("clan_requests").delete().eq("clan_id", clan_id).eq("user_id", target_id).execute()
+    except Exception:
+        pass
+    return {"user_id": target_id, "username": target_name}
+
+def create_invite_link(leader_id: str, clan_id: str) -> str:
+    clan = get_clan(clan_id)
+    if not clan or clan.get("leader_id") != leader_id:
+        raise ValueError("Only leader can create invite link")
+    token = uuid.uuid4().hex[:12]
+    from db.redis_client import r as redis
+    try:
+        redis.setex(f"clan_invite:{token}", 7*86400, clan_id)
+    except Exception:
+        pass
+    return token
+
+def join_via_invite(user_id: str, token: str) -> dict:
+    from db.redis_client import r as redis
+    try:
+        clan_id = redis.get(f"clan_invite:{token}")
+        if isinstance(clan_id, bytes):
+            clan_id = clan_id.decode()
+    except Exception:
+        clan_id = None
+    if not clan_id:
+        raise ValueError("Invalid or expired invite link")
+    # use request_join logic which handles open vs request
+    return request_join(user_id, clan_id)
+
 def my_clan(user_id: str) -> dict | None:
     cid = _user_clan_id(user_id)
     return get_clan(cid) if cid else None

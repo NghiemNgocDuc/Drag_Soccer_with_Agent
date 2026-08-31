@@ -45,6 +45,24 @@
     </div>
   </div>
 
+  <div class="glass-card" id="leader-controls" style="padding:14px;margin-bottom:14px;display:none">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Leader controls</h3>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input id="rename-input" class="input" placeholder="New clan name" style="flex:1;min-width:160px">
+      <button class="btn btn-primary btn-sm" onclick="renameClan()">Rename</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">
+      <input id="add-member-input" class="input" placeholder="Username to add" style="flex:1;min-width:160px">
+      <button class="btn btn-secondary btn-sm" onclick="addMember()">Add member</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-ghost btn-sm" onclick="createInviteLink()">Create shareable invite link</button>
+      <span id="invite-link" class="meta" style="word-break:break-all"></span>
+      <button class="btn btn-ghost btn-sm" id="copy-link-btn" style="display:none" onclick="copyInviteLink()">Copy</button>
+    </div>
+    <div id="leader-msg" class="meta" style="margin-top:6px"></div>
+  </div>
+
   <div class="glass-card" style="padding:14px;margin-bottom:14px">
     <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Members</h3>
     <div id="members"></div>
@@ -135,6 +153,50 @@ async function delClan(){
   const r=await fetch('/api/clans/'+CLAN_ID,{method:'DELETE'}); const j=await r.json();
   if(j.ok) location.href='/clans'; else document.getElementById('c-msg').textContent=j.error;
 }
+async function renameClan(){
+  const inp=document.getElementById('rename-input');
+  const name=(inp.value||'').trim();
+  const msg=document.getElementById('leader-msg');
+  if(!name){ msg.textContent='Name required'; return; }
+  const r=await fetch('/api/clans/'+CLAN_ID,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  const j=await r.json();
+  if(j.ok){ msg.textContent='Renamed!'; msg.style.color='#059669'; location.reload(); }
+  else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+async function addMember(){
+  const inp=document.getElementById('add-member-input');
+  const username=(inp.value||'').trim();
+  const msg=document.getElementById('leader-msg');
+  if(!username){ msg.textContent='Username required'; return; }
+  const r=await fetch('/api/clans/'+CLAN_ID+'/add-member',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username})});
+  const j=await r.json();
+  if(j.ok){ msg.textContent='Added '+j.member.username; msg.style.color='#059669'; load(); }
+  else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+async function createInviteLink(){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/invite-link',{method:'POST'});
+  const j=await r.json();
+  const msg=document.getElementById('leader-msg');
+  const linkEl=document.getElementById('invite-link');
+  const copyBtn=document.getElementById('copy-link-btn');
+  if(j.ok){
+    linkEl.textContent=j.link;
+    linkEl.dataset.link=j.link;
+    copyBtn.style.display='inline-block';
+    msg.textContent='Invite link created (7 days, shareable)';
+    msg.style.color='#059669';
+  } else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+function copyInviteLink(){
+  const el=document.getElementById('invite-link');
+  const link=el.dataset.link||el.textContent;
+  if(!link) return;
+  navigator.clipboard.writeText(link).then(()=>{
+    const msg=document.getElementById('leader-msg');
+    msg.textContent='Link copied!';
+    setTimeout(()=>msg.textContent='',2000);
+  });
+}
 load();
 // Clan tournaments — timezone aware, 10min DQ
 function fillTz(){
@@ -149,7 +211,11 @@ function fillTz(){
   try{ const off=-new Date().getTimezoneOffset()/60; sel.value=String(off);}catch(e){}
 }
 fillTz();
-if(IS_LEADER) document.getElementById('ct-create').style.display='block';
+if(IS_LEADER){
+  document.getElementById('ct-create').style.display='block';
+  const lc=document.getElementById('leader-controls');
+  if(lc) lc.style.display='block';
+}
 function toISOWithTZ(d,t,off){
   if(!d||!t) return null;
   const o=parseInt(off,10), s=o>=0?'+':'-', a=Math.abs(o), pad=n=>String(n).padStart(2,'0');

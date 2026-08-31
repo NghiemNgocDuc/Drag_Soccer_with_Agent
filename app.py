@@ -1261,6 +1261,73 @@ def api_clans_get(clan_id):
     pending = list_requests(clan_id) if c.get("leader_id") == uid() else []
     return jsonify({"clan": c, "pending": pending})
 
+
+@app.route("/api/clans/<clan_id>", methods=["PATCH"])
+@login_required
+def api_clans_rename(clan_id):
+    from db.clans import rename_clan
+    data = request.get_json(silent=True) or {}
+    new_name = (data.get("name") or "").strip()
+    if not new_name:
+        return jsonify({"error": "Name required"}), 400
+    try:
+        clan = rename_clan(uid(), clan_id, new_name)
+        return jsonify({"ok": True, "clan": clan})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/clans/<clan_id>/add-member", methods=["POST"])
+@login_required
+def api_clans_add_member(clan_id):
+    from db.clans import add_member_direct
+    data = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").strip()
+    if not username:
+        return jsonify({"error": "Username required"}), 400
+    try:
+        member = add_member_direct(uid(), clan_id, username)
+        return jsonify({"ok": True, "member": member})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/api/clans/<clan_id>/invite-link", methods=["POST"])
+@login_required
+def api_clans_invite_link(clan_id):
+    from db.clans import create_invite_link
+    try:
+        token = create_invite_link(uid(), clan_id)
+        link = f"{SITE_URL}/clans/join/{token}"
+        return jsonify({"ok": True, "token": token, "link": link})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
+@app.route("/clans/join/<token>")
+def clan_join_via_link(token):
+    if "user_id" not in session:
+        flash("Please log in to join the clan")
+        return redirect(url_for("login_page"))
+    from db.clans import join_via_invite
+    try:
+        result = join_via_invite(uid(), token)
+        if result.get("joined"):
+            flash(f"Joined clan via invite!")
+        else:
+            flash(f"Join request sent — waiting for leader approval")
+        # try to get clan_id from token
+        from db.redis_client import r as redis
+        clan_id = redis.get(f"clan_invite:{token}")
+        if isinstance(clan_id, bytes):
+            clan_id = clan_id.decode()
+        if clan_id:
+            return redirect(url_for("clan_detail", clan_id=clan_id))
+        return redirect(url_for("clans_page"))
+    except ValueError as e:
+        flash(str(e))
+        return redirect(url_for("clans_page"))
+
 @app.route("/profile")
 @login_required
 def profile():
