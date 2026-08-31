@@ -110,6 +110,8 @@ MODELS: dict[str, str] = {
     "policy_iteration": "models.policy_iteration",
     "q_learning":       "models.q_learning",
     "langchain":        "models.langchain_model",
+    "tactic_transformer": "models.tactic_transformer",
+    "graph_gnn":        "models.graph_gnn",
 }
 
 # AI off-thread pool so slow simulate_kick (2-3s) does not block gunicorn worker
