@@ -72,6 +72,14 @@ DEFAULT_CUSTOMIZATION = {
         "a": _DEFAULT_PLAYER_STATS,
         "b": _DEFAULT_PLAYER_STATS,
     },
+    "player_names": {
+        "a": ["GK", "DEF 1", "DEF 2", "MID 1", "MID 2", "FWD 1", "FWD 2"],
+        "b": ["GK", "DEF 1", "DEF 2", "MID 1", "MID 2", "FWD 1", "FWD 2"],
+    },
+    "player_colors": {
+        "a": ["#3b82f6", "#3b82f6", "#3b82f6", "#3b82f6", "#3b82f6", "#3b82f6", "#3b82f6"],
+        "b": ["#ef4444", "#ef4444", "#ef4444", "#ef4444", "#ef4444", "#ef4444", "#ef4444"],
+    },
 }
 
 _ALLOWED = set(DEFAULT_CUSTOMIZATION.keys())

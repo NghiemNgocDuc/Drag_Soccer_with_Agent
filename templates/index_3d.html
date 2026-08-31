@@ -2426,7 +2426,8 @@ function rebuildPlayers() {
   for (let i = 0; i < gameState.players_a.length; i++) {
     const p = gameState.players_a[i];
     const num = i === 0 ? 1 : (i === 1 ? 7 : 10);
-    const mesh = createPlayerMesh(hexToThree(CUST_TEAM_A), i === 0, p.stats, num);
+    const col = p.color || CUST_TEAM_A;
+    const mesh = createPlayerMesh(hexToThree(col), i === 0, p.stats, num);
     mesh.position.copy(serverToWorld(p.x, p.y));
     if (p.name) {
       const lbl = makeNameSprite(p.name);
@@ -2439,7 +2440,8 @@ function rebuildPlayers() {
   for (let i = 0; i < gameState.players_b.length; i++) {
     const p = gameState.players_b[i];
     const num = i === 0 ? 1 : (i === 1 ? 7 : 10);
-    const mesh = createPlayerMesh(hexToThree(CUST_TEAM_B), i === 0, p.stats, num);
+    const col = p.color || CUST_TEAM_B;
+    const mesh = createPlayerMesh(hexToThree(col), i === 0, p.stats, num);
     mesh.position.copy(serverToWorld(p.x, p.y));
     if (p.name) {
       const lbl = makeNameSprite(p.name);

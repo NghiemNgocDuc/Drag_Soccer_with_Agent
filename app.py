@@ -964,11 +964,46 @@ def reset_game():
                     state["players_a"][i]["x"] = float(x); state["players_a"][i]["y"] = float(y)
                 for i, (x,y) in enumerate(hb):
                     state["players_b"][i]["x"] = float(x); state["players_b"][i]["y"] = float(y)
+            # custom per-player names/colors override team defaults if set
+            try:
+                pn = cust.get("player_names") or {}
+                pcust = cust.get("player_colors") or {}
+                for side, key in [("a", "a"), ("b", "b")]:
+                    names = pn.get(key)
+                    if isinstance(names, list):
+                        players = state["players_a"] if side == "a" else state["players_b"]
+                        for i, n in enumerate(names[:len(players)]):
+                            if n and str(n).strip():
+                                players[i]["name"] = str(n).strip()[:20]
+                    colors = pcust.get(key)
+                    if isinstance(colors, list):
+                        players = state["players_a"] if side == "a" else state["players_b"]
+                        for i, col in enumerate(colors[:len(players)]):
+                            if col and isinstance(col, str) and col.startswith("#") and len(col) == 7:
+                                players[i]["color"] = col.lower()
+            except Exception:
+                pass
         except Exception as e:
             pass
         # Keeper PlayStyles (EA FC 25 — 6 keeper styles)
         state["keeper_style_a"] = cust.get("keeper_style_a", "default")
         state["keeper_style_b"] = cust.get("keeper_style_b", "default")
+        # also carry custom names/colors in state for rendering even if not via team path (e.g. no team)
+        try:
+            pn = cust.get("player_names") or {}
+            pcust = cust.get("player_colors") or {}
+            if pn or pcust:
+                for side in ["a", "b"]:
+                    names = (pn.get(side) or []) if pn else []
+                    colors = (pcust.get(side) or []) if pcust else []
+                    players = state["players_a"] if side == "a" else state["players_b"]
+                    for i, pl in enumerate(players):
+                        if i < len(names) and names[i] and str(names[i]).strip():
+                            pl["name"] = str(names[i]).strip()[:20]
+                        if i < len(colors) and colors[i] and str(colors[i]).startswith("#"):
+                            pl["color"] = str(colors[i]).lower()
+        except Exception:
+            pass
     _auto_clear_state(user_id)
     save_game(user_id, state)
     _ph.track_game_start(uid(), state.get("game_mode", "hvai"), state.get("model_name_b", ""))
@@ -3783,6 +3818,130 @@ def highlight_page(hid):
                            t=t, match=m, highlights=hls, highlight=h, live_room=None,
                            loss_model=None, loss_model_name=None)
 
+
+#  Clan tournaments — leader creates, members join, scheduled with timezone, 10min DQ
+@app.route("/api/clans/<clan_id>/tournaments", methods=["GET"])
+@login_required
+def api_clan_tournaments_list(clan_id):
+    from db.clans import get_clan
+    from db.tournaments import get_tournaments as _gt
+    clan = get_clan(clan_id)
+    if not clan:
+        return jsonify({"error": "Clan not found"}), 404
+    # must be member to list
+    if not any(m["user_id"] == uid() for m in clan.get("members", [])):
+        return jsonify({"error": "Not a clan member"}), 403
+    from db.tournaments import get_tournament as _getT
+    raw = _gt(clan_id=clan_id)
+    ts = []
+    for t in raw:
+        full = _getT(t["id"])
+        if full:
+            ts.append(full)
+    return jsonify({"tournaments": ts})
+
+@app.route("/api/clans/<clan_id>/tournaments", methods=["POST"])
+@login_required
+def api_clan_tournaments_create(clan_id):
+    from db.clans import get_clan
+    from db.tournaments import create_tournament
+    clan = get_clan(clan_id)
+    if not clan or clan.get("leader_id") != uid():
+        return jsonify({"error": "Only leader can create tournament"}), 403
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    if not name or len(name) < 2:
+        return jsonify({"error": "Name required (2+ chars)"}), 400
+    scheduled_at = (data.get("scheduled_at") or "").strip() or None
+    # validate ISO with timezone if provided
+    if scheduled_at:
+        try:
+            from datetime import datetime
+            iso = scheduled_at.replace("Z", "+00:00")
+            datetime.fromisoformat(iso)
+        except Exception:
+            return jsonify({"error": "Invalid scheduled_at, use ISO like 2026-09-01T08:00:00+07:00"}), 400
+    t = create_tournament(uid(), name, clan_id=clan_id, scheduled_at=scheduled_at)
+    return jsonify({"ok": True, "tournament": t}), 201
+
+@app.route("/api/clans/<clan_id>/tournaments/<tid>/join", methods=["POST"])
+@login_required
+def api_clan_tournament_join(clan_id, tid):
+    from db.clans import get_clan
+    from db.tournaments import get_tournament, add_participant
+    clan = get_clan(clan_id)
+    if not clan or not any(m["user_id"] == uid() for m in clan.get("members", [])):
+        return jsonify({"error": "Not a clan member"}), 403
+    t = get_tournament(tid)
+    if not t or t.get("clan_id") != clan_id:
+        return jsonify({"error": "Tournament not found"}), 404
+    if t.get("status") != "pending":
+        return jsonify({"error": "Tournament already started"}), 400
+    # already joined?
+    if any(p.get("participant_id") == f"clan_user:{uid()}" for p in t.get("participants", [])):
+        return jsonify({"error": "Already joined"}), 400
+    p = add_participant(tid, f"clan_user:{uid()}", session.get("username", "Player"))
+    return jsonify({"ok": True, "participant": p})
+
+@app.route("/api/clans/<clan_id>/tournaments/<tid>/generate", methods=["POST"])
+@login_required
+def api_clan_tournament_generate(clan_id, tid):
+    from db.clans import get_clan
+    from db.tournaments import get_tournament, generate_bracket
+    clan = get_clan(clan_id)
+    if not clan or clan.get("leader_id") != uid():
+        return jsonify({"error": "Only leader can generate"}), 403
+    t = get_tournament(tid)
+    if not t or t.get("clan_id") != clan_id:
+        return jsonify({"error": "Tournament not found"}), 404
+    data = request.get_json(silent=True) or {}
+    # match_scheduled_at is UTC ISO with offset, e.g. 2026-09-01T08:00:00+07:00
+    # frontend sends full timezone, backend stores as-is and disqualifies +10min
+    match_at = (data.get("match_scheduled_at") or data.get("scheduled_at") or "").strip() or None
+    if match_at:
+        try:
+            from datetime import datetime
+            iso = match_at.replace("Z", "+00:00")
+            datetime.fromisoformat(iso)
+        except Exception:
+            return jsonify({"error": "Invalid match_scheduled_at, use ISO like 2026-09-01T08:00:00+07:00"}), 400
+    ok = generate_bracket(tid, match_scheduled_at=match_at)
+    if not ok:
+        return jsonify({"error": "Could not generate bracket (need 2+ participants or already generated)"}), 400
+    return jsonify({"ok": True})
+
+@app.route("/api/clans/<clan_id>/tournaments/<tid>/matches/<mid>/join", methods=["POST"])
+@login_required
+def api_clan_match_join(clan_id, tid, mid):
+    from db.clans import get_clan
+    from db.tournaments import get_tournament, get_match, mark_joined
+    clan = get_clan(clan_id)
+    if not clan or not any(m["user_id"] == uid() for m in clan.get("members", [])):
+        return jsonify({"error": "Not a clan member"}), 403
+    t = get_tournament(tid)
+    if not t or t.get("clan_id") != clan_id:
+        return jsonify({"error": "Tournament not found"}), 404
+    m = get_match(tid, mid)
+    if not m or m.get("status") != "pending":
+        return jsonify({"error": "Match not pending"}), 400
+    # find participant id for this user in this tournament
+    pid = None
+    for p in t.get("participants", []):
+        if p.get("participant_id") == f"clan_user:{uid()}":
+            pid = p["id"]
+            break
+    if not pid or pid not in (m.get("participant_a"), m.get("participant_b")):
+        return jsonify({"error": "Not a participant in this match"}), 403
+    # check not already past deadline
+    from db.tournaments import _parse_iso, _now_utc
+    sched = _parse_iso(m.get("scheduled_at"))
+    if sched and sched.tzinfo is None:
+        from datetime import timezone
+        sched = sched.replace(tzinfo=timezone.utc)
+    if sched and _now_utc().timestamp() > sched.timestamp() + 600:
+        return jsonify({"error": "Match already disqualified (10min past schedule)"}), 400
+    mark_joined(tid, mid, pid)
+    return jsonify({"ok": True})
 
 @app.route("/match/<room_id>/summary")
 def match_summary_page(room_id):

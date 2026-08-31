@@ -386,6 +386,16 @@ select option:disabled{color:#94a3b8}
     </div>
   </div>
 
+  <!-- Player Names & Colors (optional override) -->
+  <details class="glass-card" style="margin-top:14px" open>
+    <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;padding:8px 0">Player Names & Colors <span style="font-weight:400;font-size:.8rem;color:var(--muted)">optional — overrides team names/colors</span></summary>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px">
+      <div><h3 style="margin:0 0 8px 0">Team A <span style="font-weight:400;font-size:.7rem;color:var(--muted)" id="pn-count-a"></span></h3><div id="names-a"></div></div>
+      <div><h3 style="margin:0 0 8px 0">Team B <span style="font-weight:400;font-size:.7rem;color:var(--muted)" id="pn-count-b"></span></h3><div id="names-b"></div></div>
+    </div>
+    <p style="font-size:.72rem;color:var(--dim);margin-top:8px">Leave empty to use team defaults. Colors show on 3D kits if set. Names max 20 chars.</p>
+  </details>
+
   <!-- Player Stats (Point-Buy) -->
   <details class="glass-card" style="margin-top:18px">
     <summary style="cursor:pointer;font-weight:700;font-size:1.05rem;padding:8px 0">Player Stats  <span style="font-weight:400;font-size:.8rem;color:var(--muted)">200 pts per player, 20–80 per stat</span></summary>
@@ -437,9 +447,9 @@ function syncFromInputs(){
   COLOR_KEYS.forEach(function(k){current[k]=getVal(k)});
   SELECT_KEYS.forEach(function(k){current[k]=getVal(k)});
   RANGE_KEYS.forEach(function(k){current[k]=parseFloat(getVal(k))});
-  document.getElementById('player_count_val').textContent=current.player_count;
-  document.getElementById('stadium_vignette_val').textContent=Math.round(current.stadium_vignette);
-  document.getElementById('power_cap_val').textContent=current.power_cap;
+  var pcVal=document.getElementById('player_count_val'); if(pcVal) pcVal.textContent=current.player_count;
+  var svVal=document.getElementById('stadium_vignette_val'); if(svVal) svVal.textContent=Math.round(current.stadium_vignette);
+  var pwVal=document.getElementById('power_cap_val'); if(pwVal) pwVal.textContent=current.power_cap;
   // Read player stats from sliders
   var ps = {a:[],b:[]};
   ['a','b'].forEach(function(t){
@@ -453,6 +463,35 @@ function syncFromInputs(){
     }
   });
   current.player_stats = ps;
+  // Read custom names/colors
+  var names={a:[],b:[]}, cols={a:[],b:[]};
+  var pc=parseInt(current.player_count||7,10);
+  ['a','b'].forEach(function(t){
+    for(var i=0;i<pc;i++){
+      var ne=document.getElementById('pname-'+t+i);
+      var ce=document.getElementById('pcolor-'+t+i);
+      names[t].push(ne? ne.value.trim().slice(0,20) : "");
+      var col = ce? ce.value : (t==='a'?'#3b82f6':'#ef4444');
+      if(!/^#[0-9a-fA-F]{6}$/.test(col)) col=t==='a'?'#3b82f6':'#ef4444';
+      cols[t].push(col.toLowerCase());
+    }
+  });
+  current.player_names = names;
+  current.player_colors = cols;
+  // if count changed, rebuild name UI (debounced)
+  if(window._lastPC !== pc){
+    window._lastPC=pc;
+    buildNameColor('a','names-a'); buildNameColor('b','names-b');
+    // keep current values after rebuild
+    for(var t2 of ['a','b']){
+      for(var j=0;j<pc;j++){
+        var ne2=document.getElementById('pname-'+t2+j);
+        var ce2=document.getElementById('pcolor-'+t2+j);
+        if(ne2) ne2.value = names[t2][j]||"";
+        if(ce2) ce2.value = cols[t2][j]|| (t2==='a'?'#3b82f6':'#ef4444');
+      }
+    }
+  }
 }
 document.querySelectorAll('input[type=color]').forEach(function(el){el.addEventListener('input',function(){syncFromInputs();updateHex(el.id);renderPreview()})});
 document.querySelectorAll('select').forEach(function(el){el.addEventListener('change',function(){syncFromInputs();renderPreview()})});
@@ -465,8 +504,11 @@ var STAT_LABELS = {size:'Size',power:'Power',weight:'Weight',agility:'Agility'};
 function buildStatSliders(team, containerId) {
   var container = document.getElementById(containerId);
   if (!container) return;
+  var pc = parseInt(current.player_count || CUST.player_count || 7, 10);
+  pc = Math.max(1, Math.min(11, pc));
+  var count = Math.min(3, pc); // stats UI shows 3 for brevity, backend handles up to 11
   var html = '';
-  for (var i = 0; i < 3; i++) {
+  for (var i = 0; i < count; i++) {
     var stats = (CUST.player_stats && CUST.player_stats[team] && CUST.player_stats[team][i])
       || {size:50, power:50, weight:50, agility:50};
     html += '<div class="stat-player-card" style="background:rgba(255,255,255,.04);border-radius:10px;padding:10px;margin-bottom:10px">';
@@ -482,8 +524,31 @@ function buildStatSliders(team, containerId) {
     html += '</div>';
   }
   container.innerHTML = html;
-  // init totals
-  for (var j = 0; j < 3; j++) updateStatTotal(team, j);
+  for (var j = 0; j < count; j++) updateStatTotal(team, j);
+}
+function buildNameColor(team, containerId){
+  var container=document.getElementById(containerId);
+  if(!container) return;
+  var pc=parseInt(current.player_count || CUST.player_count || 7,10);
+  pc=Math.max(1, Math.min(11, pc));
+  var names=(CUST.player_names && CUST.player_names[team])||[];
+  var colors=(CUST.player_colors && CUST.player_colors[team])||[];
+  var teamCol=team==='a' ? (current.team_a_color || CUST.team_a_color || '#3b82f6') : (current.team_b_color || CUST.team_b_color || '#ef4444');
+  var html='';
+  for(var i=0;i<pc;i++){
+    var n=names[i]||"";
+    var c=colors[i]||teamCol;
+    if(!/^#[0-9a-fA-F]{6}$/.test(c)) c=teamCol;
+    html+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
+    html+='<span style="width:22px;font-size:.7rem;color:var(--muted)">'+(i+1)+'</span>';
+    html+='<input type="text" id="pname-'+team+i+'" value="'+n.replace(/"/g,'&quot;')+'" placeholder="Player '+(i+1)+'" maxlength="20" style="flex:1;padding:6px 8px;border:1px solid var(--glass-border);border-radius:8px;font-size:.78rem">';
+    html+='<input type="color" id="pcolor-'+team+i+'" value="'+c+'" title="Kit color" style="width:36px;height:28px;padding:0;border:1px solid var(--glass-border);border-radius:6px">';
+    html+='</div>';
+  }
+  container.innerHTML=html;
+  var cntEl=document.getElementById('pn-count-'+team);
+  if(cntEl) cntEl.textContent=pc+' players';
+  container.querySelectorAll('input').forEach(function(el){el.addEventListener('input',function(){syncFromInputs();renderPreview();});});
 }
 
 function updateStatTotal(team, idx) {
@@ -503,6 +568,9 @@ function updateStatTotal(team, idx) {
 
 buildStatSliders('a', 'team-a-stats');
 buildStatSliders('b', 'team-b-stats');
+buildNameColor('a','names-a');
+buildNameColor('b','names-b');
+window._lastPC = parseInt(CUST.player_count||7,10);
 
 function resetDefaults(){
   Object.keys(DEFAULTS).forEach(function(key){
@@ -700,8 +768,11 @@ function renderPreview(){
     ctx.strokeStyle='rgba(255,255,255,.5)';ctx.lineWidth=1.5;ctx.stroke();
     ctx.fillStyle='#fff';ctx.font=fnt;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(num,x,y);
   }
-  ha.forEach(function(p,i){drawP(p.x,p.y,gc.team_a_color,sh[i])});
-  hb.forEach(function(p,i){drawP(p.x,p.y,gc.team_b_color,sh[i])});
+   // per-player colors override team color if set
+   var colsA=(current.player_colors && current.player_colors.a) || (CUST.player_colors && CUST.player_colors.a) || [];
+   var colsB=(current.player_colors && current.player_colors.b) || (CUST.player_colors && CUST.player_colors.b) || [];
+   ha.forEach(function(p,i){var c=colsA[i]||gc.team_a_color; drawP(p.x,p.y,c,sh[i])});
+   hb.forEach(function(p,i){var c=colsB[i]||gc.team_b_color; drawP(p.x,p.y,c,sh[i])});
 
   // Keepers
   function drawK(x,y,col){

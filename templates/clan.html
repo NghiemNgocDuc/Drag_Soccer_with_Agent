@@ -56,6 +56,26 @@
   </div>
 
   <div class="glass-card" style="padding:14px;margin-top:14px">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Clan Tournaments</h3>
+    <p class="meta" style="margin:0 0 8px">Leader creates, members join (including leader). Set match time with timezone. If a player does not join within 10 minutes of scheduled time, they are disqualified.</p>
+    <div id="ct-create" style="display:none;margin-bottom:12px;padding:10px;background:rgba(255,255,255,.6);border:1px solid rgba(226,232,240,.9);border-radius:10px">
+      <h4 style="font-size:.82rem;margin:0 0 8px">Create tournament</h4>
+      <input id="ct-name" class="input" placeholder="Tournament name" style="margin-bottom:8px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="ct-date" type="date" class="input" style="flex:1;min-width:140px">
+        <input id="ct-time" type="time" class="input" style="flex:1;min-width:110px">
+        <select id="ct-tz" class="input" style="flex:1;min-width:140px"></select>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary btn-sm" onclick="createClanTourn()">Create</button>
+        <span id="ct-msg" class="meta"></span>
+      </div>
+      <div class="meta" style="margin-top:6px">Example: 8am UTC+7 → pick date, 08:00, UTC+7 — stored as UTC, shown in your local time.</div>
+    </div>
+    <div id="ct-list"></div>
+  </div>
+
+  <div class="glass-card" style="padding:14px;margin-top:14px">
     <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Clan Chat</h3>
     <p class="meta" style="margin:0 0 8px">Chat with clan members — global and friend-to-friend chats also available in Messages.</p>
     <div id="clan-chat-mount" style="height:380px"></div>
@@ -116,6 +136,124 @@ async function delClan(){
   if(j.ok) location.href='/clans'; else document.getElementById('c-msg').textContent=j.error;
 }
 load();
+// Clan tournaments — timezone aware, 10min DQ
+function fillTz(){
+  const sel=document.getElementById('ct-tz');
+  if(!sel) return;
+  for(let o=-12;o<=14;o++){
+    const label = o===0 ? 'UTC+0' : (o>0 ? `UTC+${o}` : `UTC${o}`);
+    const opt=document.createElement('option'); opt.value=String(o); opt.textContent=label;
+    if(o===0) opt.selected=true;
+    sel.appendChild(opt);
+  }
+  try{ const off=-new Date().getTimezoneOffset()/60; sel.value=String(off);}catch(e){}
+}
+fillTz();
+if(IS_LEADER) document.getElementById('ct-create').style.display='block';
+function toISOWithTZ(d,t,off){
+  if(!d||!t) return null;
+  const o=parseInt(off,10), s=o>=0?'+':'-', a=Math.abs(o), pad=n=>String(n).padStart(2,'0');
+  return `${d}T${t}:00${s}${pad(a)}:00`;
+}
+function fmtTime(iso){
+  if(!iso) return '—';
+  try{
+    const d=new Date(iso);
+    const local=d.toLocaleString([],{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'});
+    return `${local} <span class="meta">(${iso} UTC)</span>`;
+  }catch(e){ return iso; }
+}
+function fmtCountdown(iso){
+  if(!iso) return '';
+  const d=new Date(iso); const diff=d - new Date();
+  if(diff<0) return 'started';
+  const m=Math.floor(diff/60000), h=Math.floor(m/60);
+  if(h>0) return `in ${h}h ${m%60}m`;
+  return `in ${m}m`;
+}
+async function loadClanTournaments(){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments');
+  const j=await r.json();
+  const box=document.getElementById('ct-list'); box.innerHTML='';
+  if(j.error){ box.innerHTML=`<div class="meta">${j.error}</div>`; return; }
+  if(!(j.tournaments||[]).length){ box.innerHTML='<div class="meta">No clan tournaments yet — leader creates one above.</div>'; return; }
+  for(const t of j.tournaments){
+    const card=document.createElement('div'); card.style='padding:10px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;background:#fff';
+    const isPending=t.status==='pending';
+    const joined = t.participants?.some(p=>p.participant_id===`clan_user:${window._myUid||''}`);
+    card.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${t.name}</b><span class="badge ${t.status==='pending'?'badge-request':'badge-open'}">${t.status}</span><span class="meta">${t.participants?.length||0} joined</span></div>
+      <div class="meta">Scheduled: ${t.scheduled_at? fmtTime(t.scheduled_at): 'not set'} ${t.scheduled_at? `<span class="meta">${fmtCountdown(t.scheduled_at)}</span>`:''}</div>
+      <div class="meta">ID ${t.id.slice(0,8)}</div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${isPending? `<button class="btn btn-primary btn-sm" onclick="joinClanTourn('${t.id}')" ${joined?'disabled':''}>${joined?'Joined':'Join'}</button>`:''}
+        ${IS_LEADER && isPending? `<button class="btn btn-secondary btn-sm" onclick="genClanBracket('${t.id}')">Generate bracket</button>`:''}
+        <a class="btn btn-ghost btn-sm" href="/tournaments/${t.id}">View</a>
+      </div>
+      <div id="ct-matches-${t.id}" style="margin-top:8px"></div>`;
+    box.appendChild(card);
+    // render matches if any
+    if(t.matches && t.matches.length){
+      const mbox=card.querySelector(`#ct-matches-${t.id}`);
+      mbox.innerHTML='<div style="font-size:.75rem;font-weight:600;margin-bottom:4px">Matches</div>';
+      const pmap={}; (t.participants||[]).forEach(p=>pmap[p.id]=p.name);
+      t.matches.forEach(m=>{
+        const aName=pmap[m.participant_a]||m.participant_a?.slice(0,8)||'—';
+        const bName=pmap[m.participant_b]||m.participant_b?.slice(0,8)||'bye';
+        const sched=m.scheduled_at? fmtTime(m.scheduled_at): 'no time';
+        const status=m.status==='completed' ? (m.disqualified? `DQ ${m.disqualified.slice(0,8)} → ${pmap[m.winner]||m.winner}` : `Winner ${pmap[m.winner]||m.winner||''}`) : `pending ${m.scheduled_at? fmtCountdown(m.scheduled_at):''} ${m.joined_a?'A✓':''} ${m.joined_b?'B✓':''}`;
+        mbox.innerHTML+=`<div style="display:flex;gap:6px;align-items:center;padding:6px;border:1px solid #f1f5f9;border-radius:8px;margin-bottom:4px;background:${m.status==='completed'?'#f8fafc':'#fff'}">
+          <span style="font-size:.75rem;flex:1">${aName} vs ${bName} — ${sched} — <b>${status}</b></span>
+          ${m.status==='pending' ? `<button class="btn btn-primary btn-sm" onclick="joinClanMatch('${t.id}','${m.id}')">Join match (10min)</button>`:''}
+        </div>`;
+      });
+    }
+  }
+}
+// fetch my pid for join check
+fetch('/api/clans/'+CLAN_ID+'/tournaments').then(()=>{}); // warm
+fetch('/api/clans/'+CLAN_ID).then(r=>r.json()).then(j=>{
+  // try to get my participant id via /api/clans/<id>/tournaments list participants
+}).catch(()=>{});
+async function createClanTourn(){
+  const name=document.getElementById('ct-name').value.trim();
+  const d=document.getElementById('ct-date').value;
+  const tm=document.getElementById('ct-time').value;
+  const tz=document.getElementById('ct-tz').value;
+  const msg=document.getElementById('ct-msg');
+  if(!name){ msg.textContent='Name required'; return; }
+  let iso=null; if(d && tm) iso=toISOWithTZ(d, tm, tz);
+  msg.textContent='Creating...';
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, scheduled_at: iso})});
+  const j=await r.json();
+  if(j.ok){ msg.textContent='Created'; msg.style.color='#059669'; loadClanTournaments(); }
+  else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+async function joinClanTourn(tid){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments/'+tid+'/join',{method:'POST'});
+  const j=await r.json();
+  alert(j.ok?'Joined':(j.error||'Failed'));
+  loadClanTournaments();
+}
+async function genClanBracket(tid){
+  const d=document.getElementById('ct-date').value;
+  const tm=document.getElementById('ct-time').value;
+  const tz=document.getElementById('ct-tz').value;
+  let iso=null;
+  if(d && tm) iso=toISOWithTZ(d, tm, tz);
+  else { const now=new Date(Date.now()+3600000); iso=now.toISOString(); }
+  if(!confirm('Generate bracket with match time '+ (iso? fmtTime(iso):'now')+'? 10min DQ applies.')) return;
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments/'+tid+'/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({match_scheduled_at: iso})});
+  const j=await r.json();
+  alert(j.ok?'Bracket generated':(j.error||'Failed'));
+  loadClanTournaments();
+}
+async function joinClanMatch(tid, mid){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments/'+tid+'/matches/'+mid+'/join',{method:'POST'});
+  const j=await r.json();
+  alert(j.ok?'Joined match — you have 10min':(j.error||'Failed'));
+  loadClanTournaments();
+}
+loadClanTournaments();
 // Clan chat — same ChatPanel used for global/friend
 let clanChat=null;
 function initClanChat(){
