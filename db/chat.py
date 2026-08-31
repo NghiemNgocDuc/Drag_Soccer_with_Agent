@@ -38,6 +38,7 @@ class ChatUnavailable(Exception):
 MATCH_TTL  = 6 * 3600     # matches ROOM_TTL
 LOBBY_TTL  = 24 * 3600    # matches tournament key TTL
 GLOBAL_TTL = 24 * 3600   # server-wide chat
+CLAN_TTL   = 24 * 3600   # clan chat
 READ_TTL   = 30 * 86400   # read cursors
 MAX_BODY_LEN   = 280
 CHAT_RATE_MAX  = 10       # messages per window per user
@@ -63,6 +64,8 @@ def _ttl(scope: str) -> int:
         return MATCH_TTL
     if scope == "global":
         return GLOBAL_TTL
+    if scope == "clan":
+        return CLAN_TTL
     return LOBBY_TTL
 
 

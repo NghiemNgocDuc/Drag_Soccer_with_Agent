@@ -3308,6 +3308,14 @@ def _can_lobby_chat(tid: str, user_id: str) -> bool:
                for p in t.get("participants", []))
 
 
+def _can_clan_chat(clan_id: str, user_id: str) -> bool:
+    from db.clans import get_clan, list_members
+    clan = get_clan(clan_id)
+    if not clan:
+        return False
+    return any(m.get("user_id") == user_id for m in list_members(clan_id))
+
+
 def _is_friends_with(a: str, b: str) -> bool:
     try:
         from db.friends import are_friends as _af
@@ -3349,13 +3357,13 @@ def chat_send():
     data  = request.get_json(silent=True) or {}
     scope = (data.get("scope") or "").strip()
     body  = (data.get("body") or "").strip()
-    if scope not in ("match", "tournament", "dm", "global"):
+    if scope not in ("match", "tournament", "dm", "global", "clan"):
         return jsonify({"error": "Invalid scope"}), 400
     if not body:
         return jsonify({"error": "Message is empty"}), 400
     if len(body) > 280:
         return jsonify({"error": "Message too long (max 280 characters)"}), 400
-    if scope in ("tournament", "dm") and "user_id" not in session:
+    if scope in ("tournament", "dm", "clan") and "user_id" not in session:
         return jsonify({"error": "Not authenticated"}), 401
     if not uid():
         import uuid
@@ -3385,6 +3393,13 @@ def chat_send():
             if not _can_lobby_chat(scope_id, my_uid):
                 return jsonify({"error": "You're not in this tournament"}), 403
             msg = send_ephemeral("tournament", scope_id, my_uid, my_name, body)
+        elif scope == "clan":
+            scope_id = (data.get("scope_id") or "").strip()
+            if not scope_id or not _can_clan_chat(scope_id, my_uid):
+                return jsonify({"error": "You're not in this clan"}), 403
+            if scope_id in get_blocked(my_uid):
+                return jsonify({"error": "You've blocked this clan"}), 403
+            msg = send_ephemeral("clan", scope_id, my_uid, my_name, body)
         elif scope == "global":
             # Server-wide chat — any logged-in user, no scope_id needed
             scope_id = "global"
@@ -3414,9 +3429,9 @@ def chat_messages():
                          conv_id, conv_parties)
     from db.chat import ChatUnavailable
     scope = (request.args.get("scope") or "").strip()
-    if scope not in ("match", "tournament", "dm", "global"):
+    if scope not in ("match", "tournament", "dm", "global", "clan"):
         return jsonify({"error": "Invalid scope"}), 400
-    if scope in ("tournament", "dm") and "user_id" not in session:
+    if scope in ("tournament", "dm", "clan") and "user_id" not in session:
         return jsonify({"error": "Not authenticated"}), 401
     my_uid = uid()
     raw_after = request.args.get("after")
@@ -3431,7 +3446,7 @@ def chat_messages():
     blocked = get_blocked(my_uid) if my_uid else set()
 
     try:
-        if scope in ("match", "tournament", "global"):
+        if scope in ("match", "tournament", "global", "clan"):
             scope_id = (request.args.get("scope_id") or "").strip()
             if scope == "global":
                 scope_id = "global"
@@ -3452,6 +3467,9 @@ def chat_messages():
                         return jsonify({"error": "You're not in this match"}), 403
             elif scope == "global":
                 pass
+            elif scope == "clan":
+                if not _can_clan_chat(scope_id, my_uid):
+                    return jsonify({"error": "You're not in this clan"}), 403
             else:
                 if not _can_lobby_chat(scope_id, my_uid):
                     return jsonify({"error": "You're not in this tournament"}), 403

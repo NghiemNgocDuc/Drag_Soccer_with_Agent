@@ -54,7 +54,14 @@
     <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Pending requests</h3>
     <div id="requests"></div>
   </div>
+
+  <div class="glass-card" style="padding:14px;margin-top:14px">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Clan Chat</h3>
+    <p class="meta" style="margin:0 0 8px">Chat with clan members — global and friend-to-friend chats also available in Messages.</p>
+    <div id="clan-chat-mount" style="height:380px"></div>
+  </div>
 </main>
+<script src="/static/chat.js"></script>
 <script>
 const CLAN_ID = "{{ clan.id }}";
 const IS_LEADER = "{{ clan.leader_id }}" === "{{ session.get('user_id','') }}"; // fallback checked server-side too
@@ -109,6 +116,14 @@ async function delClan(){
   if(j.ok) location.href='/clans'; else document.getElementById('c-msg').textContent=j.error;
 }
 load();
+// Clan chat — same ChatPanel used for global/friend
+let clanChat=null;
+function initClanChat(){
+  const mount=document.getElementById('clan-chat-mount');
+  if(!mount) return;
+  clanChat = new ChatPanel({mount, scope:'clan', scopeId: CLAN_ID, name:'Clan Chat', pollMs: 2500, collapsed:false});
+}
+document.addEventListener('DOMContentLoaded', initClanChat);
 </script>
 <script src="/static/feedback.js"></script>
 </body>
