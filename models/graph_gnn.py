@@ -78,6 +78,24 @@ def _pick_best_player(players, bx, by, is_player_a):
         if s>bs: best,bs=i,s
     return best
 
+def _opponent_threat(state_after, is_player_a):
+    opp_is_a = not is_player_a
+    opp_players = state_after["players_a"] if opp_is_a else state_after["players_b"]
+    bx,by=state_after["ball"]["x"],state_after["ball"]["y"]
+    if not opp_players:
+        return 0
+    best = min(range(len(opp_players)), key=lambda i: math.hypot(opp_players[i]["x"]-bx, opp_players[i]["y"]-by))
+    goal_x = 0 if is_player_a else FIELD_W
+    goal_y=(GOAL_Y1+GOAL_Y2)/2
+    base=aim_through(opp_players[best]["x"],opp_players[best]["y"],bx,by,goal_x,goal_y)
+    # single cheap lookahead (was 6 sims -> 1)
+    traj2, scored2=simulate_kick(state_after,best,base,90,opp_is_a)
+    if scored2==("A" if opp_is_a else "B"):
+        return -800
+    if len(traj2)>1:
+        return -progress_score(traj2[-1]["x"],opp_is_a,False)*0.5
+    return 0
+
 def get_ai_move(state, is_player_a):
     players = state["players_a"] if is_player_a else state["players_b"]
     bx,by=state["ball"]["x"],state["ball"]["y"]
@@ -117,6 +135,7 @@ def get_ai_move(state, is_player_a):
                     val+=progress_score(end["x"],is_player_a,defensive)
                     if GOAL_Y1 <= end["y"] <= GOAL_Y2:
                         val+=80
+                    val+=_opponent_threat(fake,is_player_a)
                 if val>best_val:
                     best_val=val
                     best_move=(best_pidx,angle,power)

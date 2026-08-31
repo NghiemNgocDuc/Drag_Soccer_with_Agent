@@ -78,6 +78,31 @@ def _pick_best_player(players, bx, by, is_player_a):
             best_s=s
     return best
 
+def _opponent_threat(state_after, is_player_a):
+    # PPO-style 1-ply lookahead: opponent's best reply value (negative for us)
+    opp_is_a = not is_player_a
+    opp_players = state_after["players_a"] if opp_is_a else state_after["players_b"]
+    bx, by = state_after["ball"]["x"], state_after["ball"]["y"]
+    if not opp_players:
+        return 0
+    # closest opponent to ball
+    best = min(range(len(opp_players)), key=lambda i: math.hypot(opp_players[i]["x"]-bx, opp_players[i]["y"]-by))
+    goal_x = 0 if is_player_a else FIELD_W
+    goal_y = (GOAL_Y1+GOAL_Y2)/2
+    base = aim_through(opp_players[best]["x"], opp_players[best]["y"], bx, by, goal_x, goal_y)
+    best_threat = float("-inf")
+    for off in (-8, 0, 8):
+        for power in (85, 100):
+            traj2, scored2 = simulate_kick(state_after, best, base+off, power, opp_is_a)
+            if scored2 == ("A" if opp_is_a else "B"):
+                return -800
+            if len(traj2) > 1:
+                end2 = traj2[-1]
+                v = progress_score(end2["x"], opp_is_a, False)
+                if v > best_threat:
+                    best_threat = v
+    return -best_threat*0.5 if best_threat != float("-inf") else 0
+
 def get_ai_move(state, is_player_a):
     players = state["players_a"] if is_player_a else state["players_b"]
     bx, by = state["ball"]["x"], state["ball"]["y"]
@@ -111,10 +136,7 @@ def get_ai_move(state, is_player_a):
                     val=-100
                 else:
                     end=traj[-1]
-                    # build next-state tokens for cohesion
-                    # quick approx: move ball to end, move kicker near ball
                     fake = {"ball": {"x": end["x"], "y": end["y"]}, "players_a": state["players_a"], "players_b": state["players_b"]}
-                    # reuse same players but updated ball
                     ntoks=_token_features(fake, is_player_a)
                     nattn=_attention_scores(ntoks)
                     val = progress_score(end["x"], is_player_a, defensive)
@@ -122,8 +144,9 @@ def get_ai_move(state, is_player_a):
                     if GOAL_Y1 <= end["y"] <= GOAL_Y2:
                         val+=90
                         val+= max(0, 80 - abs(end["x"]-(FIELD_W if is_player_a else 0))*0.25)
-                    # attention-weighted progress
                     val += sum(a*10 for a in nattn[:3])
+                    # PPO lookahead: penalize if opponent can score next
+                    val += _opponent_threat(fake, is_player_a)
                 if val>best_val:
                     best_val=val
                     best_move=(best_pidx, angle, power)
