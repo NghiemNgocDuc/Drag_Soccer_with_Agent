@@ -54,7 +54,42 @@ def _security_headers(resp):
     resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     if not _dev_mode:
         resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    # CDN cache for versioned static (Three.js, workflow.png, design-system.css) — 1y immutable
+    if request.path.startswith("/static/"):
+        if request.path.startswith("/static/vendor/") or request.path.endswith(".png"):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            resp.headers["Cache-Control"] = "public, max-age=3600, must-revalidate"
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    # Backpressure hint
+    resp.headers.setdefault("X-RateLimit-Remaining", "100")
     return resp
+
+
+@app.route("/health")
+def health():
+    # liveness — no DB
+    return jsonify({"ok": True, "ts": time.time()})
+
+
+@app.route("/ready")
+def ready():
+    # readiness — checks Redis + Supabase (best-effort)
+    ok = True
+    checks = {}
+    try:
+        from db.redis_client import r as _r
+        _r.ping() if hasattr(_r, "ping") else _r.get("health:check")
+        checks["redis"] = "ok"
+    except Exception as e:
+        checks["redis"] = f"fail: {e}"
+        ok = False
+    try:
+        from db.supabase_client import service as _svc
+        checks["supabase"] = "ok" if _svc else "not_configured"
+    except Exception as e:
+        checks["supabase"] = f"fail: {e}"
+    return jsonify({"ok": ok, "checks": checks}), (200 if ok else 503)
 
 
 @app.before_request
@@ -76,6 +111,10 @@ MODELS: dict[str, str] = {
     "q_learning":       "models.q_learning",
     "langchain":        "models.langchain_model",
 }
+
+# AI off-thread pool so slow simulate_kick (2-3s) does not block gunicorn worker
+from concurrent.futures import ThreadPoolExecutor as _AIPool
+_ai_pool = _AIPool(max_workers=4, thread_name_prefix="ai")
 
 _builtin_cache: dict = {}
 USER_MODEL_PREFIX = "user_model:"
