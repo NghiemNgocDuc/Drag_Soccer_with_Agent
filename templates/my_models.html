@@ -214,7 +214,10 @@ pre.ref-code{
         <h2>My Models</h2>
         <span class="count">{% if models %}{{ models | length }} model{% if models | length != 1 %}s{% endif %}{% endif %}</span>
       </div>
-      <button class="btn btn-blue btn-sm" onclick="openNew()">+ New</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-blue btn-sm" onclick="createAutoModel()" title="Create Model 1, Model 2...">+</button>
+        <button class="btn btn-blue btn-sm" onclick="openNew()">+ New</button>
+      </div>
     </div>
 
     <a href="/learn" class="tutorial-cta">
@@ -235,6 +238,18 @@ pre.ref-code{
       .tutorial-cta .tc-sub{font-size:.72rem;color:var(--muted);line-height:1.45}
       .tutorial-cta .tc-arrow{margin-left:auto;color:var(--accent);font-weight:700}
     </style>
+
+    <!-- Built-in models with code + benchmark -->
+    <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin-bottom:12px">
+      <div style="font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Available models — greedy etc</div>
+      {% for b in builtin_models %}
+      <div class="model-card" style="cursor:pointer;margin-bottom:6px" onclick="openBuiltin('{{ b.id }}')">
+        <div class="mc-name">{{ b.name }} <span style="font-size:.62rem;color:var(--muted);font-weight:500">({{ b.id }})</span></div>
+        <div class="mc-desc">{{ b.desc }}</div>
+        <div class="mc-meta"><span class="lb-score">{{ b.bench.lat }}ms</span><span class="lb-updated">{{ b.bench.note }}</span><span style="margin-left:auto;font-size:.62rem;color:var(--muted)">benchmark block included</span></div>
+      </div>
+      {% endfor %}
+    </div>
 
     <div class="model-list" id="model-list">
       {% if models %}
@@ -540,6 +555,31 @@ function openNew() {
   document.getElementById('f-desc').value = '';
   document.getElementById('f-public').checked = false;
   document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
+  showEditor();
+}
+
+async function createAutoModel(){
+  const existing = Object.values(MODEL_DATA).map(m=>m.name);
+  let n=1; while(existing.includes("Model "+n)) n++;
+  const name = "Model "+n;
+  const r = await fetch('/api/models/user', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name, description: "Auto-created, benchmark block included", code: TEMPLATE})
+  });
+  const d = await r.json();
+  if(d.error){ alert(d.error); return; }
+  location.reload();
+}
+
+async function openBuiltin(id){
+  const r = await fetch('/api/models/builtin/'+id+'/code');
+  const d = await r.json();
+  if(d.error){ alert(d.error); return; }
+  editingId = null;
+  document.getElementById('f-name').value = "Copy of " + id;
+  document.getElementById('f-desc').value = "Based on " + id + " — benchmark block included";
+  editor.setValue(d.code);
+  document.querySelectorAll('.model-card').forEach(c=>c.classList.remove('active'));
   showEditor();
 }
 

@@ -1460,12 +1460,33 @@ def my_models_page():
     from db.user_models import get_user_models
     from db.leaderboard import list_user_submissions
     from user_models.runner import TEMPLATE, detect_old_field_literals
+    import pathlib
     models = get_user_models(uid())
     subs = list_user_submissions(uid()) if models else {}
     for m in models:
         m["maybe_outdated"] = bool(detect_old_field_literals(m.get("code") or ""))
         m["lb"] = subs.get(m.get("id"))
-    return render_template("my_models.html", username=session.get("username", "Player"), models=models, template_code=TEMPLATE)
+    # builtins with code + benchmark hint (latency tier from bench_final.py)
+    builtin_bench = {
+        "greedy": {"lat": 87, "note": "Turbo 87ms"},
+        "monte_carlo": {"lat": 128, "note": "Turbo 128ms"},
+        "value_iteration": {"lat": 959, "note": "959ms"},
+        "policy_iteration": {"lat": 937, "note": "937ms"},
+        "q_learning": {"lat": 1713, "note": "1713ms"},
+        "minimax": {"lat": 2141, "note": "2141ms"},
+        "bayesian": {"lat": 3098, "note": "3098ms"},
+    }
+    builtins = []
+    for bid, mod_path in MODELS.items():
+        try:
+            mod = importlib.import_module(mod_path)
+            bench = builtin_bench.get(bid, {})
+            # try read source for code preview
+            p = pathlib.Path(mod.__file__).read_text(encoding="utf-8", errors="ignore")[:4000] if hasattr(mod, "__file__") and mod.__file__ else ""
+            builtins.append({"id": bid, "name": getattr(mod, "MODEL_NAME", bid), "desc": getattr(mod, "DESCRIPTION", ""), "bench": bench, "code_preview": p[:800]})
+        except Exception:
+            pass
+    return render_template("my_models.html", username=session.get("username", "Player"), models=models, template_code=TEMPLATE, builtin_models=builtins)
 
 
 @app.route("/api/models/user/validate", methods=["POST"])
@@ -1562,6 +1583,33 @@ def api_get_model_code(model_id: str):
     if not data:
         return jsonify({"error": "Not found"}), 404
     return jsonify({"code": data.get("code", "")})
+
+
+@app.route("/api/models/builtin/<builtin_id>/code")
+@login_required
+def api_get_builtin_code(builtin_id: str):
+    if builtin_id not in MODELS:
+        return jsonify({"error": "Unknown builtin"}), 404
+    import pathlib
+    try:
+        mod = importlib.import_module(MODELS[builtin_id])
+        p = pathlib.Path(mod.__file__)
+        code = p.read_text(encoding="utf-8")
+        # ensure benchmark helper present for similarity — inject from TEMPLATE
+        if "benchmark_vs_greedy" not in code:
+            try:
+                from user_models.runner import TEMPLATE as _TPL
+                # extract benchmark helper block from TEMPLATE
+                if "def _bench_progress" in _TPL:
+                    helper = _TPL[_TPL.index("# def _bench_progress"):]
+                    code = code.rstrip() + "\n\n" + helper
+                else:
+                    code += "\n\n# Benchmark helper — see TEMPLATE\n"
+            except Exception:
+                code += "\n\n# Benchmark helper — see TEMPLATE\n"
+        return jsonify({"code": code})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/models/user/<model_id>", methods=["DELETE"])
