@@ -112,6 +112,9 @@ MODELS: dict[str, str] = {
     "langchain":        "models.langchain_model",
     "tactic_transformer": "models.tactic_transformer",
     "graph_gnn":        "models.graph_gnn",
+    "ppo_actor_critic": "models.ppo_actor_critic",
+    "dqn_relative":     "models.dqn_relative",
+    "genetic_fuzzy":    "models.genetic_fuzzy",
 }
 
 # AI off-thread pool so slow simulate_kick (2-3s) does not block gunicorn worker
@@ -1633,15 +1636,20 @@ def my_models_page():
     for m in models:
         m["maybe_outdated"] = bool(detect_old_field_literals(m.get("code") or ""))
         m["lb"] = subs.get(m.get("id"))
-    # builtins with code + benchmark hint (latency tier from bench_final.py)
+    # builtins with code + benchmark hint (grouped by latency, all <2s after Turbo)
     builtin_bench = {
-        "greedy": {"lat": 87, "note": "Turbo 87ms"},
-        "monte_carlo": {"lat": 128, "note": "Turbo 128ms"},
-        "value_iteration": {"lat": 959, "note": "959ms"},
-        "policy_iteration": {"lat": 937, "note": "937ms"},
-        "q_learning": {"lat": 1713, "note": "1713ms"},
-        "minimax": {"lat": 2141, "note": "2141ms"},
-        "bayesian": {"lat": 3098, "note": "3098ms"},
+        "greedy": {"lat": 88, "note": "Turbo 88ms Fast"},
+        "genetic_fuzzy": {"lat": 74, "note": "74ms Fast"},
+        "monte_carlo": {"lat": 158, "note": "Turbo 158ms Fast"},
+        "tactic_transformer": {"lat": 188, "note": "922ms PPO Mid"},
+        "graph_gnn": {"lat": 209, "note": "962ms Mid"},
+        "dqn_relative": {"lat": 276, "note": "276ms Mid"},
+        "ppo_actor_critic": {"lat": 258, "note": "258ms Mid"},
+        "q_learning": {"lat": 536, "note": "536ms Mid"},
+        "minimax": {"lat": 689, "note": "689ms Mid"},
+        "bayesian": {"lat": 806, "note": "806ms Mid"},
+        "policy_iteration": {"lat": 983, "note": "983ms Mid"},
+        "value_iteration": {"lat": 1049, "note": "1049ms Slow"},
     }
     builtins = []
     for bid, mod_path in MODELS.items():

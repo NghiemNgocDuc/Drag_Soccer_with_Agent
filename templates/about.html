@@ -75,7 +75,7 @@ code{background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2);padding
 
   <div class="glass-card card">
     <h3>AI & custom models</h3>
-    <p>7 built-ins + <b>LangChain Tactician</b> (LLM-guided + physics verify, &lt;1.5s, fallback pruned) + your own in <b>Playground / My Models</b>. Required function:</p>
+    <p>13 built-ins — <b>greedy/monte_carlo/minimax/bayesian/value_iteration/policy_iteration/q_learning/langchain/tactic_transformer/graph_gnn/ppo_actor_critic/dqn_relative/genetic_fuzzy</b> + your own in <b>Playground / My Models</b>. All use <code>simulate_kick</code> + <code>TEMPLATE</code> benchmark block. <b>LangChain Tactician</b> is LLM-guided + physics verify (&lt;1.5s). Required function:</p>
     <pre style="background:rgba(15,23,42,.9);color:#e2e8f0;border-radius:10px;padding:12px;overflow:auto;font-size:.78rem">def get_ai_move(state, is_player_a):
     # state["ball"] {"x","y"}  state["players_a/b"] [{"x","y","name","stats"}]
     # state["field"] {"width":1400,"height":875}  state["score_a/b"] int
@@ -102,38 +102,46 @@ code{background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2);padding
   </div>
 
   <div class="glass-card card">
-    <h3>Benchmark — speed vs accuracy</h3>
-    <p style="margin:6px 0 8px"><b>Method:</b> clone repo, <code>DEV_MODE=1</code>, each model plays <code>get_ai_move(state, is_player_a) → (idx, angle, power)</code>. Latency = 5× <code>perf_counter</code> per model on <code>new_soccer_state()</code>. Accuracy = win rate vs field (round-robin, 40–60 kicks, first to 5). Grouped below.</p>
-    <p class="meta" style="margin:0 0 8px">Turbo update: <code>Greedy</code> 849→87ms (10×), <code>Monte Carlo</code> 863→128ms (7×) — single best-player pick + 2 powers + 6°/3° sweeps, goal-line proximity bonus. Accuracy kept (scoring logic improved, no latency cost).</p>
+    <h3>Benchmark — speed vs accuracy (13 models, all &lt;2s)</h3>
+    <p style="margin:6px 0 8px"><b>Method:</b> <code>DEV_MODE=1</code>, 5× <code>perf_counter</code> on <code>new_soccer_state()</code>, win rate vs greedy <code>3×40 kicks, win to 2</code>. New models: <code>tactic_transformer</code> (TacticAI), <code>graph_gnn</code> (GAT/GPPO), <code>ppo_actor_critic</code>, <code>dqn_relative</code>, <code>genetic_fuzzy</code>. All use <code>simulate_kick</code> + <code>TEMPLATE</code> benchmark block.</p>
+    <p class="meta" style="margin:0 0 8px">Turbo + PPO lookahead: <code>greedy</code> 849→88ms, <code>monte</code> 863→158ms, <code>minimax</code> 2141→689ms, <code>bayesian</code> 3098→806ms, <code>q</code> 1713→536ms — single-player + 2 powers + early exit + 1-ply opponent threat. New: <code>genetic_fuzzy</code> 74ms fastest, <code>ppo</code> 258ms, <code>dqn</code> 276ms, <code>tactic</code> 922ms, <code>graph</code> 962ms (was 1770ms with 6 threat sims → 1).</p>
     <div style="overflow:auto">
-      <table style="width:100%;border-collapse:collapse;font-size:.82rem">
-        <thead><tr style="text-align:left;border-bottom:1px solid #e2e8f0"><th>Model</th><th>Latency avg</th><th>Group</th><th>Accuracy*</th></tr></thead>
+      <table style="width:100%;border-collapse:collapse;font-size:.78rem">
+        <thead><tr style="text-align:left;border-bottom:1px solid #e2e8f0"><th>Model</th><th>Latency</th><th>Group</th><th>Inspired by</th></tr></thead>
         <tbody>
-          <tr><td><code>greedy</code> (Turbo)</td><td>87 ms</td><td>Fast &lt;150ms</td><td>Mid — on-target + travel bonus</td></tr>
-          <tr><td><code>monte_carlo</code> (Turbo)</td><td>128 ms</td><td>Fast &lt;150ms</td><td>Mid — 12 samples, early exit on goal</td></tr>
-          <tr><td><code>value_iteration</code></td><td>959 ms</td><td>Mid 150–1000ms</td><td>Mid — centrality + reachability</td></tr>
-          <tr><td><code>policy_iteration</code></td><td>937 ms</td><td>Mid 150–1000ms</td><td>Mid — lane scoring</td></tr>
-          <tr><td><code>q_learning</code></td><td>1713 ms</td><td>Slow ≥1s</td><td>Mid — zone-aware</td></tr>
-          <tr><td><code>minimax</code></td><td>2141 ms</td><td>Slow ≥1s</td><td>High — fine 2° search, bounce penalty</td></tr>
-          <tr><td><code>bayesian</code></td><td>3098 ms</td><td>Slow ≥1s</td><td>Mid — Gaussian prior</td></tr>
+          <tr><td><code>genetic_fuzzy</code></td><td>74 ms</td><td>Fast &lt;150ms</td><td>GA Mamdani — 9 rules, distance/angle fuzzy</td></tr>
+          <tr><td><code>greedy</code> Turbo</td><td>88 ms</td><td>Fast</td><td>Heuristic — 80 sims</td></tr>
+          <tr><td><code>monte_carlo</code> Turbo</td><td>158 ms</td><td>Mid</td><td>Monte Carlo 12 samples</td></tr>
+          <tr><td><code>tactic_transformer</code></td><td>922 ms</td><td>Mid</td><td>TacticAI/TranSPORTmer attention + PPO lookahead</td></tr>
+          <tr><td><code>graph_gnn</code></td><td>962 ms</td><td>Mid</td><td>GAT/GPPO graph value + lookahead</td></tr>
+          <tr><td><code>dqn_relative</code></td><td>276 ms</td><td>Mid</td><td>DQN RCS — Park 2022</td></tr>
+          <tr><td><code>ppo_actor_critic</code></td><td>258 ms</td><td>Mid</td><td>PPO clipped actor-critic</td></tr>
+          <tr><td><code>q_learning</code></td><td>536 ms</td><td>Mid</td><td>Zone-aware Q</td></tr>
+          <tr><td><code>minimax</code></td><td>689 ms</td><td>Mid</td><td>Minimax 2° search</td></tr>
+          <tr><td><code>bayesian</code></td><td>806 ms</td><td>Mid</td><td>Gaussian prior</td></tr>
+          <tr><td><code>policy_iteration</code></td><td>983 ms</td><td>Mid</td><td>Lane scoring</td></tr>
+          <tr><td><code>value_iteration</code></td><td>1049 ms</td><td>Slow ≥1s</td><td>Centrality</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="meta" style="margin:8px 0 0">* Short 15-kick games draw 0-0 (win_goal 5 needs ~60 kicks). With 40 kicks, greedy Turbo still draws vs minimax 0-0 in 5/5 — defensive field. Longer 60-kick bench times out (&gt;3 min) due to 2–3s/move. Use <code>win_goal_limit=2</code> for quick accuracy, or run <code>bench_final.py</code> overnight.</p>
-    <p style="margin:6px 0 0;font-size:.8rem"><b>Grouped by latency:</b> Fast: greedy, monte_carlo · Mid: value_iteration, policy_iteration · Slow: q_learning, minimax, bayesian &nbsp;|&nbsp; <b>Grouped by accuracy (vs greedy, 3×15 kicks):</b> all draws → Low, but Turbo adds proximity bonus so longer games improve.</p>
-    <p class="meta" style="margin-top:6px">Run: <code>DEV_MODE=1 PYTHONPATH=. python -u bench_final.py</code> — see repo <code>bench_final.py</code> for full matrix.</p>
+    <p class="meta" style="margin:8px 0 0">* Short 15-kick draws 0-0; `bayesian` 67% vs greedy (2/3, 5×40 win to 2) is best. New models 0% in 3×40 win to 2 but mid latency — need longer 60-kick or `win_goal=1` for signal. All &lt;2s via `_get_ai_move_with_timeout` fallback to greedy.</p>
+    <p style="margin:6px 0 0;font-size:.78rem"><b>Grouped by latency:</b> Fast: genetic_fuzzy, greedy · Mid: monte, ppo, dqn, q, minimax, bayesian, policy, tactic, graph · Slow: value &nbsp;|&nbsp; <b>Coding editor:</b> `+` → `Model N` auto, click to rename, `Available models` shows greedy etc with `lat ms` + code + benchmark block.</p>
+    <p class="meta" style="margin-top:6px">Run: <code>DEV_MODE=1 PYTHONPATH=. python -u bench_new_models.py</code> — also `Playground → Benchmark 5 vs Greedy` bar.</p>
   </div>
 
   <div class="glass-card card">
-    <h3>Models — how they think</h3>
+    <h3>Models — how they think (13)</h3>
     <ul>
-      <li><b>Greedy Turbo</b> — pick best player (dist to ball / power), 6° coarse + 3° fine, 2 powers, scores: <code>progress +120 if y in goal + (100 - dist_to_line*0.3) -80 if backward + travel*0.05</code>, early exit on 2000. ~80 sims vs 306 before.</li>
-      <li><b>Monte Carlo Turbo</b> — best player only, 12 Gauss samples per goal corner (spread 16/24), early exit on goal, same scoring.</li>
-      <li><b>Minimax</b> — all players × 31 angles × powers, bounce penalty, 1500 for goal. Slow but thorough.</li>
-      <li><b>Bayesian</b> — Gaussian prior <code>σ 8/12</code> over 41 angles, likelihood-weighted. Most simulations, slowest.</li>
-      <li><b>Value/Policy/Q</b> — zone/centrality heuristics, single or all players, 2–3° steps.</li>
+      <li><b>Greedy Turbo</b> — best player, 6°/3°, 2 powers, `progress+120 if y in goal`.</li>
+      <li><b>Monte Carlo Turbo</b> — 12 Gauss samples, early exit.</li>
+      <li><b>Minimax / Bayesian / Q / Value / Policy</b> — single-player, 2 powers, 2° search, bounce/Gaussian/zone heuristics.</li>
+      <li><b>Tactic Transformer</b> — Wang TacticAI + Yeung TranSPORTmer: 7 tokens, attention `softmax(-dist/0.35)`, cohesion `100-var*0.02`, PPO 1-ply `+ _opponent_threat`.</li>
+      <li><b>Graph GNN</b> — Ding GAT + Xiao GPPO: complete graph `w=exp(-dist/120)`, `GAT` `α=softmax(-dist*2)`, `value=(1-d_goal)*120+shape`, 1-ply.</li>
+      <li><b>PPO Actor-Critic</b> — Kernbach 2026 pretraining: actor clones greedy + clipped noise `0.2`, critic `progress+cohesion`, advantage `V_next-V_cur`, 7° sweep.</li>
+      <li><b>DQN Relative</b> — Park 2022 RCS: relative `(dx/400,dy/300)`, handcrafted `Q = -0.8*ball -0.15*goal -0.05*angle`, target `r+0.9*maxQ`.</li>
+      <li><b>Genetic Fuzzy</b> — Mansour 2026 GA Mamdani: `dist close/med/far` + `ang small/med/large` triangles (GA 201 iter), 9 rules defuzz centroid → `power/angle`.</li>
     </ul>
-    <p class="meta">All use <code>simulate_kick(state, idx, angle, power, is_player_a)</code> → <code>traj, scored</code> via pymunk 500×3 steps. See <code>models/*.py</code> + <code>models/common.py</code>.</p>
+    <p class="meta">All `simulate_kick` → `traj, scored` 500×3 steps. See `models/*.py` + `TEMPLATE` benchmark block.</p>
   </div>
 
   <div class="glass-card card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between">
