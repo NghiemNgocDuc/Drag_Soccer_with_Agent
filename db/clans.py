@@ -32,6 +32,14 @@ _MEM_MEMBER_SINCE: dict[tuple[str,str], str] = {}  # (clan_id, user_id) -> iso t
 _MEM_REQUESTS: dict[str, dict] = {}  # req_id -> {id, clan_id, user_id, username, status, created_at}
 _MEM_USER_CLAN: dict[str, str] = {}  # user_id -> clan_id
 
+def _track_history(user_id: str, clan_id: str) -> None:
+    try:
+        from db.redis_client import r as redis
+        redis.sadd(f"clan_history:{user_id}", clan_id)
+        redis.expire(f"clan_history:{user_id}", 365*86400)
+    except Exception:
+        pass
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -199,6 +207,7 @@ def create_clan(leader_id: str, name: str, description: str = "", join_type: str
         _MEM_MEMBERS[cid] = {leader_id}
         _MEM_MEMBER_SINCE[(cid, leader_id)] = _now_iso()
         _MEM_USER_CLAN[leader_id] = cid
+        _track_history(leader_id, cid)
         return _hydrate(dict(clan))
     # supabase
     # check name unique
@@ -210,6 +219,7 @@ def create_clan(leader_id: str, name: str, description: str = "", join_type: str
     if not clan.get("id"):
         raise RuntimeError("Failed to create clan")
     svc.table("clan_members").insert({"clan_id": clan["id"], "user_id": leader_id}).execute()
+    _track_history(leader_id, clan["id"])
     return _hydrate(dict(clan))
 
 def request_join(user_id: str, clan_id: str, message: str = "") -> dict:
@@ -234,8 +244,10 @@ def request_join(user_id: str, clan_id: str, message: str = "") -> dict:
             _MEM_MEMBERS.setdefault(clan_id, set()).add(user_id)
             _MEM_MEMBER_SINCE[(clan_id, user_id)] = _now_iso()
             _MEM_USER_CLAN[user_id] = clan_id
+            _track_history(user_id, clan_id)
             return {"joined": True, "clan_id": clan_id}
         svc.table("clan_members").insert({"clan_id": clan_id, "user_id": user_id}).execute()
+        _track_history(user_id, clan_id)
         return {"joined": True, "clan_id": clan_id}
     # request mode
     svc = _svc()
@@ -268,6 +280,7 @@ def handle_request(leader_id: str, clan_id: str, request_id: str, approve: bool)
             _MEM_MEMBERS.setdefault(clan_id, set()).add(req["user_id"])
             _MEM_MEMBER_SINCE[(clan_id, req["user_id"])] = _now_iso()
             _MEM_USER_CLAN[req["user_id"]] = clan_id
+            _track_history(req["user_id"], clan_id)
             req["status"] = "approved"
         else:
             req["status"] = "declined"
@@ -280,6 +293,7 @@ def handle_request(leader_id: str, clan_id: str, request_id: str, approve: bool)
         if len(list_members(clan_id)) >= int(clan.get("member_limit", CLAN_LIMIT_DEFAULT)):
             raise ValueError("Clan is full")
         svc.table("clan_members").insert({"clan_id": clan_id, "user_id": row.data["user_id"]}).execute()
+        _track_history(row.data["user_id"], clan_id)
         svc.table("clan_requests").update({"status": "approved"}).eq("id", request_id).execute()
     else:
         svc.table("clan_requests").update({"status": "declined"}).eq("id", request_id).execute()
@@ -408,8 +422,10 @@ def add_member_direct(leader_id: str, clan_id: str, target_username: str) -> dic
         _MEM_MEMBERS.setdefault(clan_id, set()).add(target_id)
         _MEM_MEMBER_SINCE[(clan_id, target_id)] = _now_iso()
         _MEM_USER_CLAN[target_id] = clan_id
+        _track_history(target_id, clan_id)
         return {"user_id": target_id, "username": target_name}
     svc.table("clan_members").insert({"clan_id": clan_id, "user_id": target_id}).execute()
+    _track_history(target_id, clan_id)
     # clear any pending request
     try:
         svc.table("clan_requests").delete().eq("clan_id", clan_id).eq("user_id", target_id).execute()

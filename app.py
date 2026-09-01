@@ -275,6 +275,7 @@ def _persist_result(state: dict) -> None:
         )
         _ph.track_game_end(uid(), state.get("game_mode", "hvai"), winner, state["score_a"], state["score_b"])
         _check_casual_achievements(state, uid())
+        _check_progress_achievements(uid())
         try: _mem_summ(uid(), state)
         except: pass
         _auto_clear_state(uid())
@@ -437,6 +438,67 @@ def _check_ranked_achievements(pa: str, pb: str, res: dict) -> None:
         for key, need in (("rk_streak_3", 3), ("rk_streak_5", 5), ("rk_streak_10", 10)):
             if streak >= need:
                 _ach_grant(user_id, key)
+
+
+def _check_progress_achievements(user_id: str) -> None:
+    if not user_id or user_id.startswith("guest:"):
+        return
+    try:
+        from db.games import get_user_stats
+        stats = get_user_stats(user_id)
+        gp = int(stats.get("games_played", 0))
+        gf = int(stats.get("goals_for", 0))
+        w = int(stats.get("wins", 0))
+        for key, need in (("exp_games_50", 50), ("exp_games_100", 100), ("exp_games_200", 200), ("exp_games_500", 500)):
+            if gp >= need:
+                _ach_grant(user_id, key)
+        for key, need in (("exp_goals_50", 50), ("exp_goals_100", 100), ("exp_goals_250", 250)):
+            if gf >= need:
+                _ach_grant(user_id, key)
+        for key, need in (("exp_wins_25", 25), ("exp_wins_50", 50), ("exp_wins_100", 100)):
+            if w >= need:
+                _ach_grant(user_id, key)
+    except Exception:
+        pass
+
+
+def _check_social_achievements(user_id: str) -> None:
+    if not user_id or user_id.startswith("guest:"):
+        return
+    try:
+        from db.friends import list_friends
+        cnt = len(list_friends(user_id))
+        for key, need in (("social_friends_5", 5), ("social_friends_10", 10)):
+            if cnt >= need:
+                _ach_grant(user_id, key)
+    except Exception:
+        pass
+    try:
+        from db.redis_client import r as redis
+        hist = redis.smembers(f"clan_history:{user_id}") if hasattr(redis, "smembers") else set()
+        # normalize bytes
+        hist = {h.decode() if isinstance(h, bytes) else h for h in hist}
+        if len(hist) >= 3:
+            _ach_grant(user_id, "clan_joined_3")
+        from db.clans import list_clans
+        created = [c for c in list_clans() if c.get("leader_id") == user_id]
+        if len(created) >= 2:
+            _ach_grant(user_id, "clan_created_2")
+    except Exception:
+        pass
+
+
+def _check_ai_count_achievements(user_id: str) -> None:
+    if not user_id or user_id.startswith("guest:"):
+        return
+    try:
+        from db.user_models import get_user_models
+        cnt = len(get_user_models(user_id))
+        for key, need in (("ai_models_5", 5), ("ai_models_10", 10)):
+            if cnt >= need:
+                _ach_grant(user_id, key)
+    except Exception:
+        pass
 
 
 def _track_scene_usage(user_id: str) -> None:
@@ -1402,8 +1464,15 @@ def profile():
     from db.games import get_user_stats
     from db.profiles import get_avatar_url
     from db.ranked import get_rating, PLACEMENT_GAMES
-    from db.achievements import count_earned
+    from db.achievements import count_earned, list_for_user
     from db.seasons import career_summary, get_current_season
+    # lazy progress check so playing more auto-unlocks on profile view
+    try:
+        _check_progress_achievements(uid())
+        _check_social_achievements(uid())
+        _check_ai_count_achievements(uid())
+    except Exception:
+        pass
     stats = get_user_stats(uid())
     username = session.get("username", "Player")
     joined_days = session.get("joined_at")
@@ -1412,12 +1481,14 @@ def profile():
     achievement_count = count_earned(uid())
     season_career = career_summary(uid())
     current_season = int(get_current_season()["number"])
+    achievements = list_for_user(uid())
     return render_template("profile.html", username=username, stats=stats,
                            joined_days=joined_days, avatar_url=avatar_url,
                            rating=rating, placement_games=PLACEMENT_GAMES,
                            achievement_count=achievement_count,
                            season_career=season_career,
-                           current_season=current_season)
+                           current_season=current_season,
+                           achievements=achievements)
 
 
 @app.route("/api/achievements/toasts")
