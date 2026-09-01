@@ -50,7 +50,8 @@ def new_uid(tag):
 # ── Catalog ────────────────────────────────────────────────────────────────
 
 def test_catalog_has_31_badges():
-    assert len(ACHIEVEMENTS) == 33
+    # catalog grows as we add play-more progress badges
+    assert len(ACHIEVEMENTS) >= 33
     for key, d in ACHIEVEMENTS.items():
         assert d["category"] in achievements.CATEGORY_LABELS
         assert d["name"] and d["description"] and d["emoji"]
@@ -59,7 +60,7 @@ def test_catalog_has_31_badges():
 
 def test_definitions_ordered():
     defs = definitions()
-    assert len(defs) == 33
+    assert len(defs) == len(ACHIEVEMENTS)
     assert defs[0]["key"] == "ai_first_model"  # alphabetical first category
     keys = [d["key"] for d in defs]
     assert all(k in ACHIEVEMENTS for k in keys)
@@ -94,7 +95,7 @@ def test_earned_list_and_count():
     assert set(earned) == {"rk_first_win", "sk_rocket"}
     lst = list_for_user(uid)
     by_key = {a["key"]: a for a in lst}
-    assert len(lst) == 33
+    assert len(lst) == len(ACHIEVEMENTS)
     assert by_key["rk_first_win"]["earned"] is True
     assert by_key["rk_first_win"]["awarded_at"] is not None
     assert by_key["exp_photo"]["earned"] is False
@@ -244,7 +245,7 @@ def test_achievements_page_renders():
         body = resp.get_data(as_text=True)
         assert "Ranked Debut" in body          # earned badge
         assert "Opening Scorer" in body        # unearned badge (shown greyed)
-        assert "1/33" in body                  # progress header
+        assert f"1/{len(ACHIEVEMENTS)}" in body  # progress header
         assert "Locked" in body                # unearned marker
 
 
