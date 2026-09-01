@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ model.name }} — Community — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<link rel="stylesheet" href="/static/vendor/codemirror/codemirror.min.css">
+<style>
+.hero{padding:20px 22px;border-radius:20px;background:linear-gradient(135deg,rgba(14,165,233,.13),rgba(139,92,246,.12));border:1px solid rgba(255,255,255,.65);backdrop-filter:blur(18px);margin-bottom:16px}
+.meta{font-size:.78rem;color:#64748b}
+pre.code{background:#0d1117;color:#cdd6f4;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:14px;overflow:auto;font-size:.78rem;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.badge{font-size:.68rem;padding:2px 8px;border-radius:999px;font-weight:700;background:rgba(14,165,233,.12);color:#0284c7;border:1px solid rgba(14,165,233,.25)}
+.comment{padding:10px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;background:#fff}
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
+  <div class="nav-links">
+    <a href="/play3d" class="nav-link">Play</a>
+    <a href="/community" class="nav-link active">Community</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/about" class="nav-link">About</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+  </div>
+</nav>
+<main style="max-width:900px;margin:0 auto;padding:24px 16px">
+  <a href="/community" style="font-size:.82rem;color:#0284c7;text-decoration:none;font-weight:600">← Community</a>
+  <div class="hero" style="margin-top:10px">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.4rem;font-weight:700;margin:0">{{ model.name }}</h1>
+      {% if model.score is not none %}<span class="badge">{{ "%.1f"|format(model.score) }}% vs built-ins</span>{% endif %}
+    </div>
+    <div class="meta">by {{ model.owner_name }} · {{ model.created_at[:10] if model.created_at else '' }}</div>
+    <div class="meta" style="margin-top:8px;white-space:pre-wrap">{{ model.description or 'No description' }}</div>
+    <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
+      <button class="btn btn-secondary btn-sm" id="like-btn" onclick="toggleLike()">Like (<span id="like-count">{{ model.likes }}</span>)</button>
+      <span class="meta">{{ model.likes }} likes · {{ model.comments|length }} comments</span>
+    </div>
+  </div>
+
+  <div class="glass-card" style="padding:16px;margin-bottom:14px">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Benchmark</h3>
+    {% if model.score is not none %}
+      <div class="meta">Score <b>{{ "%.1f"|format(model.score) }}%</b> mean win rate vs 7 built-ins (greedy …). Details:</div>
+      {% if model.details %}
+        <div style="margin-top:8px;display:flex;flex-direction:column;gap:4px">
+        {% for d in model.details %}
+          <div style="font-size:.78rem">{{ d.opponent }}: {{ "%.1f"|format(d.win_rate) }}% ({{ d.wins }}W {{ d.losses }}L)</div>
+        {% endfor %}
+        </div>
+      {% endif %}
+    {% else %}
+      <div class="meta">No benchmark yet — owner can Submit to Leaderboard in My Models.</div>
+    {% endif %}
+    <pre class="code" style="margin-top:10px;max-height:240px">{{ model.code[:3000] }}</pre>
+    <div class="meta">Full code shown truncated — benchmarks use full file.</div>
+  </div>
+
+  <div class="glass-card" style="padding:16px">
+    <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 8px">Comments</h3>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="comment-input" class="input" placeholder="Write a comment (1-500 chars)..." style="flex:1">
+      <button class="btn btn-primary btn-sm" onclick="postComment()">Post</button>
+    </div>
+    <div id="comments">
+      {% for c in model.comments %}
+        <div class="comment"><b>{{ c.username }}</b> <span class="meta">{{ c.created_at[:16] if c.created_at else '' }}</span><div style="margin-top:4px;white-space:pre-wrap">{{ c.body }}</div></div>
+      {% endfor %}
+      {% if not model.comments %}<div class="meta">No comments yet — be the first.</div>{% endif %}
+    </div>
+  </div>
+</main>
+<script>
+const MODEL_ID = "{{ model.id }}";
+async function toggleLike(){
+  const r=await fetch(`/api/community/${MODEL_ID}/like`, {method:'POST'});
+  const j=await r.json();
+  if(j.error){ alert(j.error); return; }
+  document.getElementById('like-count').textContent=j.likes;
+  const btn=document.getElementById('like-btn');
+  btn.textContent = (j.liked ? 'Liked' : 'Like') + ' (' + j.likes + ')';
+}
+async function postComment(){
+  const inp=document.getElementById('comment-input');
+  const body=(inp.value||'').trim();
+  if(!body){ alert('Comment required'); return; }
+  const r=await fetch(`/api/community/${MODEL_ID}/comment`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({body})});
+  const j=await r.json();
+  if(j.error){ alert(j.error); return; }
+  location.reload();
+}
+</script>
+<script src="/static/feedback.js"></script>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Community — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>
+.hero{padding:22px;border-radius:20px;background:linear-gradient(135deg,rgba(14,165,233,.13),rgba(139,92,246,.12));border:1px solid rgba(255,255,255,.65);backdrop-filter:blur(18px);margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.card{padding:16px;border-radius:14px}
+.card h3{font-family:'Space Grotesk',sans-serif;font-size:1rem;margin:0 0 6px}
+.meta{font-size:.78rem;color:#64748b}
+.badge{font-size:.68rem;padding:2px 8px;border-radius:999px;font-weight:700;background:rgba(14,165,233,.12);color:#0284c7;border:1px solid rgba(14,165,233,.25)}
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
+  <div class="nav-links">
+    <a href="/play3d" class="nav-link">Play</a>
+    <a href="/community" class="nav-link active">Community</a>
+    <a href="/my-models" class="nav-link">My Models</a>
+    <a href="/leaderboard" class="nav-link">Leaderboard</a>
+    <a href="/about" class="nav-link">About</a>
+    <span class="nav-user">{{ username }}</span>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
+  </div>
+</nav>
+<main style="max-width:1100px;margin:0 auto;padding:24px 16px">
+  <div class="hero">
+    <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;margin:0;background:linear-gradient(135deg,#0ea5e9 0%,#8b5cf6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">Community Models</h1>
+    <p class="meta" style="margin-top:6px">Share your AI, write a description, show your benchmark. Others can view, like and comment. Make your model public in <a href="/my-models">My Models</a> (toggle Public) to appear here.</p>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <input id="q" class="input" placeholder="Search name or description..." style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter') load()">
+      <button class="btn btn-primary btn-sm" onclick="load()">Search</button>
+      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('q').value='';load()">Clear</button>
+    </div>
+  </div>
+  <div id="list" class="grid"></div>
+  <div id="more" style="text-align:center;margin-top:16px;display:none"><button class="btn btn-secondary btn-sm" onclick="loadMore()">Load more</button></div>
+</main>
+<script>
+let offset=0, limit=12, total=0, query="";
+async function load(reset=true){
+  if(reset){ offset=0; document.getElementById('list').innerHTML=''; }
+  query=document.getElementById('q').value.trim();
+  const r=await fetch(`/api/community?limit=${limit}&offset=${offset}&q=${encodeURIComponent(query)}`);
+  const j=await r.json();
+  total=j.total||0;
+  const box=document.getElementById('list');
+  (j.models||[]).forEach(m=>{
+    const card=document.createElement('div'); card.className='glass-card card';
+    card.innerHTML=`<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><h3>${esc(m.name)}</h3>${m.score!==null?`<span class="badge">${Number(m.score).toFixed(1)}% vs built-ins</span>`:''}</div>
+      <div class="meta">by ${esc(m.owner_name)} · ${m.created_at?m.created_at.slice(0,10):''}</div>
+      <div class="meta" style="margin-top:6px;white-space:pre-wrap">${esc(m.description||'No description')}</div>
+      <div class="meta" style="margin-top:8px">❤ ${m.likes}  ·  💬 ${m.comments}</div>
+      <div style="margin-top:10px"><a class="btn btn-primary btn-sm" href="/community/${m.id}">View & Like / Comment</a></div>`;
+    box.appendChild(card);
+  });
+  offset += (j.models||[]).length;
+  document.getElementById('more').style.display = offset < total ? 'block' : 'none';
+  if(!(j.models||[]).length && offset===0) box.innerHTML='<div class="meta">No shared models yet. Make a model public in My Models.</div>';
+}
+function loadMore(){ load(false); }
+function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+load();
+</script>
+<script src="/static/feedback.js"></script>
+</body>
+</html>

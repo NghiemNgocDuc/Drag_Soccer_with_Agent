@@ -1664,6 +1664,63 @@ def my_models_page():
     return render_template("my_models.html", username=session.get("username", "Player"), models=models, template_code=TEMPLATE, builtin_models=builtins)
 
 
+@app.route("/community")
+def community_page():
+    return render_template("community.html", username=session.get("username", "Player"))
+
+
+@app.route("/community/<model_id>")
+def community_detail(model_id):
+    from db.community import get_public_model
+    m = get_public_model(model_id)
+    if not m:
+        flash("Model not found or not shared")
+        return redirect(url_for("community_page"))
+    return render_template("community_detail.html", username=session.get("username", "Player"), model=m)
+
+
+@app.route("/api/community", methods=["GET"])
+def api_community_list():
+    from db.community import list_public_models
+    q = (request.args.get("q") or "").strip() or None
+    try:
+        limit = max(1, min(50, int(request.args.get("limit", 20))))
+        offset = max(0, int(request.args.get("offset", 0)))
+    except Exception:
+        limit, offset = 20, 0
+    models, total = list_public_models(limit=limit, offset=offset, q=q)
+    return jsonify({"models": models, "total": total, "limit": limit, "offset": offset})
+
+
+@app.route("/api/community/<model_id>/like", methods=["POST"])
+def api_community_like(model_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    from db.community import toggle_like, get_public_model
+    if not get_public_model(model_id):
+        return jsonify({"error": "Model not found"}), 404
+    liked, total = toggle_like(model_id, uid())
+    return jsonify({"ok": True, "liked": liked, "likes": total})
+
+
+@app.route("/api/community/<model_id>/comment", methods=["POST"])
+def api_community_comment(model_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not authenticated"}), 401
+    from db.community import add_comment, get_public_model
+    if not get_public_model(model_id):
+        return jsonify({"error": "Model not found"}), 404
+    data = request.get_json(silent=True) or {}
+    body = (data.get("body") or "").strip()
+    if not body:
+        return jsonify({"error": "Comment required"}), 400
+    try:
+        c = add_comment(model_id, uid(), session.get("username", "Player"), body)
+        return jsonify({"ok": True, "comment": c})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+
+
 @app.route("/api/models/user/validate", methods=["POST"])
 @login_required
 def api_validate_model():
