@@ -27,3 +27,9 @@ services:
         sync: false
       - key: RESEND_FROM_EMAIL
         sync: false
+      - key: MODERATION_PROVIDER
+        sync: false
+      - key: MODERATION_API_KEY
+        sync: false
+      - key: MODERATION_API_SECRET
+        sync: false

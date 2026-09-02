@@ -1557,7 +1557,10 @@ def api_upload_photo():
     data = file.read(MAX_AVATAR_BYTES + 1)
     if len(data) > MAX_AVATAR_BYTES:
         return jsonify({"error": "Image must be 5 MB or smaller."}), 400
-    url = upload_avatar(user_id, data, ext)  # path scoped to this user's session
+    try:
+        url = upload_avatar(user_id, data, ext)  # path scoped to this user's session, includes NSFW check
+    except ValueError as ve:
+        return jsonify({"error": str(ve)}), 400
     if not url:
         return jsonify({"error": "Photo upload failed. Storage may not be configured."}), 503
     if not set_avatar_url(user_id, url):

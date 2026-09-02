@@ -51,3 +51,9 @@ SEMANTIC_SCHOLAR_API_KEY = os.environ.get("SEMANTIC_SCHOLAR_API_KEY", "")
 # About feedback — recipient is server-side only, never exposed to client
 # Set FEEDBACK_TO_EMAIL on Render dashboard to your inbox (e.g. via env var). No default in repo to avoid leaking.
 FEEDBACK_TO_EMAIL = os.environ.get("FEEDBACK_TO_EMAIL", "")
+
+# Moderation — avatar NSFW filter (server-side, Chrome has no built-in)
+# Set MODERATION_PROVIDER=sightengine|moderatecontent|google and keys on Render. If not set, basic checks + log.
+MODERATION_PROVIDER = os.environ.get("MODERATION_PROVIDER", "")
+MODERATION_API_KEY = os.environ.get("MODERATION_API_KEY", "")
+MODERATION_API_SECRET = os.environ.get("MODERATION_API_SECRET", "")
