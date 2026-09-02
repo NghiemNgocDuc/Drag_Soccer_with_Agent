@@ -174,18 +174,21 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
   </div>
 
   <div class="glass-card card">
-    <h3>Benchmark — speed vs accuracy (13 models, all &lt;2s)</h3>
-    <p style="margin:6px 0 8px"><b>Method:</b> <code>DEV_MODE=1</code>, 5× <code>perf_counter</code> on <code>new_soccer_state()</code>, win rate vs greedy <code>3×40 kicks, win to 2</code>. New models: <code>tactic_transformer</code> (TacticAI), <code>graph_gnn</code> (GAT/GPPO), <code>ppo_actor_critic</code>, <code>dqn_relative</code>, <code>genetic_fuzzy</code>. All use <code>simulate_kick</code> + <code>TEMPLATE</code> benchmark block.</p>
-    <p class="meta" style="margin:0 0 8px">Turbo + PPO lookahead: <code>greedy</code> 849→88ms, <code>monte</code> 863→158ms, <code>minimax</code> 2141→689ms, <code>bayesian</code> 3098→806ms, <code>q</code> 1713→536ms — single-player + 2 powers + early exit + 1-ply opponent threat. New: <code>genetic_fuzzy</code> 74ms fastest, <code>ppo</code> 258ms, <code>dqn</code> 276ms, <code>tactic</code> 922ms, <code>graph</code> 962ms (was 1770ms with 6 threat sims → 1).</p>
+    <h3>Benchmark — speed vs accuracy (18 models, all &lt;2s)</h3>
+    <p style="margin:6px 0 8px"><b>Method:</b> <code>DEV_MODE=1</code>, 5× <code>perf_counter</code> on <code>new_soccer_state()</code>, win rate vs greedy <code>3×40 kicks, win to 2</code>. Newest 5: <code>mcts_uct</code> (MCTS), <code>expectimax</code>, <code>potential_field</code> (APF), <code>voronoi</code>, <code>a2c_lite</code>. All 18 use <code>simulate_kick</code> + <code>TEMPLATE</code> benchmark block. <b>Coding editor</b> (<code>/playground</code> + <code>/my-models</code>) shows all 18 under <b>Available models</b> with <code>lat ms</code> + benchmark block; <b>Leaderboard</b> <code>/leaderboard → AI Models</code> sorts by <b>Accuracy</b> / <b>Speed</b> / <b>Recently benchmarked</b>.</p>
+    <p class="meta" style="margin:0 0 8px">Turbo + PPO lookahead: <code>greedy</code> 849→88ms, <code>monte</code> 863→158ms, <code>minimax</code> 2141→689ms, <code>bayesian</code> 3098→806ms, <code>q</code> 1713→536ms — single-player + 2 powers + early exit + 1-ply. Latest: <code>mcts_uct</code> 562ms, <code>expectimax</code> 235ms, <code>a2c_lite</code> 142ms, <code>voronoi</code> 99ms, <code>potential_field</code> 92ms fastest new, <code>genetic_fuzzy</code> 74ms overall fastest.</p>
     <div style="overflow:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.78rem">
         <thead><tr style="text-align:left;border-bottom:1px solid #e2e8f0"><th>Model</th><th>Latency</th><th>Group</th><th>Inspired by</th></tr></thead>
         <tbody>
           <tr><td><code>genetic_fuzzy</code></td><td>74 ms</td><td>Fast &lt;150ms</td><td>GA Mamdani — 9 rules, distance/angle fuzzy</td></tr>
           <tr><td><code>greedy</code> Turbo</td><td>88 ms</td><td>Fast</td><td>Heuristic — 80 sims</td></tr>
+          <tr><td><code>potential_field</code></td><td>92 ms</td><td>Fast</td><td>APF Khatib — attract goal + repel defenders</td></tr>
+          <tr><td><code>voronoi</code></td><td>99 ms</td><td>Fast</td><td>Voronoi control (d_opp-d_my)*0.6</td></tr>
+          <tr><td><code>a2c_lite</code></td><td>142 ms</td><td>Fast</td><td>A2C without NN — advantage V_next-V_cur</td></tr>
           <tr><td><code>monte_carlo</code> Turbo</td><td>158 ms</td><td>Mid</td><td>Monte Carlo 12 samples</td></tr>
-          <tr><td><code>tactic_transformer</code></td><td>922 ms</td><td>Mid</td><td>TacticAI/TranSPORTmer attention + PPO lookahead</td></tr>
-          <tr><td><code>graph_gnn</code></td><td>962 ms</td><td>Mid</td><td>GAT/GPPO graph value + lookahead</td></tr>
+          <tr><td><code>expectimax</code></td><td>235 ms</td><td>Mid</td><td>Expectimax chance 0.5/0.3/0.2</td></tr>
+          <tr><td><code>mcts_uct</code></td><td>562 ms</td><td>Mid</td><td>MCTS UCT c=1.414, 80 roots</td></tr>
           <tr><td><code>dqn_relative</code></td><td>276 ms</td><td>Mid</td><td>DQN RCS — Park 2022</td></tr>
           <tr><td><code>ppo_actor_critic</code></td><td>258 ms</td><td>Mid</td><td>PPO clipped actor-critic</td></tr>
           <tr><td><code>q_learning</code></td><td>536 ms</td><td>Mid</td><td>Zone-aware Q</td></tr>
@@ -193,16 +196,18 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
           <tr><td><code>bayesian</code></td><td>806 ms</td><td>Mid</td><td>Gaussian prior</td></tr>
           <tr><td><code>policy_iteration</code></td><td>983 ms</td><td>Mid</td><td>Lane scoring</td></tr>
           <tr><td><code>value_iteration</code></td><td>1049 ms</td><td>Slow ≥1s</td><td>Centrality</td></tr>
+          <tr><td><code>tactic_transformer</code></td><td>922 ms</td><td>Mid</td><td>TacticAI/TranSPORTmer attention + PPO lookahead</td></tr>
+          <tr><td><code>graph_gnn</code></td><td>962 ms</td><td>Mid</td><td>GAT/GPPO graph value + lookahead</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="meta" style="margin:8px 0 0">* Short 15-kick draws 0-0; `bayesian` 67% vs greedy (2/3, 5×40 win to 2) is best. New models 0% in 3×40 win to 2 but mid latency — need longer 60-kick or `win_goal=1` for signal. All &lt;2s via `_get_ai_move_with_timeout` fallback to greedy.</p>
-    <p style="margin:6px 0 0;font-size:.78rem"><b>Grouped by latency:</b> Fast: genetic_fuzzy, greedy · Mid: monte, ppo, dqn, q, minimax, bayesian, policy, tactic, graph · Slow: value &nbsp;|&nbsp; <b>Coding editor:</b> `+` → `Model N` auto, click to rename, `Available models` shows greedy etc with `lat ms` + code + benchmark block.</p>
-    <p class="meta" style="margin-top:6px">Run: <code>DEV_MODE=1 PYTHONPATH=. python -u bench_new_models.py</code> — also `Playground → Benchmark 5 vs Greedy` bar.</p>
+    <p class="meta" style="margin:8px 0 0">* Short 15-kick draws 0-0; `bayesian` 67% vs greedy (2/3, 5×40 win to 2) is best. Newest 5: `a2c_lite` 1086 progress best in 5×10, `voronoi` 635, `expectimax` 624, `mcts` 382, `potential` 68 — kept for latency/diversity; all 0/2 vs greedy win_to_1 short game. All &lt;2s via `_get_ai_move_with_timeout` fallback to greedy.</p>
+    <p style="margin:6px 0 0;font-size:.78rem"><b>Grouped by latency:</b> Fast: genetic_fuzzy, greedy, potential_field, voronoi, a2c_lite · Mid: monte, expectimax, mcts, ppo, dqn, q, minimax, bayesian, policy, tactic, graph · Slow: value &nbsp;|&nbsp; <b>Coding editor:</b> `+` → `Model N` auto, `Available models` shows all 18 with `lat ms` + code + benchmark block | <b>Leaderboard:</b> `AI Models` tab — sort Accuracy/Speed/Recent, detail modal with per-opponent win rates.</p>
+    <p class="meta" style="margin-top:6px">Run: <code>DEV_MODE=1 PYTHONPATH=. python -u bench_new_models.py</code> — also `Playground → Benchmark 5 vs Greedy` bar (any opponent). Bench vs 7 core built-ins via <code>services/game_analytics.benchmark_model_vs_builtins</code>.</p>
   </div>
 
   <div class="glass-card card">
-    <h3>Models — how they think (13)</h3>
+    <h3>Models — how they think (18)</h3>
     <ul>
       <li><b>Greedy Turbo</b> — best player, 6°/3°, 2 powers, `progress+120 if y in goal`.</li>
       <li><b>Monte Carlo Turbo</b> — 12 Gauss samples, early exit.</li>
@@ -212,8 +217,13 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
       <li><b>PPO Actor-Critic</b> — Kernbach 2026 pretraining: actor clones greedy + clipped noise `0.2`, critic `progress+cohesion`, advantage `V_next-V_cur`, 7° sweep.</li>
       <li><b>DQN Relative</b> — Park 2022 RCS: relative `(dx/400,dy/300)`, handcrafted `Q = -0.8*ball -0.15*goal -0.05*angle`, target `r+0.9*maxQ`.</li>
       <li><b>Genetic Fuzzy</b> — Mansour 2026 GA Mamdani: `dist close/med/far` + `ang small/med/large` triangles (GA 201 iter), 9 rules defuzz centroid → `power/angle`.</li>
+      <li><b>MCTS-UCT</b> — Silver 2016: UCB1 `c=1.414`, 80 roots + 1-ply, early score exit.</li>
+      <li><b>Expectimax</b> — Russell & Norvig: chance node 0.5/0.3/0.2 opponent replies, `v - E[threat]`.</li>
+      <li><b>Potential Field</b> — Khatib APF: attract goal `0.18·d`, repel `600/r` defenders + `300/r` own goal.</li>
+      <li><b>Voronoi</b> — Taki & Kok: control `(d_opp-d_my)*0.6` bonus + progress + goal.</li>
+      <li><b>A2C Lite</b> — synchronous A2C without NN: critic `progress+goal+spacing`, advantage `V_next-V_cur`, 5° sweep single power.</li>
     </ul>
-    <p class="meta">All `simulate_kick` → `traj, scored` 500×3 steps. See `models/*.py` + `TEMPLATE` benchmark block.</p>
+    <p class="meta">All `simulate_kick` → `traj, scored` 500×3 steps. Coding editor <b>/playground</b> & <b>/my-models → Available models</b> list all 18 with lat + code; <b>Leaderboard</b> `/leaderboard` AI Models tab shows Accuracy% + Speed ms + per-opponent Details.</p>
   </div>
 
   <div class="glass-card card" id="workflow">
