@@ -69,7 +69,24 @@ code{background:rgba(14,165,233,.1);border:1px solid rgba(14,165,233,.2);padding
     </div>
     <div class="glass-card card">
       <h3>Players & keeper</h3>
-      <p>4 stats 20–80 (200 per player): <code>Size→radius 12+stat*16, Power→kick 5+stat*10, Weight→mass 3+stat*4, Agility→friction 1000+stat*1000</code>. Keeper 6×2 PlayStyles: Footwork, Rush Out, Deflector, Cross Claimer, Far Reach, Far Throw (+ stronger).</p>
+      <p>4 stats 20–80 (200 per player): <code>Size→radius 12+stat*16, Power→kick 5+stat*10, Weight→mass 3+stat*4, Agility→friction 1000+stat*1000</code>. Keeper 6×2 PlayStyles: Footwork, Rush Out, Deflector, Cross Claimer, Far Reach, Far Throw (+ stronger). <b>New:</b> per-player custom <b>name</b> (20 chars) + <b>kit color</b> in <code>/customize</code> → overrides team, shows in 3D.</p>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="glass-card card">
+      <h3>Social — friends, clans, community</h3>
+      <ul>
+        <li><b>Friends</b> — 32 cap, presence <code>online/in_match/offline</code> + `last seen`, `+` auto `Model N`, `★` favorite, `✎` nickname (24), `🚫` block, `Recently Met` 30, 1-click `Invite` (password optional).</li>
+        <li><b>Clans</b> — create `open` (free) or `request` (leader approves), rename, add member by username, shareable link ` /clans/join/<12hex>` 7d, transfer leader (loses role), tournaments with timezone (`8am UTC+7` → UTC, local shows) + `10min` DQ if not joined.</li>
+        <li><b>Community</b> — share model with `description` + `paper/docs links` (5 max, `http/https`), show `benchmark %` + `likes` + `comments`, others view/like/comment at `/community`.</li>
+        <li><b>Chat</b> — `global` (all), `friend DM` (Supabase, friends only), `clan` (members only, 24h TTL), `match`/`tournament` — all `poll 2.5s` + profanity + block filter.</li>
+      </ul>
+    </div>
+    <div class="glass-card card">
+      <h3>Leaderboards — accuracy & speed, per model</h3>
+      <p>Model leaderboard (`/leaderboard` → `AI Models`) now shows <b>Score</b> (mean win % vs 7 built-ins) + <b>Speed</b> (`avg_latency` ms per move) per model, sorted by `Score` / `Speed` / `Recent`. Built-ins 13 all &lt;2s, `genetic_fuzzy` 74ms fastest.</p>
+      <p class="meta">Benchmark: `POST /api/models/user/&lt;id&gt;/submit-leaderboard` → `benchmark_model_vs_builtins` 35 games, `avg_latency` measured, `GET /api/leaderboard/models?sort=speed`.</p>
     </div>
   </div>
 
