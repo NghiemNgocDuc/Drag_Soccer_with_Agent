@@ -30,31 +30,36 @@ h1{
   box-shadow:var(--glass-shadow);
   overflow:hidden;
 }
-table{width:100%;border-collapse:collapse}
+ table{width:100%;border-collapse:collapse}
 thead th{
   background:rgba(240,245,255,.6);
-  padding:11px 16px;text-align:left;
-  font-size:.62rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  padding:12px 16px;text-align:left;
+  font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;
   color:var(--muted);border-bottom:1px solid var(--glass-border);
+  font-family:'Be Vietnam Pro',system-ui,sans-serif;
 }
 tbody tr{border-bottom:1px solid rgba(80,120,200,.07);transition:background .12s}
 tbody tr:last-child{border-bottom:none}
 tbody tr:hover{background:rgba(219,234,254,.3)}
-tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
-.rank{font-weight:700;color:var(--dim);width:44px}
+tbody td{padding:14px 16px;font-size:.88rem;color:var(--text);font-family:'Be Vietnam Pro',system-ui,sans-serif;line-height:1.5}
+.rank{font-weight:700;color:var(--dim);width:44px;font-size:.9rem}
 .rank-1{color:#d97706}
 .rank-2{color:#6b7280}
 .rank-3{color:#92400e}
-.username-cell{font-weight:600}
-.lb-avatar{width:22px;height:22px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:6px}
+.username-cell{font-weight:600;font-size:.88rem}
+.lb-avatar{width:26px;height:26px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:8px;border:1px solid rgba(255,255,255,.6)}
+.publisher-cell{display:flex;align-items:center;gap:8px}
+.publisher-name{font-weight:600;font-size:.88rem;color:var(--text)}
+.publisher-sub{font-size:.72rem;color:var(--muted)}
 .you-badge{
-  display:inline-block;font-size:.62rem;font-weight:600;
-  padding:2px 7px;border-radius:100px;
+  display:inline-block;font-size:.7rem;font-weight:600;
+  padding:2px 8px;border-radius:100px;
   background:rgba(96,165,250,.12);border:1px solid rgba(96,165,250,.3);
   color:var(--accent);margin-left:6px;vertical-align:middle;
 }
 .win-rate{color:var(--accent-b);font-weight:600}
-.empty{text-align:center;padding:48px;color:var(--muted);font-size:.85rem}
+.speed-val{color:#059669;font-weight:600}
+.empty{text-align:center;padding:48px;color:var(--muted);font-size:.9rem;font-family:'Be Vietnam Pro',system-ui,sans-serif}
 /* model leaderboard */
 .tab-bar{display:flex;gap:4px;margin:0 0 14px}
 .tab{font-size:.78rem;font-weight:600;padding:8px 18px;border-radius:10px;cursor:pointer;border:none;background:rgba(255,255,255,.4);color:var(--muted);transition:all .15s}
@@ -159,7 +164,8 @@ tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
     <div class="glass-card" style="padding:6px 20px 18px">
       <div class="sort-row">
         <label>Sort</label>
-        <button class="sort-btn active" id="sort-score" onclick="sortModels('score')">Score</button>
+        <button class="sort-btn active" id="sort-score" onclick="sortModels('score')">Accuracy</button>
+        <button class="sort-btn" id="sort-speed" onclick="sortModels('speed')">Speed</button>
         <button class="sort-btn" id="sort-recent" onclick="sortModels('recent')">Recently benchmarked</button>
       </div>
       <table>
@@ -167,8 +173,9 @@ tbody td{padding:13px 16px;font-size:.85rem;color:var(--text)}
           <tr>
             <th class="rank">#</th>
             <th>Model</th>
-            <th>Owner</th>
-            <th>Score (win&thinsp;% vs built-ins)</th>
+            <th>Publisher</th>
+            <th>Accuracy</th>
+            <th>Speed</th>
             <th>Games / Opp</th>
             <th>Last Benchmarked</th>
             <th></th>
@@ -209,6 +216,7 @@ function switchTab(name) {
 function sortModels(sort) {
   modelsSort = sort;
   document.getElementById('sort-score').classList.toggle('active', sort === 'score');
+  document.getElementById('sort-speed').classList.toggle('active', sort === 'speed');
   document.getElementById('sort-recent').classList.toggle('active', sort === 'recent');
   modelsOffset = 0;
   document.getElementById('models-tbody').innerHTML = '';
@@ -241,11 +249,15 @@ function appendRows(entries) {
   entries.forEach((e, i) => {
     const rank = (modelsOffset) + i + 1;
     const tr = document.createElement('tr');
+    const pub = '<div class="publisher-cell">' + (e.avatar_url ? '<img class="lb-avatar" src="' + esc(e.avatar_url) + '" alt="">' : '<div class="lb-avatar" style="background:linear-gradient(135deg,#06b6d4,#8b5cf6);display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7rem;font-weight:700">' + esc(e.username[0]||'?').toUpperCase() + '</div>') + '<div><div class="publisher-name">' + esc(e.username) + (e.username === '{{ username }}' ? ' <span class="you-badge">You</span>' : '') + '</div><div class="publisher-sub">ID ' + esc(e.model_id.slice(0,8)) + '</div></div></div>';
+    const speed = e.avg_latency != null ? Number(e.avg_latency).toFixed(0) + ' ms' : '—';
+    const speedClass = e.avg_latency != null && e.avg_latency < 500 ? 'speed-val' : (e.avg_latency != null && e.avg_latency < 1000 ? 'speed-val' : 'win-rate');
     tr.innerHTML =
       '<td class="rank">' + rank + '</td>' +
       '<td class="username-cell">' + esc(e.model_name) + '</td>' +
-      '<td>' + (e.avatar_url ? '<img class="lb-avatar" src="' + esc(e.avatar_url) + '" alt="">' : '') + '<span class="username-cell">' + esc(e.username) + '</span>' + (e.username === '{{ username }}' ? '<span class="you-badge">You</span>' : '') + '</td>' +
+      '<td>' + pub + '</td>' +
       '<td class="score-val">' + Number(e.score).toFixed(1) + '%</td>' +
+      '<td class="' + speedClass + '">' + speed + '</td>' +
       '<td>' + e.games_per_opponent + '</td>' +
       '<td class="ml-ago">' + ago(e.benchmarked_at) + '</td>' +
       '<td><button class="btn-detail" onclick="showModel(\'' + esc(e.model_id) + '\')">Details</button></td>';
@@ -266,9 +278,10 @@ async function showModel(modelId) {
   const r = await fetch('/api/leaderboard/models/' + modelId);
   const d = await r.json();
   if (d.error) { closeModal(); return; }
+  const pub = (d.avatar_url ? '<img src="' + esc(d.avatar_url) + '" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:8px">' : '') + esc(d.username) + (d.avg_latency != null ? ' · ' + Number(d.avg_latency).toFixed(0) + ' ms avg' : '');
   document.getElementById('detail-name').textContent = d.model_name;
-  document.getElementById('detail-sub').textContent =
-    'Owner ' + d.username + ' · score ' + Number(d.score).toFixed(1) + '% · ' + d.games_per_opponent + ' games per opponent';
+  document.getElementById('detail-sub').innerHTML =
+    'Publisher ' + pub + ' · accuracy ' + Number(d.score).toFixed(1) + '% · speed ' + (d.avg_latency != null ? Number(d.avg_latency).toFixed(0) + ' ms' : '—') + ' · ' + d.games_per_opponent + ' games per opponent';
   let html = '';
   (d.details || []).forEach(x => {
     const pct = Number(x.win_rate || 0);
