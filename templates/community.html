@@ -115,7 +115,7 @@ async function load(reset=true){
       <div class="meta">by ${esc(m.owner_name)} · ${m.created_at?m.created_at.slice(0,10):''}</div>
       <div class="meta" style="margin-top:6px;white-space:pre-wrap">${esc(m.description||'No description')}</div>
       ${linksHtml}
-      <div class="meta" style="margin-top:8px">❤ ${m.likes}  ·  💬 ${m.comments}</div>
+      <div class="meta" style="margin-top:8px"> ${m.likes}  ·   ${m.comments}</div>
       <div style="margin-top:10px"><a class="btn btn-primary btn-sm" href="/community/${m.id}">View & Like / Comment</a></div>`;
     box.appendChild(card);
   });

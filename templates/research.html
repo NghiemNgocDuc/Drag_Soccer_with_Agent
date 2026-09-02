@@ -294,7 +294,7 @@ function paperCard(p, isSaved) {
       ${p.venue ? `<span class="paper-venue">${escHtml(p.venue)}</span>` : ''}
       ${p.year ? `<span class="paper-year">${p.year}</span>` : ''}
       ${cites > 0 ? `<span class="paper-cites ${citesCls}">${cites} citations</span>` : ''}
-      ${isSaved ? '<span class="saved-badge">&#10003; Saved</span>' : ''}
+      ${isSaved ? '<span class="saved-badge"> Saved</span>' : ''}
     </div>
     ${abstract ? `<div class="paper-abstract" id="abs-${pid}">${escHtml(abstract)}</div>` : ''}
     <div class="paper-actions">

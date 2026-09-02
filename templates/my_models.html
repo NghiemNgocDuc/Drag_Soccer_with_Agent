@@ -292,7 +292,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
 
     <!-- How to code — tutorial on this page -->
     <details style="background:rgba(14,165,233,.08);border:1px solid rgba(14,165,233,.18);border-radius:12px;padding:12px 14px;margin-bottom:12px" open>
-      <summary style="font-size:.82rem;font-weight:800;cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px"><span style="font-size:1rem">📘</span> How to code your own model — tutorial <span style="margin-left:auto;font-size:.68rem;color:var(--muted)">click to collapse</span></summary>
+      <summary style="font-size:.82rem;font-weight:800;cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px"><span style="font-size:1rem"></span> How to code your own model — tutorial <span style="margin-left:auto;font-size:.68rem;color:var(--muted)">click to collapse</span></summary>
       <div style="margin-top:10px;font-size:.78rem;line-height:1.6;color:var(--text)">
         <p style="margin:0 0 8px"><b>1. Contract:</b> <code>def get_ai_move(state, is_player_a): return (idx, angle, power)</code> — <code>idx 0/1/2</code>, <code>angle 0=right 90=down</code>, <code>power 0-100</code>. Read <code>state["ball"]</code>, <code>state["players_a/b"]</code>, <code>state["field"]</code> — never hardcode <code>1400×875</code>.</p>
         <p style="margin:0 0 8px"><b>2. Pick kicker:</b> <code>min(range(3), key=lambda i: hypot(players[i].x-bx))</code> — or reach-aware: <code>dist/(power/50)</code> for Power-85 striker.</p>

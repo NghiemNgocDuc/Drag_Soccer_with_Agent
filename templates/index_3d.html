@@ -207,9 +207,9 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
       <button class="btn btn-ghost btn-sm" id="pass-through" onclick="setPassType('through')">W Through</button>
     </div>
     <div class="sep"></div>
-    <button class="btn btn-ghost" id="online-btn" onclick="showOnlineLobby(true)">&#x1F517; Online</button>
+    <button class="btn btn-ghost" id="online-btn" onclick="showOnlineLobby(true)">Online</button>
     <div class="sep"></div>
-    <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">&#x1F50A;</button>
+    <button class="sound-btn" id="sound-btn" onclick="SoundManager.toggleMute()">Sound</button>
     <div class="sep"></div>
     <button class="btn btn-ghost" id="view-settings-btn" onclick="showViewSettings(true)" title="View settings — 120s to choose"> View</button>
   </div>
@@ -219,7 +219,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
   <!-- Online match lobby (chat-enabled 1v1) -->
   <div class="online-modal" id="online-lobby">
     <div class="online-modal-card">
-      <h3>&#x1F517; Play Online</h3>
+      <h3> Play Online</h3>
       <p id="online-lobby-status">Create a match, share the link with a friend, and chat while you play.</p>
       <div id="online-lobby-create">
         <input id="online-invite-link" readonly onclick="this.select()">
@@ -262,7 +262,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
         <p style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Ranked matches pair you with a player of similar skill &mdash; your ELO rating changes with every result.</p>
         <p id="ranked-season-line" style="font-size:.72rem;color:var(--muted);margin-bottom:8px"></p>
         <div class="row">
-          <button class="btn btn-primary" id="ranked-btn" onclick="rankedJoin()">&#127942; Play Ranked</button>
+          <button class="btn btn-primary" id="ranked-btn" onclick="rankedJoin()">Play Ranked</button>
           <button class="btn btn-ghost" id="ranked-cancel-btn" style="display:none" onclick="rankedCancel()">Cancel Queue</button>
         </div>
         <p id="ranked-status" style="display:none;margin-top:8px"></p>
@@ -271,7 +271,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
         <p style="font-size:.85rem;font-weight:800;margin-bottom:6px">Quick Match</p>
         <p style="font-size:.72rem;color:var(--muted);margin-bottom:8px">Player vs Player searches for an active player — if none in 8s you play a random AI. Player vs AI is instant vs a random built-in.</p>
         <div class="row" style="gap:8px">
-          <button class="btn btn-primary" id="quick-play-btn" onclick="quickPlayPVP()">▶ Play</button>
+          <button class="btn btn-primary" id="quick-play-btn" onclick="quickPlayPVP()">Play</button>
           <button class="btn btn-ghost" id="match-models-btn" onclick="openMatchModels()">Match Models</button>
           <button class="btn btn-ghost" id="quick-pva-btn" onclick="quickPlayVsAI()">Player vs AI</button>
           <button class="btn btn-ghost" id="quick-cancel-btn" style="display:none" onclick="quickCancel()">Cancel</button>
@@ -344,12 +344,12 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
   }
   </script>
   <!-- Voice chat (1v1 online only) -->
-  <button id="voice-btn" onclick="voiceToggle()" title="Enable voice chat (microphone)">&#127908; Voice</button>
+  <button id="voice-btn" onclick="voiceToggle()" title="Enable voice chat (microphone)"> Voice</button>
   <div id="voice-panel">
     <span id="voice-status"><span class="dot"></span>Voice: off</span>
-    <button id="voice-mic-btn" class="vp-btn" onclick="voiceToggleMic()" title="Mute / unmute microphone">&#127908;</button>
+    <button id="voice-mic-btn" class="vp-btn" onclick="voiceToggleMic()" title="Mute / unmute microphone">Mic</button>
     <span id="voice-opp-muted">opponent muted</span>
-    <button id="voice-end-btn" class="vp-btn" onclick="voiceDisconnect()" title="Disconnect from voice chat">&#10005;</button>
+    <button id="voice-end-btn" class="vp-btn" onclick="voiceDisconnect()" title="Disconnect from voice chat">X</button>
   </div>
 
   <!-- Penalty shootout UI -->

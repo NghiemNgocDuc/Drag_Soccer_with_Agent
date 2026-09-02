@@ -214,7 +214,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
     <h2 class="section-title">Lineups</h2>
     <div class="lineups">
       <div class="lineup-col">
-        <h3>🟦 {{ s.name_a }} — Team A</h3>
+        <h3> {{ s.name_a }} — Team A</h3>
         {% for p in s.build_a %}
         <div class="lp-player">
           <div class="lp-head">Player {{ loop.index }}<span>{{ p.size + p.power + p.weight + p.agility }}/200</span></div>
@@ -225,7 +225,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
         {% endfor %}
       </div>
       <div class="lineup-col">
-        <h3>🟥 {{ s.name_b }} — Team B</h3>
+        <h3> {{ s.name_b }} — Team B</h3>
         {% for p in s.build_b %}
         <div class="lp-player">
           <div class="lp-head">Player {{ loop.index }}<span>{{ p.size + p.power + p.weight + p.agility }}/200</span></div>

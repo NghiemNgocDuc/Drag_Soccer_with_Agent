@@ -322,7 +322,7 @@ async function loadClanTournaments(){
         const aName=pmap[m.participant_a]||m.participant_a?.slice(0,8)||'—';
         const bName=pmap[m.participant_b]||m.participant_b?.slice(0,8)||'bye';
         const sched=m.scheduled_at? fmtTime(m.scheduled_at): 'no time';
-        const status=m.status==='completed' ? (m.disqualified? `DQ ${m.disqualified.slice(0,8)} → ${pmap[m.winner]||m.winner}` : `Winner ${pmap[m.winner]||m.winner||''}`) : `pending ${m.scheduled_at? fmtCountdown(m.scheduled_at):''} ${m.joined_a?'A✓':''} ${m.joined_b?'B✓':''}`;
+        const status=m.status==='completed' ? (m.disqualified? `DQ ${m.disqualified.slice(0,8)} → ${pmap[m.winner]||m.winner}` : `Winner ${pmap[m.winner]||m.winner||''}`) : `pending ${m.scheduled_at? fmtCountdown(m.scheduled_at):''} ${m.joined_a?'A':''} ${m.joined_b?'B':''}`;
         mbox.innerHTML+=`<div style="display:flex;gap:6px;align-items:center;padding:6px;border:1px solid #f1f5f9;border-radius:8px;margin-bottom:4px;background:${m.status==='completed'?'#f8fafc':'#fff'}">
           <span style="font-size:.75rem;flex:1">${aName} vs ${bName} — ${sched} — <b>${status}</b></span>
           ${m.status==='pending' ? `<button class="btn btn-primary btn-sm" onclick="joinClanMatch('${t.id}','${m.id}')">Join match (10min)</button>`:''}

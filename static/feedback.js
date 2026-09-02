@@ -1,7 +1,7 @@
 (function () {
   var FEEDBACK_HTML =
     '<div id="fb-fab" title="Send feedback" style="position:fixed;bottom:24px;right:24px;z-index:9999;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#06b6d4,#8b5cf6);color:#fff;border:none;cursor:pointer;box-shadow:0 6px 24px rgba(6,182,212,.4);display:flex;align-items:center;justify-content:center;font-size:1.4rem;transition:transform .2s,box-shadow .2s">' +
-      '<span style="transform:translateY(-1px)">&#9993;</span>' +
+      '<span style="transform:translateY(-1px)"></span>' +
     '</div>' +
     '<div id="fb-overlay" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,.35);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px">' +
       '<div style="background:rgba(255,255,255,.85);backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.5);border-radius:18px;box-shadow:0 24px 60px rgba(80,120,200,.15);padding:28px 24px;width:100%;max-width:460px;position:relative;font-family:\'Inter\',system-ui,sans-serif">' +
