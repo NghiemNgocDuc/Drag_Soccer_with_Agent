@@ -267,6 +267,22 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
         </div>
         <p id="ranked-status" style="display:none;margin-top:8px"></p>
       </div>
+      <div id="quick-match" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
+        <p style="font-size:.85rem;font-weight:800;margin-bottom:6px">Quick Match</p>
+        <p style="font-size:.72rem;color:var(--muted);margin-bottom:8px">Player vs Player searches for an active player — if none in 8s you play a random AI. Player vs AI is instant vs a random built-in.</p>
+        <div class="row" style="gap:8px">
+          <button class="btn btn-primary" id="quick-play-btn" onclick="quickPlayPVP()">▶ Play</button>
+          <button class="btn btn-ghost" id="quick-pva-btn" onclick="quickPlayVsAI()">Player vs AI</button>
+          <button class="btn btn-ghost" id="quick-cancel-btn" style="display:none" onclick="quickCancel()">Cancel</button>
+        </div>
+        <div id="quick-loading" style="display:none;margin-top:10px;align-items:center;gap:10px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.6);border-radius:10px;padding:10px 12px">
+          <div class="quick-spinner" style="width:18px;height:18px;border:2px solid rgba(14,165,233,.2);border-top-color:#0ea5e9;border-radius:50%;animation:qm-spin .7s linear infinite"></div>
+          <span id="quick-loading-text" style="font-size:.82rem;color:#0f172a;font-weight:600">Searching for opponent…</span>
+          <span id="quick-loading-sub" style="font-size:.72rem;color:var(--muted);margin-left:auto">8s → vs AI</span>
+        </div>
+        <p id="quick-status" style="display:none;margin-top:8px;font-size:.8rem"></p>
+      </div>
+      <style>@keyframes qm-spin{to{transform:rotate(360deg)}}</style>
     </div>
   </div>
   <div id="online-bar" style="display:none"></div>
@@ -2130,6 +2146,110 @@ window.rankedCancel = async function() {
   document.getElementById('ranked-status').style.display = 'none';
   try { await fetch('/ranked/cancel', { method: 'POST' }); } catch (e) { /* ignore */ }
 };
+
+//  Quick Match (Play — PvP with 8s AI fallback + Player vs AI random) 
+const QUICK = { active: false, timer: null, fallback: null, mode: null };
+window.quickPlayPVP = async function() {
+  if (QUICK.active) return;
+  QUICK.active = true; QUICK.mode = 'pvp';
+  document.getElementById('quick-play-btn').style.display = 'none';
+  document.getElementById('quick-pva-btn').style.display = 'none';
+  document.getElementById('quick-cancel-btn').style.display = '';
+  const box = document.getElementById('quick-loading');
+  const st = document.getElementById('quick-status');
+  box.style.display = 'flex';
+  st.style.display = 'block';
+  st.textContent = 'Searching for an active player…';
+  document.getElementById('quick-loading-text').textContent = 'Searching for opponent…';
+  let secs = 8;
+  const sub = document.getElementById('quick-loading-sub');
+  if (QUICK.fallback) clearInterval(QUICK.fallback);
+  QUICK.fallback = setInterval(() => { secs--; if (secs>0) sub.textContent = secs+'s → vs AI'; else { sub.textContent = 'no player → vs AI'; clearInterval(QUICK.fallback); handleQuickFallback(); } }, 1000);
+  try {
+    const resp = await fetch('/api/quick/join', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:'pvp'}) });
+    const data = await resp.json();
+    if (data.status === 'matched' && data.room_id) { clearInterval(QUICK.fallback); await enterQuickMatch(data.room_id); return; }
+  } catch(e) {}
+  QUICK.timer = setInterval(pollQuickStatus, 1000);
+};
+window.quickPlayVsAI = async function() {
+  try {
+    const resp = await fetch('/api/quick/join', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:'pva'}) });
+    const data = await resp.json();
+    const pick = data.ai_model || data.ai_name || 'greedy';
+    document.getElementById('quick-status').style.display='block';
+    document.getElementById('quick-status').textContent = 'Matched vs AI: ' + pick + ' — starting…';
+    // start local AI game: set opponent and start
+    try { await fetch('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model: pick, target:'b'}) }); } catch(e){}
+    closeOnlineLobby();
+    const sel = document.getElementById('model-select'); if(sel) sel.value=pick;
+    // force human vs AI mode then start
+    const modeSel=document.getElementById('mode-select'); if(modeSel) modeSel.value='hvai';
+    if (window.setMode) await window.setMode('hvai');
+    const s=await fetch('/state').then(r=>r.json()); if(s) { gameState=s; rebuildPlayers(); }
+  } catch(e) { alert('Could not start vs AI'); }
+  resetQuickUI();
+};
+async function handleQuickFallback() {
+  if (!QUICK.active || QUICK.mode!=='pvp') return;
+  // no player found in 8s -> vs random AI
+  try { await fetch('/api/quick/cancel', {method:'POST'}); } catch(e){}
+  if (QUICK.timer) { clearInterval(QUICK.timer); QUICK.timer=null; }
+  const st=document.getElementById('quick-status');
+  st.textContent='No player found — matching vs random AI…';
+  // pick random AI via pva endpoint
+  try {
+    const resp = await fetch('/api/quick/join', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:'pva'}) });
+    const data = await resp.json();
+    const pick = data.ai_model || 'greedy';
+    st.textContent='Matched vs AI: ' + pick;
+    try { await fetch('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model: pick, target:'b'}) }); } catch(e){}
+    closeOnlineLobby();
+    resetQuickUI();
+    const modeSel=document.getElementById('mode-select'); if(modeSel) modeSel.value='hvai';
+    if (window.setMode) await window.setMode('hvai');
+  } catch(e){ st.textContent='Fallback failed'; resetQuickUI(); }
+}
+async function pollQuickStatus(){
+  if (!QUICK.active) return;
+  try {
+    const data = await fetch('/api/quick/status').then(r=>r.json());
+    if (data.status==='matched' && data.room_id) {
+      if (QUICK.fallback) clearInterval(QUICK.fallback);
+      if (QUICK.timer) { clearInterval(QUICK.timer); QUICK.timer=null; }
+      await enterQuickMatch(data.room_id);
+    }
+  } catch(e){}
+}
+async function enterQuickMatch(room_id){
+  resetQuickUI();
+  const resp=await fetch('/online/'+room_id+'/join', {method:'POST'});
+  const join=await resp.json();
+  if (join.error){ alert(join.error); return; }
+  closeOnlineLobby();
+  history.replaceState(null,'','/play3d?room='+room_id);
+  startOnline(join);
+}
+window.quickCancel = async function(){
+  QUICK.active=false;
+  if (QUICK.timer){ clearInterval(QUICK.timer); QUICK.timer=null; }
+  if (QUICK.fallback){ clearInterval(QUICK.fallback); QUICK.fallback=null; }
+  try{ await fetch('/api/quick/cancel',{method:'POST'});}catch(e){}
+  resetQuickUI();
+  document.getElementById('quick-status').textContent='Cancelled';
+};
+function resetQuickUI(){
+  QUICK.active=false;
+  if (QUICK.timer){ clearInterval(QUICK.timer); QUICK.timer=null; }
+  if (QUICK.fallback){ clearInterval(QUICK.fallback); QUICK.fallback=null; }
+  document.getElementById('quick-play-btn').style.display='';
+  document.getElementById('quick-pva-btn').style.display='';
+  document.getElementById('quick-cancel-btn').style.display='none';
+  document.getElementById('quick-loading').style.display='none';
+  const st=document.getElementById('quick-status');
+  setTimeout(()=>{ if(!QUICK.active) st.style.display='none'; }, 1800);
+}
+window.quickPlayPVP = window.quickPlayPVP; window.quickPlayVsAI = window.quickPlayVsAI; window.quickCancel = window.quickCancel;
 
 //  Voice chat (1v1 P2P WebRTC, STUN-only) 
 const VOICE = {

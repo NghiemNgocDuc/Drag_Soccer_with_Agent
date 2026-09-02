@@ -2829,6 +2829,131 @@ def ranked_status():
     return jsonify(_ranked_payload(uid()))
 
 
+#  Quick Match (Play button — PvP with AI fallback + Player vs AI random) 
+QUICK_QUEUE_KEY = "quick:queue"
+QUICK_MATCH_KEY = "quick:match"
+QUICK_TTL = 3600
+QUICK_GRACE = 30
+
+def _quick_members() -> set:
+    from db.redis_client import r as redis
+    m = redis.smembers(QUICK_QUEUE_KEY)
+    return {x.decode() if isinstance(x, bytes) else x for x in m}
+
+def _create_quick_room(a_uid: str, b_uid: str) -> str:
+    from db.redis_client import r as redis
+    names = _profile_names([a_uid, b_uid])
+    room_id = _uuid.uuid4().hex[:10]
+    room = {
+        "game": new_game_state(mode="hvh"),
+        "player_a": a_uid,
+        "player_b": b_uid,
+        "name_a": names.get(a_uid) or "Player A",
+        "name_b": names.get(b_uid) or "Player B",
+        "status": "active",
+        "last_move": None,
+        "move_log": [],
+        "started_at": _time.time(),
+        "ranked": False,
+    }
+    _save_room(room_id, room)
+    _mark_room_active(room_id)
+    redis.setex(f"{QUICK_MATCH_KEY}:{a_uid}", QUICK_GRACE, room_id)
+    redis.setex(f"{QUICK_MATCH_KEY}:{b_uid}", QUICK_GRACE, room_id)
+    _set_presence_in_match(a_uid, room_id)
+    _set_presence_in_match(b_uid, room_id)
+    return room_id
+
+def _try_quick_match() -> list:
+    from db.redis_client import r as redis
+    members = list(_quick_members())
+    if len(members) < 2:
+        return []
+    # FIFO by join time if available
+    def _ts(u):
+        raw = redis.get(f"quick:join:{u}")
+        try:
+            return float(raw) if raw else 0
+        except:
+            return 0
+    members.sort(key=_ts)
+    made = []
+    used = set()
+    for i in range(0, len(members)-1, 2):
+        a = members[i]
+        b = members[i+1]
+        if a in used or b in used:
+            continue
+        # skip if either already matched
+        if redis.exists(f"{QUICK_MATCH_KEY}:{a}") or redis.exists(f"{QUICK_MATCH_KEY}:{b}"):
+            continue
+        room_id = _create_quick_room(a, b)
+        redis.srem(QUICK_QUEUE_KEY, a)
+        redis.srem(QUICK_QUEUE_KEY, b)
+        redis.delete(f"quick:join:{a}")
+        redis.delete(f"quick:join:{b}")
+        used.update([a,b])
+        made.append({"a": a, "b": b, "room_id": room_id})
+    return made
+
+
+@app.route("/api/quick/join", methods=["POST"])
+def quick_join():
+    from db.redis_client import r as redis
+    data = request.get_json(silent=True) or {}
+    mode = (data.get("mode") or "pvp").lower()
+    me = uid()
+    if mode == "pva":
+        import random as _rnd
+        choices = list(MODELS.keys())
+        pick = _rnd.choice(choices) if choices else "greedy"
+        return jsonify({"status": "matched", "mode": "pva", "ai_model": pick, "ai_name": pick})
+    # pvp: queue with AI fallback handled client-side after timeout, but also try instant pair
+    # if already matched, return it
+    mid = redis.get(f"{QUICK_MATCH_KEY}:{me}")
+    if mid:
+        mid_s = mid.decode() if isinstance(mid, bytes) else mid
+        return jsonify({"status": "matched", "mode": "pvp", "room_id": mid_s})
+    if not redis.sismember(QUICK_QUEUE_KEY, me):
+        redis.sadd(QUICK_QUEUE_KEY, me)
+        redis.setex(f"quick:join:{me}", QUICK_TTL, _time.time())
+    _try_quick_match()
+    mid = redis.get(f"{QUICK_MATCH_KEY}:{me}")
+    if mid:
+        mid_s = mid.decode() if isinstance(mid, bytes) else mid
+        return jsonify({"status": "matched", "mode": "pvp", "room_id": mid_s})
+    return jsonify({"status": "waiting", "mode": "pvp"})
+
+
+@app.route("/api/quick/cancel", methods=["POST"])
+def quick_cancel():
+    from db.redis_client import r as redis
+    me = uid()
+    redis.srem(QUICK_QUEUE_KEY, me)
+    redis.delete(f"quick:join:{me}")
+    # keep match key if already matched so client can still join
+    return jsonify({"ok": True})
+
+
+@app.route("/api/quick/status")
+def quick_status():
+    from db.redis_client import r as redis
+    _try_quick_match()
+    me = uid()
+    mid = redis.get(f"{QUICK_MATCH_KEY}:{me}")
+    if mid:
+        mid_s = mid.decode() if isinstance(mid, bytes) else mid
+        # verify room still active
+        room = _load_room(mid_s)
+        if room and room.get("status") == "active":
+            return jsonify({"status": "matched", "mode": "pvp", "room_id": mid_s})
+        # stale
+        redis.delete(f"{QUICK_MATCH_KEY}:{me}")
+    if redis.sismember(QUICK_QUEUE_KEY, me):
+        return jsonify({"status": "waiting", "mode": "pvp"})
+    return jsonify({"status": "idle"})
+
+
 #  Ranked leaderboard (human players, distinct from the AI-model board) 
 
 @app.route("/api/leaderboard/ranked")
