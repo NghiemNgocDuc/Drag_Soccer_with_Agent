@@ -275,7 +275,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
 
   <!-- Hero -->
   <div class="hero">
-    <div class="avatar">{% if avatar_url %}<img class="avatar-img" src="{{ avatar_url }}" alt="{{ username }}">{% else %}{{ username[0].upper() }}{% endif %}</div>
+    <div class="avatar" id="hero-avatar" title="Click to change avatar" style="cursor:pointer" onclick="document.getElementById('photo-input').click()">{% if avatar_url %}<img class="avatar-img" src="{{ avatar_url }}" alt="{{ username }}">{% else %}{{ username[0].upper() }}{% endif %}</div>
     <div class="hero-info">
       <h1>{{ username }}</h1>
       <p class="tagline">Player · Agent Soccer</p>
@@ -300,7 +300,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
           <button type="button" class="btn btn-primary" id="photo-upload-btn">Upload</button>
           <button type="button" class="btn btn-danger" id="photo-remove-btn">Remove Photo</button>
         </div>
-        <div class="hint">JPG, PNG or WebP · max 5 MB. Your photo shows on your profile and the leaderboard.</div>
+        <div class="hint">JPG, PNG or WebP · max 5 MB. Your photo shows on your profile and the leaderboard. Click avatar above or Choose Photo. No Chrome built-in filter — we check type/size + server moderation (NSFW check via Vision API when configured).</div>
         <div class="form-status" id="photo-status"></div>
       </div>
     </div>
