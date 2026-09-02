@@ -5,11 +5,11 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 
 ## Architecture
 
-- **Backend**: Flask (Python), pymunk physics engine, SQLite + SQLAlchemy
-- **Frontend**: Three.js 3D rendering via HTML templates, shared SoundManager (`static/sound.js`)
-- **AI models**: 7 agents (greedy, minimax, bayes, monte_carlo, q_learning, value_iteration, policy_iteration) — all use `simulate_kick` for lookahead evaluation
-- **Auth**: Flask-Login, custom user model with registration/login
-- **3D-only**: All 2D game templates deleted (`index.html`, `online.html`, `replay.html`). Route `/` redirects to `/play3d`.
+- **Backend**: Flask (Python), pymunk physics engine, Redis (Upstash) + Supabase, gthread 4×2
+- **Frontend**: Three.js 3D rendering via HTML templates, shared SoundManager (`static/sound.js`), `design-system.css` glass
+- **AI models**: 18 agents (greedy … a2c_lite via `app.py:104` MODELS — 7 original + tactic_transformer/graph_gnn/ppo/dqn/genetic_fuzzy + mcts_uct/expectimax/potential_field/voronoi/a2c_lite) — all `simulate_kick` + `TEMPLATE` block, `<600ms` via `_ai_pool`
+- **Auth**: Supabase + Clerk optional, Flask-Login, dev `DEV_MODE=1` in-memory
+- **3D-only**: All 2D templates deleted. Route `/` → `/play3d` or `landing.html` for guests; `static/workflow.png` + `workflow.pdf` at root
 
 ## What's in place
 
@@ -308,9 +308,19 @@ fd1ef13 Implement all customization features in game canvas
 9d5c9f4 Move customization to its own standalone page at /customize with server-side persistence
 ```
 
+## Recent additions (2026)
+
+- **18 AI models** `a5a3503` + `798c763` tuning via web research (WU-UCT, KNN, APF hybrid) — expectimax `624→2124` progress, all `<600ms`, bench `74→1049ms` in `about.html:177`
+- **Weather** `fc3d495` — `weather: clear/rain/snow/fog/wind` in `customize.html:253` + `index_3d.html:645` snow/rain/fog visuals `CUST_WEATHER`
+- **Quick Match** `a5a3503` — `POST /api/quick/join` pvp/pva, `Play` spinner `8s → vs random AI (18)`, `Player vs AI` instant, `quick:queue` Redis
+- **Match Models** `ab40441` — `Match Models` button next to Play → modal lists `GET /api/quick/models` 18 builtins + my code `user_model:*`, `Play vs this`
+- **Chat GIFs** `0cbe529` — `static/chat.js:16` `GIF_GRID` 12 giphy, `GIF` button + `chat-gif` inline `<img>`
+- **Content** `236cac2` — landing `18 agents` hero, `about` inline workflow, `learn` 7 lessons, SEO `18 AI` + OG `workflow.png`
+- **Emoji cleanup** `204c7ec` — keep only while chatting (`static/chat.js` 57), strip elsewhere → text `Fav/Edit/Block/Mic/Sound/Play`
+
 ## What would be next
 
-- **Online multiplayer 3D** — rebuild `/online` with Three.js rendering
+- **Online multiplayer 3D** — extended quick match with ranked `K40→K20` + seasons already done; add voice TURN, re-match button
 - **Air friction re-tuning**: `_BALL_AIR_FRICTION=100` is 10% of ground. If lofted passes feel too floaty, raise it. If still short of goal, lower it.
 - **Weight/Agility independence**: Currently multiplied into same `max_force` term (`m*fric`). They could become independent levers by splitting the formula.
 - **More AI models** that leverage stats in their evaluation.
