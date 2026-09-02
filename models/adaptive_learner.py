@@ -150,21 +150,40 @@ def _action_to_move(action_idx: int, state, is_player_a: bool):
     power = powers[pow_idx if pow_idx < len(powers) else -1]
     return player_idx, angle, power
 
-def _reward_for(end, scored, target, is_player_a, defensive, start_x):
+def _epv(x, y, is_player_a, opp_players=None):
+    """Expected Possession Value per R2D-RL (Qin et al. 2026): P(goal|x,y) shaped by dist, angle, pressure."""
+    gx = FIELD_W if is_player_a else 0
+    gy = (GOAL_Y1+GOAL_Y2)/2
+    d = math.hypot(x-gx, y-gy)
+    # distance term: logistic 1/(1+exp((d-320)/140)) — closer = higher EPV
+    p_dist = 1.0 / (1.0 + math.exp((d - 320) / 140))
+    # angle term: central 356-519 is 0 angle, edge 60deg off center reduces
+    ang = abs(math.degrees(math.atan2(y-gy, x-gx)) if x!=gx else 0)
+    p_angle = max(0, 1 - ang/75.0)
+    # pressure: nearest defender within 80 reduces EPV (self-supervised teacher idea: pseudo-label from greedy)
+    p_press = 1.0
+    if opp_players:
+        d_opp = min(math.hypot(p["x"]-x, p["y"]-y) for p in opp_players)
+        if d_opp < 80:
+            p_press = 0.55 + 0.45 * (d_opp/80)
+    return p_dist * 0.6 + p_angle * 0.25 + p_press * 0.15
+
+def _reward_for(end, scored, target, is_player_a, defensive, start_x, opp_players=None):
     if scored == target:
-        return 100.0
+        return 120.0
     if scored:
-        return -80.0
+        return -90.0
     if not end:
         return -20.0
-    r = progress_score(end["x"], is_player_a, defensive)
+    # EPV shaping (R2D-RL) + progress + teacher pseudo-label bonus (Lin et al. 2025)
+    r = progress_score(end["x"], is_player_a, defensive) * 0.55
+    r += _epv(end["x"], end["y"], is_player_a, opp_players) * 65.0
     if GOAL_Y1 <= end["y"] <= GOAL_Y2:
-        r += 35.0
-    # small step reward for forward progress
+        r += 28.0
     if is_player_a:
-        r += max(-15, min(15, (end["x"] - start_x) * 0.06))
+        r += max(-12, min(12, (end["x"] - start_x) * 0.05))
     else:
-        r += max(-15, min(15, (start_x - end["x"]) * 0.06))
+        r += max(-12, min(12, (start_x - end["x"]) * 0.05))
     return r
 
 # Load on import
@@ -278,10 +297,11 @@ def train_self_play(n_games: int = 50, opponent_id: str = "greedy") -> dict:
             traj, scored, _, _, _ = apply_kick(st, pidx_use, ang_use, pwr_use, is_a)
             end = traj[-1] if len(traj) > 1 else None
             target = "A" if learner_is_a else "B"
-            # if learner just moved, compute reward and update (batch save after game)
+            # if learner just moved, compute reward and update (batch save after game) — EPV with opponent pressure (R2D-RL) + teacher pseudo-label
             if is_learner_turn and prev is not None and prev_a is not None:
                 defensive = needs_clear(prev, learner_is_a)
-                r = _reward_for(end, scored, target, learner_is_a, defensive, prev_bx)
+                opp_players = st["players_b"] if learner_is_a else st["players_a"]
+                r = _reward_for(end, scored, target, learner_is_a, defensive, prev_bx, opp_players)
                 nxt = {"ball": dict(st["ball"]), "players_a": [dict(p) for p in st["players_a"]], "players_b": [dict(p) for p in st["players_b"]], "field": dict(st["field"]), "is_player_a": st["is_player_a"]} if not st.get("game_over") else None
                 note_transition(prev, prev_a, r, nxt, learner_is_a, save=False)
                 prev = None

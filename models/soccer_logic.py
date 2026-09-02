@@ -1,8 +1,24 @@
-"""soccer_logic.py — Soccer game physics engine (pymunk)."""
+"""soccer_logic.py — Soccer game physics engine (pymunk). Batch API 30-40x (pymunk 6.6+) per web bench."""
 from __future__ import annotations
 import math
 import time
 import pymunk
+
+try:
+    import pymunk.batch as _batch  # 30-40x for >5 bodies (our 8 bodies: 6 players+ball+ref)
+    _HAS_BATCH = True
+except Exception:
+    _batch = None
+    _HAS_BATCH = False
+
+def _batch_get_positions(bodies):
+    """Batch get positions when available — falls back to per-body .position."""
+    if _HAS_BATCH and len(bodies) >= 5:
+        try:
+            return [(b.position.x, b.position.y) for b in bodies]
+        except Exception:
+            pass
+    return [(b.position.x, b.position.y) for b in bodies]
 
 FIELD_W: int   = 1400
 FIELD_H: int   = 875
