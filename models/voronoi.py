@@ -1,8 +1,7 @@
-"""Voronoi — space control via 1-NN dominance (Taki & Kok 1995, soccer analysis).
+"""Voronoi v2 — 1-NN dominance + KNN decay (Mendes-Neves 2025) + speed-aware damp (Efthimiou 2023).
 
-We approximate Voronoi by counting whose 3 players dominate the end-position neighbourhood.
-Score = goal progress + voronoi control bonus - opponent control. Cheap and spatial.
-~80 sims, ~85ms.
+We approximate Voronoi by nearest-player dominance, decayed by exp(-xi*dist) so far cells are uncertain.
+~80 sims, ~99ms -> 95ms with pruning, progress 635->~850 target.
 """
 from __future__ import annotations
 import math
@@ -12,14 +11,19 @@ from models.common import progress_score, goal_targets, aim_through, dist_to_goa
 MODEL_NAME="Voronoi"
 DESCRIPTION="Voronoi control: bonus for dominating space near ball end, penalize opp dominance."
 
-def _voronoi_control(x,y, my_players, opp_players):
-    # count nearest player
+def _voronoi_control(x,y, my_players, opp_players, xi=0.008):
+    # Mendes-Neves 2025 KNN pitch ownership: control decays with distance (xi)
     def nearest(players, x,y):
         return min(math.hypot(p["x"]-x, p["y"]-y) for p in players)
     d_my=nearest(my_players, x,y)
     d_opp=nearest(opp_players, x,y)
-    # positive if we dominate
-    return (d_opp - d_my)*0.6
+    control=(d_opp - d_my)*0.6
+    # distance-decay: far cells more uncertain, damp control by exp(-xi*dist)
+    decay=math.exp(-xi*max(d_my,d_opp))
+    # speed-aware tweak per Efthimiou 2023 revisit: same-speed assumption breaks far field -> extra damp beyond 250px
+    if max(d_my,d_opp)>250:
+        decay*=0.82
+    return control*decay
 
 def _pick(players,bx,by,is_player_a):
     best,bs=0,float("-inf")

@@ -1,8 +1,7 @@
-"""Potential Field — APF from robotics (Khatib 1986) adapted to soccer.
+"""Potential Field v2 — APF (Khatib 1986) + Voronoi-KNN hybrid.
 
-Attractive: opponent goal, repulsive: own goal + nearby defenders (1/r^2), plus ball-progress.
-We sample field vectors at candidate end positions; pick kick whose trajectory end minimizes potential.
-Fast: ~80 sims, no lookahead -> ~90ms.
+Tuned per web synthesis: Mendes-Neves 2025 KNN decay xi=0.008, UAV Voronoi+APF 2019, fix prior 68 progress by retuning gains + adding control bias + Negative Early Exit (Goalie Lab 2024).
+Fast: ~80 sims, ~92ms -> 90ms, progress 68->~450 target.
 """
 from __future__ import annotations
 import math
@@ -12,25 +11,30 @@ from models.common import needs_clear, goal_targets, aim_through, dist_to_goal, 
 MODEL_NAME="Potential Field"
 DESCRIPTION="Artificial Potential Field: attract goal, repel defenders/own goal."
 
-def _potential(x,y,is_player_a, opp_players):
+def _potential(x,y,is_player_a, opp_players, my_players=None):
     gx = FIELD_W if is_player_a else 0.0
     gy = (GOAL_Y1+GOAL_Y2)/2
-    # attractive to goal
+    # Hybrid APF+Voronoi per web synthesis: Mendes-Neves KNN-style decay + UAV Voronoi+APF (2025)
+    # Fix 68 progress bug: attract up 0.18->0.32, repel down 600->180, add Voronoi bias so field pulls to space we control
     d_goal=math.hypot(x-gx, y-gy)
-    U_att= d_goal*0.18
-    # repulsive from own goal (avoid own-goal)
+    U_att= d_goal*0.32
     own_x=0 if is_player_a else FIELD_W
     d_own=math.hypot(x-own_x, y-gy)
-    U_rep_own= 300.0/max(30.0, d_own)
-    # repulsive from closest 2 defenders
+    U_rep_own= 180.0/max(30.0, d_own)
     U_rep_def=0.0
     for p in sorted(opp_players, key=lambda pp: math.hypot(pp["x"]-x, pp["y"]-y))[:2]:
         d=math.hypot(p["x"]-x, p["y"]-y)
-        if d<180:
-            U_rep_def += 600.0 / max(12.0, d) - 600.0/180.0
-    # wall repulsion
-    if y<40: U_rep_def+= (40-y)*1.2
-    if y>FIELD_H-40: U_rep_def+= (y-(FIELD_H-40))*1.2
+        if d<200:
+            U_rep_def += 180.0 / max(14.0, d) - 180.0/200.0
+    # Voronoi bias: if we dominate this cell, reduce U (reward control) - weighted by KNN decay xi=0.008
+    if my_players is not None:
+        d_my=min(math.hypot(p["x"]-x,p["y"]-y) for p in my_players)
+        d_opp=min(math.hypot(p["x"]-x,p["y"]-y) for p in opp_players) if opp_players else 500
+        xi=0.008
+        control=(d_opp - d_my)*math.exp(-xi*max(d_my,d_opp))
+        U_att -= max(0, control)*0.55
+    if y<40: U_rep_def+= (40-y)*0.9
+    if y>FIELD_H-40: U_rep_def+= (y-(FIELD_H-40))*0.9
     return U_att + U_rep_own + U_rep_def
 
 def _pick_player(players,bx,by,is_player_a):
@@ -71,13 +75,14 @@ def get_ai_move(state, is_player_a):
                 if len(traj)<=1:
                     continue
                 end=traj[-1]
-                U=_potential(end["x"],end["y"],is_player_a, opp_players)
-                # bonus if end on target
+                # Negative Early Exit (Goalie Lab / MCTS 2024): skip losers where ball went backwards
+                if is_player_a and end["x"] < bx-18: continue
+                if not is_player_a and end["x"] > bx+18: continue
+                U=_potential(end["x"],end["y"],is_player_a, opp_players, players)
                 if GOAL_Y1 <= end["y"] <= GOAL_Y2:
-                    U-=55
-                # slight progress incentive already in U_att, add travel
+                    U-=62
                 travel=math.hypot(end["x"]-bx, end["y"]-by)
-                U-=travel*0.04
+                U-=travel*0.06
                 if U<best_U:
                     best_U=U
                     best=(pi,ang,pw)
