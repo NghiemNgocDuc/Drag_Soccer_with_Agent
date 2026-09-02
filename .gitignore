@@ -7,3 +7,7 @@ venv/
 dist/
 *.egg-info/
 *.db
+
+# adaptive learner Q-table (runtime, not committed)
+learning_q.json
+models/learning_q.json

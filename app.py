@@ -1,6 +1,7 @@
 """app.py — Soccer AI Platform (Flask)"""
 from __future__ import annotations
 import importlib
+import json
 import threading
 import time
 import logging
@@ -120,6 +121,7 @@ MODELS: dict[str, str] = {
     "potential_field":  "models.potential_field",
     "voronoi":          "models.voronoi",
     "a2c_lite":         "models.a2c_lite",
+    "adaptive_learner": "models.adaptive_learner",
 }
 
 # AI off-thread pool so slow simulate_kick (2-3s) does not block gunicorn worker
@@ -2974,6 +2976,53 @@ def quick_models():
     except Exception:
         pass
     return jsonify({"models": out})
+
+
+@app.route("/api/learning/status")
+def learning_status():
+    try:
+        import models.adaptive_learner as _al
+        return jsonify(_al.get_stats())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/learning/train", methods=["POST"])
+def learning_train():
+    try:
+        import models.adaptive_learner as _al
+        data = request.get_json(silent=True) or {}
+        n = int(data.get("games", 15))
+        n = max(1, min(50, n))
+        # run in background thread so UI doesn't block 30 games (~10s)
+        from db.redis_client import r as _r
+        # simple lock
+        lock_key = "learning:train:lock"
+        if _r.get(lock_key):
+            return jsonify({"error": "Training already running"}), 409
+        _r.setex(lock_key, 120, "1")
+
+        def _bg():
+            try:
+                res = _al.train_self_play(n_games=n)
+                _r.setex("learning:train:last", 3600, json.dumps(res))
+            finally:
+                _r.delete(lock_key)
+
+        import threading as _th
+        _th.Thread(target=_bg, daemon=True).start()
+        return jsonify({"ok": True, "games": n, "status": "training"})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/learning/reset", methods=["POST"])
+def learning_reset():
+    try:
+        import models.adaptive_learner as _al
+        return jsonify(_al.reset_learner())
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 #  Ranked leaderboard (human players, distinct from the AI-model board) 
