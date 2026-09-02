@@ -115,6 +115,11 @@ MODELS: dict[str, str] = {
     "ppo_actor_critic": "models.ppo_actor_critic",
     "dqn_relative":     "models.dqn_relative",
     "genetic_fuzzy":    "models.genetic_fuzzy",
+    "mcts_uct":         "models.mcts_uct",
+    "expectimax":       "models.expectimax",
+    "potential_field":  "models.potential_field",
+    "voronoi":          "models.voronoi",
+    "a2c_lite":         "models.a2c_lite",
 }
 
 # AI off-thread pool so slow simulate_kick (2-3s) does not block gunicorn worker
