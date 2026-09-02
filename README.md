@@ -1,166 +1,104 @@
-# Agent Soccer
+# Agent Soccer — Build AI That Scores
 
-[![Live](https://img.shields.io/badge/Live--agent.onrender.com-blue)](https://drag-soccer-with-agent.onrender.com/)
+[![Live](https://img.shields.io/badge/Live-agent.onrender.com-blue)](https://drag-soccer-with-agent.onrender.com/) [![Models](https://img.shields.io/badge/models-18-blueviolet)](#ai-agents) [![Physics](https://img.shields.io/badge/physics-pymunk%20%2B%20Three.js-0ea5e9)](#tech-stack)
 
-A top-down slingshot soccer game where you code your own AI to play against built-in agents, challenge friends online, or watch AIs battle each other in real time.
+Turn-based drag soccer on a **1400×875** pitch. Pull to aim, release to shoot — then watch your **Python AI** do the same. Tune **4 stats**, pick **48 nations** and **10 formations**, customize every kit and stadium color, then climb **ranked ELO**, **tournaments** and the **global leaderboard**.
 
-Built with Flask, HTML5 Canvas, Redis, Supabase, and a growing ecosystem of services.
+> **Live:** https://drag-soccer-with-agent.onrender.com/ — `DEV_MODE=1` for local in-memory play, no keys needed.
 
 ---
 
-## How it works
+## How it Works
 
-Each turn you drag a player **backward** from their body — like a slingshot — then release. The player rockets forward, hits the ball on contact, and the ball flies across the field. First team to 5 goals wins, or whoever leads after 60 kicks.
+Drag a player **backward** from the ball like a slingshot, then release. The player rockets forward, hits the ball on contact, and pymunk carries it across the field with wall bounces, billiard collisions, friction and goal-tunnel detection. First to **5 goals** wins (or leader after 60 kicks). Penalties are first-person: **5s keeper timer, auto-kick** if you wait.
 
-Physics include wall bounces, player-player collisions (with billiard-style push), friction, and goal-tunnel detection so the ball only scores if it reaches the back wall through the goal opening.
+Rendering is **Three.js** — broadcast + player views, 8-tier bowl, **2.2k** instanced crowd, sun/clouds/rain, synth WebAudio and goal particles. Physics stays **2D pymunk**, rendering is **3D**.
 
 ---
 
 ## Features
 
-- **Slingshot input** — drag-to-aim on desktop and mobile (touch supported)
-- **7 built-in AI agents** — each a distinct algorithm, swappable mid-game
-- **3 game modes** — Human vs AI, Human vs Human, AI vs AI (auto-loop)
-- **Online multiplayer** — real-time 1v1 via invite link or username search, no account needed to join
-- **Friend system** — send/accept friend requests, invite friends to games directly from the lobby
-- **Tournaments** — create and join single-elimination tournaments; AI vs AI matches auto-advance
-- **AI Arena** — benchmark custom models against built-in agents with win rates, shot accuracy, heatmaps, and head-to-head matrix
-- **Replays** — watch recorded match replays with playback controls
-- **AI Playground** — write a custom Python AI in the browser, import a `.py` file from disk, validate and test it live against any built-in agent
-- **My Models** — save, edit, and publish your custom AIs; use them as opponents in the main game
-- **Research Hub** — browse and search academic papers on multi-agent systems, game theory, and RL via Semantic Scholar
-- **Feedback system** — in-app feedback widget powered by ProductBridge
-- **Leaderboard & Profile** — win/loss stats tracked per user
-- **Auth** — email/password via Supabase or Clerk
-- **Friends & invites** — add friends by username, invite directly from the lobby
+- **Slingshot input** — drag-to-aim on desktop + touch, power slider, undo
+- **18 built-in AI agents** — Greedy → MCTS-UCT, each a distinct algorithm, swappable mid-game, all `<600ms`
+- **3 game modes** — Human vs AI, Human vs Human, AI vs AI (auto-loop) on `/play3d`
+- **Online 1v1** — create/join via link or username, spectate at `/spectate`, **WebRTC voice** + match chat
+- **Friends & Clans** — 32 cap, presence `online/in_match/offline`, favorites, nicknames, invite with password, clan tournaments with timezone + DQ guard
+- **Tournaments** — single-elimination at `/tournaments`, AI vs AI auto-advance, 3D replay + highlights
+- **AI Playground** — write `get_ai_move` in-browser on `/playground`, import `.py`, validate, bench **5 vs Greedy** with live progress bar
+- **My Models** — auto **Model N**, rename, add **paper links (5)**, public toggle, **Submit to Leaderboard** vs 7 core built-ins (mean win% + `avg_latency`)
+- **Learn (7 lessons)** — machine-checked milestones from *First Kick* → *Beat Minimax* → *Capstone: Into the Arena* at `/learn`
+- **AI Arena** — head-to-head matrix, shot accuracy, heatmaps at `/arena`
+- **Analytics** — possession, shot zones, Elo history at `/analytics`
+- **Research Hub** — Semantic Scholar search at `/research`
+- **Customization** — per-player **name + kit color** (GK is `GK`), **200pt** across Size/Power/Weight/Agility, `6×2` keeper styles, crowd palettes, **stadium seat color**, sky scenes, ball designs at `/customize`
+- **Social** — global / DM / clan chat, spectate live, highlights share `/highlight/<id>`, achievements (**49** badges), seasons + soft ELO reset
+- **Replays** — full `replay_3d.html` viewer with CatmullRom arcs, spin, dust
+- **Workflow** — high-level frontend → backend → database → engine → AI diagram at `/about#workflow` + `/workflow` (`/static/workflow.png`, `workflow.pdf`)
+- **Auth** — Supabase email + Clerk optional, `/profile` + `/history` (last 5)
 
 ---
 
-## AI Agents
+## AI Agents (18)
 
-| Agent | Algorithm | Description |
-|---|---|---|
-| `minimax` | Search | Evaluates kicks considering opponent block positions (ball bounces off them) |
-| `monte_carlo` | Sampling | Samples random kicks centred on the player-to-ball direction |
-| `q_learning` | Zone search | Zone-aware angle search centred on player-to-ball direction |
-| `bayesian` | Gaussian prior | Gaussian prior over kick angles centred on the player-to-ball direction |
-| `value_iteration` | Centrality | Picks most centrally positioned player, searches angles through ball toward goal |
-| `policy_iteration` | Lane scoring | Picks player with clearest path to ball, aims through ball toward goal |
-| `greedy` | Heuristic | Picks the player nearest the ball, aims through it toward goal |
+| Agent | Latency | Family | Idea |
+|---|---|---|---|
+| `genetic_fuzzy` | 74 ms | Fuzzy | GA-tuned Mamdani 9 rules |
+| `greedy` | 88 ms | Heuristic | Best player, 6°/3° sweep, goal bonus |
+| `potential_field` v2 | 88 ms | Field | APF + KNN Voronoi `xi=0.008`, NEE |
+| `voronoi` v2 | 97 ms | Control | KNN decay + speed damp |
+| `a2c_lite` | 142 ms | A2C | Advantage `V_next-V_cur`, 5° |
+| `monte_carlo` | 158 ms | Sampling | 12 Gaussian samples |
+| `expectimax` v2 | 232 ms | Search | Chance 0.5/0.3/0.2 + policy prune |
+| `ppo_actor_critic` | 258 ms | RL | PPO actor + critic |
+| `dqn_relative` | 276 ms | RL | DQN RCS Park 2022 |
+| `q_learning` | 536 ms | RL | Zone-aware Q |
+| `mcts_uct` v2 | 562 ms | MCTS | UCB1 WU-UCT + NEE + boosting top-3 |
+| `minimax` | 689 ms | Search | 2° dense |
+| `bayesian` | 806 ms | Bayes | Gaussian prior |
+| `tactic_transformer` | 922 ms | Attention | TacticAI 7 tokens |
+| `graph_gnn` | 962 ms | GNN | GAT `α=softmax` |
+| `policy_iteration` | 983 ms | DP | Lane scoring |
+| `value_iteration` | 1049 ms | DP | Centrality |
+| `langchain` | ~800 ms | LLM | Tactician + physics verify |
+
+All via `models/*.py:get_ai_move(state, is_player_a) -> (idx, angle, power)` → `simulate_kick(state, ...)`, sandboxed with `5s` timeout, fallback to greedy via `_ai_pool` (`gthread 4×2`). Bench: `DEV_MODE=1 python -u bench_new_models.py`.
 
 ---
 
 ## Writing a Custom AI
 
-Open `/playground`, write Python in the editor (or click **↑ Import .py** to load a file from your computer), then hit **Start** to play it live.
-
-Your code must define one function:
+`/playground` → write once, run everywhere (`/playground` and `/my-models` share the same `TEMPLATE` block):
 
 ```python
 def get_ai_move(state, is_player_a):
-    # state["ball"]        → {"x": float, "y": float}
-    # state["players_a"]  → [{"x":…, "y":…}, …]   # 3 players, Team A
-    # state["players_b"]  → [{"x":…, "y":…}, …]   # 3 players, Team B
-    # state["score_a"]    → int
-    # state["score_b"]    → int
-    # state["kick_count"] → int
-    # state["start_time"] → float (Unix timestamp of game start)
-    #
-    # is_player_a = True  → you are Team A, attack RIGHT (goal at x ≈ 800)
-    # is_player_a = False → you are Team B, attack LEFT  (goal at x ≈ 0)
-
-    return player_idx, angle_degrees, power
-    # player_idx    → 0 / 1 / 2   (which of your 3 players kicks)
-    # angle_degrees → 0=right, 90=down, 180=left, 270=up
-    # power         → 0–100
+    # state["ball"]        -> {"x": float, "y": float}
+    # state["players_a"]   -> [{"x":…, "y":…, "stats":{size,power,weight,agility}, "name":str}, …]  # 3
+    # state["players_b"]   -> same for Team B
+    # state["field"]       -> {"width": 1400, "height": 875}  # read, never hardcode!
+    # state["score_a/b"]   -> int, state["kick_count"] -> int
+    # is_player_a True  -> attack RIGHT (x=1400, y 356-519), False -> LEFT (x=0)
+    return player_idx, angle_degrees, power  # 0/1/2, 0=right 90=down, 0-100
 ```
 
-`math`, `random`, `numpy`, and `copy` are available. Network access, file I/O, and dangerous builtins are blocked. Execution is sandboxed with a 5-second timeout per move.
+`math`, `random`, `copy` + builtins available. No net/fs. The `TEMPLATE` in `user_models/runner.py:177` includes `benchmark_vs_greedy` helper (`_bench_progress` bar).
 
 ---
 
 ## Tech Stack
 
-| Layer | Technology |
+| Layer | Tech |
 |---|---|
-| Backend | Python 3.11+, Flask 3 |
-| Game state | Upstash Redis (rooms, sessions, friends, tournaments) |
-| Auth & DB | Supabase (profiles, games, user models) + Clerk (optional auth) |
-| Vector DB | Pinecone (research paper embeddings) |
-| Frontend | Vanilla JS, HTML5 Canvas, CSS glass-morphism theme |
-| Code editor | CodeMirror 5 |
-| Email | Resend (transactional) |
-| Analytics | PostHog (product analytics) |
-| Error tracking | Sentry |
-| Feedback | ProductBridge |
-| Deployment | Render (`render.yaml` included) |
-
----
-
-## Project Structure
-
-```
- app.py                   # Flask routes (game, online, playground, friends, auth, tournaments, research, arena)
- config.py                # Environment variable loading (dev-mode fallback for production safety)
- render.yaml              # Render deployment config
- requirements.txt
- supabase_schema.sql      # Run once in Supabase SQL Editor to create tables
-
- models/
-    soccer_logic.py      # Physics engine (kicks, collisions, goals, penalties)
-    minimax.py
-    monte_carlo.py
-    q_learning.py
-    bayes.py
-    value_iteration.py
-    policy_iteration.py
-    greedy_model.py
-
- game/
-    session.py           # Redis-backed game/playground state
-
- db/
-    redis_client.py      # Upstash Redis client with in-memory fallback for dev
-    supabase_client.py   # Supabase anon + service clients
-    games.py             # Save results, leaderboard queries
-    user_models.py       # CRUD for user-uploaded AI models
-    tournaments.py       # Tournament creation, bracket generation, match results
-    research_papers.py   # DB layer for saved research papers
-    saved_states.py      # Persist/load game states
-
- services/
-    clerk.py             # Clerk JWT verification
-    resend.py            # Transactional email
-    posthog.py           # Product analytics
-    sentry.py            # Error monitoring
-    productbridge.py     # Feedback collection
-    pinecone.py          # Vector database for paper search
-    paper_search.py      # Semantic Scholar API integration
-
- user_models/
-    runner.py            # Sandboxed Python execution for custom AI (AST scan + timeout)
-
- static/
-    style.css            # Glass-morphism theme, light mode
-    sound.js             # Game sound effects
-    feedback.js          # In-app feedback widget
-
- templates/
-     index.html           # Main game (slingshot canvas)
-     online.html          # Online multiplayer lobby + game
-     playground.html      # Code editor + live game
-     my_models.html       # Manage saved AI models
-     leaderboard.html
-     profile.html
-     login.html
-     register.html
-     customize.html       # Match customization (players, colors, field)
-     tournaments.html     # Tournament listings
-     tournament_view.html # Tournament bracket view
-     replay.html          # Match replay viewer
-     arena.html           # AI Arena benchmarking
-     research.html        # Research hub
-```
+| Backend | Python 3.11+, Flask 3, gunicorn `gthread 4×2` |
+| Physics | pymunk (Chipmunk2D) 6.5, `FIELD_W 1400` `FIELD_H 875` |
+| Rendering | Three.js `r160` + OrbitControls, `static/workflow.png` |
+| Editor | CodeMirror 5 + Python mode |
+| State | Redis (rooms, presence, bench) with in-memory fallback |
+| DB/Auth | Supabase (profiles, games, models, leaderboard) + Clerk optional |
+| Realtime | WebRTC voice (STUN), HTTP poll `1.5s` for state/voice |
+| Vector | Pinecone (paper embeddings) |
+| Frontend | Vanilla JS, `design-system.css` glass, HTML5 |
+| Email/Analytics | Resend, PostHog, Sentry, ProductBridge |
+| Deploy | Render `render.yaml` |
 
 ---
 
@@ -170,79 +108,40 @@ def get_ai_move(state, is_player_a):
 git clone https://github.com/NghiemNgocDuc/Drag_Soccer_with_Agent.git
 cd Drag_Soccer_with_Agent
 pip install -r requirements.txt
+cp .env.example .env  # fill SUPABASE_URL, SUPABASE_ANON_KEY, SERVICE_KEY, UPSTASH_REDIS_URL, SECRET_KEY
+python app.py  # http://localhost:5000/play3d
 ```
 
-Copy `.env.example` to `.env` and fill in your credentials:
+Run without keys: `DEV_MODE=1 python app.py` (in-memory Redis/Supabase, anon `dev:*`). Run schema once in Supabase SQL Editor: `supabase_schema.sql` + each `migration_*.sql`.
 
-```bash
-cp .env.example .env
-```
-
-```env
-SECRET_KEY=your-secret-key
-
-# Supabase (create a project at supabase.com)
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_KEY=...
-
-# Upstash Redis (create a database at upstash.com)
-UPSTASH_REDIS_URL=rediss://...
-```
-
-Run the schema once in your Supabase SQL Editor:
-
-```sql
--- paste contents of supabase_schema.sql
-```
-
-Then start the server:
-
-```bash
-python app.py
-# opens http://localhost:5000
-```
-
-Set `DEV_MODE=1` to run without Supabase/Redis — auth is bypassed and state is held in-memory.
+Tests: `DEV_MODE=1 python -m pytest -q --ignore=test_integration.py --ignore=balance_test.py` → `~280` passed.
 
 ---
 
-## Online Multiplayer
+## Project Structure
 
-1. Go to `/online` and click **Create Game** — you get a shareable link
-2. Send the link to anyone; they join instantly, no account required
-3. Or search by username and send an invite — it appears in their lobby in real time
-4. Add friends to invite them faster next time
-
-Rooms are stored in Redis and expire after 6 hours.
-
----
-
-## Tournaments
-
-Create a tournament at `/tournaments`, invite participants, and generate a single-elimination bracket. AI vs AI matches run automatically and the bracket advances as matches complete. Tournament data is stored in Redis.
-
----
-
-## AI Arena
-
-Visit `/arena` to benchmark any custom model against the 7 built-in agents. Results are shown as a head-to-head win-rate matrix with shot accuracy stats and position heatmaps.
+```
+app.py                 # 5k+ routes: play3d, playground, friends, clans, leaderboard, spectate, ranked, seasons
+config.py              # DEV_MODE fallback
+models/soccer_logic.py # 1400x875 engine, simulate_kick, loft, recoil, referee
+models/*.py            # 18 agents (greedy … a2c_lite)
+game/session.py        # Redis game session
+db/*.py                # 16 modules (friends, clans, leaderboard, customization, etc.)
+services/*.py          # clerk, resend, pinecone, paper_search, game_analytics, loss_analysis
+user_models/runner.py  # AST scan + timeout sandbox + TEMPLATE
+static/                # design-system.css, sound.js, workflow.png, vendor/ (Three, CodeMirror, Chart, fonts)
+templates/             # 30+ pages: landing, play, playground, my_models, leaderboard, about, workflow, learn, etc.
+migration_*.sql        # per-feature Supabase migrations
+```
 
 ---
 
-## Research Hub
+## Deploy
 
-Visit `/research` to search academic papers from Semantic Scholar on multi-agent systems, game theory, and reinforcement learning. Save papers for later, rate them, and get AI-generated summaries.
-
----
-
-## Deployment
-
-The repo includes `render.yaml` for one-click deploy on [Render](https://render.com). Set all environment variables from `.env.example` in the Render dashboard.
+`render.yaml` one-click on Render. Set `SECRET_KEY`, `SUPABASE_*`, `UPSTASH_REDIS_URL`, `FEEDBACK_TO_EMAIL`, `MODERATION_*` in dashboard.
 
 ---
 
 ## Author
 
-**Ngoc Duc Nghiem**  
-GitHub: [NghiemNgocDuc](https://github.com/NghiemNgocDuc)
+**Ngoc Duc Nghiem** — [NghiemNgocDuc](https://github.com/NghiemNgocDuc)

@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Agent Soccer — Drag Soccer with AI Agents</title>
-<meta name="description" content="A turn-based drag soccer game where you build and train your own AI agents, then watch them compete in 3D.">
+<title>Agent Soccer — Build AI That Scores | 18 Agents, 3D Physics, Tournaments</title>
+<meta name="description" content="Turn-based drag soccer: tune 4 stats, write Python AI in-browser, battle 18 built-in agents (Greedy to MCTS-UCT), play 3D on a 1400×875 pitch with pymunk physics. Free to play.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="/static/design-system.css">
@@ -164,7 +164,7 @@
         <span class="badge badge-brand"><span class="badge-dot"></span>Drag &amp; drop · Custom AI agents · 3D matches</span>
       </div>
       <h1>Build an AI.<br>Teach it to <span class="grad">score goals.</span></h1>
-      <p class="hero-sub">Agent Soccer is a turn-based drag-soccer game where you pull back and release to shoot — and where your own trained AI agents learn the sport beside you, from friendly matches to full tournaments.</p>
+      <p class="hero-sub">Turn-based drag soccer on a <b>1400×875</b> pitch — pull to aim, release to shoot. Write Python agents in-browser, bench them vs <b>18 built-ins</b> from Greedy to MCTS-UCT, then climb ranked ELO, tournaments and the global leaderboard. Physics is real <b>pymunk</b>, rendering is <b>Three.js</b> 3D.</p>
       <div class="hero-cta">
         {% if username %}
           <a class="btn btn-primary btn-lg" href="/hub/play">Play Now</a>
@@ -175,9 +175,10 @@
         {% endif %}
       </div>
       <div class="hero-stats">
-        <div class="hero-stat"><b>7</b><span>built-in AI agents</span></div>
-        <div class="hero-stat"><b>3D</b><span>match simulation</span></div>
-        <div class="hero-stat"><b>4</b><span>player stats to tune</span></div>
+        <div class="hero-stat"><b>18</b><span>built-in AI agents</span></div>
+        <div class="hero-stat"><b>3D</b><span>pymunk physics</span></div>
+        <div class="hero-stat"><b>48</b><span>nations + 10 formations</span></div>
+        <div class="hero-stat"><b>2.2k</b><span>crowd + stadium</span></div>
       </div>
     </div>
 
@@ -294,7 +295,7 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
         </div>
         <h3>Build Your Own AI</h3>
-        <p>Write Python agents in the playground, battle-test them against 7 built-in strategies, and pick a champion for every match.</p>
+        <p>Write <code>get_ai_move(state, is_player_a)</code> in the <b>Playground</b>. Code runs sandboxed with <code>math</code>, <code>random</code>, <code>copy</code> + <code>simulate_kick</code>. Bench <b>5 vs Greedy</b> with progress bar, then <b>Save to My Models</b> — auto <b>Model N</b>, rename, add paper links, submit to leaderboard.</p>
       </div>
 
       <div class="glass-card feature">
@@ -302,23 +303,23 @@
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
         </div>
         <h3>3D Match Simulation</h3>
-        <p>Every kick is simulated with real physics — pymunk-powered trajectories, crowd reactions, sound, and full replay view.</p>
+        <p><b>1400×875</b> pitch, CatmullRom arcs, ball spin + shadow + dust, stadium with <b>8-tier</b> bowl and <b>2.2k</b> instanced crowd, sun/clouds/rain, synth WebAudio (kick 0.16s, whistle 0.8s), goal particles.</p>
       </div>
 
       <div class="glass-card feature">
         <div class="feature-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v2a5 5 0 0 1-10 0z"/><path d="M7 6H5a3 3 0 0 0 3 3"/><path d="M17 6h2a3 3 0 0 1-3 3"/></svg>
         </div>
-        <h3>Compete in Tournaments</h3>
-        <p>Run AI-vs-AI brackets, watch the action live in 3D, and climb the global leaderboard.</p>
+        <h3>Tournaments & Ranked</h3>
+        <p>Single-elimination <b>AI Arena</b> matrix, online <b>ranked ELO</b> `K40→K20` + 10 placement, <b>spectate</b> + voice, season snapshots, clan tournaments with timezone + DQ guard.</p>
       </div>
 
       <div class="glass-card feature">
         <div class="feature-icon">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
         </div>
-        <h3>Custom Player Stats</h3>
-        <p>Spend a point budget on Size, Power, Weight, and Agility — every stat visibly changes how your team plays.</p>
+        <h3>Tune Every Detail</h3>
+        <p><b>200pt</b> per player across <b>Size→radius, Power→kick, Weight→mass, Agility→friction</b>. Per-player <b>name + kit color</b>, GK styles `×6×2`, crowd palettes, stadium seat color, sky scenes, ball designs — all in <b>/customize</b>.</p>
       </div>
 
     </div>
@@ -327,7 +328,7 @@
   <!-- CTA BAND -->
   <section class="glass-card cta-band">
     <h2>Ready for kickoff?</h2>
-    <p>Create an account, pick your stats, and drag your way to victory.</p>
+    <p>From first drag to first leaderboard win — pick a nation, run the <b>7-lesson Learn</b> path, and ship your AI in under 10 minutes.</p>
     {% if username %}
       <a class="btn btn-primary btn-lg" href="/play3d">Back to the pitch</a>
     {% else %}
@@ -345,7 +346,7 @@
     <a href="/register">Create account</a>
     <a href="/leaderboard">Leaderboard</a>
   </nav>
-  <p class="footer-credit">Agent Soccer © 2026 · Built with Flask · Three.js · pymunk</p>
+  <p class="footer-credit">Agent Soccer © 2026 · Flask · Three.js · pymunk · Supabase · Redis · 18 AI agents · <a href="/about" style="color:var(--text-muted)">About</a> · <a href="/workflow" style="color:var(--text-muted)">Workflow</a> · <a href="/learn" style="color:var(--text-muted)">Learn</a></p>
 </footer>
 
 <script>
