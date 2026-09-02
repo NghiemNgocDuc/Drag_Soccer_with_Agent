@@ -661,6 +661,29 @@ const rainPoints = (() => {
   scene.add(pts);
   return pts;
 })();
+let snowActive = false;
+const snowPoints = (() => {
+  const count = 260;
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * (W + 500);
+    pos[i * 3 + 1] = Math.random() * 260 + 20;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * (H + 400);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({
+    color: 0xffffff, size: 4.2, transparent: true, opacity: 0.85,
+    depthWrite: false, fog: false,
+  });
+  const pts = new THREE.Points(geo, m);
+  pts.visible = false;
+  scene.add(pts);
+  return pts;
+})();
+let windActive = false;
+let fogActive = false;
+let CUST_WEATHER = 'clear';
 
 function applyScene(name, floodColor) {
   const p = SCENE_PRESETS[name] || SCENE_PRESETS.day;
@@ -701,9 +724,34 @@ function applyScene(name, floodColor) {
   }
   rainActive = p.rain;
   rainPoints.visible = p.rain;
-  return { scene: name, floodlightColor: floodColor };
+  // weather overlay overrides scene rain if weather is explicit
+  if (CUST_WEATHER && CUST_WEATHER !== 'clear') {
+    applyWeather(CUST_WEATHER);
+    // return scene without overwriting weather
+    return { scene: name, floodlightColor: floodColor, weather: CUST_WEATHER };
+  }
+  return { scene: name, floodlightColor: floodColor, weather: CUST_WEATHER };
 }
 
+function applyWeather(name) {
+  CUST_WEATHER = name || 'clear';
+  fogActive = name === 'fog';
+  windActive = name === 'wind';
+  rainActive = name === 'rain';
+  snowActive = name === 'snow';
+  rainPoints.visible = name === 'rain';
+  snowPoints.visible = name === 'snow';
+  // fog: dense low fog across pitch
+  if (name === 'fog') {
+    scene.fog.near = 600; scene.fog.far = 2200;
+  } else if (name === 'rain' || name === 'snow') {
+    scene.fog.near = 900; scene.fog.far = 3200;
+  } else if (name === 'wind') {
+    scene.fog.near = 1100; scene.fog.far = 3800;
+  }
+  window.__weatherInfo = () => ({ weather: CUST_WEATHER, rain: rainPoints.visible, snow: snowPoints.visible, fog: fogActive, wind: windActive });
+}
+window.__setWeather = applyWeather;
 window.__sceneInfo = () => ({
   scene: Object.keys(SCENE_PRESETS).find(n => SCENE_PRESETS[n].bg === scene.background.getHex()),
   bg: '#' + scene.background.getHex().toString(16).padStart(6, '0'),
@@ -2881,6 +2929,21 @@ function animate() {
     }
     rainPoints.geometry.attributes.position.needsUpdate = true;
   }
+  if (snowActive && snowPoints.visible) {
+    const pos = snowPoints.geometry.attributes.position.array;
+    for (let i = 0; i < pos.length; i += 3) {
+      pos[i + 1] -= 1.1 + (i % 3) * 0.3;
+      pos[i] += Math.sin(Date.now() * 0.0004 + i) * 0.25;
+      pos[i + 2] += Math.cos(Date.now() * 0.0004 + i * 0.7) * 0.15;
+      if (pos[i + 1] < 6) { pos[i + 1] = 280; pos[i] = (Math.random() - 0.5) * (W + 500); pos[i + 2] = (Math.random() - 0.5) * (H + 400); }
+    }
+    snowPoints.geometry.attributes.position.needsUpdate = true;
+  }
+  if (windActive) {
+    // subtle wind streak: drift rain/snow faster + dust-like haze is fog already; here just add lateral push to loose particles
+    const rp = rainActive ? rainPoints.geometry.attributes.position.array : null;
+    if (rp) { for (let i = 0; i < 2; i++) rp[i * 3] -= 1.2; }
+  }
   tickDust();
   renderer.render(scene, camera);
 }
@@ -3781,6 +3844,7 @@ function setOverlay(show, text) {
     }
     if (cust.stadium_seat_color) CUST_STADIUM_SEAT = cust.stadium_seat_color;
     if (cust.bg_scene) applyScene(cust.bg_scene, cust.floodlight_color || 'warm');
+    if (cust.weather) { CUST_WEATHER = cust.weather; applyWeather(cust.weather); }
   } catch (e) {}
 
   addBenchPlayers();
