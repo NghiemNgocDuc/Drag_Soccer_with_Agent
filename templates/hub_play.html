@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play Hub — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>.tab-bar{display:flex;gap:8px;margin:16px 0}.tab{padding:8px 16px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(255,255,255,.5);cursor:pointer;font-weight:600;font-size:.85rem}.tab.active{background:linear-gradient(135deg,#06b6d4,#6366f1);color:#fff;border-color:transparent} iframe{width:100%;height:calc(100vh - 180px);border:1px solid var(--glass-border);border-radius:12px;background:#fff}</style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
+  <div class="nav-links"><a href="/hub/play" class="nav-link active">Play</a><a href="/hub/workshop" class="nav-link">Workshop</a><a href="/hub/compete" class="nav-link">Compete</a><a href="/hub/social" class="nav-link">Social</a><a href="/hub/learn" class="nav-link">Learn</a><a href="/profile" class="nav-link">Profile</a></div>
+</nav>
+<main style="max-width:1200px;margin:0 auto;padding:16px">
+  <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.4rem">Play Hub</h1>
+  <p style="font-size:.85rem;color:#64748b">Play 3D, test code in Playground, benchmark in Arena — one hub.</p>
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('play3d')">Play 3D</button>
+    <button class="tab" onclick="switchTab('playground')">Playground</button>
+    <button class="tab" onclick="switchTab('arena')">Arena</button>
+  </div>
+  <iframe id="frame" src="/play3d"></iframe>
+</main>
+<script>
+function switchTab(which){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  const src = which==='play3d' ? '/play3d' : which==='playground' ? '/playground' : '/arena';
+  document.getElementById('frame').src = src;
+}
+</script>
+</body>
+</html>

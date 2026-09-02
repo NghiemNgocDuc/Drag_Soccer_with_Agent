@@ -143,7 +143,7 @@
     <a class="nav-link" href="#features">Features</a>
     <a class="nav-link" href="/leaderboard">Leaderboard</a>
     {% if username %}
-      <a class="nav-link" href="/play3d">Play</a>
+      <a class="nav-link" href="/hub/play">Play</a>
       <div class="nav-user">
         <span class="nav-avatar">{{ username[0] | upper }}</span>
         <span>{{ username }}</span>
@@ -167,7 +167,7 @@
       <p class="hero-sub">Agent Soccer is a turn-based drag-soccer game where you pull back and release to shoot — and where your own trained AI agents learn the sport beside you, from friendly matches to full tournaments.</p>
       <div class="hero-cta">
         {% if username %}
-          <a class="btn btn-primary btn-lg" href="/play3d">Play Now</a>
+          <a class="btn btn-primary btn-lg" href="/hub/play">Play Now</a>
           <a class="btn btn-secondary btn-lg" href="/customize">Tune Your Team</a>
         {% else %}
           <a class="btn btn-primary btn-lg" href="/login">Play Now</a>

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learn Hub — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>.tab-bar{display:flex;gap:8px;margin:16px 0}.tab{padding:8px 16px;border-radius:10px;border:1px solid var(--glass-border);background:rgba(255,255,255,.5);cursor:pointer;font-weight:600;font-size:.85rem}.tab.active{background:linear-gradient(135deg,#06b6d4,#6366f1);color:#fff} iframe{width:100%;height:calc(100vh - 180px);border:1px solid var(--glass-border);border-radius:12px;background:#fff}</style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer</a>
+  <div class="nav-links"><a href="/hub/play" class="nav-link">Play</a><a href="/hub/workshop" class="nav-link">Workshop</a><a href="/hub/compete" class="nav-link">Compete</a><a href="/hub/social" class="nav-link">Social</a><a href="/hub/learn" class="nav-link active">Learn</a><a href="/profile" class="nav-link">Profile</a></div>
+</nav>
+<main style="max-width:1200px;margin:0 auto;padding:16px">
+  <h1>Learn Hub</h1><p style="font-size:.85rem;color:#64748b">Research, Learn, About, Workflow — docs and system.</p>
+  <div class="tab-bar">
+    <button class="tab active" onclick="switchTab('research')">Research</button>
+    <button class="tab" onclick="switchTab('learn')">Learn</button>
+    <button class="tab" onclick="switchTab('about')">About</button>
+    <button class="tab" onclick="switchTab('workflow')">Workflow</button>
+  </div>
+  <iframe id="frame" src="/research"></iframe>
+</main>
+<script>
+function switchTab(w){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  event.target.classList.add('active');
+  const m={research:'/research',learn:'/learn',about:'/about',workflow:'/workflow'};
+  document.getElementById('frame').src=m[w];
+}
+</script>
+</body>
+</html>

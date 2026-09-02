@@ -1284,6 +1284,32 @@ def clan_detail(clan_id):
     return render_template("clan.html", username=session.get("username", "Player"), clan=c, pending=reqs)
 
 
+#  Hubs — combined pages (Play/Workshop/Compete/Social/Learn) — logical IA
+@app.route("/hub/play")
+@login_required
+def hub_play():
+    return render_template("hub_play.html", username=session.get("username", "Player"))
+
+@app.route("/hub/workshop")
+@login_required
+def hub_workshop():
+    return render_template("hub_workshop.html", username=session.get("username", "Player"))
+
+@app.route("/hub/compete")
+@login_required
+def hub_compete():
+    return render_template("hub_compete.html", username=session.get("username", "Player"))
+
+@app.route("/hub/social")
+@login_required
+def hub_social():
+    return render_template("hub_social.html", username=session.get("username", "Player"))
+
+@app.route("/hub/learn")
+@login_required
+def hub_learn():
+    return render_template("hub_learn.html", username=session.get("username", "Player"))
+
 @app.route("/api/clans", methods=["GET"])
 @login_required
 def api_clans_list():
