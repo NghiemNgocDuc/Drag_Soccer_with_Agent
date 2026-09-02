@@ -323,6 +323,11 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
     <button type="button" class="btn btn-primary" id="email-change-btn">Request Email Change</button>
     <div class="hint">A confirmation link is emailed to the new address — your email only changes once you click it.</div>
     <div class="form-status" id="email-status"></div>
+    <div id="pending-email-wrap" style="display:none;margin-top:12px;padding:10px;border:1px solid #e0e7ff;border-radius:8px;background:rgba(224,231,255,.3)">
+      <div style="font-size:.78rem;color:var(--muted)">Pending change to <b id="pending-email-text"></b></div>
+      <button type="button" class="btn btn-ghost" id="resend-btn" style="margin-top:8px">Resend confirmation email</button>
+      <div class="form-status" id="resend-status"></div>
+    </div>
   </div>
 
   <!-- Stats Grid -->
@@ -647,6 +652,7 @@ emailBtn.addEventListener('click', async () => {
       document.getElementById('current-password').value = '';
       document.getElementById('new-email').value = '';
       document.getElementById('confirm-email').value = '';
+      checkPendingEmail();
     } else {
       showStatus(emailStat, data.error || 'Could not request the change. Try again.', false);
     }
@@ -656,6 +662,42 @@ emailBtn.addEventListener('click', async () => {
     emailBtn.disabled = false;
   }
 });
+async function checkPendingEmail(){
+  try{
+    const r=await fetch('/api/account/pending-email');
+    const d=await r.json();
+    const wrap=document.getElementById('pending-email-wrap');
+    const txt=document.getElementById('pending-email-text');
+    if(d.pending_email){
+      txt.textContent=d.pending_email;
+      wrap.style.display='block';
+    } else {
+      wrap.style.display='none';
+    }
+  }catch(e){}
+}
+document.getElementById('resend-btn')?.addEventListener('click', async ()=>{
+  const btn=document.getElementById('resend-btn');
+  const stat=document.getElementById('resend-status');
+  btn.disabled=true;
+  stat.textContent='Resending...';
+  stat.className='form-status ok';
+  try{
+    const r=await fetch('/api/account/change-email/resend', {method:'POST'});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok){
+      stat.textContent='Confirmation email resent to '+d.pending_email;
+      stat.className='form-status ok';
+    } else {
+      stat.textContent=d.error||'Could not resend';
+      stat.className='form-status err';
+    }
+  }catch(e){
+    stat.textContent='Network error';
+    stat.className='form-status err';
+  } finally { btn.disabled=false; }
+});
+checkPendingEmail();
 </script>
 <script src="/static/feedback.js"></script>
 </body>

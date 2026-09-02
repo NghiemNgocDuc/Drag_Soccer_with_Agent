@@ -1618,7 +1618,59 @@ def api_change_email():
     # and the email only changes once it is clicked.
     service.auth.admin.update_user_by_id(user_id, {"email": new_email})
     _ph.capture(user_id, "email_change_requested", {"pending_email": new_email})
+    # store pending for resend (24h)
+    try:
+        from db.redis_client import r as _r
+        _r.setex(f"pending_email:{user_id}", 86400, new_email)
+    except Exception:
+        pass
     return jsonify({"ok": True, "pending_email": new_email})
+
+
+@app.route("/api/account/pending-email", methods=["GET"])
+@login_required
+def api_pending_email():
+    try:
+        from db.redis_client import r as _r
+        raw = _r.get(f"pending_email:{uid()}")
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        if raw:
+            return jsonify({"pending_email": raw})
+    except Exception:
+        pass
+    return jsonify({"pending_email": None})
+
+
+@app.route("/api/account/change-email/resend", methods=["POST"])
+@login_required
+def api_resend_email_change():
+    from db.supabase_client import service
+    user_id = uid()
+    if user_id.startswith("clerk:") or user_id.startswith("dev:"):
+        return jsonify({"error": "Email changes are not available for this account type."}), 400
+    if not service:
+        return jsonify({"error": "Account changes are not available in dev mode."}), 503
+    # get pending from Redis
+    pending = None
+    try:
+        from db.redis_client import r as _r
+        raw = _r.get(f"pending_email:{user_id}")
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        pending = raw
+    except Exception:
+        pass
+    if not pending:
+        return jsonify({"error": "No pending email change to resend"}), 400
+    # re-trigger Supabase confirmation email
+    try:
+        service.auth.admin.update_user_by_id(user_id, {"email": pending})
+        _ph.capture(user_id, "email_change_resend", {"pending_email": pending})
+        return jsonify({"ok": True, "pending_email": pending})
+    except Exception as exc:
+        logging.warning("resend failed: %s", exc)
+        return jsonify({"error": "Could not resend. Try again."}), 502
 
 
 @app.route("/leaderboard")
