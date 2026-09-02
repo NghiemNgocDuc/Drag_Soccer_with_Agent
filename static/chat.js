@@ -21,7 +21,22 @@
     '😇','🥺','😤','🤯','🥶','🤠','👊','🤝'
   ];
   var QUICK_REACTIONS = ['⚽','🔥','👏','💯','😂','❤️','🎉','🏆'];
+  var GIF_GRID = [
+    'https://media.giphy.com/media/l0HlN2wYV4b64BwaI/giphy.gif',
+    'https://media.giphy.com/media/3o7TKMt1VVNkHV2PaE/giphy.gif',
+    'https://media.giphy.com/media/xT9IgG50Fb7Mi0prBC/giphy.gif',
+    'https://media.giphy.com/media/l0MYt5jPR6QX5pnqM/giphy.gif',
+    'https://media.giphy.com/media/3o6ZsVGl3mKa4Vo1na/giphy.gif',
+    'https://media.giphy.com/media/26tPplGWjN0xLybi5K/giphy.gif',
+    'https://media.giphy.com/media/3o7aCTfyhYawdOXcFW/giphy.gif',
+    'https://media.giphy.com/media/l41lFw057lAJQMhAI/giphy.gif',
+    'https://media.giphy.com/media/26BRuo6sLetdllPAQ/giphy.gif',
+    'https://media.giphy.com/media/3oKIPnAiaMCws8nOsE/giphy.gif',
+    'https://media.giphy.com/media/xT9IgzCUT5hA2PudO4/giphy.gif',
+    'https://media.giphy.com/media/l0MYEqEx19CO8XkJ6/giphy.gif'
+  ];
   var MAX_LEN = 280;
+  var GIF_RE = /^https?:\/\/\S+\.gif(\?.*)?$/i;
 
   var styleId = 'chat-panel-styles';
   function injectStyles() {
@@ -78,6 +93,16 @@
         'background:rgba(255,255,255,.7);border-top:1px solid rgba(148,163,184,.25);max-height:130px;overflow-y:auto;}',
       '.chat-emoji-grid button{background:none;border:none;font-size:1.05rem;border-radius:6px;padding:2px;cursor:pointer;}',
       '.chat-emoji-grid button:hover{background:rgba(6,182,212,.18);}',
+      '.chat-gif-btn{background:rgba(15,23,42,.06);border:none;border-radius:10px;width:34px;height:34px;' +
+        'font-size:.78rem;font-weight:700;cursor:pointer;flex:none;color:#0ea5e9;}',
+      '.chat-gif-btn:hover{background:rgba(15,23,42,.14);}',
+      '.chat-gif-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px 8px;' +
+        'background:rgba(255,255,255,.7);border-top:1px solid rgba(148,163,184,.25);max-height:180px;overflow-y:auto;}',
+      '.chat-gif-grid button{border:1px solid rgba(148,163,184,.2);border-radius:8px;overflow:hidden;padding:0;cursor:pointer;background:#fff;height:64px;}',
+      '.chat-gif-grid button img{width:100%;height:100%;object-fit:cover;display:block;}',
+      '.chat-gif-grid button:hover{border-color:#0ea5e9;transform:scale(1.02);}',
+      '.chat-gif{max-width:220px;border-radius:10px;overflow:hidden;display:block;margin-top:4px;cursor:zoom-in;border:1px solid rgba(148,163,184,.25);}',
+      '.chat-gif img{width:100%;height:auto;display:block;}',
       '.chat-toast{position:absolute;left:10px;right:10px;bottom:58px;background:#0f172a;color:#fff;' +
         'font-size:.75rem;border-radius:8px;padding:6px 10px;opacity:0;pointer-events:none;transition:opacity .2s;text-align:center;}',
       '.chat-toast.on{opacity:.95;}',
@@ -183,9 +208,21 @@
     this._emojiBtn.textContent = '😀';
     this._emojiBtn.title = 'Emoji';
     this._emojiBtn.addEventListener('click', function () {
+      self._gifGrid.style.display = 'none';
       self._grid.style.display = (self._grid.style.display === 'grid') ? 'none' : 'grid';
     });
     inputRow.appendChild(this._emojiBtn);
+
+    this._gifBtn = document.createElement('button');
+    this._gifBtn.type = 'button';
+    this._gifBtn.className = 'chat-gif-btn';
+    this._gifBtn.textContent = 'GIF';
+    this._gifBtn.title = 'GIF';
+    this._gifBtn.addEventListener('click', function () {
+      self._grid.style.display = 'none';
+      self._gifGrid.style.display = (self._gifGrid.style.display === 'grid') ? 'none' : 'grid';
+    });
+    inputRow.appendChild(this._gifBtn);
 
     this._input = document.createElement('input');
     this._input.type = 'text';
@@ -221,6 +258,20 @@
       self._grid.appendChild(b);
     });
     body.appendChild(this._grid);
+
+    this._gifGrid = document.createElement('div');
+    this._gifGrid.className = 'chat-gif-grid';
+    this._gifGrid.style.display = 'none';
+    GIF_GRID.forEach(function (url) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      var img = document.createElement('img');
+      img.src = url; img.loading = 'lazy'; img.alt = 'gif';
+      b.appendChild(img);
+      b.addEventListener('click', function () { self.send(url); self._gifGrid.style.display='none'; });
+      self._gifGrid.appendChild(b);
+    });
+    body.appendChild(this._gifGrid);
 
     this._toastEl = document.createElement('div');
     this._toastEl.className = 'chat-toast';
@@ -370,7 +421,20 @@
 
     var body = document.createElement('div');
     body.className = 'chat-msg-body' + (m.emoji_only ? ' chat-big-emoji' : '');
-    body.textContent = m.body;
+    var isGif = typeof m.body === 'string' && GIF_RE.test(m.body.trim());
+    if (isGif) {
+      var a = document.createElement('a');
+      a.className = 'chat-gif'; a.href = m.body.trim(); a.target = '_blank'; a.rel = 'noopener';
+      var img = document.createElement('img');
+      img.src = m.body.trim(); img.alt = 'gif'; img.loading = 'lazy';
+      a.appendChild(img);
+      body.appendChild(a);
+      if (m.body.trim() !== m.body) {
+        var t = document.createElement('div'); t.textContent = m.body; t.style.display='none'; body.appendChild(t);
+      }
+    } else {
+      body.textContent = m.body;
+    }
     row.appendChild(body);
 
     if (!mine) {
