@@ -473,6 +473,11 @@ def get_ai_move(state, is_player_a):
           <label>Description</label>
           <input type="text" id="f-desc" placeholder="One-line summary" maxlength="120">
         </div>
+        <div class="field-inline" style="min-width:260px">
+          <label>Links (paper, doc — max 5)</label>
+          <div id="links-editor" style="display:flex;flex-direction:column;gap:6px"></div>
+          <button class="btn btn-ghost btn-xs" onclick="addLinkRow()" style="margin-top:4px">+ Add link</button>
+        </div>
         <div class="editor-actions">
           <button class="btn btn-ghost btn-sm" onclick="closeEditor()">Cancel</button>
           <button class="btn btn-ghost btn-sm" onclick="validateCode()">Validate</button>
@@ -517,6 +522,7 @@ MODEL_DATA['{{ m.id }}'] = {
   name: {{ m.name | tojson }},
   desc: {{ (m.description or '') | tojson }},
   is_public: {{ 'true' if m.is_public else 'false' }},
+  links: {{ (m.links or []) | tojson }},
 };
 {% endfor %}
 
@@ -554,6 +560,7 @@ function openNew() {
   document.getElementById('f-name').value = '';
   document.getElementById('f-desc').value = '';
   document.getElementById('f-public').checked = false;
+  setLinks([]);
   document.querySelectorAll('.model-card').forEach(c => c.classList.remove('active'));
   showEditor();
 }
@@ -578,6 +585,7 @@ async function openBuiltin(id){
   editingId = null;
   document.getElementById('f-name').value = "Copy of " + id;
   document.getElementById('f-desc').value = "Based on " + id + " — benchmark block included";
+  setLinks([]);
   editor.setValue(d.code);
   document.querySelectorAll('.model-card').forEach(c=>c.classList.remove('active'));
   showEditor();
@@ -590,6 +598,7 @@ function openEdit(id) {
   document.getElementById('f-name').value = data.name;
   document.getElementById('f-desc').value = data.desc;
   document.getElementById('f-public').checked = data.is_public;
+  setLinks(data.links || []);
   fetch(`/api/models/user/${id}/code`)
     .then(r => r.json())
     .then(d => { editor.setValue(d.code || TEMPLATE); showEditor(); });
@@ -622,6 +631,32 @@ function clearValidateResult() {
   const el = document.getElementById('validate-result');
   el.textContent = '';
   el.className = 'validate-result';
+}
+
+function addLinkRow(title="", url=""){
+  const wrap=document.getElementById('links-editor');
+  if(!wrap) return;
+  if(wrap.children.length>=5){ alert('Max 5 links'); return; }
+  const row=document.createElement('div'); row.style='display:flex;gap:6px;margin-top:4px';
+  row.innerHTML=`<input placeholder="Title (e.g. Paper)" value="${title.replace(/"/g,'&quot;')}" style="flex:1;padding:6px 8px;border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;background:rgba(0,0,0,.2);color:#e2e8f0"><input placeholder="https://..." value="${url.replace(/"/g,'&quot;')}" style="flex:2;padding:6px 8px;border:1px solid rgba(255,255,255,.1);border-radius:8px;font-size:.78rem;background:rgba(0,0,0,.2);color:#e2e8f0"><button onclick="this.parentElement.remove()" style="padding:4px 8px;border-radius:6px;border:none;background:rgba(239,68,68,.15);color:#ef4444;cursor:pointer">x</button>`;
+  wrap.appendChild(row);
+}
+function getLinks(){
+  const rows=document.querySelectorAll('#links-editor > div');
+  const out=[];
+  rows.forEach(r=>{
+    const ins=r.querySelectorAll('input');
+    const t=(ins[0]?.value||'').trim();
+    const u=(ins[1]?.value||'').trim();
+    if(t && u) out.push({title:t, url:u});
+  });
+  return out;
+}
+function setLinks(links){
+  const wrap=document.getElementById('links-editor');
+  if(!wrap) return;
+  wrap.innerHTML='';
+  (links||[]).forEach(l=>addLinkRow(l.title||'', l.url||''));
 }
 
 async function runEditorBenchmark(){
@@ -661,12 +696,13 @@ async function saveModel() {
   const desc = document.getElementById('f-desc').value.trim();
   const code = editor.getValue();
   const pub  = document.getElementById('f-public').checked;
+  const links = getLinks();
   if (!name) { alert('Model name is required.'); return; }
   const url    = editingId ? `/api/models/user/${editingId}` : '/api/models/user';
   const method = editingId ? 'PUT' : 'POST';
   const r = await fetch(url, {
     method, headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({name, description: desc, code, is_public: pub}),
+    body: JSON.stringify({name, description: desc, code, is_public: pub, links}),
   });
   const data = await r.json();
   if (data.error) { alert(data.error); return; }

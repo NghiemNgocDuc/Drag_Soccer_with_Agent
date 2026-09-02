@@ -58,6 +58,14 @@ pre.code{background:#0d1117;color:#cdd6f4;border:1px solid rgba(255,255,255,.1);
     {% endif %}
     <pre class="code" style="margin-top:10px;max-height:240px">{{ model.code[:3000] }}</pre>
     <div class="meta">Full code shown truncated — benchmarks use full file.</div>
+    {% if model.links %}
+    <div style="margin-top:12px">
+      <h4 style="font-size:.82rem;font-weight:700;margin:0 0 6px">Links — paper, docs, anything</h4>
+      {% for l in model.links %}
+        <div style="margin-bottom:4px"><a href="{{ l.url }}" target="_blank" rel="noopener" style="color:#0284c7;font-weight:600;text-decoration:none">{{ l.title }}</a> <span class="meta">— {{ l.url }}</span></div>
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
 
   <div class="glass-card" style="padding:16px">

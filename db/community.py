@@ -47,7 +47,7 @@ def list_public_models(limit: int = 50, offset: int = 0, q: str | None = None) -
         return out, len([v for v in _MEM.values() if v.get("is_public")])
     # supabase
     try:
-        query=svc.table("user_models").select("id,user_id,name,description,created_at,updated_at").eq("is_public", True)
+        query=svc.table("user_models").select("id,user_id,name,description,links,created_at,updated_at").eq("is_public", True)
         if q:
             # ilike on name or description
             query=query.or_(f"name.ilike.%{q}%,description.ilike.%{q}%")
@@ -99,7 +99,7 @@ def get_public_model(model_id: str) -> dict | None:
         owner_name=_MEM_USERS.get(r.get("user_id"), r.get("user_id","")[:8])
         return {**r, "likes":likes, "comments":comments, "score":score, "details":details, "owner_name":owner_name}
     try:
-        row=svc.table("user_models").select("id,user_id,name,description,code,created_at").eq("id", model_id).eq("is_public", True).maybe_single().execute()
+        row=svc.table("user_models").select("id,user_id,name,description,code,links,created_at").eq("id", model_id).eq("is_public", True).maybe_single().execute()
         if not row or not row.data:
             return None
         r=row.data

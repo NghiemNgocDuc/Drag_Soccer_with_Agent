@@ -27,7 +27,8 @@ def _now_iso() -> str:
 
 
 def save_submission(model_id: str, user_id: str, model_name: str,
-                    score: float, games_per_opponent: int, details: list[dict]) -> None:
+                    score: float, games_per_opponent: int, details: list[dict],
+                    avg_latency: float | None = None) -> None:
     row = {
         "model_id": model_id,
         "user_id": user_id,
@@ -37,6 +38,8 @@ def save_submission(model_id: str, user_id: str, model_name: str,
         "details": details,
         "benchmarked_at": _now_iso(),
     }
+    if avg_latency is not None:
+        row["avg_latency"] = round(float(avg_latency), 1)
     svc = _svc()
     if not svc:
         _MEM[model_id] = row
@@ -90,25 +93,30 @@ def list_leaderboard(limit: int = 20, offset: int = 0,
                      sort: str = "score") -> tuple[list[dict], int]:
     """Ranked rows (model_id, name, owner username/avatar, score, details, time).
 
+    sort: score (accuracy), speed (avg_latency asc), recent
     Returns (entries, total_count). Total is true for the in-memory path and
     best-effort (len of all rows) under Supabase via the score index.
     """
     svc = _svc()
     if not svc:
-        rows = sorted(_MEM.values(),
-                      key=lambda x: x["benchmarked_at"], reverse=True)
+        rows = list(_MEM.values())
         if sort == "recent":
-            pass
+            rows = sorted(rows, key=lambda x: x["benchmarked_at"], reverse=True)
+        elif sort == "speed":
+            rows = sorted(rows, key=lambda x: (x.get("avg_latency") if x.get("avg_latency") is not None else 9999))
         else:
-            rows = sorted(_MEM.values(), key=lambda x: x["score"], reverse=True)
+            rows = sorted(rows, key=lambda x: x["score"], reverse=True)
         total = len(rows)
         page = rows[offset:offset + limit]
         return _decorate(page), total
 
-    order_col = "benchmarked_at" if sort == "recent" else "score"
+    order_col = "benchmarked_at" if sort == "recent" else ("avg_latency" if sort == "speed" else "score")
+    # speed is asc
+    desc = False if sort == "speed" else True
+    cols = "model_id,user_id,model_name,score,games_per_opponent,details,benchmarked_at,avg_latency"
     res = svc.table("model_leaderboard")\
-        .select("model_id,user_id,model_name,score,games_per_opponent,details,benchmarked_at")\
-        .order(order_col, desc=True)\
+        .select(cols)\
+        .order(order_col, desc=desc)\
         .range(offset, offset + limit - 1)\
         .execute()
     rows = list(res.data or [])
@@ -144,6 +152,7 @@ def _decorate(rows: list[dict]) -> list[dict]:
             "games_per_opponent": r.get("games_per_opponent", 5),
             "details": r.get("details") or [],
             "benchmarked_at": r.get("benchmarked_at"),
+            "avg_latency": float(r["avg_latency"]) if r.get("avg_latency") is not None else None,
         })
     return out
 

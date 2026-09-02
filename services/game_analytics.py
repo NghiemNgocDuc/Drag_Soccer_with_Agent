@@ -349,12 +349,13 @@ def benchmark_model_vs_builtins(
     the arithmetic mean of the per-opponent win rates (0-100), plus the
     per-opponent breakdown and aggregate shot stats. `opponents` accepts
     catalog ids or model objects (default: all 7 built-ins). Returns
-    {"score", "n_games", "details": [...], "avg_stats": {...}}.
+    {"score", "n_games", "details": [...], "avg_stats": {...}, "avg_latency": ms}.
 
     When `tracer` is given (dict with a "side" — see run_model_battle), the
     per-game results carrying `traced_turns` are also returned under
     "traced_games" (list of {"opponent", "opponent_label", "games"}).
     """
+    import time as _time
     if opponents is None:
         opponents = [m["id"] for m in MODEL_CATALOG]
     total_games = len(opponents) * n_games
@@ -362,6 +363,7 @@ def benchmark_model_vs_builtins(
     details = []
     stats_acc: dict[str, list[float]] = {}
     traced_payload: list[dict] = [] if tracer is not None else None
+    latencies: list[float] = []
 
     for opp in opponents:
         if isinstance(opp, str):
@@ -375,10 +377,17 @@ def benchmark_model_vs_builtins(
                 progress_callback(off + d, total_games)
         else:
             _pb = None
+        # time the battle for latency (model is always A)
+        t0 = _time.perf_counter()
         result = run_model_battle(
-            model, opp, n_games=n_games, parallel=True, progress_callback=_pb,
+            model, opp, n_games=n_games, parallel=False, progress_callback=_pb,
             tracer=tracer,
         )
+        dt = (_time.perf_counter() - t0) * 1000
+        # per-move latency approx: total / (n_games * avg_kicks)
+        avg_kicks = result.get("avg_kicks", 15) if result else 15
+        denom = max(1, n_games * max(1, avg_kicks))
+        latencies.append(dt / denom)
         if result is None:
             continue
         offset += result["n_games"]
@@ -401,7 +410,8 @@ def benchmark_model_vs_builtins(
 
     score = round(sum(d["win_rate"] for d in details) / len(details), 1) if details else 0.0
     avg_stats = {k: round(sum(vs) / len(vs), 1) for k, vs in stats_acc.items()} if stats_acc else {}
-    out = {"score": score, "n_games": n_games, "details": details, "avg_stats": avg_stats}
+    avg_latency = round(sum(latencies) / len(latencies), 1) if latencies else None
+    out = {"score": score, "n_games": n_games, "details": details, "avg_stats": avg_stats, "avg_latency": avg_latency}
     if traced_payload is not None:
         out["traced_games"] = traced_payload
     return out

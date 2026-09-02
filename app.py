@@ -1825,12 +1825,22 @@ def api_create_model():
     name = (data.get("name") or "").strip()
     desc = (data.get("description") or "").strip()
     code = (data.get("code") or "").strip()
+    links = data.get("links") if isinstance(data.get("links"), list) else []
+    # validate links
+    clean_links=[]
+    for l in links[:5]:
+        if not isinstance(l, dict): continue
+        t=(l.get("title") or "").strip()[:80]
+        u=(l.get("url") or "").strip()[:500]
+        if not t or not u: continue
+        if not (u.startswith("http://") or u.startswith("https://")): continue
+        clean_links.append({"title": t, "url": u})
     if not name:
         return jsonify({"error": "Name is required."}), 400
     ok, msg = validate_code(code)
     if not ok:
         return jsonify({"error": f"Code error: {msg}"}), 400
-    model = create_model(uid(), name, desc, code)
+    model = create_model(uid(), name, desc, code, links=clean_links)
     resp = {"ok": True, "model": model}
     _ach_grant(uid(), "ai_first_model")
     resp["achievements"] = _ach_toasts()
@@ -1864,6 +1874,16 @@ def api_update_model(model_id: str):
         fields["code"] = code
     if "is_public" in data:
         fields["is_public"] = bool(data["is_public"])
+    if "links" in data and isinstance(data["links"], list):
+        clean=[]
+        for l in data["links"][:5]:
+            if not isinstance(l, dict): continue
+            t=(l.get("title") or "").strip()[:80]
+            u=(l.get("url") or "").strip()[:500]
+            if not t or not u: continue
+            if not (u.startswith("http://") or u.startswith("https://")): continue
+            clean.append({"title": t, "url": u})
+        fields["links"] = clean
     updated = update_model(model_id, uid(), **fields)
     if not updated:
         return jsonify({"error": "Model not found or access denied."}), 404

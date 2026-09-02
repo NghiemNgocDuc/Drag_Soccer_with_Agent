@@ -24,7 +24,7 @@ def get_user_models(user_id: str) -> list[dict]:
         return [dict(m) for m in _MEM.values() if m["user_id"] == user_id]
     rows = (
         svc.table("user_models")
-        .select("id, name, description, code, is_public, created_at, updated_at")
+        .select("id, name, description, code, is_public, links, created_at, updated_at")
         .eq("user_id", user_id)
         .order("created_at")
         .execute()
@@ -52,14 +52,28 @@ def get_model_by_id(model_id: str, requesting_user_id: str | None = None) -> dic
     return None
 
 
-def create_model(user_id: str, name: str, description: str, code: str) -> dict:
+def create_model(user_id: str, name: str, description: str, code: str, links: list | None = None) -> dict:
     svc = _svc()
+    if links is None:
+        links = []
+    # validate links
+    clean_links = []
+    for l in links:
+        if not isinstance(l, dict):
+            continue
+        title = (l.get("title") or "").strip()[:80]
+        url = (l.get("url") or "").strip()[:500]
+        if not url or not title:
+            continue
+        if not (url.startswith("http://") or url.startswith("https://")):
+            continue
+        clean_links.append({"title": title, "url": url})
     if not svc:
         _MEM_SEQ[0] += 1
         mid = f"dev-{_MEM_SEQ[0]}"
         now = _now_iso()
         m = {"id": mid, "user_id": user_id, "name": name, "description": description,
-             "code": code, "is_public": False, "created_at": now, "updated_at": now}
+             "code": code, "is_public": False, "links": clean_links, "created_at": now, "updated_at": now}
         _MEM[mid] = m
         return dict(m)
     row = svc.table("user_models").insert({
@@ -68,11 +82,28 @@ def create_model(user_id: str, name: str, description: str, code: str) -> dict:
         "description": description,
         "code":        code,
         "is_public":   False,
+        "links":       clean_links,
     }).execute()
     return (row.data or [{}])[0]
 
 
 def update_model(model_id: str, user_id: str, **fields) -> bool:
+    # validate links if present
+    if "links" in fields:
+        raw = fields["links"]
+        clean = []
+        if isinstance(raw, list):
+            for l in raw[:5]:
+                if not isinstance(l, dict):
+                    continue
+                title = (l.get("title") or "").strip()[:80]
+                url = (l.get("url") or "").strip()[:500]
+                if not url or not title:
+                    continue
+                if not (url.startswith("http://") or url.startswith("https://")):
+                    continue
+                clean.append({"title": title, "url": url})
+        fields["links"] = clean
     svc = _svc()
     if not svc:
         m = _MEM.get(model_id)
