@@ -3839,5 +3839,30 @@ function setOverlay(show, text) {
   } catch (e) {}
 })();
 </script>
+<script src="/static/autosave.js"></script>
+<script>
+// History autosave UI — show last 5 saves, allow restore via back button
+(function(){
+  const box=document.createElement('div');
+  box.style='position:fixed;bottom:12px;left:12px;background:rgba(255,255,255,.9);border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;font-size:.72rem;z-index:30;max-width:220px';
+  box.innerHTML='<b>History</b> <span style="color:#64748b">(autosave)</span><div id="hist-list" style="margin-top:6px;max-height:120px;overflow:auto"></div><div style="margin-top:6px;display:flex;gap:6px"><button onclick="if(window.Autosave){const h=Autosave.loadHistory(); if(h.length) history.back();}" style="padding:4px 8px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer">← Back</button><button onclick="if(window.Autosave) Autosave.clear()" style="padding:4px 8px;border-radius:6px;border:none;background:#fef2f2;color:#dc2626;cursor:pointer">Clear</button></div>';
+  document.body.appendChild(box);
+  function render(){
+    const hist=(window.Autosave && Autosave.loadHistory())||[];
+    const list=document.getElementById('hist-list');
+    if(!list) return;
+    list.innerHTML = hist.slice(-5).reverse().map(h=>`<div style="padding:2px 0;border-bottom:1px solid #f1f5f9">${new Date(h.ts).toLocaleTimeString()} — ${h.scoreA}:${h.scoreB} k${h.kick}</div>`).join('') || '<div style="color:#94a3b8">No saves yet</div>';
+  }
+  setInterval(render, 2000);
+  window.addEventListener('autosave:restore', e=>{
+    const d=e.detail;
+    const el=document.createElement('div');
+    el.textContent='Restored to kick '+d.kick;
+    el.style='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#0ea5e9;color:#fff;padding:8px 12px;border-radius:8px;font-size:.8rem;z-index:40';
+    document.body.appendChild(el);
+    setTimeout(()=>el.remove(), 2000);
+  });
+})();
+</script>
 </body>
 </html>
