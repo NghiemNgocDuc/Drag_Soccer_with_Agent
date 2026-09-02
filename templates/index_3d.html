@@ -1166,8 +1166,11 @@ function _genSpriteSheet() {
   return new THREE.CanvasTexture(c);
 }
 
-function createCrowd(paletteArr) {
+function createCrowd(paletteArr, seatHex) {
   const tex = _genSpriteSheet();
+  const _seatHex = seatHex || CUST_STADIUM_SEAT || '#475569';
+  const _seatCol = new THREE.Color(_seatHex);
+  const _seatDark = _seatCol.clone().multiplyScalar(0.68);
   //  Expanded stadium bowl: extends 34–146px beyond pitch, 8 rows tiered 
   // Crowd sits on rising bleachers; each row is 10px higher and 16px further out.
   // North half blue, south half red everywhere (z>0 → blue).
@@ -1181,10 +1184,10 @@ function createCrowd(paletteArr) {
     { x0: sideX0, xStep: sideXStep, xRows: sideRows, z0: -sideZSpan, zStep: 14 },
     { x0: -sideX0, xStep: -sideXStep, xRows: sideRows, z0: -sideZSpan, zStep: 14 },
   ];
-  //  Stadium concrete tiers (visible bowl under the crowd) 
+  //  Stadium concrete tiers (visible bowl under the crowd) — tinted by Audience Seats color
   const bowl = new THREE.Group();
-  const tierMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
-  const tierDark = new THREE.MeshStandardMaterial({ color: 0x0f1a2a, roughness: 0.9 });
+  const tierMat = new THREE.MeshStandardMaterial({ color: _seatCol, roughness: 0.85 });
+  const tierDark = new THREE.MeshStandardMaterial({ color: _seatDark, roughness: 0.9 });
   for (const st of stands) {
     if (st.zRows) {
       for (let r = 0; r < st.zRows; r++) {
@@ -1220,8 +1223,9 @@ function createCrowd(paletteArr) {
       bowl.add(corner);
     }
   }
-  // Outer stadium wall (low surrounding wall)
-  const wall = new THREE.Mesh(new THREE.BoxGeometry(W + 220, 22, H + 260), new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.9 }));
+  // Outer stadium wall (low surrounding wall) — darker variant of seat color
+  const _wallCol = _seatCol.clone().multiplyScalar(0.55);
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(W + 220, 22, H + 260), new THREE.MeshStandardMaterial({ color: _wallCol, roughness: 0.9 }));
   // Use a ring: we add as separate walls rather than solid block — render as 4 walls with a hole cut via 4 boxes
   // Simpler: add 4 wall strips around bowl
   for (const args of [
@@ -1229,7 +1233,7 @@ function createCrowd(paletteArr) {
     [W + 240, 20, 18, 0, 10, -(H / 2 + 170)],
     [18, 20, H + 260, W / 2 + 150, 10, 0],
     [18, 20, H + 260, -(W / 2 + 150), 10, 0],
-  ]) { const bw = new THREE.Mesh(new THREE.BoxGeometry(args[0], args[1], args[2]), new THREE.MeshStandardMaterial({ color: 0x0f172a })); bw.position.set(args[3], args[4], args[5]); bowl.add(bw); }
+  ]) { const bw = new THREE.Mesh(new THREE.BoxGeometry(args[0], args[1], args[2]), new THREE.MeshStandardMaterial({ color: _wallCol })); bw.position.set(args[3], args[4], args[5]); bowl.add(bw); }
   scene.add(bowl);
   let n = 0;
   for (const st of stands) {
@@ -1306,11 +1310,14 @@ function createCrowd(paletteArr) {
   return { mesh, uniforms: u };
 }
 
-function createCrowdFallback(paletteArr) {
+function createCrowdFallback(paletteArr, seatHex) {
   const group = new THREE.Group();
-  // Expanded tiered stands to match createCrowd bowl
-  const tierMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.85 });
-  const tierDark = new THREE.MeshStandardMaterial({ color: 0x0f1a2a, roughness: 0.9 });
+  // Expanded tiered stands to match createCrowd bowl — tinted by Audience Seats color
+  const _fbSeat = new THREE.Color(seatHex || CUST_STADIUM_SEAT || '#475569');
+  const _fbDark = _fbSeat.clone().multiplyScalar(0.68);
+  const _fbWall = _fbSeat.clone().multiplyScalar(0.55);
+  const tierMat = new THREE.MeshStandardMaterial({ color: _fbSeat, roughness: 0.85 });
+  const tierDark = new THREE.MeshStandardMaterial({ color: _fbDark, roughness: 0.9 });
   const fbStands = [
     { z0: H / 2 + 34, zStep: 16, zRows: 8, xSpan: W / 2 - 32 },
     { z0: -(H / 2 + 34), zStep: -16, zRows: 8, xSpan: W / 2 - 32 },
@@ -1334,7 +1341,7 @@ function createCrowdFallback(paletteArr) {
     group.add(corner);
   }
   for (const args of [[W + 240, 20, 18, 0, 10, H / 2 + 170], [W + 240, 20, 18, 0, 10, -(H / 2 + 170)], [18, 20, H + 260, W / 2 + 150, 10, 0], [18, 20, H + 260, -(W / 2 + 150), 10, 0]]) {
-    const bw = new THREE.Mesh(new THREE.BoxGeometry(args[0], args[1], args[2]), new THREE.MeshStandardMaterial({ color: 0x0f172a })); bw.position.set(args[3], args[4], args[5]); group.add(bw);
+    const bw = new THREE.Mesh(new THREE.BoxGeometry(args[0], args[1], args[2]), new THREE.MeshStandardMaterial({ color: _fbWall })); bw.position.set(args[3], args[4], args[5]); group.add(bw);
   }
 
   const bluePositions = [], redPositions = [];
@@ -2379,6 +2386,7 @@ async function submitOnlineKick(playerIdx, angleDeg, power) {
 let CUST_TEAM_A = '#3b82f6';
 let CUST_TEAM_B = '#ef4444';
 let CUST_CROWD_PALETTE = 'classic';
+let CUST_STADIUM_SEAT = '#475569';
 
 // Penalty timer refs
 let keepTimer = null;
@@ -3771,6 +3779,7 @@ function setOverlay(show, text) {
     if (cust.crowd_palette) {
       CUST_CROWD_PALETTE = cust.crowd_palette;
     }
+    if (cust.stadium_seat_color) CUST_STADIUM_SEAT = cust.stadium_seat_color;
     if (cust.bg_scene) applyScene(cust.bg_scene, cust.floodlight_color || 'warm');
   } catch (e) {}
 
@@ -3784,8 +3793,8 @@ function setOverlay(show, text) {
     let pal = CROWD_PALETTES[CUST_CROWD_PALETTE] || CROWD_PALETTES.classic;
     if (CUST_CROWD_PALETTE === 'team_a') pal = _genCrowdPalette(CUST_TEAM_A, 10);
     else if (CUST_CROWD_PALETTE === 'team_b') pal = _genCrowdPalette(CUST_TEAM_B, 10);
-    crowdData = createCrowd(pal);
-    const fallback = createCrowdFallback(pal);
+    crowdData = createCrowd(pal, CUST_STADIUM_SEAT);
+    const fallback = createCrowdFallback(pal, CUST_STADIUM_SEAT);
     crowdData.fallbackCount = fallback.count;
     crowdData.mesh.visible = true;
     scene.add(crowdData.mesh);

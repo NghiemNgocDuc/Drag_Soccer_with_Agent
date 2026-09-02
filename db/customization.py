@@ -52,6 +52,7 @@ DEFAULT_CUSTOMIZATION = {
     "field_line_color": "#ffffff",
     "corner_flag_style": "normal",
     "crowd_palette": "classic",
+    "stadium_seat_color": "#475569",
     "stadium_vignette": 0.6,
     "floodlight_color": "warm",
     "bg_scene": "day",

@@ -250,6 +250,19 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
       </div>
     </div>
     <div class="setting-row">
+      <span class="setting-label">Audience Seats</span>
+      <div class="setting-control">
+        <input type="color" id="stadium_seat_color">
+        <span class="color-hex" id="hex_stadium_seat_color"></span>
+        <div class="presets" style="margin-left:4px">
+          <div class="preset-dot" style="background:#475569" onclick="document.getElementById('stadium_seat_color').value='#475569';updateHex('stadium_seat_color');renderPreview()" title="Slate"></div>
+          <div class="preset-dot" style="background:#1e293b" onclick="document.getElementById('stadium_seat_color').value='#1e293b';updateHex('stadium_seat_color');renderPreview()" title="Dark"></div>
+          <div class="preset-dot" style="background:#dc2626" onclick="document.getElementById('stadium_seat_color').value='#dc2626';updateHex('stadium_seat_color');renderPreview()" title="Red"></div>
+          <div class="preset-dot" style="background:#0ea5e9" onclick="document.getElementById('stadium_seat_color').value='#0ea5e9';updateHex('stadium_seat_color');renderPreview()" title="Blue"></div>
+        </div>
+      </div>
+    </div>
+    <div class="setting-row">
       <span class="setting-label">Background</span>
       <div class="setting-control">
         <input type="color" id="bg_color">
@@ -483,12 +496,12 @@ const LOCKED = {{ locked | tojson }};
 const DEFAULTS = {
   team_a_color:'#3b82f6',team_b_color:'#ef4444',ref_color:'#fde68a',ball_color:'#f8fafc',bg_color:'#2a2518',
   player_count:3,grass_shade:'dark',pitch_pattern:'stripes',field_line_color:'#ffffff',corner_flag_style:'normal',
-  crowd_palette:'classic',stadium_vignette:0.6,floodlight_color:'warm',bg_scene:'night',
+  crowd_palette:'classic',stadium_seat_color:'#475569',stadium_vignette:0.6,floodlight_color:'warm',bg_scene:'night',
   ball_design:'classic',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',keeper_style_a:'default',keeper_style_b:'default',highlight_style:'glow',shirt_font:'default',
   goal_effect:'confetti',trail_color:'#ffffff',power_bar_style:'classic',
   half_length:45,power_cap:100,win_goal_limit:5
 };
-const COLOR_KEYS = ['team_a_color','team_b_color','ref_color','ball_color','bg_color','field_line_color','trail_color','keeper_color_a','keeper_color_b'];
+const COLOR_KEYS = ['team_a_color','team_b_color','ref_color','ball_color','bg_color','field_line_color','trail_color','keeper_color_a','keeper_color_b','stadium_seat_color'];
 const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','ball_design','keeper_style_a','keeper_style_b','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
 const RANGE_KEYS = ['player_count','stadium_vignette','power_cap'];
 let current = {};
@@ -591,9 +604,10 @@ function buildNameColor(team, containerId){
     var n=names[i]||"";
     var c=colors[i]||teamCol;
     if(!/^#[0-9a-fA-F]{6}$/.test(c)) c=teamCol;
+    var label = i===0 ? 'GK' : String(i+1);
     html+='<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">';
-    html+='<span style="width:22px;font-size:.7rem;color:var(--muted)">'+(i+1)+'</span>';
-    html+='<input type="text" id="pname-'+team+i+'" value="'+n.replace(/"/g,'&quot;')+'" placeholder="Player '+(i+1)+'" maxlength="20" style="flex:1;padding:6px 8px;border:1px solid var(--glass-border);border-radius:8px;font-size:.78rem">';
+    html+='<span style="width:22px;font-size:.7rem;color:var(--muted)">'+label+'</span>';
+    html+='<input type="text" id="pname-'+team+i+'" value="'+n.replace(/"/g,'&quot;')+'" placeholder="'+(i===0?'GK':'Player '+(i+1))+'" maxlength="20" style="flex:1;padding:6px 8px;border:1px solid var(--glass-border);border-radius:8px;font-size:.78rem">';
     html+='<input type="color" id="pcolor-'+team+i+'" value="'+c+'" title="Kit color" style="width:36px;height:28px;padding:0;border:1px solid var(--glass-border);border-radius:6px">';
     html+='</div>';
   }
