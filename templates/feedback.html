@@ -35,24 +35,74 @@ main{max-width:640px;margin:0 auto;padding:30px 16px}
 <body>
 <div class="nebula"></div>
 
-<nav>
-  <a class="nav-brand" href="/play3d">Agent Soccer</a>
-  <div class="nav-links">
-    <a href="/play3d" class="nav-link">Game</a>
-    <a href="/playground" class="nav-link">Playground</a>
-    <a href="/arena" class="nav-link">AI Arena</a>
-    <a href="/my-models" class="nav-link">My Models</a>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4;margin-left:6px">3D</span></a>
+  <button class="nav-toggle" id="nav-toggle" aria-label="Menu" aria-expanded="false">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="nav-links" id="nav-links">
+    <div class="nav-dropdown">
+      <a class="nav-link" href="/play3d">Play ▾</a>
+      <div class="dropdown-menu">
+        <a href="/play3d" class="dropdown-item">Play 3D</a>
+        <a href="/playground" class="dropdown-item">Playground</a>
+        <a href="/arena" class="dropdown-item">AI Arena</a>
+      </div>
+    </div>
+    <div class="nav-dropdown">
+      <a class="nav-link" href="/my-models">Workshop ▾</a>
+      <div class="dropdown-menu">
+        <a href="/my-models" class="dropdown-item">My Models</a>
+        <a href="/community" class="dropdown-item">Community</a>
+        <a href="/leaderboard" class="dropdown-item">Leaderboard</a>
+      </div>
+    </div>
+    <div class="nav-dropdown">
+      <a class="nav-link" href="/tournaments">Compete ▾</a>
+      <div class="dropdown-menu">
+        <a href="/tournaments" class="dropdown-item">Tournaments</a>
+        <a href="/leaderboard/ranked" class="dropdown-item">Ranked</a>
+        <a href="/analytics" class="dropdown-item">Analytics</a>
+      </div>
+    </div>
+    <div class="nav-dropdown">
+      <a class="nav-link" href="/messages">Social ▾</a>
+      <div class="dropdown-menu">
+        <a href="/messages" class="dropdown-item">Messages</a>
+        <a href="/clans" class="dropdown-item">Clans</a>
+        <a href="/spectate" class="dropdown-item">Spectate</a>
+      </div>
+    </div>
+    <div class="nav-dropdown">
+      <a class="nav-link" href="/about">Learn ▾</a>
+      <div class="dropdown-menu">
+        <a href="/research" class="dropdown-item">Research</a>
+        <a href="/learn" class="dropdown-item">Learn</a>
+        <a href="/about" class="dropdown-item">About</a>
+        <a href="/workflow" class="dropdown-item">Workflow</a>
+      </div>
+    </div>
     <a href="/profile" class="nav-link">Profile</a>
-    <a href="/tournaments" class="nav-link">Tournaments</a>
-    <a href="/research" class="nav-link">Research</a>
-    <a href="/leaderboard" class="nav-link">Leaderboard</a>
-    <a href="/feedback" class="nav-link active">Feedback</a>
     <a href="/customize" class="nav-link">Customize</a>
     <span class="nav-user">{{ username }}</span>
-    <a href="/auth/logout" class="nav-link" style="color:var(--accent-b);margin-left:8px">Logout</a>
+    <a href="/auth/logout" class="nav-link" style="color:#ef4444;margin-left:8px">Logout</a>
   </div>
 </nav>
-
+<style>
+.nav-dropdown{position:relative}
+.dropdown-menu{position:absolute;top:100%;left:0;min-width:160px;background:var(--glass-bg-solid, #fff);border:1px solid var(--glass-border);border-radius:10px;box-shadow:var(--shadow-lg, 0 8px 24px rgba(0,0,0,.12));padding:6px;display:none;flex-direction:column;z-index:200}
+.nav-dropdown:hover .dropdown-menu{display:flex}
+.dropdown-item{padding:8px 12px;border-radius:8px;font-size:.82rem;font-weight:500;color:var(--text);text-decoration:none}
+.dropdown-item:hover{background:rgba(6,182,212,.08);color:#0284c7}
+@media(max-width:900px){.dropdown-menu{position:static;display:none;box-shadow:none;border:none;padding:0}.nav-dropdown:hover .dropdown-menu{display:none}.nav-links.open .dropdown-menu{display:flex}}
+</style>
+<script>
+document.getElementById('nav-toggle')?.addEventListener('click', function(){
+  const l=document.getElementById('nav-links');
+  const o=l.classList.toggle('open');
+  this.setAttribute('aria-expanded', o?'true':'false');
+});
+</script>
 <main>
   <div class="card">
     <h1>Send Feedback</h1>
