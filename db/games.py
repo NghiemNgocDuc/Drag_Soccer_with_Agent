@@ -19,6 +19,18 @@ def save_game_result(
 ) -> None:
     svc = _svc()
     if not svc:
+        # also keep 5 recent in Redis for DEV_MODE
+        try:
+            from db.redis_client import r as _r
+            import json as _j
+            key = f"history:{user_id}"
+            raw = _r.get(key)
+            lst = _j.loads(raw) if raw else []
+            lst.insert(0, {"mode": mode, "ai_model": ai_model, "winner": winner, "score_a": score_a, "score_b": score_b, "total_moves": total_moves, "ended_at": datetime.now(timezone.utc).isoformat()})
+            lst = lst[:5]
+            _r.setex(key, 30*86400, _j.dumps(lst))
+        except Exception:
+            pass
         return
     svc.table("games").insert({
         "user_id":     user_id,
@@ -30,6 +42,19 @@ def save_game_result(
         "total_moves": total_moves,
         "ended_at":    datetime.now(timezone.utc).isoformat(),
     }).execute()
+    # keep only most recent 5 to save space
+    try:
+        rows = svc.table("games").select("id,ended_at").eq("user_id", user_id).order("ended_at", desc=True).execute().data or []
+        if len(rows) > 5:
+            old_ids = [r["id"] for r in rows[5:]]
+            svc.table("games").delete().in_("id", old_ids).execute()
+        # also mirror to Redis for fast history
+        from db.redis_client import r as _r
+        import json as _j
+        recent = svc.table("games").select("*").eq("user_id", user_id).order("ended_at", desc=True).limit(5).execute().data or []
+        _r.setex(f"history:{user_id}", 30*86400, _j.dumps(recent))
+    except Exception:
+        pass
 
 
 def get_user_stats(user_id: str) -> dict:

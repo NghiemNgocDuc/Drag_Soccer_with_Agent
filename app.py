@@ -1406,6 +1406,24 @@ def api_clans_delete(clan_id):
         return jsonify({"error": str(e)}), 400
 
 
+@app.route("/match-history")
+@login_required
+def history_page():
+    from db.games import get_user_stats
+    from db.redis_client import r as _r
+    import json as _j
+    # try Redis history first (5 most recent), fallback to stats.recent
+    recent = []
+    try:
+        raw = _r.get(f"history:{uid()}")
+        if raw:
+            recent = _j.loads(raw)[:5]
+    except Exception:
+        pass
+    if not recent:
+        recent = get_user_stats(uid()).get("recent", [])[:5]
+    return render_template("history.html", username=session.get("username", "Player"), recent=recent)
+
 @app.route("/api/clans/<clan_id>", methods=["GET"])
 @login_required
 def api_clans_get(clan_id):
