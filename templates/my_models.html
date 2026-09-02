@@ -290,9 +290,29 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
       .tutorial-cta .tc-arrow{margin-left:auto;color:var(--accent);font-weight:700}
     </style>
 
+    <!-- How to code — tutorial on this page -->
+    <details style="background:rgba(14,165,233,.08);border:1px solid rgba(14,165,233,.18);border-radius:12px;padding:12px 14px;margin-bottom:12px" open>
+      <summary style="font-size:.82rem;font-weight:800;cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px"><span style="font-size:1rem">📘</span> How to code your own model — tutorial <span style="margin-left:auto;font-size:.68rem;color:var(--muted)">click to collapse</span></summary>
+      <div style="margin-top:10px;font-size:.78rem;line-height:1.6;color:var(--text)">
+        <p style="margin:0 0 8px"><b>1. Contract:</b> <code>def get_ai_move(state, is_player_a): return (idx, angle, power)</code> — <code>idx 0/1/2</code>, <code>angle 0=right 90=down</code>, <code>power 0-100</code>. Read <code>state["ball"]</code>, <code>state["players_a/b"]</code>, <code>state["field"]</code> — never hardcode <code>1400×875</code>.</p>
+        <p style="margin:0 0 8px"><b>2. Pick kicker:</b> <code>min(range(3), key=lambda i: hypot(players[i].x-bx))</code> — or reach-aware: <code>dist/(power/50)</code> for Power-85 striker.</p>
+        <p style="margin:0 0 8px"><b>3. Aim:</b> <code>angle = degrees(atan2(goal_y-by, goal_x-bx))</code> — try corners <code>y 365/510</code> when close, clear danger zone <code>x&lt;250</code> toward midfield.</p>
+        <p style="margin:0 0 8px"><b>4. Try it:</b> click any <b>Available model</b> → <b>Copy</b> → edit → <b>Validate</b> → <b>Benchmark (5 vs Greedy)</b> with bar → <b>Save</b> → <b>Submit to Leaderboard</b>. Full 7 lessons at <a href="/learn" style="color:#0284c7">Learn</a>.</p>
+        <pre style="background:#0f172a;color:#e2e8f0;border-radius:8px;padding:10px;font-size:.74rem;overflow:auto">def get_ai_move(state, is_player_a):
+    import math
+    bx,by=state["ball"]["x"],state["ball"]["y"]
+    players=state["players_a"] if is_player_a else state["players_b"]
+    idx=min(range(3),key=lambda i: math.hypot(players[i]["x"]-bx,players[i]["y"]-by))
+    gx=state["field"]["width"] if is_player_a else 0
+    gy=state["field"]["height"]/2
+    ang=math.degrees(math.atan2(gy-by,gx-bx))
+    return idx,ang,85.0</pre>
+        <p style="margin:8px 0 0;font-size:.72rem;color:var(--muted)">Need help? <a href="/learn" style="color:#0284c7">Learn</a> checks your code live vs Random → Minimax, or open <a href="/playground" style="color:#0284c7">Playground</a> to test Human vs Code.</p>
+      </div>
+    </details>
     <!-- Built-in models with code + benchmark -->
     <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:12px;padding:10px;margin-bottom:12px">
-      <div style="font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Available models — greedy etc</div>
+      <div style="font-size:.68rem;font-weight:700;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;margin-bottom:8px">Available models — 18 builtins + my code</div>
       {% for b in builtin_models %}
       <div class="model-card" style="cursor:pointer;margin-bottom:6px" onclick="openBuiltin('{{ b.id }}')">
         <div class="mc-name">{{ b.name }} <span style="font-size:.62rem;color:var(--muted);font-weight:500">({{ b.id }})</span></div>

@@ -272,6 +272,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
         <p style="font-size:.72rem;color:var(--muted);margin-bottom:8px">Player vs Player searches for an active player — if none in 8s you play a random AI. Player vs AI is instant vs a random built-in.</p>
         <div class="row" style="gap:8px">
           <button class="btn btn-primary" id="quick-play-btn" onclick="quickPlayPVP()">▶ Play</button>
+          <button class="btn btn-ghost" id="match-models-btn" onclick="openMatchModels()">Match Models</button>
           <button class="btn btn-ghost" id="quick-pva-btn" onclick="quickPlayVsAI()">Player vs AI</button>
           <button class="btn btn-ghost" id="quick-cancel-btn" style="display:none" onclick="quickCancel()">Cancel</button>
         </div>
@@ -283,6 +284,18 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
         <p id="quick-status" style="display:none;margin-top:8px;font-size:.8rem"></p>
       </div>
       <style>@keyframes qm-spin{to{transform:rotate(360deg)}}</style>
+    </div>
+    <!-- Match Models picker (choose any stored model to play vs) -->
+    <div class="online-modal" id="match-models-modal" style="display:none">
+      <div class="online-modal-card" style="max-width:520px;max-height:80vh;overflow:auto">
+        <h3>Match Models</h3>
+        <p style="font-size:.8rem;color:#475569">Pick a model from the coding editor (builtins + your code models) to play against. Tip: <a href="/learn" style="color:#0284c7">Learn</a> shows how to code your own, <a href="/my-models" style="color:#0284c7">My Models</a> to write it.</p>
+        <div id="match-models-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:48vh;overflow:auto"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-ghost" onclick="closeMatchModels()">Close</button>
+          <a class="btn btn-primary" href="/my-models" style="margin-left:auto">Go to Code Models</a>
+        </div>
+      </div>
     </div>
   </div>
   <div id="online-bar" style="display:none"></div>
@@ -2250,6 +2263,47 @@ function resetQuickUI(){
   setTimeout(()=>{ if(!QUICK.active) st.style.display='none'; }, 1800);
 }
 window.quickPlayPVP = window.quickPlayPVP; window.quickPlayVsAI = window.quickPlayVsAI; window.quickCancel = window.quickCancel;
+
+// Match Models picker — list from coding editor (builtins + my models)
+window.openMatchModels = async function(){
+  const modal=document.getElementById('match-models-modal');
+  const list=document.getElementById('match-models-list');
+  list.innerHTML='<div style="font-size:.82rem;color:var(--muted)">Loading models…</div>';
+  modal.style.display='flex';
+  try{
+    const r=await fetch('/api/quick/models');
+    const d=await r.json();
+    const models=d.models||[];
+    if(!models.length){ list.innerHTML='<div style="font-size:.82rem;color:#ef4444">No models found</div>'; return; }
+    list.innerHTML='';
+    models.forEach(m=>{
+      const row=document.createElement('div');
+      row.style='display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(148,163,184,.2);border-radius:10px;cursor:pointer;background:rgba(255,255,255,.6)';
+      row.innerHTML='<div style="flex:1"><div style="font-size:.85rem;font-weight:700">'+escM(m.name)+'<span style="font-size:.68rem;color:var(--muted);margin-left:6px">'+escM(m.type)+'</span></div><div style="font-size:.72rem;color:var(--muted)">'+escM(m.desc||'')+'</div></div><button class="btn btn-primary btn-sm">Play vs this</button>';
+      row.onclick=()=> playVsModel(m.id);
+      row.querySelector('button').onclick=(e)=>{ e.stopPropagation(); playVsModel(m.id); };
+      list.appendChild(row);
+    });
+  }catch(e){ list.innerHTML='<div style="font-size:.82rem;color:#ef4444">Failed to load</div>'; }
+};
+window.closeMatchModels = function(){ document.getElementById('match-models-modal').style.display='none'; };
+async function playVsModel(modelId){
+  closeMatchModels();
+  const st=document.getElementById('quick-status');
+  st.style.display='block'; st.textContent='Starting vs '+modelId+'…';
+  try{
+    // close quick queue if active
+    try{ await fetch('/api/quick/cancel',{method:'POST'});}catch(e){}
+    resetQuickUI();
+    await fetch('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model: modelId.replace(/^user_model:/,''), target:'b'}) });
+    closeOnlineLobby();
+    const modeSel=document.getElementById('mode-select'); if(modeSel) modeSel.value='hvai';
+    if (window.setMode) await window.setMode('hvai');
+    st.textContent='Vs '+modelId+' ready';
+    setTimeout(()=> st.style.display='none', 1800);
+  }catch(e){ st.textContent='Failed to start vs '+modelId; }
+}
+function escM(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 
 //  Voice chat (1v1 P2P WebRTC, STUN-only) 
 const VOICE = {

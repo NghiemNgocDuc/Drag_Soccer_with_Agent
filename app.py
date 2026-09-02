@@ -2954,6 +2954,28 @@ def quick_status():
     return jsonify({"status": "idle"})
 
 
+@app.route("/api/quick/models")
+def quick_models():
+    """Open list for Match Models popup — builtins + my code models if logged in."""
+    out = []
+    for key, path in MODELS.items():
+        try:
+            mod = importlib.import_module(path)
+            out.append({"id": key, "name": getattr(mod, "MODEL_NAME", key), "desc": getattr(mod, "DESCRIPTION", ""), "type": "builtin"})
+        except Exception:
+            pass
+    # add user models if session has uid
+    try:
+        from db.user_models import get_user_models
+        u = uid()
+        if not u.startswith("guest:"):
+            for m in get_user_models(u):
+                out.append({"id": "user_model:" + m["id"], "name": m["name"], "desc": (m.get("description") or "") + " [My model]", "type": "user"})
+    except Exception:
+        pass
+    return jsonify({"models": out})
+
+
 #  Ranked leaderboard (human players, distinct from the AI-model board) 
 
 @app.route("/api/leaderboard/ranked")
