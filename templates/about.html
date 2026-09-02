@@ -216,13 +216,21 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
     <p class="meta">All `simulate_kick` → `traj, scored` 500×3 steps. See `models/*.py` + `TEMPLATE` benchmark block.</p>
   </div>
 
-  <div class="glass-card card" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:space-between">
-    <div>
-      <h3 style="margin:0 0 4px">System workflow</h3>
-      <p style="margin:0">See the high-level overview — frontend → backend → database → engine → AI.</p>
+  <div class="glass-card card" id="workflow">
+    <h3>System workflow</h3>
+    <p style="margin:4px 0 10px">High-level overview — frontend → backend → database → engine → AI. Same diagram as <code>workflow.png</code> (also at <a href="/workflow" style="color:#0284c7;font-weight:600">/workflow</a> for full page).</p>
+    <div class="figure" style="border-radius:14px;overflow:hidden;background:rgba(255,255,255,.82);border:1px solid rgba(255,255,255,.75);box-shadow:0 8px 32px rgba(15,23,42,.08);padding:10px">
+      <img id="wf-img" src="/static/workflow.png" alt="Agent Soccer workflow overview diagram" loading="lazy" style="width:100%;height:auto;display:block;border-radius:10px;border:1px solid rgba(226,232,240,.9);cursor:zoom-in">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+        <a class="btn btn-primary btn-sm" href="/static/workflow.png" download="agent-soccer-workflow.png">Download PNG</a>
+        <a class="btn btn-secondary btn-sm" href="/workflow">Open full Workflow page</a>
+        <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('wf-img').scrollIntoView({behavior:'smooth',block:'center'})">Focus diagram</button>
+      </div>
+      <p class="meta" style="font-size:.78rem;color:#64748b;margin:8px 0 0">File: <code>/static/workflow.png</code> — also <code>workflow.pdf</code> in repo. Click image to enlarge.</p>
     </div>
-    <a class="btn btn-primary btn-sm" href="/workflow">View Workflow →</a>
   </div>
+  <div class="lightbox" id="lightbox" onclick="this.classList.remove('open')" style="position:fixed;inset:0;background:rgba(15,23,42,.88);display:none;align-items:center;justify-content:center;z-index:999;padding:18px"><img src="/static/workflow.png" alt="Workflow enlarged" style="max-width:100%;max-height:100%;border-radius:12px;box-shadow:0 24px 80px rgba(0,0,0,.45);cursor:zoom-out"></div>
+  <style>.lightbox.open{display:flex}</style>
 
   <div class="glass-card card">
     <h3>Feedback</h3>
@@ -243,6 +251,8 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
   </div>
 </main>
 <script>
+document.getElementById('wf-img')?.addEventListener('click', ()=> document.getElementById('lightbox')?.classList.add('open'));
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') document.getElementById('lightbox')?.classList.remove('open'); });
 async function sendAboutFeedback(){
   const name=document.getElementById('fb-name').value.trim();
   const email=document.getElementById('fb-email').value.trim();
