@@ -104,6 +104,18 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
   </div>
   <div style="margin-bottom:16px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h2 style="font-size:1rem;margin:0">Social — History & Highlights</h2><span style="font-size:.72rem;color:#64748b">Share your match history video or highlight to social</span></div>
+    <!-- Pinned Server Announcement (admin chatbot) -->
+    <div class="glass-card card" style="border:1px solid #fde68a;background:linear-gradient(135deg,rgba(254,249,195,.6),rgba(255,255,255,.9));margin-bottom:12px">
+      <div style="display:flex;gap:10px;align-items:center">
+        <img src="https://cdn.jsdelivr.net/npm/twemoji@14.0.2/assets/72x72/1f916.png" style="width:28px;height:28px;border-radius:50%;border:1px solid #fde68a" alt="admin">
+        <div style="flex:1"><div style="font-weight:800;font-size:.85rem">admin <span style="font-weight:400;color:#64748b">· pinned · Server Announcement</span></div><div style="font-size:.72rem;color:#92400e">2026-09-03 · Update 68f3fb7</div></div>
+        <span style="background:#fef08a;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">ANNOUNCEMENT</span>
+      </div>
+      <div style="margin-top:8px;font-size:.85rem;line-height:1.6;white-space:pre-wrap">Server Announcement: New update live! Money economy (earn 20 for win), History replay (watch last 5), Highlights shot-only, Post-game Highlights + Player Ratings (WhoScored 6.0), Chat GIFs, Weather, Quick Match (Play 8s → vs AI). Thanks for playing! See you on the pitch. — admin 🤖
+
+Caption (video summary): This update brings the entire game economy + social video sharing together. Image is the video thumbnail from your last match — share it to Social and it appears here.</div>
+      <div style="margin-top:8px"><a class="btn btn-primary btn-sm" href="/play3d">Play now</a> <a class="btn btn-ghost btn-sm" href="/match-history">Watch history</a></div>
+    </div>
     <div id="social-list" class="grid"></div>
     <div id="social-more" style="text-align:center;margin-top:10px;display:none"><button class="btn btn-secondary btn-sm" onclick="loadSocial()">Load more shares</button></div>
   </div>
