@@ -102,10 +102,33 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
       <button class="btn btn-secondary btn-sm" onclick="document.getElementById('q').value='';load()">Clear</button>
     </div>
   </div>
+  <div style="margin-bottom:16px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><h2 style="font-size:1rem;margin:0">Social — History & Highlights</h2><span style="font-size:.72rem;color:#64748b">Share your match history video or highlight to social</span></div>
+    <div id="social-list" class="grid"></div>
+    <div id="social-more" style="text-align:center;margin-top:10px;display:none"><button class="btn btn-secondary btn-sm" onclick="loadSocial()">Load more shares</button></div>
+  </div>
   <div id="list" class="grid"></div>
   <div id="more" style="text-align:center;margin-top:16px;display:none"><button class="btn btn-secondary btn-sm" onclick="loadMore()">Load more</button></div>
 </main>
 <script>
+let offsetSocial=0;
+async function loadSocial(){
+  try{
+    const r=await fetch('/api/social/shares?limit=12&offset='+offsetSocial);
+    const j=await r.json();
+    const box=document.getElementById('social-list');
+    if(!box) return;
+    (j.shares||[]).forEach(s=>{
+      const card=document.createElement('div'); card.className='glass-card card';
+      const thumb = s.meta && s.meta.replay_id ? '' : '';
+      const vid = s.replay_id;
+      card.innerHTML='<div style="display:flex;gap:8px;align-items:center"><img src="'+(s.avatar_url||'https://cdn.jsdelivr.net/npm/twemoji@14.0.2/assets/72x72/1f916.png')+'" style="width:26px;height:26px;border-radius:50%"><b>'+esc(s.username)+'</b> <span class="meta">'+s.kind+' · '+s.created_at.slice(0,10)+'</span></div><div class="meta" style="margin-top:6px;white-space:pre-wrap">'+esc(s.caption||'Shared a '+(s.kind||'history')+' video')+'</div><div style="margin-top:8px"><a class="btn btn-primary btn-sm" href="/history/watch/'+esc(s.replay_id)+'">Watch video</a> <a class="btn btn-ghost btn-sm" href="/api/history/replay/'+esc(s.replay_id)+'" target="_blank">Raw JSON</a></div>';
+      box.appendChild(card);
+    });
+    offsetSocial+= (j.shares||[]).length;
+    if(j.shares&&j.shares.length) document.getElementById('social-more').style.display = offsetSocial < (j.total||0) ? 'block':'none';
+  }catch(e){}
+}
 let offset=0, limit=12, total=0, query="";
 async function load(reset=true){
   if(reset){ offset=0; document.getElementById('list').innerHTML=''; }
@@ -163,7 +186,7 @@ async function load(reset=true){
 }
 function loadMore(){ load(false); }
 function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
-load();
+load(); loadSocial();
 </script>
 <script src="/static/feedback.js"></script>
 </body>

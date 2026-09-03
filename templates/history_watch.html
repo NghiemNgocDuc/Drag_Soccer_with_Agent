@@ -26,12 +26,14 @@
     <p class="meta">{{ meta.ended_at }} · {{ meta.total_moves }} kicks · replay {{ replay_id }}</p>
   </div>
   <div class="glass-card" style="padding:12px">
-    <div style="display:flex;gap:8px;margin-bottom:10px">
+    <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
       <button class="btn btn-primary btn-sm" onclick="playAll()">Play</button>
       <button class="btn btn-ghost btn-sm" onclick="pause()">Pause</button>
       <button class="btn btn-ghost btn-sm" onclick="step(1)">Step</button>
       <button class="btn btn-ghost btn-sm" onclick="step(-1)">Back</button>
+      <button class="btn btn-secondary btn-sm" onclick="shareToSocial()">Share to Social</button>
       <span class="meta" id="step-label"></span>
+      <span class="meta" id="share-msg" style="margin-left:auto"></span>
     </div>
     <div id="moves" style="max-height:320px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;padding:8px;background:#fff"></div>
   </div>
@@ -62,6 +64,17 @@ function playAll(){
 }
 function pause(){ if(timer){ clearInterval(timer); timer=null; } }
 function step(d){ pause(); idx=Math.max(0,Math.min(REPLAY.length-1, idx+d)); render(); }
+async function shareToSocial(){
+  const cap = prompt('Caption for social share (video summary will be auto-added):', META.mode+' vs '+META.ai_model+' '+META.score_a+'-'+META.score_b);
+  if(cap===null) return;
+  const msg=document.getElementById('share-msg');
+  msg.textContent='Sharing…';
+  try{
+    const r=await fetch('/api/social/share',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'history', replay_id:'{{ replay_id }}', caption: cap})});
+    const d=await r.json();
+    if(r.ok){ msg.textContent='Shared to Social!'; setTimeout(()=> msg.textContent='',2500); } else { msg.textContent=d.error||'Failed'; }
+  }catch(e){ msg.textContent='Failed'; }
+}
 render();
 </script>
 <script src="/static/feedback.js"></script>

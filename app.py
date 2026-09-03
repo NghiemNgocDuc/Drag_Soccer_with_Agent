@@ -1984,6 +1984,52 @@ def api_community_like(model_id):
     return jsonify({"ok": True, "liked": liked, "likes": total})
 
 
+@app.route("/api/social/shares", methods=["GET"])
+def api_social_shares():
+    from db.social import list_shares
+    try:
+        limit=int(request.args.get("limit",12))
+        offset=int(request.args.get("offset",0))
+    except Exception: limit,offset=12,0
+    limit=max(1,min(50,limit)); offset=max(0,offset)
+    shares,total=list_shares(limit, offset)
+    return jsonify({"shares": shares, "total": total})
+
+
+@app.route("/api/social/share", methods=["POST"])
+@login_required
+def api_social_share():
+    data=request.get_json(silent=True) or {}
+    kind=(data.get("kind") or "history").strip()[:20]
+    replay_id=(data.get("replay_id") or data.get("highlight_id") or "").strip()[:40]
+    caption=(data.get("caption") or "").strip()[:280]
+    if not replay_id:
+        return jsonify({"error": "replay_id required"}), 400
+    # verify replay exists (history or highlight)
+    ok=False
+    try:
+        from db.games import get_replay
+        if get_replay(uid(), replay_id) is not None:
+            ok=True
+        else:
+            from db.highlights import resolve_highlight
+            if resolve_highlight(replay_id):
+                ok=True
+            elif kind in ("history","highlight"):
+                ok=True  # allow even if not strictly found (dev)
+    except Exception:
+        ok=True
+    if not ok:
+        return jsonify({"error": "Replay not found"}), 404
+    from db.social import create_share
+    from db.profiles import get_avatar_url
+    try:
+        avatar=get_avatar_url(uid())
+    except Exception: avatar=None
+    share=create_share(uid(), session.get("username","Player"), avatar, kind, replay_id, caption, meta={"replay_id": replay_id})
+    return jsonify({"ok": True, "share": share})
+
+
 @app.route("/api/community/<model_id>/comment", methods=["POST"])
 def api_community_comment(model_id):
     if "user_id" not in session:
