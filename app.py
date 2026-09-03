@@ -293,6 +293,15 @@ def _persist_result(state: dict) -> None:
             replay     = replay,
         )
         _ph.track_game_end(uid(), state.get("game_mode", "hvai"), winner, state["score_a"], state["score_b"])
+        # money: win +20, draw +5, loss +2, per goal +1, first win bonus via achievement already
+        try:
+            from db.money import add_coins
+            earned = 2
+            if winner == "A": earned = 20 + state["score_a"]
+            elif winner == "Draw": earned = 5 + state["score_a"]
+            else: earned = 2 + state["score_a"]//2
+            add_coins(uid(), earned, f"game_{winner}")
+        except Exception: pass
         _check_casual_achievements(state, uid())
         _check_progress_achievements(uid())
         try: _mem_summ(uid(), state)
@@ -2842,6 +2851,12 @@ def _process_ranked_result(room_id: str, room: dict) -> None:
         room["ranked_pending"] = False
         room["ranked_result"] = res
         _check_ranked_achievements(pa, pb, res)
+        try:
+            from db.money import add_coins
+            # ranked bonus: win 30, loss 5
+            add_coins(pa, 30 if winner=="A" else 5, "ranked")
+            add_coins(pb, 30 if winner=="B" else 5, "ranked")
+        except Exception: pass
     except Exception as e:
         room["ranked_pending"] = True
         app.logger.warning("Ranked result for room %s failed: %s", room_id, e)
@@ -3142,6 +3157,28 @@ def learning_train():
         return jsonify({"ok": True, "games": n, "status": "training"})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/money/balance")
+@login_required
+def money_balance():
+    from db.money import get_coins
+    return jsonify({"coins": get_coins(uid())})
+
+
+@app.route("/api/money/shop/buy", methods=["POST"])
+@login_required
+def money_shop_buy():
+    from db.money import spend_coins, shop_price
+    data = request.get_json(silent=True) or {}
+    item = (data.get("item") or "").strip()
+    price = shop_price(item)
+    if price is None:
+        return jsonify({"error": "Unknown item"}), 404
+    ok, cur = spend_coins(uid(), price, item)
+    if not ok:
+        return jsonify({"error": f"Need {price} coins, you have {cur}"}), 400
+    return jsonify({"ok": True, "coins": cur, "item": item})
 
 
 @app.route("/api/learning/reset", methods=["POST"])

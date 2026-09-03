@@ -117,11 +117,22 @@ async function load(reset=true){
   (j.models||[]).forEach(m=>{
     const card=document.createElement('div'); card.className='glass-card card';
     let linksHtml = '';
+    let videoHtml='';
     if(m.links && m.links.length){
       linksHtml = '<div class="meta" style="margin-top:6px">' + m.links.map(l=>`<a href="${esc(l.url)}" target="_blank" style="color:#0284c7">${esc(l.title)}</a>`).join(' · ') + '</div>';
+      // video: if link is youtube, show thumbnail + summary caption
+      const yt = m.links.find(l=> l.url.includes('youtube.com')||l.url.includes('youtu.be'));
+      if(yt){
+        let vid=''; try{ const u=new URL(yt.url); if(u.hostname.includes('youtu.be')) vid=u.pathname.slice(1); else vid=u.searchParams.get('v'); }catch(e){}
+        if(vid){
+          const thumb='https://img.youtube.com/vi/'+vid+'/hqdefault.jpg';
+          videoHtml='<div style="margin-top:10px;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0"><a href="'+esc(yt.url)+'" target="_blank"><img src="'+thumb+'" style="width:100%;height:auto;display:block" loading="lazy" alt="video"></a></div><div class="meta" style="margin-top:6px;font-style:italic">Caption (video summary): '+esc(m.description||'No description').slice(0,140)+'</div>';
+        }
+      }
     }
     card.innerHTML=`<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><h3>${esc(m.name)}</h3>${m.score!==null?`<span class="badge">${Number(m.score).toFixed(1)}% vs built-ins</span>`:''}</div>
       <div class="meta">by ${esc(m.owner_name)} · ${m.created_at?m.created_at.slice(0,10):''}</div>
+      ${videoHtml}
       <div class="meta" style="margin-top:6px;white-space:pre-wrap">${esc(m.description||'No description')}</div>
       ${linksHtml}
       <div class="meta" style="margin-top:8px"> ${m.likes}  ·   ${m.comments}</div>

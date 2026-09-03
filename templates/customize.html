@@ -329,6 +329,20 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
         </select>
       </div>
     </div>
+    <div class="glass-card" style="margin-top:14px;padding:14px">
+      <div style="display:flex;align-items:center;gap:10px"><h3 style="margin:0">Shop — spend coins across the entire game</h3><span id="shop-coins" style="margin-left:auto;background:rgba(234,179,8,.15);border:1px solid rgba(234,179,8,.3);border-radius:999px;padding:4px 10px;font-size:.78rem;font-weight:700">… coins</span></div>
+      <p class="meta" style="margin-top:6px">Earn: win +20, draw +5, goal +1 (hvai) · ranked win +30. Spend on cosmetics.</p>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;margin-top:10px">
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px"><div style="font-weight:700">Galaxy Ball</div><div class="meta">80 coins</div><button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="buyShop('ball_galaxy',80)">Buy</button></div>
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px"><div style="font-weight:700">Rainbow Ball</div><div class="meta">60 coins</div><button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="buyShop('ball_rainbow',60)">Buy</button></div>
+        <div style="border:1px solid #e2e8f0;border-radius:10px;padding:10px"><div style="font-weight:700">Cyber Stadium</div><div class="meta">120 coins</div><button class="btn btn-primary btn-sm" style="margin-top:6px" onclick="buyShop('stadium_cyber',120)">Buy</button></div>
+      </div>
+      <div id="shop-msg" class="meta" style="margin-top:8px"></div>
+    </div>
+    <script>
+    (async()=>{ try{ const r=await fetch('/api/money/balance'); const d=await r.json(); const el=document.getElementById('shop-coins'); if(el&&d.coins!=null) el.textContent=d.coins+' coins'; }catch(e){} })();
+    async function buyShop(item, price){ const el=document.getElementById('shop-msg'); el.textContent='Buying '+item+'…'; try{ const r=await fetch('/api/money/shop/buy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item})}); const d=await r.json(); if(r.ok){ el.textContent='Bought '+item+'! Coins left: '+d.coins; document.getElementById('shop-coins').textContent=d.coins+' coins'; } else { el.textContent=d.error||'Failed'; } }catch(e){ el.textContent='Error'; } }
+    </script>
     <div class="setting-row">
       <span class="setting-label">Camera Type</span>
       <div class="setting-control">
