@@ -722,7 +722,7 @@ scene.add(fieldGroup);
 
 let replayCrowd = null;
 let replayCheerPhase = 0;
-function triggerCrowdCheer() { replayCheerPhase = 1; try { SoundManager.crowdCheer(); } catch (_) {} setTimeout(() => { replayCheerPhase = 0; }, 3000); }
+function triggerCrowdCheer() { if (highlightSilent) return; replayCheerPhase = 1; try { SoundManager.crowdCheer(); } catch (_) {} setTimeout(() => { replayCheerPhase = 0; }, 3000); }
 function tickReplayCrowd() {
   if (!replayCrowd) return;
   const t = performance.now() / 1000;
@@ -1564,8 +1564,10 @@ function updateAutoBtn() {
   }
 }
 
+let highlightSilent = false;
 function playHighlight(h) {
   if (isAnimating) return;
+  highlightSilent = true;
   autoPlayOn = false;
   seekToEntry(h.start);
   clipEnd = h.end;
@@ -1590,6 +1592,7 @@ function clipFinishedCheck() {
   if (clipEnd !== null && currentMove > clipEnd) {
     const h = clipHighlight || highlights.find(x => x.end === clipEnd) || null;
     clipEnd = null;
+    highlightSilent = false;
     autoPlayOn = false;
     updateAutoBtn();
     showClipBanner(h, true);
@@ -1670,8 +1673,8 @@ function animateTrajectory3D(trajectory, onDone) {
     const segFrac = progress - segIdx;
     const ptA = trajectory[segIdx], ptB = trajectory[segIdx + 1];
 
-    // Bounce sound (bounce frames are flagged b:true; b is a player array otherwise)
-    if (ptA.b === true) {
+    // Bounce sound (silent for highlights)
+    if (!highlightSilent && ptA.b === true) {
       playPositional(_bounceBuf, serverToWorld(ptA.x, ptA.y), { volume: 0.5 });
     }
 
@@ -1841,9 +1844,9 @@ window.playNextMove3D = function() {
   if (move.scored && raw.length > 0) {
     // Kick sound at kicker position
     const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
-    if (kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
+    if (!highlightSilent && kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
     // Goal sound + particles + crowd cheer
-    SoundManager.goal();
+    if (!highlightSilent) SoundManager.goal();
     triggerGoalEffect3D(move.mover === 'a' ? 'a' : 'b');
     triggerCrowdCheer();
     // Animate trajectory, then slide back to kickoff positions
@@ -1874,7 +1877,7 @@ window.playNextMove3D = function() {
   } else {
     // Kick sound at kicker position
     const kickerSrv2 = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
-    if (kickerSrv2) playPositional(_kickBuf, serverToWorld(kickerSrv2.x, kickerSrv2.y), { volume: 0.7 });
+    if (!highlightSilent && kickerSrv2) playPositional(_kickBuf, serverToWorld(kickerSrv2.x, kickerSrv2.y), { volume: 0.7 });
     animateTrajectory3D(raw, finish);
   }
 };
@@ -2005,10 +2008,10 @@ async function pollLive() {
       const _preA = raw[0].a ? raw[0].a.map(p => ({ x: p.x, y: p.y })) : [];
       const _preB = raw[0].b ? raw[0].b.map(p => ({ x: p.x, y: p.y })) : [];
       const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
-      if (kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
+      if (!highlightSilent && kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
       const wasGoal = move.scored === 'A' || move.scored === 'B';
       if (wasGoal) {
-        SoundManager.goal();
+        if (!highlightSilent) SoundManager.goal();
         triggerGoalEffect3D(move.mover === 'a' ? 'a' : 'b');
         triggerCrowdCheer();
       }
@@ -2268,9 +2271,9 @@ window.playLossTurn = async function () {
     if (raw[0] && raw[0].b) state.players_b = raw[0].b.map(function (p) { return { x: p.x, y: p.y }; });
     updatePlayerPositions(state.players_a, state.players_b);
     const kickerSrv = (tr.state.is_player_a ? state.players_a : state.players_b)[d.player_idx];
-    if (kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
+    if (!highlightSilent && kickerSrv) playPositional(_kickBuf, serverToWorld(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
     if (data.scored === 'A' || data.scored === 'B') {
-      SoundManager.goal();
+      if (!highlightSilent) SoundManager.goal();
       triggerGoalEffect3D(data.scored === 'A' ? 'a' : 'b');
       triggerCrowdCheer();
     }
