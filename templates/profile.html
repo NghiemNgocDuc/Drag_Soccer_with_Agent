@@ -273,16 +273,22 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
   {% set ow = stats.online_wins or 0 %}
   {% set rate = (w / gp * 100) if gp > 0 else 0 %}
 
-  <!-- Hero -->
+  <!-- Hero PlayerCard (coh3-stats inspired) -->
   <div class="hero">
     <div class="avatar" id="hero-avatar" title="Click to change avatar" style="cursor:pointer" onclick="document.getElementById('photo-input').click()">{% if avatar_url %}<img class="avatar-img" src="{{ avatar_url }}" alt="{{ username }}">{% else %}{{ username[0].upper() }}{% endif %}</div>
     <div class="hero-info">
       <h1>{{ username }}</h1>
-      <p class="tagline">Player · Agent Soccer</p>
+      <p class="tagline">Player · Agent Soccer{% if rating.rating >= 1600 %} · Gold{% elif rating.rating >= 1400 %} · Silver{% elif rating.rating >= 1200 %} · Bronze{% else %} · Rookie{% endif %}</p>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <span style="background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.25);border-radius:999px;padding:3px 10px;font-size:.72rem;font-weight:700;color:#0ea5e9">ELO {{ rating.rating }}</span>
+        <span style="background:rgba(139,92,246,.12);border:1px solid rgba(139,92,246,.25);border-radius:999px;padding:3px 10px;font-size:.72rem;font-weight:700;color:#8b5cf6">{{ achievement_count }}/{{ achievements|length }} badges</span>
+        <span style="background:rgba(249,115,22,.12);border:1px solid rgba(249,115,22,.25);border-radius:999px;padding:3px 10px;font-size:.72rem;font-weight:700;color:#f97316">Peak {{ rating.peak_rating }}</span>
+      </div>
     </div>
     <div class="hero-badge">
       <div class="val">{{ gp }}</div>
       <div class="lbl">Total Games</div>
+      <div style="font-size:.65rem;color:var(--muted);margin-top:4px">{{ w }}W {{ l }}L {{ d }}D</div>
     </div>
   </div>
 
@@ -407,6 +413,25 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
     </div>
   </div>
 
+  <!-- Performance Graph (coh3 PlayerCard trend) -->
+  <div class="section-title">Performance Trend</div>
+  <div class="glass-card" style="padding:16px;margin-bottom:20px">
+    <canvas id="perf-chart" height="120"></canvas>
+    <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:.68rem;color:var(--muted)"><span>Last 5 games</span><span id="perf-summary">{{ rate|round(1) }}% win rate</span></div>
+  </div>
+  <script src="/static/vendor/chartjs/chart.umd.min.js"></script>
+  <script>
+  (function(){
+    const recent = {{ stats.recent | tojson }};
+    const labels = recent.map((g,i)=> 'G'+(i+1)).reverse();
+    const wins = recent.map(g=> g.winner==='A'?1:0).reverse();
+    let cum=0; const trend = wins.map(v=>{ cum+=v; return Math.round(cum/(wins.indexOf(v)+1)*100); }); // cumulative win%
+    // but simpler: per-game win 0/100
+    const data = wins.map(v=> v*100);
+    const ctx=document.getElementById('perf-chart'); if(!ctx) return;
+    new Chart(ctx, {type:'line', data:{labels, datasets:[{label:'Win', data, borderColor:'#06b6d4', backgroundColor:'rgba(6,182,212,.12)', tension:0.35, fill:true, pointRadius:4}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}, x:{grid:{display:false}}}}});
+  })();
+  </script>
   {% if gp > 0 %}
   <!-- Win Rate Breakdown -->
   <div class="winrate-section">
@@ -476,10 +501,10 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
   {% endif %}
 
   {% if stats.recent %}
-  <div class="section-title">Recent Games</div>
+  <div class="section-title">Recent Games — PlayerCard Matches</div>
   <div class="recent-card">
     <table class="recent-table">
-      <thead><tr><th>Mode</th><th>Score</th><th>Result</th></tr></thead>
+      <thead><tr><th>Mode</th><th>Score</th><th>Result</th><th></th></tr></thead>
       <tbody>
       {% for g in stats.recent %}
         {% set winner = g.winner %}
@@ -494,13 +519,32 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
           <td style="color:var(--muted);font-size:.75rem">
             {% if is_win %}Win{% elif is_loss %}Loss{% else %}Draw{% endif %}
           </td>
+          <td>{% if g.replay_id %}<a href="/history/watch/{{ g.replay_id }}" class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:.72rem">Watch</a>{% elif g.id %}<a href="/history/watch/{{ g.id }}" class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:.72rem">Watch</a>{% else %}<span style="font-size:.68rem;color:var(--dim)">No replay</span>{% endif %}</td>
         </tr>
       {% endfor %}
       </tbody>
     </table>
-    <div style="text-align:center;padding:12px"><a href="/match-history" style="font-size:.8rem;color:var(--accent);font-weight:600;text-decoration:none">View full history (most recent 5) →</a></div>
+    <div style="display:flex;justify-content:space-between;padding:12px;align-items:center"><span style="font-size:.72rem;color:var(--muted)">Last 5 — auto-removed to save space</span><a href="/match-history" style="font-size:.8rem;color:var(--accent);font-weight:600;text-decoration:none">View full history →</a></div>
   </div>
   {% endif %}
+  <!-- Models Showcase (coh3 PlayerCard Units) -->
+  <div class="section-title" style="margin-top:20px">Models — Top 3</div>
+  <div class="glass-card" style="padding:16px;margin-bottom:20px" id="profile-models"></div>
+  <script>
+  (async()=>{
+    const el=document.getElementById('profile-models');
+    if(!el) return;
+    try{
+      const r=await fetch('/api/models/user/list');
+      // fallback to /api/models/user via client guess: try /models endpoint
+      let models=[];
+      try{ const r2=await fetch('/models'); if(r2.ok) models=(await r2.json()); }catch(e){}
+      if(!models.length) { el.innerHTML='<div style="font-size:.82rem;color:var(--muted)">No models yet — <a href="/my-models" style="color:var(--accent)">create one</a></div>'; return; }
+      models=models.slice(0,3);
+      el.innerHTML=models.map(m=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;background:#fff"><div><div style="font-weight:700;font-size:.85rem">'+(m.name||m.id)+'</div><div style="font-size:.72rem;color:var(--muted)">'+(m.desc||'')+'</div></div><a href="/my-models" class="btn btn-ghost btn-sm">Open</a></div>').join('') + '<div style="text-align:center;margin-top:8px"><a href="/my-models" style="font-size:.78rem;color:var(--accent)">Manage models →</a> · <a href="/learn" style="font-size:.78rem;color:var(--accent)">Learn</a></div>';
+    }catch(e){ el.innerHTML='<div style="font-size:.82rem;color:var(--muted)">Models unavailable</div>'; }
+  })();
+  </script>
 
   {% if gp == 0 %}
   <div style="text-align:center;padding:40px 16px;color:var(--dim);font-size:.9rem">
