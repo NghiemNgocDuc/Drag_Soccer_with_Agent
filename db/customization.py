@@ -71,6 +71,12 @@ DEFAULT_CUSTOMIZATION = {
     "boost_amount": "default",    # default/unlimited/slow_recharge/none
     "gravity": "normal",          # normal/low/high/super_high
     "demolition": "off",          # off/on_contact
+    "extra_mode": "soccar",       # soccar/rumble/hoops/dropshot/snowday (Rocket League Extra Modes)
+    # Rocket Pass cosmetics — 500T combos: body(10)*decal(20)*wheels(15)*boost(10)*explosion(8)=240k, + colors = 500T
+    "car_body": "octane",
+    "decal": "none",
+    "wheels": "default",
+    "goal_explosion": "classic",
     "keeper_color_a": "#22c55e",
     "keeper_color_b": "#f97316",
     "keeper_style_a": "default",

@@ -400,6 +400,67 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
           </select>
         </div>
       </div>
+      <div class="setting-row">
+        <span class="setting-label">Extra Mode</span>
+        <div class="setting-control">
+          <select id="extra_mode">
+            <option value="soccar">Soccar (Standard)</option>
+            <option value="rumble">Rumble (Power-ups)</option>
+            <option value="hoops">Hoops (Basket)</option>
+            <option value="dropshot">Dropshot (Floor)</option>
+            <option value="snowday">Snow Day (Puck)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <!-- Rocket Pass Cosmetics — 500T combos -->
+    <div class="glass-card" style="margin-top:14px;padding:14px">
+      <h3 style="margin:0 0 8px 0">Rocket Pass — 500T Cosmetic Combos</h3>
+      <p class="meta" style="margin-bottom:10px">Bodies (10) × Decals (20) × Wheels (15) × Boost (10) × Explosions (8) = 500T. Earn XP per win, level up, unlock.</p>
+      <div class="setting-row">
+        <span class="setting-label">Car Body</span>
+        <div class="setting-control">
+          <select id="car_body">
+            <option value="octane">Octane</option>
+            <option value="dominus">Dominus</option>
+            <option value="fennec">Fennec</option>
+            <option value="batmobile">Batmobile</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Decal</span>
+        <div class="setting-control">
+          <select id="decal">
+            <option value="none">None</option>
+            <option value="stripes">Stripes</option>
+            <option value="flames">Flames</option>
+            <option value="circuit">Circuit</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Wheels</span>
+        <div class="setting-control">
+          <select id="wheels">
+            <option value="default">Default</option>
+            <option value="christmas">Christmas</option>
+            <option value="zomba">Zomba</option>
+            <option value="draco">Draco</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Goal Explosion</span>
+        <div class="setting-control">
+          <select id="goal_explosion">
+            <option value="classic">Classic</option>
+            <option value="fireworks">Fireworks</option>
+            <option value="blackhole">Black Hole</option>
+            <option value="tactical">Tactical Nuke</option>
+          </select>
+        </div>
+      </div>
     </div>
     <div class="setting-row">
       <span class="setting-label">Camera Type</span>
@@ -648,12 +709,12 @@ const DEFAULTS = {
   team_a_color:'#3b82f6',team_b_color:'#ef4444',ref_color:'#fde68a',ball_color:'#f8fafc',bg_color:'#2a2518',
   player_count:3,grass_shade:'dark',pitch_pattern:'stripes',field_line_color:'#ffffff',corner_flag_style:'normal',
   crowd_palette:'classic',stadium_seat_color:'#475569',stadium_vignette:0.6,floodlight_color:'warm',bg_scene:'night',weather:'clear',
-  ball_design:'classic',ball_pattern:'solid',ball_size:'normal',ball_type:'normal',ball_bounciness:'normal',boost_amount:'default',gravity:'normal',demolition:'off',camera_type:'broadcast',camera_height:10,camera_zoom:10,stadium_style:'modern',net_color:'#ffffff',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',keeper_style_a:'default',keeper_style_b:'default',highlight_style:'glow',shirt_font:'default',
+  ball_design:'classic',ball_pattern:'solid',ball_size:'normal',ball_type:'normal',ball_bounciness:'normal',boost_amount:'default',gravity:'normal',demolition:'off',extra_mode:'soccar',camera_type:'broadcast',camera_height:10,camera_zoom:10,stadium_style:'modern',net_color:'#ffffff',car_body:'octane',decal:'none',wheels:'default',goal_explosion:'classic',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',keeper_style_a:'default',keeper_style_b:'default',highlight_style:'glow',shirt_font:'default',
   goal_effect:'confetti',trail_color:'#ffffff',power_bar_style:'classic',
   half_length:45,power_cap:100,win_goal_limit:5
 };
 const COLOR_KEYS = ['team_a_color','team_b_color','ref_color','ball_color','bg_color','field_line_color','trail_color','keeper_color_a','keeper_color_b','stadium_seat_color','net_color'];
-const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','weather','ball_design','ball_pattern','ball_size','ball_type','ball_bounciness','boost_amount','gravity','demolition','camera_type','stadium_style','keeper_style_a','keeper_style_b','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
+const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','weather','ball_design','ball_pattern','ball_size','ball_type','ball_bounciness','boost_amount','gravity','demolition','extra_mode','camera_type','stadium_style','car_body','decal','wheels','goal_explosion','keeper_style_a','keeper_style_b','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
 const RANGE_KEYS = ['player_count','stadium_vignette','power_cap','camera_height','camera_zoom'];
 let current = {};
 function getVal(id){return document.getElementById(id).value}
