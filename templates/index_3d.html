@@ -28,6 +28,7 @@
   border-radius:8px;transition:background .2s;color:#fff;
 }
 .sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
+#captain-hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:4;display:none;padding:6px 10px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(2,6,23,.72);color:#fff;font-size:.72rem;font-weight:700;pointer-events:none}
 #match-chat-wrap{position:fixed;right:16px;bottom:16px;width:320px;height:400px;z-index:60}
 .online-modal{position:fixed;inset:0;background:rgba(2,6,23,.62);backdrop-filter:blur(5px);
   display:none;align-items:center;justify-content:center;z-index:70}
@@ -163,6 +164,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
 
     <div class="canvas-wrap" id="canvas-wrap">
       <div id="three-container"></div>
+      <div id="captain-hint">Drag your captain to kick</div>
       <div class="canvas-overlay" id="canvas-overlay">
         <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
           <div class="spinner" id="overlay-spinner"></div>
@@ -382,6 +384,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const W = 1400, H = 875;
 const PLAYER_R = 20, BALL_R = 12;
 const GOAL_Y1 = 356, GOAL_Y2 = 519, GOAL_DEPTH = 50;
+const MAX_DRAG = 110;
 const PLAYER_TRAVEL = 8.0;
 const PENALTY_SPOT_X_A = W * 0.79, PENALTY_SPOT_X_B = W * 0.21;
 const PENALTY_KEEPER_X_A = W * 0.95, PENALTY_KEEPER_X_B = W * 0.05;
@@ -399,6 +402,8 @@ function worldToServer(v) {
 
 const container = document.getElementById('three-container');
 const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.domElement.tabIndex = 0;
+renderer.domElement.setAttribute('aria-label', 'Soccer game. Click here, then use arrow keys to kick.');
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1796,20 +1801,6 @@ function createPlayerMesh(teamColor, isKeeper = false, stats, number) {
 
   return group;
 }
-function makeNameSprite(name) {
-  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
-  const g = c.getContext('2d');
-  g.fillStyle = 'rgba(15,23,42,0.88)'; 
-  // rounded rect
-  const r=12;
-  g.beginPath(); g.moveTo(r,0); g.lineTo(256-r,0); g.quadraticCurveTo(256,0,256,r); g.lineTo(256,64-r); g.quadraticCurveTo(256,64,256-r,64); g.lineTo(r,64); g.quadraticCurveTo(0,64,0,64-r); g.lineTo(0,r); g.quadraticCurveTo(0,0,r,0); g.closePath(); g.fill();
-  g.fillStyle = '#ffffff'; g.font = '600 22px Be Vietnam Pro, sans-serif'; g.textAlign='center'; g.textBaseline='middle';
-  g.fillText(name, 128, 34);
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  const mat = new THREE.SpriteMaterial({ map: tex, transparent: true });
-  const spr = new THREE.Sprite(mat); spr.scale.set(48, 12, 1); spr.position.y = 42; return spr;
-}
-
 function addBenchPlayers() {
   const group = new THREE.Group();
   const benchMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
@@ -2708,11 +2699,6 @@ function rebuildPlayers() {
     const col = p.color || CUST_TEAM_A;
     const mesh = createPlayerMesh(hexToThree(col), i === 0, p.stats, num);
     mesh.position.copy(serverToWorld(p.x, p.y));
-    if (p.name) {
-      const lbl = makeNameSprite(p.name);
-      lbl.position.y = 38;
-      mesh.add(lbl);
-    }
     playerMeshesA.push(mesh);
     scene.add(mesh);
   }
@@ -2722,14 +2708,10 @@ function rebuildPlayers() {
     const col = p.color || CUST_TEAM_B;
     const mesh = createPlayerMesh(hexToThree(col), i === 0, p.stats, num);
     mesh.position.copy(serverToWorld(p.x, p.y));
-    if (p.name) {
-      const lbl = makeNameSprite(p.name);
-      lbl.position.y = 38;
-      mesh.add(lbl);
-    }
     playerMeshesB.push(mesh);
     scene.add(mesh);
   }
+  updatePlayerPositions();
   if (gameState.referee) updateRefereeMesh(gameState.referee.x, gameState.referee.y);
 }
 
@@ -2745,6 +2727,44 @@ function updatePlayerPositions() {
     if (_skipKickerTeam === 'b' && _skipKickerIdx === i) continue;
     playerMeshesB[i].position.copy(serverToWorld(p.x, p.y));
   }
+  if (gameState.ball) {
+    const ball = serverToWorld(gameState.ball.x, gameState.ball.y);
+    for (const mesh of playerMeshesA) {
+      const target = new THREE.Vector3(ball.x, mesh.position.y, ball.z);
+      if (target.distanceToSquared(mesh.position) > 1) mesh.lookAt(target);
+    }
+    for (const mesh of playerMeshesB) {
+      const target = new THREE.Vector3(ball.x, mesh.position.y, ball.z);
+      if (target.distanceToSquared(mesh.position) > 1) mesh.lookAt(target);
+    }
+  }
+}
+
+function animateOffBallPlayers(nowMs) {
+    if (!gameState || !gameState.ball) return;
+    const ball = serverToWorld(gameState.ball.x, gameState.ball.y);
+    const phase = nowMs * 0.001;
+    const teams = [
+      [gameState.players_a, playerMeshesA, 'a'],
+      [gameState.players_b, playerMeshesB, 'b'],
+    ];
+    for (const [players, meshes, team] of teams) {
+      for (let i = 1; i < players.length && i < meshes.length; i++) {
+        if (_skipKickerTeam === team && _skipKickerIdx === i) continue;
+        const player = players[i];
+        const home = serverToWorld(player.x, player.y);
+        const towardBall = new THREE.Vector3(ball.x - home.x, 0, ball.z - home.z);
+        const distance = towardBall.length();
+        if (distance > 1) towardBall.multiplyScalar(Math.min(55, distance * 0.12) / distance);
+        const side = new THREE.Vector3(-towardBall.z, 0, towardBall.x);
+        if (side.lengthSq() > 1) side.normalize().multiplyScalar(Math.sin(phase * 0.9 + i * 1.7) * 12);
+        const target = home.add(towardBall).add(side);
+        target.y = meshes[i].position.y;
+        meshes[i].position.lerp(target, 0.035);
+        const lookTarget = new THREE.Vector3(ball.x, meshes[i].position.y, ball.z);
+        if (lookTarget.distanceToSquared(meshes[i].position) > 1) meshes[i].lookAt(lookTarget);
+      }
+    }
 }
 
 //  Pass types & player switching (open-soccer style: S/A/W + Q/C) 
@@ -2766,6 +2786,13 @@ function cyclePlayer(dir=1) {
   setTimeout(()=>{ meshes.forEach(m=>m.scale.setScalar(1)); }, 400);
 }
 document.addEventListener('keydown', (e) => {
+  const directions = { ArrowUp: 'up', ArrowRight: 'right', ArrowDown: 'down', ArrowLeft: 'left' };
+  const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement?.tagName || '');
+  if (directions[e.key] !== undefined && !typing && !e.repeat) {
+    e.preventDefault();
+    kickDirection(directions[e.key]);
+    return;
+  }
   const k = e.key.toLowerCase();
   if (k==='s') setPassType('short');
   else if (k==='a') setPassType('long');
@@ -3033,7 +3060,7 @@ function updatePenaltyCamera(st) {
   controls.update();
 }
 //  Multiplayer view (top vs player) + 120s settings timeout 
-let currentView = localStorage.getItem('viewMode') || 'top';
+let currentView = localStorage.getItem('viewMode') || 'player';
 let viewTimeout = null, viewCountdown = null;
 function applyViewMode(mode) {
   currentView = mode;
@@ -3071,14 +3098,30 @@ window.showViewSettings = function(show) {
 //  Render loop 
 function animate() {
   requestAnimationFrame(animate);
-  // Player view follows ball/my side (120s settings view) — overrides OrbitControls when active and not in penalty
+  if (typeof gameState !== 'undefined' && gameState) updateHUD(gameState, performance.timeOrigin + performance.now());
+  // Player view follows the controlled captain from behind, like a close third-person game camera.
   if (currentView === 'player' && !_penaltyCamActive && typeof gameState !== 'undefined' && gameState && gameState.ball) {
     const mySide = ONLINE.active ? ONLINE.side : 'a';
-    const offX = mySide === 'a' ? -260 : 260;
+    const players = mySide === 'a' ? gameState.players_a : gameState.players_b;
+    const captain = players && players[0];
+    const captainW = captain ? serverToWorld(captain.x, captain.y) : null;
     const ballW = serverToWorld(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
-    const camP = new THREE.Vector3(ballW.x + offX, 92, ballW.z + 135);
-    camera.position.lerp(camP, 0.07);
-    controls.target.lerp(ballW, 0.09);
+    if (captainW) {
+      const playDir = new THREE.Vector3(ballW.x - captainW.x, 0, ballW.z - captainW.z);
+      if (playDir.lengthSq() < 1) playDir.set(mySide === 'a' ? 1 : -1, 0, 0);
+      playDir.normalize();
+      const camP = captainW.clone().addScaledVector(playDir, -78);
+      camP.x = THREE.MathUtils.clamp(camP.x, -W / 2 + 80, W / 2 - 80);
+      camP.z = THREE.MathUtils.clamp(camP.z, -H / 2 + 80, H / 2 - 80);
+      camP.y = 48;
+      const camTarget = captainW.clone().addScaledVector(playDir, 150);
+      camTarget.y = 22;
+      camera.position.lerp(camP, 0.1);
+      controls.target.lerp(camTarget, 0.14);
+    } else {
+      camera.position.lerp(_defaultCamPos, 0.07);
+      controls.target.lerp(ballW, 0.09);
+    }
     controls.update();
   } else {
     controls.update();
@@ -3118,6 +3161,7 @@ function animate() {
     const rp = rainActive ? rainPoints.geometry.attributes.position.array : null;
     if (rp) { for (let i = 0; i < 2; i++) rp[i * 3] -= 1.2; }
   }
+  animateOffBallPlayers(performance.timeOrigin + performance.now());
   tickDust();
   renderer.render(scene, camera);
 }
@@ -3131,25 +3175,18 @@ function showThinking() {
   tb.className = 'turn-badge turn-b turn-thinking';
 }
 
-function updateHUD(st) {
-  // Game clock 0–90 + extra (3 real sec = 1 game min → 20× speed)
+function updateHUD(st, nowMs = performance.now()) {
+  // Display regulation time as a conventional 0:00–90:00 match clock.
   const gc = document.getElementById('game-clock');
   if (gc && st.start_time) {
     const hl = st.half_length || 45;
-    const ht = hl * 3, ft = ht * 2, et1 = ft + 45, et2 = ft + 90;
-    let elapsed = st.game_over ? Math.min(Date.now()/1000 - st.start_time, et2) : (Date.now()/1000 - st.start_time);
-    if (elapsed < 0) elapsed = 0;
-    const gameSecs = Math.floor(elapsed * 20); // 20 game secs per real sec
-    let mins = Math.floor(gameSecs / 60), secs = gameSecs % 60;
-    if (mins > 120) { mins = 120; secs = 0; }
-    let label = '';
-    if (st.period === 'penalties') label = 'PEN ';
-    else if (st.period === 'et_second') label = 'ET2 ';
-    else if (st.period === 'et_first') label = 'ET1 ';
-    else if (st.period === 'regular_second' || (!st.game_over && elapsed >= ht && elapsed < ft)) label = '2H ';
-    else label = '1H ';
-    if (st.game_over && st.period !== 'penalties') label = '';
-    gc.textContent = label + String(mins).padStart(2,'0') + ':' + String(secs).padStart(2,'0');
+    const regulationGameSeconds = hl * 2 * 60;
+    const elapsed = Math.max(0, nowMs / 1000 - st.start_time);
+    const gameSeconds = Math.min(regulationGameSeconds, elapsed * 20);
+    const mins = Math.floor(gameSeconds / 60);
+    const secs = Math.floor(gameSeconds % 60);
+    const tenths = Math.floor((gameSeconds % 1) * 10);
+    gc.textContent = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + '.' + tenths;
     gc.title = st.period + (st.game_over ? ' — FT' : '');
   }
   document.getElementById('score-a').textContent = st.score_a;
@@ -3234,8 +3271,7 @@ function updateHUD(st) {
   aiBtn.style.display = (ONLINE.active || st.game_mode === 'aivai' || (st.game_mode === 'hvh' && !st.is_player_a)) ? 'none' : '';
   updatePenaltyCamera(st);
 }
-// Live clock tick (so 00:00 → 90:00 + ET runs even without moves)
-setInterval(() => { if (typeof gameState !== 'undefined' && gameState && !gameState.game_over) updateHUD(gameState); }, 1000);
+// The render loop keeps the clock moving continuously between server updates.
 
 function logMove(text, isGoal) {
   const panel = document.getElementById('log-panel');
@@ -3453,27 +3489,60 @@ function getHoveredPlayer(sx, sy) {
   }
   const players = (isA || mode === 'hvh') ? gameState.players_a : null;
   if (!players) return null;
-  for (let i = 0; i < players.length; i++) {
-    const p = players[i];
-    const d = Math.hypot(p.x - sx, p.y - sy);
-    if (d < PLAYER_R + 8) return i;
-  }
+  const p = players[0];
+  if (p && Math.hypot(p.x - sx, p.y - sy) < PLAYER_R + 8) return 0;
   return null;
 }
 
-renderer.domElement.addEventListener('mousedown', e => {
+function getHoveredPlayerAtPointer(clientX, clientY) {
+  if (!gameState || gameState.game_over || isAnimating) return null;
+  if (ONLINE.active && (!!gameState.is_player_a !== (ONLINE.side === 'a'))) return null;
+  if (!ONLINE.active && gameState.penalty_shootout && !gameState.is_player_a) return null;
+  const allMeshes = ONLINE.active
+    ? (ONLINE.side === 'a' ? playerMeshesA : playerMeshesB)
+    : playerMeshesA;
+  const meshes = allMeshes.slice(0, 1);
+  const ndc = new THREE.Vector2();
+  const rect = renderer.domElement.getBoundingClientRect();
+  ndc.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  ndc.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+  raycaster.setFromCamera(ndc, camera);
+  const hit = raycaster.intersectObjects(meshes, true)[0];
+  if (!hit) return null;
+  let owner = hit.object;
+  while (owner.parent && !meshes.includes(owner)) owner = owner.parent;
+  const index = meshes.indexOf(owner);
+  return index >= 0 ? index : null;
+}
+
+function showCaptainHint(show) {
+  const hint = document.getElementById('captain-hint');
+  if (hint) hint.style.display = show ? 'block' : 'none';
+}
+
+renderer.domElement.addEventListener('pointerdown', e => {
+  renderer.domElement.focus();
   const gp = getGroundPoint(e.clientX, e.clientY);
   if (!gp) return;
   const sp = worldToServer(gp);
-  const idx = getHoveredPlayer(sp.x, sp.y);
-  if (idx !== null) {
-    dragPlayer = idx;
+  const idx = getHoveredPlayerAtPointer(e.clientX, e.clientY);
+  const groundIdx = idx === null ? getHoveredPlayer(sp.x, sp.y) : idx;
+  if (groundIdx !== null) {
+    showCaptainHint(false);
+    dragPlayer = groundIdx;
     dragWorldPos.copy(gp);
+    renderer.domElement.setPointerCapture(e.pointerId);
     e.preventDefault();
   }
 });
 
-renderer.domElement.addEventListener('mousemove', e => {
+renderer.domElement.addEventListener('pointermove', e => {
+  if (dragPlayer !== null || !gameState || !gameState.is_player_a || gameState.game_over) return;
+  const idx = getHoveredPlayerAtPointer(e.clientX, e.clientY);
+  showCaptainHint(idx === 0);
+});
+
+renderer.domElement.addEventListener('pointermove', e => {
   const gp = getGroundPoint(e.clientX, e.clientY);
   if (!gp) return;
   if (dragPlayer !== null) {
@@ -3485,7 +3554,7 @@ renderer.domElement.addEventListener('mousemove', e => {
   }
 });
 
-renderer.domElement.addEventListener('mouseup', e => {
+renderer.domElement.addEventListener('pointerup', e => {
   if (dragPlayer === null) return;
   const gp = getGroundPoint(e.clientX, e.clientY);
   if (gp) dragWorldPos.copy(gp);
@@ -3494,47 +3563,18 @@ renderer.domElement.addEventListener('mouseup', e => {
   const idx = dragPlayer === 'ball' ? 0 : dragPlayer;
   clearDragVisuals();
   dragPlayer = null;
-  if (power > 5) {
-    submitKick(idx, kickAngle * 180 / Math.PI, power);
-  }
+  if (renderer.domElement.hasPointerCapture(e.pointerId)) renderer.domElement.releasePointerCapture(e.pointerId);
+  if (power > 5) submitKick(idx, kickAngle * 180 / Math.PI, power).catch(() => {
+    isAnimating = false;
+    setOverlay(false);
+  });
 });
 
-// Touch
-renderer.domElement.addEventListener('touchstart', e => {
-  const t = e.touches[0];
-  const gp = getGroundPoint(t.clientX, t.clientY);
-  if (!gp) return;
-  const sp = worldToServer(gp);
-  const idx = getHoveredPlayer(sp.x, sp.y);
-  if (idx !== null) { dragPlayer = idx; dragWorldPos.copy(gp); e.preventDefault(); }
-}, { passive: false });
-
-renderer.domElement.addEventListener('touchmove', e => {
-  if (dragPlayer !== null) {
-    const t = e.touches[0];
-    const gp = getGroundPoint(t.clientX, t.clientY);
-    if (gp) {
-      dragWorldPos.copy(gp);
-      const home = dragPlayer === 'ball' ? gameState.ball : myTeamPlayers()[dragPlayer];
-      const pull = calcPull(home);
-      updateDragVisuals(home, pull);
-    }
-    if (e.cancelable) e.preventDefault();
-  }
-}, { passive: false });
-
-renderer.domElement.addEventListener('touchend', e => {
+renderer.domElement.addEventListener('pointercancel', () => {
   if (dragPlayer === null) return;
-  const t = e.changedTouches[0];
-  const gp = getGroundPoint(t.clientX, t.clientY);
-  if (gp) dragWorldPos.copy(gp);
-  const home = dragPlayer === 'ball' ? gameState.ball : myTeamPlayers()[dragPlayer];
-  const { pullX, pullY, power, kickAngle } = calcPull(home);
-  const idx = dragPlayer === 'ball' ? 0 : dragPlayer;
   clearDragVisuals();
   dragPlayer = null;
-  if (power > 5) submitKick(idx, kickAngle * 180 / Math.PI, power);
-}, { passive: false });
+});
 
 //  Trajectory animation (3D) 
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -3763,6 +3803,63 @@ function syncBall(trajectory, scored) {
   gameState.ball = scored ? { x: W / 2, y: H / 2, z: 0 } : { x: last.x, y: last.y, z: last.z || 0 };
 }
 
+function kickDirection(direction, angleOverride) {
+  if (!gameState || gameState.game_over || isAnimating || ONLINE.active || !gameState.is_player_a) return;
+  let angle = angleOverride;
+  if (angle === undefined) {
+    const captain = gameState.players_a && gameState.players_a[0];
+    const ball = gameState.ball;
+    let forwardX = ball && captain ? ball.x - captain.x : 1;
+    let forwardY = ball && captain ? ball.y - captain.y : 0;
+    const length = Math.hypot(forwardX, forwardY) || 1;
+    forwardX /= length;
+    forwardY /= length;
+    const vectors = {
+      up: [forwardX, forwardY],
+      down: [-forwardX, -forwardY],
+      left: [forwardY, -forwardX],
+      right: [-forwardY, forwardX],
+    };
+    const vector = vectors[direction];
+    if (!vector) return;
+    angle = Math.atan2(vector[1], vector[0]) * 180 / Math.PI;
+  }
+  if (angle === undefined) return;
+  submitKick(0, angle, 92).catch(() => {
+    isAnimating = false;
+    setOverlay(false);
+  });
+}
+
+async function animateComputerResult(data, resultKey, team) {
+  const result = data[resultKey];
+  if (!result || !result.trajectory) return;
+  const players = team === 'a' ? data.players_a : data.players_b;
+  const first = result.trajectory[0];
+  const firstTeam = first && first[team];
+  const from = firstTeam && firstTeam[result.player_idx]
+    ? firstTeam[result.player_idx]
+    : players[result.player_idx];
+  if (!from) return;
+  playPositional(_kickBuf, serverToWorld(from.x, from.y), { volume: 0.7 });
+  const kickEnd = result.kick_endpoint || kickEndpoint(from, result.angle, result.power);
+  _skipKickerIdx = result.player_idx;
+  _skipKickerTeam = team;
+  await Promise.all([
+    new Promise(r => animateTrajectory3D(result.trajectory, r)),
+    new Promise(r => animatePlayerMove3D(result.player_idx, team, from, kickEnd, r)),
+  ]);
+  _skipKickerIdx = -1;
+  _skipKickerTeam = '';
+  syncBall(result.trajectory, result.scored);
+  logMove(result.desc, !!result.scored);
+  if (result.scored) {
+    SoundManager.goal();
+    triggerGoalEffect3D(team);
+    triggerCrowdCheer();
+  }
+}
+
 async function submitKick(playerIdx, angleDeg, power) {
   if (ONLINE.active) return submitOnlineKick(playerIdx, angleDeg, power);
   isAnimating = true;
@@ -3865,10 +3962,22 @@ async function submitKick(playerIdx, angleDeg, power) {
   if (gameState.referee) updateRefereeMesh(gameState.referee.x, gameState.referee.y);
   updateHUD(data);
   }
+
+  if (!gameState.game_over && data.game_mode === 'hvai' && gameState.is_player_a) {
+    const randomResp = await fetch('/random_move', { method: 'POST' });
+    const randomData = await randomResp.json();
+    if (randomData.random_result) {
+      await animateComputerResult(randomData, 'random_result', 'a');
+      gameState = randomData;
+      updatePlayerPositions();
+      updateHUD(randomData);
+    }
+  }
+
 }
 
-async function triggerAI() {
-  if (isAnimating || ONLINE.active || (gameState && gameState.game_over)) return;
+async function triggerAI(force = false) {
+  if ((!force && isAnimating) || ONLINE.active || (gameState && gameState.game_over)) return;
   isAnimating = true;
   showThinking();
   const resp = await fetch('/ai_move', { method: 'POST' });
@@ -4062,6 +4171,10 @@ function setOverlay(show, text) {
     return;
   }
 
+  if (new URLSearchParams(location.search).get('new') === '1') {
+    await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_count: 3 }) });
+    history.replaceState(null, '', '/play3d');
+  }
   const data = await fetch('/state').then(r => r.json());
   AW.handle(data);
   document.getElementById('mode-select').value = data.game_mode || 'hvai';
@@ -4070,6 +4183,7 @@ function setOverlay(show, text) {
   ballMesh.position.copy(serverToWorld(data.ball.x, data.ball.y, data.ball.z || 0));
   shadowMesh.position.copy(serverToWorld(data.ball.x, data.ball.y));
   shadowMesh.position.y = 0.1;
+  applyViewMode(currentView);
   updateHUD(data);
 
   // Fill model selector
@@ -4084,31 +4198,6 @@ function setOverlay(show, text) {
       sel.appendChild(opt);
     });
   } catch (e) {}
-})();
-</script>
-<script src="/static/autosave.js"></script>
-<script>
-// History autosave UI — show last 5 saves, allow restore via back button
-(function(){
-  const box=document.createElement('div');
-  box.style='position:fixed;bottom:12px;left:12px;background:rgba(255,255,255,.9);border:1px solid #e2e8f0;border-radius:10px;padding:8px 10px;font-size:.72rem;z-index:30;max-width:220px';
-  box.innerHTML='<b>History</b> <span style="color:#64748b">(autosave)</span><div id="hist-list" style="margin-top:6px;max-height:120px;overflow:auto"></div><div style="margin-top:6px;display:flex;gap:6px"><button onclick="if(window.Autosave){const h=Autosave.loadHistory(); if(h.length) history.back();}" style="padding:4px 8px;border-radius:6px;border:1px solid #cbd5e1;background:#fff;cursor:pointer">← Back</button><button onclick="if(window.Autosave) Autosave.clear()" style="padding:4px 8px;border-radius:6px;border:none;background:#fef2f2;color:#dc2626;cursor:pointer">Clear</button></div>';
-  document.body.appendChild(box);
-  function render(){
-    const hist=(window.Autosave && Autosave.loadHistory())||[];
-    const list=document.getElementById('hist-list');
-    if(!list) return;
-    list.innerHTML = hist.slice(-5).reverse().map(h=>`<div style="padding:2px 0;border-bottom:1px solid #f1f5f9">${new Date(h.ts).toLocaleTimeString()} — ${h.scoreA}:${h.scoreB} k${h.kick}</div>`).join('') || '<div style="color:#94a3b8">No saves yet</div>';
-  }
-  setInterval(render, 2000);
-  window.addEventListener('autosave:restore', e=>{
-    const d=e.detail;
-    const el=document.createElement('div');
-    el.textContent='Restored to kick '+d.kick;
-    el.style='position:fixed;top:60px;left:50%;transform:translateX(-50%);background:#0ea5e9;color:#fff;padding:8px 12px;border-radius:8px;font-size:.8rem;z-index:40';
-    document.body.appendChild(el);
-    setTimeout(()=>el.remove(), 2000);
-  });
 })();
 </script>
 </body>

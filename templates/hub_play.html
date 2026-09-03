@@ -15,16 +15,16 @@
   <h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.4rem">Play Hub</h1>
   <p style="font-size:.85rem;color:#64748b">Play 3D, test code in Playground, benchmark in Arena — one hub.</p>
   <div class="tab-bar">
-    <button class="tab active" onclick="switchTab('play3d')">Play 3D</button>
-    <button class="tab" onclick="switchTab('playground')">Playground</button>
-    <button class="tab" onclick="switchTab('arena')">Arena</button>
+    <button class="tab active" onclick="switchTab('play3d', this)">Play 3D</button>
+    <button class="tab" onclick="switchTab('playground', this)">Playground</button>
+    <button class="tab" onclick="switchTab('arena', this)">Arena</button>
   </div>
-  <iframe id="frame" src="/play3d"></iframe>
+  <iframe id="frame" title="Play content" src="/play3d"></iframe>
 </main>
 <script>
-function switchTab(which){
+function switchTab(which, button){
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  event.target.classList.add('active');
+  button.classList.add('active');
   const src = which==='play3d' ? '/play3d' : which==='playground' ? '/playground' : '/arena';
   document.getElementById('frame').src = src;
 }

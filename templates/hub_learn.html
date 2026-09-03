@@ -14,17 +14,17 @@
 <main style="max-width:1200px;margin:0 auto;padding:16px">
   <h1>Learn Hub</h1><p style="font-size:.85rem;color:#64748b">Research, Learn, About, Workflow — docs and system.</p>
   <div class="tab-bar">
-    <button class="tab active" onclick="switchTab('research')">Research</button>
-    <button class="tab" onclick="switchTab('learn')">Learn</button>
-    <button class="tab" onclick="switchTab('about')">About</button>
-    <button class="tab" onclick="switchTab('workflow')">Workflow</button>
+    <button class="tab active" onclick="switchTab('research', this)">Research</button>
+    <button class="tab" onclick="switchTab('learn', this)">Learn</button>
+    <button class="tab" onclick="switchTab('about', this)">About</button>
+    <button class="tab" onclick="switchTab('workflow', this)">Workflow</button>
   </div>
-  <iframe id="frame" src="/research"></iframe>
+  <iframe id="frame" title="Learning content" src="/research"></iframe>
 </main>
 <script>
-function switchTab(w){
+function switchTab(w, button){
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  event.target.classList.add('active');
+  button.classList.add('active');
   const m={research:'/research',learn:'/learn',about:'/about',workflow:'/workflow'};
   document.getElementById('frame').src=m[w];
 }

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Locker Room — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>
+:root{--lobby-ink:#e8f3f1;--lobby-muted:#91aaa7;--lobby-line:rgba(160,220,208,.16);--lobby-teal:#2dd4bf;--lobby-orange:#fb923c}
+body{min-height:100vh;background:#071615;color:var(--lobby-ink);overflow:hidden}
+.lobby{min-height:100vh;position:relative;isolation:isolate;background:radial-gradient(circle at 80% 20%,rgba(45,212,191,.16),transparent 30%),linear-gradient(135deg,#071615 0%,#0d2825 52%,#14231f 100%)}
+.lobby:before{content:"";position:absolute;inset:0;opacity:.22;pointer-events:none;background-image:linear-gradient(var(--lobby-line) 1px,transparent 1px),linear-gradient(90deg,var(--lobby-line) 1px,transparent 1px);background-size:48px 48px;mask-image:linear-gradient(to bottom,black,transparent 80%)}
+.lobby-nav{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:22px clamp(20px,5vw,76px)}
+.brand{font:700 1.1rem 'Space Grotesk',sans-serif;color:#f4fffd;text-decoration:none;letter-spacing:.02em}.brand span{color:var(--lobby-teal)}
+.lobby-nav a:last-child{color:var(--lobby-muted);font-size:.78rem;text-decoration:none}.lobby-nav a:last-child:hover{color:#fff}
+.lobby-main{position:relative;z-index:1;display:grid;grid-template-columns:minmax(280px,460px) minmax(300px,540px);gap:clamp(30px,8vw,130px);align-items:center;max-width:1080px;margin:0 auto;padding:4vh 24px 12vh}
+.eyebrow{color:var(--lobby-teal);font-size:.7rem;font-weight:800;letter-spacing:.18em;text-transform:uppercase;margin-bottom:14px}.intro h1{font:500 clamp(2.7rem,6vw,5rem)/.94 'Space Grotesk',sans-serif;letter-spacing:0;margin:0 0 20px}.intro p{color:var(--lobby-muted);line-height:1.7;max-width:360px;margin:0}.preview{position:relative;min-height:520px;display:grid;place-items:center}.preview-stage{position:relative;width:min(100%,420px);aspect-ratio:1/1.16;border:1px solid var(--lobby-line);background:linear-gradient(145deg,rgba(35,88,80,.5),rgba(3,20,19,.8));box-shadow:0 25px 90px rgba(0,0,0,.32),inset 0 0 70px rgba(45,212,191,.08);overflow:hidden}.preview-stage:before{content:"";position:absolute;inset:12%;border:1px solid rgba(45,212,191,.18);transform:skewY(-18deg);background:repeating-linear-gradient(90deg,transparent 0 42px,rgba(45,212,191,.07) 43px 44px)}
+.player{position:absolute;left:50%;top:43%;width:150px;height:270px;transform:translate(-50%,-50%);filter:drop-shadow(0 22px 18px rgba(0,0,0,.38));animation:float 4s ease-in-out infinite}.head{position:absolute;left:50%;top:0;width:66px;height:72px;transform:translateX(-50%);border-radius:48% 48% 44% 44%;background:#b97652;box-shadow:inset 13px -6px 0 rgba(62,30,20,.18)}.hair{position:absolute;left:50%;top:-9px;width:75px;height:38px;transform:translateX(-50%);border-radius:50% 50% 35% 35%;background:#191b22}.body{position:absolute;left:50%;top:66px;width:124px;height:124px;transform:translateX(-50%);border-radius:28px 28px 18px 18px;background:linear-gradient(145deg,#31d2bf,#087f78);border:2px solid rgba(174,255,239,.45);clip-path:polygon(18% 0,82% 0,100% 100%,0 100%)}.body:after{content:"07";position:absolute;inset:28px 0 0;text-align:center;color:rgba(230,255,251,.9);font:700 44px 'Space Grotesk',sans-serif}.arm{position:absolute;top:78px;width:28px;height:116px;border-radius:20px;background:#b97652}.arm.left{left:2px;transform:rotate(12deg)}.arm.right{right:2px;transform:rotate(-12deg)}.leg{position:absolute;top:178px;width:38px;height:90px;background:#102f38;border-radius:0 0 14px 14px}.leg.left{left:39px}.leg.right{right:39px}.boot{position:absolute;top:254px;width:56px;height:19px;border-radius:16px 8px 8px 6px;background:#091317}.boot.left{left:17px}.boot.right{right:17px;transform:scaleX(-1)}
+.player-label{position:absolute;left:50%;bottom:20px;transform:translateX(-50%);padding:7px 13px;border:1px solid rgba(45,212,191,.28);background:rgba(5,28,26,.8);color:#d8fffa;font:700 .68rem 'Space Grotesk',sans-serif;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}.build{position:absolute;left:20px;right:20px;bottom:18px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.stat{padding:10px 8px;border-top:1px solid rgba(255,255,255,.12);font-size:.62rem;color:var(--lobby-muted);text-align:center}.stat b{display:block;color:#ecfffb;font-size:1rem;margin-top:3px}.launch{position:fixed;right:clamp(20px,5vw,76px);bottom:28px;z-index:5;min-width:170px;min-height:56px;border:0;border-radius:3px;background:var(--lobby-orange);box-shadow:0 12px 30px rgba(251,146,60,.26);color:#20150e;font:800 .9rem 'Space Grotesk',sans-serif;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:transform .2s,box-shadow .2s}.launch:hover{transform:translateY(-3px);box-shadow:0 18px 38px rgba(251,146,60,.4)}.launch:focus-visible{outline:3px solid #fff;outline-offset:4px}
+@keyframes float{50%{transform:translate(-50%,-54%)}}@media(max-width:760px){body{overflow:auto}.lobby-main{grid-template-columns:1fr;padding-top:2vh;padding-bottom:120px}.intro{text-align:center}.intro p{margin:auto}.preview{min-height:400px}.preview-stage{max-width:330px}.launch{left:20px;right:20px;width:auto}}
+</style>
+</head>
+<body>
+<div class="lobby">
+  <nav class="lobby-nav"><a class="brand" href="/lobby">AGENT <span>SOCCER</span></a><a href="/auth/logout">Leave locker room</a></nav>
+  <main class="lobby-main">
+    <section class="intro"><div class="eyebrow">Match lobby / ready</div><h1>Own the<br>moment.</h1><p>Welcome back, {{ username }}. You control the captain. Your teammates read the play and move on their own while the opposing side adapts in real time.</p></section>
+    <section class="preview" aria-label="Your player preview"><div class="preview-stage"><div class="player"><div class="hair"></div><div class="head"></div><div class="arm left"></div><div class="arm right"></div><div class="body"></div><div class="leg left"></div><div class="leg right"></div><div class="boot left"></div><div class="boot right"></div></div><div class="player-label">{{ username }} / captain</div><div class="build"><div class="stat">SIZE<b>{{ player_stats.get('size', 50) }}</b></div><div class="stat">POWER<b>{{ player_stats.get('power', 50) }}</b></div><div class="stat">WEIGHT<b>{{ player_stats.get('weight', 50) }}</b></div><div class="stat">AGILITY<b>{{ player_stats.get('agility', 50) }}</b></div></div></div></section>
+  </main>
+  <button class="launch" type="button" onclick="startMatch(this)">Play <span aria-hidden="true">&#8594;</span></button>
+</div>
+<script>
+function startMatch(button){button.disabled=true;button.textContent='Loading...';window.location.assign('/play3d?new=1');}
+</script>
+</body>
+</html>

@@ -14,16 +14,16 @@
 <main style="max-width:1200px;margin:0 auto;padding:16px">
   <h1>Social Hub</h1><p style="font-size:.85rem;color:#64748b">Messages, Clans, Spectate — friends and live.</p>
   <div class="tab-bar">
-    <button class="tab active" onclick="switchTab('messages')">Messages</button>
-    <button class="tab" onclick="switchTab('clans')">Clans</button>
-    <button class="tab" onclick="switchTab('spectate')">Spectate</button>
+    <button class="tab active" onclick="switchTab('messages', this)">Messages</button>
+    <button class="tab" onclick="switchTab('clans', this)">Clans</button>
+    <button class="tab" onclick="switchTab('spectate', this)">Spectate</button>
   </div>
-  <iframe id="frame" src="/messages"></iframe>
+  <iframe id="frame" title="Social content" src="/messages"></iframe>
 </main>
 <script>
-function switchTab(w){
+function switchTab(w, button){
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  event.target.classList.add('active');
+  button.classList.add('active');
   const m={messages:'/messages',clans:'/clans',spectate:'/spectate'};
   document.getElementById('frame').src=m[w];
 }

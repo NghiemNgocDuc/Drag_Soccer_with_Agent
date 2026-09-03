@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watch Replay — Agent Soccer</title>
+<link rel="stylesheet" href="/static/design-system.css">
+<style>
+.hero{padding:16px 20px;border-radius:16px;background:linear-gradient(135deg,rgba(14,165,233,.13),rgba(139,92,246,.12));border:1px solid rgba(255,255,255,.65);margin-bottom:14px}
+.meta{font-size:.78rem;color:#64748b}
+.badge{font-size:.68rem;padding:2px 8px;border-radius:999px;font-weight:700}
+.badge-win{background:#dcfce7;color:#166534}
+.badge-loss{background:#fee2e2;color:#991b1b}
+</style>
+</head>
+<body>
+<nav class="navbar">
+  <a class="nav-brand" href="/play3d">Agent Soccer <span style="font-size:.65rem;color:#06b6d4">3D</span></a>
+  <div class="nav-links"><a href="/match-history" class="nav-link">History</a><a href="/play3d" class="nav-link">Play</a></div>
+</nav>
+<main style="max-width:900px;margin:0 auto;padding:18px 16px">
+  <div class="hero">
+    <div style="display:flex;align-items:center;gap:10px"><h1 style="font-family:'Space Grotesk',sans-serif;font-size:1.2rem;margin:0">Replay — {{ meta.mode }} vs {{ meta.ai_model }}</h1>
+      {% if meta.winner=='A' %}<span class="badge badge-win">Win {{ meta.score_a }}-{{ meta.score_b }}</span>{% elif meta.winner=='B' %}<span class="badge badge-loss">Loss {{ meta.score_a }}-{{ meta.score_b }}</span>{% else %}<span class="badge">Draw {{ meta.score_a }}-{{ meta.score_b }}</span>{% endif %}
+    </div>
+    <p class="meta">{{ meta.ended_at }} · {{ meta.total_moves }} kicks · replay {{ replay_id }}</p>
+  </div>
+  <div class="glass-card" style="padding:12px">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <button class="btn btn-primary btn-sm" onclick="playAll()">Play</button>
+      <button class="btn btn-ghost btn-sm" onclick="pause()">Pause</button>
+      <button class="btn btn-ghost btn-sm" onclick="step(1)">Step</button>
+      <button class="btn btn-ghost btn-sm" onclick="step(-1)">Back</button>
+      <span class="meta" id="step-label"></span>
+    </div>
+    <div id="moves" style="max-height:320px;overflow:auto;border:1px solid #e2e8f0;border-radius:10px;padding:8px;background:#fff"></div>
+  </div>
+  <p class="meta" style="margin-top:10px">This replay is from your most recent 5 — stored 30 days. <a href="/match-history" style="color:#0284c7">Back to History</a></p>
+</main>
+<script>
+const REPLAY = {{ replay | tojson }};
+const META = {{ meta | tojson }};
+let idx=0, timer=null;
+function render(){
+  const box=document.getElementById('moves');
+  box.innerHTML='';
+  REPLAY.forEach((m,i)=>{
+    const d=document.createElement('div');
+    d.style='padding:6px 8px;border-bottom:1px solid #f1f5f9;font-size:.82rem;display:flex;justify-content:space-between;'+(i===idx?'background:#e0f2fe;font-weight:700':'' )
+    const left = (i+1)+'. ' + (m.player||m.mover||'?') + ' → ' + (m.desc || (m.angle?.toFixed? m.angle.toFixed(0)+'° p'+m.power : JSON.stringify(m).slice(0,60)));
+    const right = m.scored ? 'GOAL!' : '';
+    d.innerHTML='<span>'+left+'</span><span style="color:#16a34a;font-weight:700">'+right+'</span>';
+    d.onclick=()=>{ idx=i; render(); };
+    box.appendChild(d);
+  });
+  document.getElementById('step-label').textContent = (idx+1)+'/'+REPLAY.length;
+  box.scrollTop = idx*32;
+}
+function playAll(){
+  if(timer) return;
+  timer=setInterval(()=>{ if(idx < REPLAY.length-1){ idx++; render(); } else { clearInterval(timer); timer=null; } }, 900);
+}
+function pause(){ if(timer){ clearInterval(timer); timer=null; } }
+function step(d){ pause(); idx=Math.max(0,Math.min(REPLAY.length-1, idx+d)); render(); }
+render();
+</script>
+<script src="/static/feedback.js"></script>
+</body>
+</html>

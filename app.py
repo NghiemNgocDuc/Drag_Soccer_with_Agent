@@ -2,6 +2,8 @@
 from __future__ import annotations
 import importlib
 import json
+import math
+import random
 import threading
 import time
 import logging
@@ -51,7 +53,7 @@ if not _dev_mode:
 @app.after_request
 def _security_headers(resp):
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
-    resp.headers.setdefault("X-Frame-Options", "DENY")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
     if not _dev_mode:
         resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
@@ -271,6 +273,15 @@ def _persist_result(state: dict) -> None:
     try:
         from db.games import save_game_result
         winner = state.get("winner", "Draw")
+        # capture replay (move_history with trajectories) for last 5 watch
+        replay = None
+        try:
+            replay = state.get("move_history") or state.get("history") or []
+            # keep last 60 moves to save space, ensure serializable
+            if len(replay) > 60:
+                replay = replay[-60:]
+        except Exception:
+            replay = None
         save_game_result(
             user_id    = uid(),
             mode       = state.get("game_mode", "hvai"),
@@ -279,6 +290,7 @@ def _persist_result(state: dict) -> None:
             score_a    = state["score_a"],
             score_b    = state["score_b"],
             total_moves= state.get("kick_count", 0),
+            replay     = replay,
         )
         _ph.track_game_end(uid(), state.get("game_mode", "hvai"), winner, state["score_a"], state["score_b"])
         _check_casual_achievements(state, uid())
@@ -587,7 +599,7 @@ def _get_ai_move_with_timeout(model, state, is_player_a, timeout=2.0):
         except Exception:
             raise e
 
-def _do_ai_move(state: dict, model_name: str, is_player_a: bool) -> dict:
+def _do_ai_move(state: dict, model_name: str, is_player_a: bool, excluded_player_idx: int | None = None) -> dict:
     model = _load_model(model_name)
     t0    = time.time()
     try:
@@ -598,6 +610,13 @@ def _do_ai_move(state: dict, model_name: str, is_player_a: bool) -> dict:
         m2 = _load_model("greedy")
         player_idx, angle, power = m2.get_ai_move(state, is_player_a)
         timed_out = True
+    if excluded_player_idx is not None:
+        players_key = "players_a" if is_player_a else "players_b"
+        players = state.get(players_key, [])
+        if len(players) > 1 and int(player_idx) == excluded_player_idx:
+            player_idx = (excluded_player_idx + 1) % len(players)
+    if state.get("game_mode") == "hvai" and not is_player_a:
+        player_idx = 0
     elapsed = round((time.time() - t0) * 1000)
     # enforce 2s cap on reported think time
     elapsed = min(elapsed, 2000)
@@ -821,8 +840,23 @@ def api_reset_password():
 @app.route("/")
 def index():
     if "user_id" in session:
-        return redirect(url_for("index_3d"))
+        return redirect(url_for("lobby_page"))
     return render_template("landing.html", username=session.get("username", "Player"))
+
+
+@app.route("/lobby")
+@login_required
+def lobby_page():
+    from db.customization import get_customization
+    customization = get_customization(uid()) or {}
+    player_stats = (customization.get("player_stats") or {}).get("a") or {}
+    if isinstance(player_stats, list):
+        player_stats = player_stats[0] if player_stats else {}
+    return render_template(
+        "lobby.html",
+        username=session.get("username", "Player"),
+        player_stats=player_stats,
+    )
 
 
 @app.route("/play3d")
@@ -876,6 +910,8 @@ def human_move():
 
     data       = request.get_json(silent=True) or {}
     player_idx = max(0, min(2, int(data.get("player_idx", 0))))
+    if state["game_mode"] == "hvai" and player_idx != 0:
+        return jsonify(_full_state(state, {"error": "Only the captain is manually controlled"})), 400
     angle      = float(data.get("angle", 0.0))
     power      = max(0.0, min(100.0, float(data.get("power", 80.0))))
 
@@ -935,7 +971,8 @@ def trigger_ai_move():
             "push_result": None,
         }
     else:
-        result = _do_ai_move(state, model_name, is_player_a)
+        excluded = 0 if is_player_a and state.get("game_mode") == "hvai" else None
+        result = _do_ai_move(state, model_name, is_player_a, excluded_player_idx=excluded)
     if result.get("scored"):
         _goal_moment_achievements(result.get("trajectory"))
     save_game(user_id, state)
@@ -946,6 +983,27 @@ def trigger_ai_move():
             _mem_summ(user_id, state)
     except: pass
     return jsonify(_full_state(state, {"ai_result": result}))
+
+
+@app.route("/random_move", methods=["POST"])
+@login_required
+def random_teammate_move():
+    user_id = uid()
+    state = get_game(user_id)
+    if state.get("game_over"):
+        return jsonify(_full_state(state, {"error": "Game is over"}))
+    if state.get("game_mode") != "hvai" or not state.get("is_player_a"):
+        return jsonify(_full_state(state, {"error": "Random teammate is not active"})), 400
+    players = state.get("players_a", [])
+    if len(players) < 2:
+        return jsonify(_full_state(state, {"error": "No teammate available"})), 400
+    player_idx = random.randrange(1, len(players))
+    player = players[player_idx]
+    ball = state.get("ball", {})
+    angle = math.degrees(math.atan2(ball.get("y", player["y"]) - player["y"], ball.get("x", player["x"]) - player["x"]))
+    result = _apply_move(state, player_idx, angle, 92.0, True)
+    save_game(user_id, state)
+    return jsonify(_full_state(state, {"random_result": result}))
 
 
 @app.route("/switch_model", methods=["POST"])
@@ -1430,6 +1488,43 @@ def history_page():
     if not recent:
         recent = get_user_stats(uid()).get("recent", [])[:5]
     return render_template("history.html", username=session.get("username", "Player"), recent=recent)
+
+
+@app.route("/history/watch/<replay_id>")
+@login_required
+def history_watch(replay_id):
+    from db.games import get_replay
+    replay = get_replay(uid(), replay_id)
+    if replay is None:
+        flash("Replay not found or expired (30d).")
+        return redirect(url_for("history_page"))
+    # find meta from history
+    meta = {}
+    try:
+        from db.redis_client import r as _r
+        import json as _j
+        raw = _r.get(f"history:{uid()}")
+        if raw:
+            lst = _j.loads(raw)
+            for m in lst:
+                if m.get("replay_id") == replay_id or m.get("id") == replay_id:
+                    meta = m
+                    break
+    except Exception:
+        pass
+    if not meta:
+        meta = {"mode": "hvai", "ai_model": "greedy", "winner": "", "score_a": 0, "score_b": 0, "ended_at": "", "total_moves": len(replay)}
+    return render_template("history_watch.html", replay_id=replay_id, replay=replay, meta=meta)
+
+
+@app.route("/api/history/replay/<replay_id>")
+@login_required
+def api_history_replay(replay_id):
+    from db.games import get_replay
+    replay = get_replay(uid(), replay_id)
+    if replay is None:
+        return jsonify({"error": "Replay not found or expired"}), 404
+    return jsonify({"replay_id": replay_id, "replay": replay})
 
 @app.route("/api/clans/<clan_id>", methods=["GET"])
 @login_required

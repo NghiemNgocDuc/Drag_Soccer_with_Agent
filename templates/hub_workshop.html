@@ -14,16 +14,16 @@
 <main style="max-width:1200px;margin:0 auto;padding:16px">
   <h1>Workshop Hub</h1><p style="font-size:.85rem;color:#64748b">My Models, Community sharing, Leaderboard — build and share.</p>
   <div class="tab-bar">
-    <button class="tab active" onclick="switchTab('my-models')">My Models</button>
-    <button class="tab" onclick="switchTab('community')">Community</button>
-    <button class="tab" onclick="switchTab('leaderboard')">Leaderboard</button>
+    <button class="tab active" onclick="switchTab('my-models', this)">My Models</button>
+    <button class="tab" onclick="switchTab('community', this)">Community</button>
+    <button class="tab" onclick="switchTab('leaderboard', this)">Leaderboard</button>
   </div>
-  <iframe id="frame" src="/my-models"></iframe>
+  <iframe id="frame" title="Workshop content" src="/my-models"></iframe>
 </main>
 <script>
-function switchTab(w){
+function switchTab(w, button){
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  event.target.classList.add('active');
+  button.classList.add('active');
   const m={ 'my-models':'/my-models','community':'/community','leaderboard':'/leaderboard'};
   document.getElementById('frame').src=m[w];
 }

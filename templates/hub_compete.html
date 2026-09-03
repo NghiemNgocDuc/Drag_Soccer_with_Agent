@@ -14,16 +14,16 @@
 <main style="max-width:1200px;margin:0 auto;padding:16px">
   <h1>Compete Hub</h1><p style="font-size:.85rem;color:#64748b">Tournaments, Ranked, Analytics — compete and track.</p>
   <div class="tab-bar">
-    <button class="tab active" onclick="switchTab('tournaments')">Tournaments</button>
-    <button class="tab" onclick="switchTab('ranked')">Ranked</button>
-    <button class="tab" onclick="switchTab('analytics')">Analytics</button>
+    <button class="tab active" onclick="switchTab('tournaments', this)">Tournaments</button>
+    <button class="tab" onclick="switchTab('ranked', this)">Ranked</button>
+    <button class="tab" onclick="switchTab('analytics', this)">Analytics</button>
   </div>
-  <iframe id="frame" src="/tournaments"></iframe>
+  <iframe id="frame" title="Competition content" src="/tournaments"></iframe>
 </main>
 <script>
-function switchTab(w){
+function switchTab(w, button){
   document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-  event.target.classList.add('active');
+  button.classList.add('active');
   const m={tournaments:'/tournaments',ranked:'/leaderboard/ranked',analytics:'/analytics'};
   document.getElementById('frame').src=m[w];
 }
