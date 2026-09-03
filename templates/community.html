@@ -141,7 +141,24 @@ async function load(reset=true){
   });
   offset += (j.models||[]).length;
   document.getElementById('more').style.display = offset < total ? 'block' : 'none';
-  if(!(j.models||[]).length && offset===0) box.innerHTML='<div class="meta">No shared models yet. Make a model public in My Models.</div>';
+  if(!(j.models||[]).length && offset===0){
+    // seed default video posts when no user posts yet (so social feed is never empty)
+    const seed=[
+      {name:"GAT PPO — Graph Model Walkthrough", owner_name:"Agent Soccer", created_at:"2025-08-22", description:"Video summary: Football AI Tutorial Roboflow - YOLOv8 ByteTrack tracking, possession, speed. GAT model uses complete graph w=exp(-dist/120).", likes:12, comments:4, score:72.5, links:[{title:"Video walkthrough", url:"https://www.youtube.com/watch?v=aBVGKoNZQUw"},{title:"Paper", url:"https://arxiv.org/abs/2606.18786"}]},
+      {name:"Deep RL Striker — From Scratch", owner_name:"Agent Soccer", created_at:"2025-05-24", description:"Video summary: AI Soccer Expert Deep RL - agent learns soccer from scratch via self-play. Achieved 64% shot reduction.", likes:9, comments:2, score:68.2, links:[{title:"Video walkthrough", url:"https://www.youtube.com/watch?v=uKw0YcAF71A"}]},
+      {name:"YOLO Football Analysis — Ball Interpolation", owner_name:"Agent Soccer", created_at:"2024-05-25", description:"Video summary: AI/ML Football Analysis - YOLO OpenCV ball interpolation, player colour clustering. Captures pass accuracy and trajectories.", likes:15, comments:7, score:75.1, links:[{title:"Video walkthrough", url:"https://www.youtube.com/watch?v=neBZ6huolkg"}]},
+      {name:"Adaptive Learner — Self-Play", owner_name:"Agent Soccer", created_at:"2026-09-03", description:"Video summary: Adaptive Learner Q-table self-play vs greedy, EPV reward shaping, 0.1ms lookup. Strongest after 200 games.", likes:21, comments:9, score:81.3, links:[{title:"Video walkthrough", url:"https://www.youtube.com/watch?v=Xwou5qO--vY"}]},
+    ];
+    seed.forEach(m=>{
+      const card=document.createElement('div'); card.className='glass-card card';
+      const thumb='https://img.youtube.com/vi/'+(m.links[0].url.split('v=')[1]||'')+'/hqdefault.jpg';
+      const videoHtml='<div style="margin-top:10px;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0"><a href="'+esc(m.links[0].url)+'" target="_blank"><img src="'+thumb+'" style="width:100%;height:auto;display:block" loading="lazy"></a></div><div class="meta" style="margin-top:6px;font-style:italic">Caption (video summary): '+esc(m.description.slice(0,140))+'</div>';
+      card.innerHTML='<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><h3>'+esc(m.name)+'</h3><span class="badge">'+Number(m.score).toFixed(1)+'% vs built-ins</span></div><div class="meta">by '+esc(m.owner_name)+' · '+m.created_at.slice(0,10)+'</div>'+videoHtml+'<div class="meta" style="margin-top:6px;white-space:pre-wrap">'+esc(m.description)+'</div><div class="meta" style="margin-top:8px"> '+m.likes+'  ·   '+m.comments+'</div><div style="margin-top:10px"><a class="btn btn-primary btn-sm" href="/my-models">Try this style → My Models</a></div>';
+      box.appendChild(card);
+    });
+    const moreNote=document.createElement('div'); moreNote.className='meta'; moreNote.style='text-align:center;margin-top:12px'; moreNote.textContent='No user posts yet — showing featured video posts. Make a model public in My Models to appear here.';
+    box.appendChild(moreNote);
+  }
 }
 function loadMore(){ load(false); }
 function esc(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
