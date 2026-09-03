@@ -14,10 +14,12 @@ import math
 
 from db.redis_client import r
 
-#  Tunable detection constants (calibrated against real AI sims) 
+# Tunable detection constants (calibrated against real AI sims)
 # Ball speeds are derived from consecutive decimated frames:
 #   speed ≈ dist * 60 / step_est,  step_est = round((len-1)/100)
 # Real kicks measured 400–1060 px/s; ~50% of AI kicks are zero-speed no-ops.
+# Highlights only when a shot was actually taken (research: PlayerTV/MatchVision detect shots via power + speed + direction; not passes/rolls)
+SHOT_MIN_POWER      = 50   # kick power must be a shot (not a 20-30 tap/dribble) — base_replay uses 50, so 50 is shot
 GOAL_LEAD_MOVES     = 1    # clip window: kicks before the scoring kick
 GOAL_TAIL_MOVES     = 1    # clip window: kicks after the scoring kick
 NEAR_MIN_SPEED      = 400  # px/s — near miss must be a genuine shot, not a slow roll
@@ -92,11 +94,20 @@ def _min_mouth_dist(trajectory, target_x, line_margin, mouth_y1, mouth_y2):
 
 
 def detect_highlights(replay_data, tid="", match_id=""):
-    """Return the highlight list for a match's replay_data (entry indices)."""
+    """Return the highlight list for a match's replay_data (entry indices). Highlights only when a shot was taken."""
     moves = _real_moves(replay_data)
     n = len(moves)
     hls = []
     for ki, (entry_idx, m) in enumerate(moves):
+        if m.get("scored"):
+            # goals always highlight (shot filter still applies via speed fallback, but power gate not needed — a goal is by definition a shot)
+            pass
+        else:
+            # research-backed shot filter: only near/fast when a shot was taken (Stanford 2024 + PlayerTV). Power + speed gate.
+            power = float(m.get("power", 100) or 0)
+            is_shot = power >= SHOT_MIN_POWER
+            if not is_shot:
+                continue
         if m.get("scored"):
             start = moves[max(0, ki - GOAL_LEAD_MOVES)][0]
             end = moves[min(n - 1, ki + GOAL_TAIL_MOVES)][0]
