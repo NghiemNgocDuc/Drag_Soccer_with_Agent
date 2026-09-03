@@ -4299,6 +4299,23 @@ function setOverlay(show, text) {
       const s = CUST_BALL_SIZE==='small'?0.82 : CUST_BALL_SIZE==='large'?1.18 : 1.0;
       ballMesh.scale.set(s,s,s);
     }catch(e){}
+    // camera customization (FIFA 8 groups: Camera Settings)
+    try{
+      if(cust.camera_type){
+        const camPresets={broadcast:{pos:[-1500,790,320], fov:65}, top:{pos:[0,1800,0], fov:55}, classic:{pos:[-1200,900,400], fov:60}, dynamic:{pos:[-1300,850,360], fov:68}, player:{pos:[-260,92,135], fov:70}};
+        const p=camPresets[cust.camera_type]||camPresets.broadcast;
+        const h=(cust.camera_height!=null? cust.camera_height : 10)/10;
+        const z=(cust.camera_zoom!=null? cust.camera_zoom : 10)/10;
+        camera.position.set(p.pos[0], p.pos[1]* (0.7+ h*0.3), p.pos[2]* (0.8+ z*0.2));
+        camera.fov = p.fov * (0.9 + z*0.1);
+        camera.updateProjectionMatrix();
+      }
+      if(cust.net_color){
+        // net color tint for goals (simple: tint goal meshes if present)
+        const nc = new THREE.Color(cust.net_color);
+        scene.traverse(o=>{ if(o.isMesh && o.name && o.name.includes('net')) o.material.color.copy(nc); });
+      }
+    }catch(e){}
   } catch (e) {}
 
   addBenchPlayers();

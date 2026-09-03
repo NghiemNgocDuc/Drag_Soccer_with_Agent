@@ -330,6 +330,50 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
       </div>
     </div>
     <div class="setting-row">
+      <span class="setting-label">Camera Type</span>
+      <div class="setting-control">
+        <select id="camera_type">
+          <option value="broadcast">Broadcast</option>
+          <option value="top">Top Down</option>
+          <option value="classic">Classic</option>
+          <option value="dynamic">Dynamic</option>
+          <option value="player">Player</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Camera Height</span>
+      <div class="setting-control">
+        <input type="range" id="camera_height" min="0" max="20" value="10">
+        <span class="range-val" id="camera_height_val">10</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Camera Zoom</span>
+      <div class="setting-control">
+        <input type="range" id="camera_zoom" min="0" max="20" value="10">
+        <span class="range-val" id="camera_zoom_val">10</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Stadium Style</span>
+      <div class="setting-control">
+        <select id="stadium_style">
+          <option value="modern">Modern</option>
+          <option value="classic">Classic</option>
+          <option value="vintage">Vintage</option>
+          <option value="cyber">Cyber</option>
+        </select>
+      </div>
+    </div>
+    <div class="setting-row">
+      <span class="setting-label">Net Color</span>
+      <div class="setting-control">
+        <input type="color" id="net_color">
+        <span class="color-hex" id="hex_net_color"></span>
+      </div>
+    </div>
+    <div class="setting-row">
       <span class="setting-label">Highlight Style</span>
       <div class="setting-control">
         <select id="highlight_style">
@@ -532,13 +576,13 @@ const DEFAULTS = {
   team_a_color:'#3b82f6',team_b_color:'#ef4444',ref_color:'#fde68a',ball_color:'#f8fafc',bg_color:'#2a2518',
   player_count:3,grass_shade:'dark',pitch_pattern:'stripes',field_line_color:'#ffffff',corner_flag_style:'normal',
   crowd_palette:'classic',stadium_seat_color:'#475569',stadium_vignette:0.6,floodlight_color:'warm',bg_scene:'night',weather:'clear',
-  ball_design:'classic',ball_pattern:'solid',ball_size:'normal',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',keeper_style_a:'default',keeper_style_b:'default',highlight_style:'glow',shirt_font:'default',
+  ball_design:'classic',ball_pattern:'solid',ball_size:'normal',camera_type:'broadcast',camera_height:10,camera_zoom:10,stadium_style:'modern',net_color:'#ffffff',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',keeper_style_a:'default',keeper_style_b:'default',highlight_style:'glow',shirt_font:'default',
   goal_effect:'confetti',trail_color:'#ffffff',power_bar_style:'classic',
   half_length:45,power_cap:100,win_goal_limit:5
 };
-const COLOR_KEYS = ['team_a_color','team_b_color','ref_color','ball_color','bg_color','field_line_color','trail_color','keeper_color_a','keeper_color_b','stadium_seat_color'];
-const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','weather','ball_design','ball_pattern','ball_size','keeper_style_a','keeper_style_b','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
-const RANGE_KEYS = ['player_count','stadium_vignette','power_cap'];
+const COLOR_KEYS = ['team_a_color','team_b_color','ref_color','ball_color','bg_color','field_line_color','trail_color','keeper_color_a','keeper_color_b','stadium_seat_color','net_color'];
+const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','weather','ball_design','ball_pattern','ball_size','camera_type','stadium_style','keeper_style_a','keeper_style_b','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
+const RANGE_KEYS = ['player_count','stadium_vignette','power_cap','camera_height','camera_zoom'];
 let current = {};
 function getVal(id){return document.getElementById(id).value}
 function updateHex(key){var el=document.getElementById('hex_'+key);if(el)el.textContent=getVal(key)}
@@ -550,6 +594,8 @@ function syncFromInputs(){
   var pcVal=document.getElementById('player_count_val'); if(pcVal) pcVal.textContent=current.player_count;
   var svVal=document.getElementById('stadium_vignette_val'); if(svVal) svVal.textContent=Math.round(current.stadium_vignette);
   var pwVal=document.getElementById('power_cap_val'); if(pwVal) pwVal.textContent=current.power_cap;
+  var chVal=document.getElementById('camera_height_val'); if(chVal) chVal.textContent=current.camera_height;
+  var czVal=document.getElementById('camera_zoom_val'); if(czVal) czVal.textContent=current.camera_zoom;
   // Read player stats from sliders
   var ps = {a:[],b:[]};
   ['a','b'].forEach(function(t){
