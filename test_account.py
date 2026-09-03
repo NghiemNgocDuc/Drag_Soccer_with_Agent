@@ -170,12 +170,22 @@ def _patch_supabase_create_client(monkeypatch, client):
 
 #  Photo upload 
 
+def _valid_png_bytes():
+    try:
+        from PIL import Image as _PILImage
+        import io as _io2
+        im = _PILImage.new("RGB", (64, 64), color=(120, 180, 220))
+        b = _io2.BytesIO(); im.save(b, format="PNG"); return b.getvalue()
+    except Exception:
+        import base64
+        return base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC")
+
 def test_photo_upload_success(monkeypatch):
     svc = FakeService()
     monkeypatch.setattr("db.supabase_client.service", svc)
     svc.table("profiles").rows["u1"] = {"id": "u1", "username": "tester"}
     r = make_client().post("/api/profile/photo",
-                           data={"photo": (io.BytesIO(b"fake-png-bytes"), "me.png")},
+                           data={"photo": (io.BytesIO(_valid_png_bytes()), "me.png")},
                            content_type="multipart/form-data")
     assert r.status_code == 200
     body = r.get_json()
@@ -192,7 +202,7 @@ def test_photo_upload_replaces_old(monkeypatch):
     svc.table("profiles").rows["u1"] = {"id": "u1", "username": "tester"}
     svc.storage.objects = ["u1/photo_111.jpg"]
     r = make_client().post("/api/profile/photo",
-                           data={"photo": (io.BytesIO(b"img"), "new.webp")},
+                           data={"photo": (io.BytesIO(_valid_png_bytes()), "new.webp")},
                            content_type="multipart/form-data")
     assert r.status_code == 200
     assert "u1/photo_111.jpg" not in svc.storage.objects
@@ -243,7 +253,7 @@ def test_photo_upload_denied_for_dev_and_clerk_users(monkeypatch):
 def test_photo_upload_without_storage(monkeypatch):
     monkeypatch.setattr("db.supabase_client.service", None)
     r = make_client().post("/api/profile/photo",
-                           data={"photo": (io.BytesIO(b"i"), "a.png")},
+                           data={"photo": (io.BytesIO(_valid_png_bytes()), "a.png")},
                            content_type="multipart/form-data")
     assert r.status_code == 503
     assert "Storage may not be configured" in r.get_json()["error"]

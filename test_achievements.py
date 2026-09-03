@@ -50,11 +50,11 @@ def new_uid(tag):
 # ── Catalog ────────────────────────────────────────────────────────────────
 
 def test_catalog_has_31_badges():
-    # catalog grows as we add play-more progress badges
+    # catalog grows as we add play-more progress badges; emoji kept only for chat per cleanup (so allow empty)
     assert len(ACHIEVEMENTS) >= 33
     for key, d in ACHIEVEMENTS.items():
         assert d["category"] in achievements.CATEGORY_LABELS
-        assert d["name"] and d["description"] and d["emoji"]
+        assert d["name"] and d["description"] and "emoji" in d
         assert "order" in d
 
 

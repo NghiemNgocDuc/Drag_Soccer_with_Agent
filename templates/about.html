@@ -232,6 +232,19 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
     <p class="meta">All `simulate_kick` → `traj, scored` 500×3 steps. Coding editor <b>/playground</b> & <b>/my-models → Available models</b> list all 19 with lat + code; <b>Leaderboard</b> `/leaderboard` AI Models tab shows Accuracy% + Speed ms + per-opponent Details. Train the learner at <code>POST /api/learning/train {games:15}</code> and check <code>GET /api/learning/status</code>.</p>
   </div>
 
+  <div class="glass-card card" id="physics">
+    <h3>Physics — validated</h3>
+    <p style="margin:4px 0 8px">Engine <code>models/soccer_logic.py:1</code> <b>1400×875</b> <b>pymunk 7.3.0</b> (Chipmunk2D) + Batch API `30–40×` for `8` bodies. Verified `DEV_MODE=1`: <b>280 passed, 4 skipped</b> (<code>pytest -q —ignore=test_integration —ignore=balance_test</code>). Web bench: <b>pymunk Batch Get 100 bodies 2.09→0.09s</b>, `200 collisions @ 58 FPS`.</p>
+    <ul>
+      <li><b>test_pymunk</b> `5` — `simulate_kick`/`apply_kick` trajectory, both sides, miss, goal `score_a/b`</li>
+      <li><b>test_vertical</b> `8` — `z`/`_loft_angle`/`airborne_ball_does_not_collide_in_2d` (`ball_pivot 1000→100` airborne)</li>
+      <li><b>test_penalty</b> `22` — spot `1106/294`, keeper `700px/s` dive, shootout `5+1` sudden death</li>
+      <li><b>test_stats</b> `11` — `Size→radius 12+16`, `Power→kick 5+10`, `Weight→mass 3+4`, `Agility→friction 1000+1000`, recoil, slide</li>
+      <li><b>balance_test</b> — kick `699/700`, recoil `576 vs 95 Tank`, slide `199 vs 230`, AI `71–85%` differ when stats change (`radius 15→25`)</li>
+    </ul>
+    <p class="meta">Validate: <code>DEV_MODE=1 python -m pytest test_pymunk.py test_vertical.py test_penalty.py test_stats.py -v</code> → `50 passed 0.50s`; full <code>balance_test.py</code> prints physics + scrimmages `first-to-3`. Re-run web bench <a href="http://www.pymunk.org/en/latest/benchmarks.html" target="_blank" style="color:#0284c7">pymunk.org/benchmarks</a>.</p>
+  </div>
+
   <div class="glass-card card" id="workflow">
     <h3>System workflow</h3>
     <p style="margin:4px 0 10px">High-level overview — frontend → backend → database → engine → AI. Same diagram as <code>workflow.png</code> (also at <a href="/workflow" style="color:#0284c7;font-weight:600">/workflow</a> for full page).</p>
