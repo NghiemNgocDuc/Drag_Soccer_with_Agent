@@ -58,6 +58,8 @@ DEFAULT_CUSTOMIZATION = {
     "bg_scene": "day",
     "weather": "clear",
     "ball_design": "classic",
+    "ball_pattern": "solid",
+    "ball_size": "normal",
     "keeper_color_a": "#22c55e",
     "keeper_color_b": "#f97316",
     "keeper_style_a": "default",
