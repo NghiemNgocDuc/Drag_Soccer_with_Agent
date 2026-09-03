@@ -3,9 +3,9 @@ supabase>=2.0
 redis>=5.0
 python-dotenv>=1.0
 gunicorn>=21.0
-numpy>=1.26
+numpy
 pymunk>=6.5
-resend>=4.0
+resend>=2.0
 posthog>=3.0
 sentry-sdk>=2.0
 pinecone>=5.0
