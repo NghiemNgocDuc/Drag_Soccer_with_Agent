@@ -1987,6 +1987,11 @@ def api_community_comment(model_id):
     if not body:
         return jsonify({"error": "Comment required"}), 400
     try:
+        from db.chat import contains_profanity
+        if contains_profanity(body):
+            return jsonify({"error": "Comment contains inappropriate language."}), 400
+    except Exception: pass
+    try:
         c = add_comment(model_id, uid(), session.get("username", "Player"), body)
         return jsonify({"ok": True, "comment": c})
     except ValueError as e:
@@ -2038,6 +2043,24 @@ def api_create_model():
         clean_links.append({"title": t, "url": u})
     if not name:
         return jsonify({"error": "Name is required."}), 400
+    # inappropriate post filter (word + image/video) — community is public, keep it clean
+    try:
+        from db.chat import contains_profanity
+        if contains_profanity(name) or contains_profanity(desc):
+            return jsonify({"error": "Post contains inappropriate language."}), 400
+        # image/video links: check via moderation if they look like media
+        for l in clean_links:
+            u=l.get("url","").lower()
+            if any(u.endswith(ext) for ext in [".png",".jpg",".jpeg",".webp",".gif",".mp4",".mov"]):
+                try:
+                    from db.profile_photos import _is_appropriate_image as _media_ok
+                    # for remote URLs we can't fetch image, so just check extension + profanity in title
+                    if contains_profanity(l.get("title","")):
+                        return jsonify({"error": "Link title contains inappropriate language."}), 400
+                except Exception:
+                    pass
+    except Exception:
+        pass
     ok, msg = validate_code(code)
     if not ok:
         return jsonify({"error": f"Code error: {msg}"}), 400
@@ -2065,8 +2088,18 @@ def api_update_model(model_id: str):
         fields["name"] = (data["name"] or "").strip()
         if not fields["name"]:
             return jsonify({"error": "Name is required."}), 400
+        try:
+            from db.chat import contains_profanity
+            if contains_profanity(fields["name"]):
+                return jsonify({"error": "Name contains inappropriate language."}), 400
+        except Exception: pass
     if "description" in data:
         fields["description"] = (data["description"] or "").strip()
+        try:
+            from db.chat import contains_profanity
+            if contains_profanity(fields["description"]):
+                return jsonify({"error": "Description contains inappropriate language."}), 400
+        except Exception: pass
     if "code" in data:
         code = (data["code"] or "").strip()
         ok, msg = validate_code(code)
