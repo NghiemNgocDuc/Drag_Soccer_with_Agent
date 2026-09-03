@@ -153,6 +153,10 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
         <div class="turn-badge turn-a" id="turn-badge">Your turn</div>
         <div class="kick-counter" id="game-clock">00:00</div>
         <div class="winner-banner" id="winner-banner"></div>
+        <div id="post-game-options" style="display:none;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center">
+          <button class="btn btn-secondary btn-sm" onclick="showHighlights()">Highlights</button>
+          <button class="btn btn-secondary btn-sm" onclick="showPlayerRatings()">Player Ratings</button>
+        </div>
         <button class="btn btn-primary btn-sm" id="match-share-btn" style="display:none;margin-top:6px" onclick="shareMatchSummary()"> Share match summary</button>
         <span id="match-share-msg" style="font-size:.75rem;color:#059669;display:none;margin-top:4px"></span>
       </div>
@@ -297,6 +301,24 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
           <button class="btn btn-ghost" onclick="closeMatchModels()">Close</button>
           <a class="btn btn-primary" href="/my-models" style="margin-left:auto">Go to Code Models</a>
         </div>
+      </div>
+    </div>
+    <!-- Post-game: Highlights (shot-only) -->
+    <div class="online-modal" id="highlights-modal" style="display:none">
+      <div class="online-modal-card" style="max-width:520px;max-height:80vh;overflow:auto">
+        <h3>Highlights — shots only</h3>
+        <p style="font-size:.78rem;color:#64748b">Auto-detected from this match: goals, near misses (≤100px mouth, ≥400 px/s) and fast plays (≥700) — only when a shot was taken (power≥50, research: Stanford 5s clips + PlayerTV).</p>
+        <div id="highlights-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-ghost" onclick="closeHighlights()">Close</button><a href="/match-history" class="btn btn-ghost" style="margin-left:auto">History (last 5)</a></div>
+      </div>
+    </div>
+    <!-- Post-game: Player Ratings (WhoScored/FIFA: 6.0 baseline 0-10) -->
+    <div class="online-modal" id="ratings-modal" style="display:none">
+      <div class="online-modal-card" style="max-width:560px;max-height:80vh;overflow:auto">
+        <h3>Player Ratings</h3>
+        <p style="font-size:.78rem;color:#64748b">WhoScored 6.0 + FIFA 35-attr style (Pace/Shooting/Passing/Dribbling/Defending/Physical). Baseline 6.0, +goal 1.8, +shot 0.4, +on-target 0.5, +progress/60, capped 4.0–10.0. Rare 10 needs hat-trick + perfect.</p>
+        <div id="ratings-list" style="display:flex;flex-direction:column;gap:10px;margin-top:10px"></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-ghost" onclick="closeRatings()">Close</button></div>
       </div>
     </div>
   </div>
@@ -2296,6 +2318,115 @@ async function playVsModel(modelId){
 }
 function escM(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
 
+//  Post-game: Highlights (shot-only) + Player Ratings (WhoScored 6.0 + FIFA)
+function detectHighlights(moves){
+  const SHOT_MIN=50, NEAR_SPEED=400, FAST_SPEED=700, MARGIN=100, MOUTH=100;
+  const GY1=356, GY2=519, TX_A=1380, TX_B=20;
+  function maxSpeed(traj){
+    if(!traj||traj.length<2) return 0;
+    const st=Math.max(1, Math.round((traj.length-1)/100));
+    let mx=0;
+    for(let i=1;i<traj.length;i++){ const d=Math.hypot(traj[i].x-traj[i-1].x, traj[i].y-traj[i-1].y); mx=Math.max(mx, d*60/st); }
+    return mx;
+  }
+  function mouthDist(traj, tx){
+    const sign= tx===20?1:-1;
+    let reached=false, best=Infinity;
+    for(const p of traj){ if((p.x-tx)*sign> MARGIN) continue; reached=true; const yc=Math.min(Math.max(p.y,GY1),GY2); best=Math.min(best, Math.hypot(p.x-tx, p.y-yc)); }
+    return [reached,best];
+  }
+  const hls=[];
+  moves.forEach((m,ki)=>{
+    if(!m.trajectory||m.trajectory.length<2) return;
+    const power = m.power!=null? m.power : 100;
+    if(!m.scored && power < SHOT_MIN) return;
+    if(m.scored){ hls.push({type:'goal', kick:ki+1, label:'Goal — kick '+(ki+1), idx:ki}); return; }
+    const sp=maxSpeed(m.trajectory);
+    if(sp < NEAR_SPEED) return;
+    const tx = m.mover==='b'? TX_B: TX_A;
+    const [reached,best]=mouthDist(m.trajectory, tx);
+    if(reached && best<=MOUTH){ hls.push({type:'near', kick:ki+1, label:'Near miss — kick '+(ki+1), idx:ki}); return; }
+    if(sp>=FAST_SPEED) hls.push({type:'fast', kick:ki+1, label:'Fast play — kick '+(ki+1), idx:ki});
+  });
+  return hls;
+}
+window.showHighlights = function(){
+  const st = gameState || {};
+  const moves = st.move_history || st.history || [];
+  const hls = detectHighlights(moves);
+  const list=document.getElementById('highlights-list');
+  list.innerHTML='';
+  if(!hls.length){ list.innerHTML='<div style="font-size:.82rem;color:#64748b">No shot highlights this match — try a stronger kick (power≥50) on target.</div>'; }
+  else hls.forEach(h=>{
+    const row=document.createElement('div');
+    row.style='padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;display:flex;justify-content:space-between;align-items:center;background:#fff';
+    const badge = h.type==='goal' ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">GOAL</span>' : h.type==='near' ? '<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">NEAR</span>' : '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">FAST</span>';
+    row.innerHTML='<span style="font-size:.82rem;font-weight:600">'+h.label+'</span>'+badge;
+    row.onclick=()=>{ closeHighlights(); stepToHighlight(h.idx); };
+    row.style.cursor='pointer';
+    list.appendChild(row);
+  });
+  document.getElementById('highlights-modal').style.display='flex';
+};
+function stepToHighlight(idx){
+  // simple: highlight that move in log and flash ball
+  const panel=document.getElementById('log-panel');
+  if(panel) panel.scrollTop=0;
+  const moves=(gameState.move_history||[])[idx];
+  if(moves && moves.trajectory) {
+    const end=moves.trajectory[moves.trajectory.length-1];
+    if(end) ballMesh.position.copy(serverToWorld(end.x,end.y));
+  }
+}
+window.closeHighlights = function(){ document.getElementById('highlights-modal').style.display='none'; };
+window.showPlayerRatings = function(){
+  const st = gameState||{};
+  const moves=st.move_history||[];
+  // WhoScored 6.0 baseline, FIFA 35-attr weighted (Pace/Shooting etc simplified to goals/shots/progress)
+  const players={a: {}, b:{}};
+  // init 3 each
+  for(let i=0;i<3;i++){ players.a[i]={goals:0,shots:0,onTarget:0,progress:0}; players.b[i]={goals:0,shots:0,onTarget:0,progress:0}; }
+  moves.forEach(m=>{
+    const isA = m.mover==='a' || m.player==='A';
+    const side = isA?'a':'b';
+    const pid = m.player_idx!=null? m.player_idx : 0;
+    if(players[side][pid]==null) players[side][pid]={goals:0,shots:0,onTarget:0,progress:0};
+    const traj=m.trajectory||[];
+    const end=traj.length?traj[traj.length-1]:null;
+    const start=traj.length?traj[0]:null;
+    if(m.scored && ((m.scored==='A'&&isA)||(m.scored==='B'&&!isA))) players[side][pid].goals++;
+    // shot = power>=50 and speed>200
+    const power=m.power||0;
+    const sp = (()=>{ if(!traj||traj.length<2) return 0; let mx=0; const stp=Math.max(1,Math.round((traj.length-1)/100)); for(let i=1;i<traj.length;i++) mx=Math.max(mx, Math.hypot(traj[i].x-traj[i-1].x,traj[i].y-traj[i-1].y)*60/stp); return mx; })();
+    if(power>=50 && sp>200) players[side][pid].shots++;
+    if(end && 356<=end.y && end.y<=519) players[side][pid].onTarget++;
+    if(start && end) players[side][pid].progress += (isA? end.x-start.x : start.x-end.x);
+  });
+  const list=document.getElementById('ratings-list');
+  list.innerHTML='';
+  ['a','b'].forEach(side=>{
+    const title=document.createElement('div');
+    title.style='font-size:.78rem;font-weight:800;margin-top:6px;color:#0f172a';
+    title.textContent= side==='a' ? 'Team A (You)' : 'Team B (AI)';
+    list.appendChild(title);
+    for(let i=0;i<3;i++){
+      const p=players[side][i];
+      // FIFA: Pace/Shooting... simplified to rating 6.0 + goal*1.8 + shot*0.4 + onTarget*0.5 + progress/800, capped 4-10, rare 10 needs 2+ goals
+      let r = 6.0 + p.goals*1.8 + p.shots*0.35 + p.onTarget*0.45 + Math.max(-0.8, Math.min(1.2, p.progress/900));
+      r = Math.max(4.0, Math.min(10.0, r));
+      // nudge for hat-trick style: if 0 goals and negative progress, drop a bit
+      const width = ((r-4)/6)*100;
+      const col = r>=8.5? '#16a34a' : r>=7?'#0ea5e9' : r>=6?'#64748b' : '#ef4444';
+      const row=document.createElement('div');
+      row.style='display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff';
+      row.innerHTML='<span style="width:28px;font-weight:700;text-align:center;background:'+col+';color:#fff;border-radius:6px;padding:3px 0">'+r.toFixed(1)+'</span><span style="flex:1;font-size:.82rem;font-weight:600">Player '+(i+1)+' — '+p.goals+'G '+p.shots+'S '+p.onTarget+'T</span><span style="width:90px;height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><span style="display:block;height:100%;width:'+width+'%;background:'+col+'"></span></span>';
+      list.appendChild(row);
+    }
+  });
+  document.getElementById('ratings-modal').style.display='flex';
+};
+window.closeRatings = function(){ document.getElementById('ratings-modal').style.display='none'; };
+
 //  Voice chat (1v1 P2P WebRTC, STUN-only) 
 const VOICE = {
   pc: null, localStream: null, localTrack: null, audioEl: null,
@@ -3239,13 +3370,16 @@ function updateHUD(st, nowMs = performance.now()) {
       const shareBtn = document.getElementById('match-share-btn');
       const shareMsg = document.getElementById('match-share-msg');
       if (ONLINE.roomId) { shareBtn.style.display = ''; shareMsg.style.display = 'none'; }
+      document.getElementById('post-game-options').style.display = 'flex';
     } else {
       wb.textContent = st.winner === 'A' ? 'You win!' : st.winner === 'B' ? 'AI wins!' : "It's a draw!";
+      document.getElementById('post-game-options').style.display = 'flex';
     }
     wb.style.color = st.winner === 'A' ? '#059669' : st.winner === 'B' ? '#ef4444' : '#6b7fa3';
     tb.style.display = 'none';
   } else {
     wb.style.display = 'none';
+    document.getElementById('post-game-options').style.display = 'none';
     document.getElementById('match-share-btn').style.display = 'none';
     document.getElementById('match-share-msg').style.display = 'none';
     tb.style.display = '';
