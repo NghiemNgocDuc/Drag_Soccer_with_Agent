@@ -322,6 +322,30 @@ _PM_LINEAR_FRICTION_P = 1500.0
 _PM_LINEAR_FRICTION_B = 1000.0
 _BALL_AIR_FRICTION = 100.0   # px/s² deceleration while airborne (10% of ground) → Path B fix
 
+# Rocket League mutators — multipliers applied via customization (ball_type etc.)
+_MUTATOR_BALL_TYPE = {
+    "normal": {"bounciness": 1.0, "mass": 1.0, "friction": 1.0},
+    "beach":  {"bounciness": 1.6, "mass": 0.7, "friction": 0.7},
+    "boomer": {"bounciness": 1.4, "mass": 0.6, "friction": 0.6},
+    "cube":   {"bounciness": 1.2, "mass": 1.3, "friction": 1.0},
+    "puck":   {"bounciness": 0.4, "mass": 0.9, "friction": 0.3},
+}
+_MUTATOR_BOUNCINESS = {"normal": 1.0, "high": 1.4, "super_high": 1.9}
+_MUTATOR_GRAVITY = {"normal": 1.0, "low": 0.55, "high": 1.6, "super_high": 2.2}
+_MUTATOR_BOOST = {"default": 1.0, "unlimited": 2.5, "slow_recharge": 0.6, "none": 0.0}
+
+# Rocket League mutators — multipliers applied via customization (ball_type etc.)
+_MUTATOR_BALL_TYPE = {
+    "normal": {"bounciness": 1.0, "mass": 1.0, "friction": 1.0},
+    "beach":  {"bounciness": 1.6, "mass": 0.7, "friction": 0.7},
+    "boomer": {"bounciness": 1.4, "mass": 0.6, "friction": 0.6},
+    "cube":   {"bounciness": 1.2, "mass": 1.3, "friction": 1.0},
+    "puck":   {"bounciness": 0.4, "mass": 0.9, "friction": 0.3},
+}
+_MUTATOR_BOUNCINESS = {"normal": 1.0, "high": 1.4, "super_high": 1.9}
+_MUTATOR_GRAVITY = {"normal": 1.0, "low": 0.55, "high": 1.6, "super_high": 2.2}
+_MUTATOR_BOOST = {"default": 1.0, "unlimited": 2.5, "slow_recharge": 0.6, "none": 0.0}
+
 # Collision categories (bit flags for pymunk ShapeFilter)
 _CAT_PLAYER = 1
 _CAT_BALL   = 2

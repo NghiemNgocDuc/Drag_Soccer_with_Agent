@@ -343,6 +343,64 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
     (async()=>{ try{ const r=await fetch('/api/money/balance'); const d=await r.json(); const el=document.getElementById('shop-coins'); if(el&&d.coins!=null) el.textContent=d.coins+' coins'; }catch(e){} })();
     async function buyShop(item, price){ const el=document.getElementById('shop-msg'); el.textContent='Buying '+item+'…'; try{ const r=await fetch('/api/money/shop/buy',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({item})}); const d=await r.json(); if(r.ok){ el.textContent='Bought '+item+'! Coins left: '+d.coins; document.getElementById('shop-coins').textContent=d.coins+' coins'; } else { el.textContent=d.error||'Failed'; } }catch(e){ el.textContent='Error'; } }
     </script>
+    <!-- Rocket League Mutators (Private Match) -->
+    <div class="glass-card" style="margin-top:14px;padding:14px">
+      <h3 style="margin:0 0 8px 0">Mutators — Rocket League style</h3>
+      <p class="meta" style="margin-bottom:10px">Inspired by RL v2.40: Beach Ball, Boomer Ball, Demolition, G-Force etc. Sorted into Match/Game/Ball like Private Matches.</p>
+      <div class="setting-row">
+        <span class="setting-label">Ball Type</span>
+        <div class="setting-control">
+          <select id="ball_type">
+            <option value="normal">Normal</option>
+            <option value="beach">Beach Ball</option>
+            <option value="boomer">Boomer Ball</option>
+            <option value="cube">Super Cube</option>
+            <option value="puck">Puck (Snow Day)</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Ball Bounciness</span>
+        <div class="setting-control">
+          <select id="ball_bounciness">
+            <option value="normal">Normal</option>
+            <option value="high">High</option>
+            <option value="super_high">Super High</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Boost Amount</span>
+        <div class="setting-control">
+          <select id="boost_amount">
+            <option value="default">Default</option>
+            <option value="unlimited">Unlimited</option>
+            <option value="slow_recharge">Slow Recharge</option>
+            <option value="none">None</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Gravity</span>
+        <div class="setting-control">
+          <select id="gravity">
+            <option value="normal">Normal</option>
+            <option value="low">Low (Moonball)</option>
+            <option value="high">High</option>
+            <option value="super_high">Super High</option>
+          </select>
+        </div>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Demolition</span>
+        <div class="setting-control">
+          <select id="demolition">
+            <option value="off">Off</option>
+            <option value="on_contact">On Contact</option>
+          </select>
+        </div>
+      </div>
+    </div>
     <div class="setting-row">
       <span class="setting-label">Camera Type</span>
       <div class="setting-control">
@@ -590,12 +648,12 @@ const DEFAULTS = {
   team_a_color:'#3b82f6',team_b_color:'#ef4444',ref_color:'#fde68a',ball_color:'#f8fafc',bg_color:'#2a2518',
   player_count:3,grass_shade:'dark',pitch_pattern:'stripes',field_line_color:'#ffffff',corner_flag_style:'normal',
   crowd_palette:'classic',stadium_seat_color:'#475569',stadium_vignette:0.6,floodlight_color:'warm',bg_scene:'night',weather:'clear',
-  ball_design:'classic',ball_pattern:'solid',ball_size:'normal',camera_type:'broadcast',camera_height:10,camera_zoom:10,stadium_style:'modern',net_color:'#ffffff',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',keeper_style_a:'default',keeper_style_b:'default',highlight_style:'glow',shirt_font:'default',
+  ball_design:'classic',ball_pattern:'solid',ball_size:'normal',ball_type:'normal',ball_bounciness:'normal',boost_amount:'default',gravity:'normal',demolition:'off',camera_type:'broadcast',camera_height:10,camera_zoom:10,stadium_style:'modern',net_color:'#ffffff',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',keeper_style_a:'default',keeper_style_b:'default',highlight_style:'glow',shirt_font:'default',
   goal_effect:'confetti',trail_color:'#ffffff',power_bar_style:'classic',
   half_length:45,power_cap:100,win_goal_limit:5
 };
 const COLOR_KEYS = ['team_a_color','team_b_color','ref_color','ball_color','bg_color','field_line_color','trail_color','keeper_color_a','keeper_color_b','stadium_seat_color','net_color'];
-const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','weather','ball_design','ball_pattern','ball_size','camera_type','stadium_style','keeper_style_a','keeper_style_b','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
+const SELECT_KEYS = ['grass_shade','pitch_pattern','corner_flag_style','crowd_palette','floodlight_color','bg_scene','weather','ball_design','ball_pattern','ball_size','ball_type','ball_bounciness','boost_amount','gravity','demolition','camera_type','stadium_style','keeper_style_a','keeper_style_b','highlight_style','shirt_font','goal_effect','power_bar_style','half_length','win_goal_limit'];
 const RANGE_KEYS = ['player_count','stadium_vignette','power_cap','camera_height','camera_zoom'];
 let current = {};
 function getVal(id){return document.getElementById(id).value}

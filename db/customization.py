@@ -65,6 +65,12 @@ DEFAULT_CUSTOMIZATION = {
     "camera_zoom": 10,
     "stadium_style": "modern",
     "net_color": "#ffffff",
+    # Rocket League mutators (inspired by RL v2.40 mutators + extra modes)
+    "ball_type": "normal",        # normal/beach/boomer/cube/puck
+    "ball_bounciness": "normal",  # normal/high/super_high
+    "boost_amount": "default",    # default/unlimited/slow_recharge/none
+    "gravity": "normal",          # normal/low/high/super_high
+    "demolition": "off",          # off/on_contact
     "keeper_color_a": "#22c55e",
     "keeper_color_b": "#f97316",
     "keeper_style_a": "default",
