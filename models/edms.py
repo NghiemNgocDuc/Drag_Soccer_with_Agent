@@ -58,7 +58,7 @@ def get_ai_move(state, is_player_a):
     dist=dist_to_goal(p["x"],p["y"],is_player_a)
     pw_all=suggested_powers(dist)
     # action masking: on-ball (kicker close <50) gets 6 angles x2 powers =12, off-ball gets 3 angles x1 power =3 but we keep uniform 6x2 for simplicity and mask via score
-    powers=[pw_all[len(pw_all)//2], pw_all[-1]] if len(pw_all)>2 else pw_all
+    powers=[pw_all[-1]]  # tuned 1 power for speed if len(pw_all)>2 else pw_all
     # on-ball check
     on_ball = math.hypot(p["x"]-bx, p["y"]-by) < 55
     angles = range(-30,31,6) if on_ball else range(-18,19,12)

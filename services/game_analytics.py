@@ -10,24 +10,28 @@ GOAL_CENTER_Y = (GOAL_Y1 + GOAL_Y2) / 2
 
 #  Built-in model registry 
 _BUILTIN_MODEL_PATHS: dict[str, str] = {
-    "minimax":          "models.minimax",
-    "monte_carlo":      "models.monte_carlo",
     "greedy":           "models.greedy_model",
-    "bayesian":         "models.bayes",
-    "value_iteration":  "models.value_iteration",
-    "policy_iteration": "models.policy_iteration",
-    "q_learning":       "models.q_learning",
+    "genetic_fuzzy":    "models.genetic_fuzzy",
+    "potential_field":  "models.potential_field",
+    "voronoi":          "models.voronoi",
+    "a2c_lite":         "models.a2c_lite",
+    "expectimax":       "models.expectimax",
+    "adaptive_learner": "models.adaptive_learner",
+    "goalnet_gat":      "models.goalnet_gat",
+    "edms":             "models.edms",
     "langchain":        "models.langchain_model",
 }
 
 MODEL_CATALOG: list[dict] = [
-    {"id": "minimax",          "name": "Minimax"},
-    {"id": "monte_carlo",      "name": "Monte Carlo"},
     {"id": "greedy",           "name": "Greedy Striker"},
-    {"id": "bayesian",         "name": "Bayesian"},
-    {"id": "value_iteration",  "name": "Value Iteration"},
-    {"id": "policy_iteration", "name": "Policy Iteration"},
-    {"id": "q_learning",       "name": "Q-Learning"},
+    {"id": "genetic_fuzzy",    "name": "Genetic Fuzzy"},
+    {"id": "potential_field",  "name": "Potential Field"},
+    {"id": "voronoi",          "name": "Voronoi"},
+    {"id": "a2c_lite",         "name": "A2C Lite"},
+    {"id": "expectimax",       "name": "Expectimax"},
+    {"id": "adaptive_learner", "name": "Adaptive Learner"},
+    {"id": "goalnet_gat",      "name": "GoalNet GAT"},
+    {"id": "edms",             "name": "EDMS"},
     {"id": "langchain",        "name": "LangChain Tactician"},
 ]
 

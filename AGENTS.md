@@ -7,7 +7,7 @@ Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicki
 
 - **Backend**: Flask (Python), pymunk physics engine, Redis (Upstash) + Supabase, gthread 4×2
 - **Frontend**: Three.js 3D rendering via HTML templates, shared SoundManager (`static/sound.js`), `design-system.css` glass
-- **AI models**: 18 agents (greedy … a2c_lite via `app.py:104` MODELS — 7 original + tactic_transformer/graph_gnn/ppo/dqn/genetic_fuzzy + mcts_uct/expectimax/potential_field/voronoi/a2c_lite) — all `simulate_kick` + `TEMPLATE` block, `<600ms` via `_ai_pool`
+- **AI models**: 10 agents (greedy … a2c_lite via `app.py:104` MODELS — 7 original + tactic_transformer/graph_gnn/ppo/dqn/genetic_fuzzy + mcts_uct/expectimax/potential_field/voronoi/a2c_lite) — all `simulate_kick` + `TEMPLATE` block, `<600ms` via `_ai_pool`
 - **Auth**: Supabase + Clerk optional, Flask-Login, dev `DEV_MODE=1` in-memory
 - **3D-only**: All 2D templates deleted. Route `/` → `/play3d` or `landing.html` for guests; `static/workflow.png` + `workflow.pdf` at root
 
@@ -315,7 +315,7 @@ fd1ef13 Implement all customization features in game canvas
 - **Quick Match** `a5a3503` — `POST /api/quick/join` pvp/pva, `Play` spinner `8s → vs random AI (18)`, `Player vs AI` instant, `quick:queue` Redis
 - **Match Models** `ab40441` — `Match Models` button next to Play → modal lists `GET /api/quick/models` 18 builtins + my code `user_model:*`, `Play vs this`
 - **Chat GIFs** `0cbe529` — `static/chat.js:16` `GIF_GRID` 12 giphy, `GIF` button + `chat-gif` inline `<img>`
-- **Content** `236cac2` — landing `18 agents` hero, `about` inline workflow, `learn` 7 lessons, SEO `18 AI` + OG `workflow.png`
+- **Content** `236cac2` — landing `10 agents` hero, `about` inline workflow, `learn` 7 lessons, SEO `18 AI` + OG `workflow.png`
 - **Emoji cleanup** `204c7ec` — keep only while chatting (`static/chat.js` 57), strip elsewhere → text `Fav/Edit/Block/Mic/Sound/Play`
 
 ## What would be next

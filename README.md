@@ -124,7 +124,7 @@ Tests: `DEV_MODE=1 python -m pytest -q --ignore=test_integration.py --ignore=bal
 app.py                 # 5k+ routes: play3d, playground, friends, clans, leaderboard, spectate, ranked, seasons
 config.py              # DEV_MODE fallback
 models/soccer_logic.py # 1400x875 engine, simulate_kick, loft, recoil, referee
-models/*.py            # 21 agents (greedy … a2c_lite)
+models/*.py            # 10 agents (greedy … a2c_lite)
 game/session.py        # Redis game session
 db/*.py                # 16 modules (friends, clans, leaderboard, customization, etc.)
 services/*.py          # clerk, resend, pinecone, paper_search, game_analytics, loss_analysis

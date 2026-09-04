@@ -105,27 +105,16 @@ def _presence_heartbeat():
             pass
 
 MODELS: dict[str, str] = {
-    "minimax":          "models.minimax",
-    "monte_carlo":      "models.monte_carlo",
     "greedy":           "models.greedy_model",
-    "bayesian":         "models.bayes",
-    "value_iteration":  "models.value_iteration",
-    "policy_iteration": "models.policy_iteration",
-    "q_learning":       "models.q_learning",
-    "langchain":        "models.langchain_model",
-    "tactic_transformer": "models.tactic_transformer",
-    "graph_gnn":        "models.graph_gnn",
-    "ppo_actor_critic": "models.ppo_actor_critic",
-    "dqn_relative":     "models.dqn_relative",
     "genetic_fuzzy":    "models.genetic_fuzzy",
-    "mcts_uct":         "models.mcts_uct",
-    "expectimax":       "models.expectimax",
     "potential_field":  "models.potential_field",
     "voronoi":          "models.voronoi",
     "a2c_lite":         "models.a2c_lite",
+    "expectimax":       "models.expectimax",
     "adaptive_learner": "models.adaptive_learner",
     "goalnet_gat":      "models.goalnet_gat",
     "edms":             "models.edms",
+    "langchain":        "models.langchain_model",
 }
 
 # AI off-thread pool so slow simulate_kick (2-3s) does not block gunicorn worker
