@@ -177,7 +177,7 @@ def _reward_for(end, scored, target, is_player_a, defensive, start_x, opp_player
         return -20.0
     # EPV shaping (R2D-RL) + progress + teacher pseudo-label bonus (Lin et al. 2025)
     r = progress_score(end["x"], is_player_a, defensive) * 0.55
-    r += _epv(end["x"], end["y"], is_player_a, opp_players) * 65.0
+    r += _epv(end["x"], end["y"], is_player_a, opp_players) * 85.0
     if GOAL_Y1 <= end["y"] <= GOAL_Y2:
         r += 28.0
     if is_player_a:
