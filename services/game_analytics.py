@@ -19,6 +19,7 @@ _BUILTIN_MODEL_PATHS: dict[str, str] = {
     "adaptive_learner": "models.adaptive_learner",
     "goalnet_gat":      "models.goalnet_gat",
     "edms":             "models.edms",
+    "team_coordinated": "models.team_coordinated",
     "langchain":        "models.langchain_model",
 }
 
@@ -32,6 +33,7 @@ MODEL_CATALOG: list[dict] = [
     {"id": "adaptive_learner", "name": "Adaptive Learner"},
     {"id": "goalnet_gat",      "name": "GoalNet GAT"},
     {"id": "edms",             "name": "EDMS"},
+    {"id": "team_coordinated", "name": "Team Coordinated"},
     {"id": "langchain",        "name": "LangChain Tactician"},
 ]
 

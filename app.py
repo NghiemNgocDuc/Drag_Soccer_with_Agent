@@ -114,6 +114,7 @@ MODELS: dict[str, str] = {
     "adaptive_learner": "models.adaptive_learner",
     "goalnet_gat":      "models.goalnet_gat",
     "edms":             "models.edms",
+    "team_coordinated": "models.team_coordinated",
     "langchain":        "models.langchain_model",
 }
 
