@@ -124,6 +124,8 @@ MODELS: dict[str, str] = {
     "voronoi":          "models.voronoi",
     "a2c_lite":         "models.a2c_lite",
     "adaptive_learner": "models.adaptive_learner",
+    "goalnet_gat":      "models.goalnet_gat",
+    "edms":             "models.edms",
 }
 
 # AI off-thread pool so slow simulate_kick (2-3s) does not block gunicorn worker

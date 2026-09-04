@@ -178,8 +178,8 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
   </div>
 
   <div class="glass-card card">
-    <h3>Benchmark — speed vs accuracy (19 models, all &lt;2s)</h3>
-    <p style="margin:6px 0 8px"><b>Method:</b> <code>DEV_MODE=1</code>, 5× <code>perf_counter</code> on <code>new_soccer_state()</code>, win rate vs greedy <code>3×40 kicks, win to 2</code>. Newest 6: <code>mcts_uct</code> (MCTS), <code>expectimax</code>, <code>potential_field</code> (APF), <code>voronoi</code>, <code>a2c_lite</code>, <code>adaptive_learner</code> (continual). All 19 use <code>simulate_kick</code> + <code>TEMPLATE</code> benchmark block. <b>Coding editor</b> (<code>/playground</code> + <code>/my-models</code>) shows all 19 under <b>Available models</b> with <code>lat ms</code> + benchmark block; <b>Leaderboard</b> <code>/leaderboard → AI Models</code> sorts by <b>Accuracy</b> / <b>Speed</b> / <b>Recently benchmarked</b>.</p>
+    <h3>Benchmark — speed vs accuracy (21 models, all &lt;2s)</h3>
+    <p style="margin:6px 0 8px"><b>Method:</b> <code>DEV_MODE=1</code>, 5× <code>perf_counter</code> on <code>new_soccer_state()</code>, win rate vs greedy <code>3×40 kicks, win to 2</code>. Newest 6: <code>mcts_uct</code> (MCTS), <code>expectimax</code>, <code>potential_field</code> (APF), <code>voronoi</code>, <code>a2c_lite</code>, <code>adaptive_learner</code> (continual). All 21 use <code>simulate_kick</code> + <code>TEMPLATE</code> benchmark block. <b>Coding editor</b> (<code>/playground</code> + <code>/my-models</code>) shows all 19 under <b>Available models</b> with <code>lat ms</code> + benchmark block; <b>Leaderboard</b> <code>/leaderboard → AI Models</code> sorts by <b>Accuracy</b> / <b>Speed</b> / <b>Recently benchmarked</b>.</p>
     <p class="meta" style="margin:0 0 8px">Turbo + PPO lookahead: <code>greedy</code> 849→88ms, <code>monte</code> 863→158ms, <code>minimax</code> 2141→689ms, <code>bayesian</code> 3098→806ms, <code>q</code> 1713→536ms — single-player + 2 powers + early exit + 1-ply. Latest: <code>adaptive_learner</code> 0.1ms Q-table, <code>mcts_uct</code> 562ms, <code>expectimax</code> 235ms, <code>a2c_lite</code> 142ms, <code>voronoi</code> 99ms, <code>potential_field</code> 92ms, <code>genetic_fuzzy</code> 74ms fastest.</p>
     <div style="overflow:auto">
       <table style="width:100%;border-collapse:collapse;font-size:.78rem">
@@ -201,6 +201,8 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
           <tr><td><code>bayesian</code></td><td>806 ms</td><td>Mid</td><td>Gaussian prior</td></tr>
           <tr><td><code>policy_iteration</code></td><td>983 ms</td><td>Mid</td><td>Lane scoring</td></tr>
           <tr><td><code>value_iteration</code></td><td>1049 ms</td><td>Slow ≥1s</td><td>Centrality</td></tr>
+          <tr><td><code>goalnet_gat</code></td><td>108 ms</td><td>Fast</td><td>GoalNet GAT + xT + centrality</td></tr>
+          <tr><td><code>edms</code></td><td>47 ms</td><td>Fast</td><td>EDMS — space+pass+score + masking</td></tr>
           <tr><td><code>tactic_transformer</code></td><td>922 ms</td><td>Mid</td><td>TacticAI/TranSPORTmer attention + PPO lookahead</td></tr>
           <tr><td><code>graph_gnn</code></td><td>962 ms</td><td>Mid</td><td>GAT/GPPO graph value + lookahead</td></tr>
         </tbody>
@@ -212,7 +214,7 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
   </div>
 
   <div class="glass-card card">
-    <h3>Models — how they think (19)</h3>
+    <h3>Models — how they think (21)</h3>
     <ul>
       <li><b>Greedy Turbo</b> — best player, 6°/3°, 2 powers, `progress+120 if y in goal`.</li>
       <li><b>Monte Carlo Turbo</b> — 12 Gauss samples, early exit.</li>
@@ -228,8 +230,10 @@ document.getElementById('nav-toggle')?.addEventListener('click', function(){
       <li><b>Voronoi</b> — Taki & Kok: control `(d_opp-d_my)*0.6` bonus + progress + goal.</li>
       <li><b>A2C Lite</b> — synchronous A2C without NN: critic `progress+goal+spacing`, advantage `V_next-V_cur`, 5° sweep single power.</li>
       <li><b>Adaptive Learner</b> — <b>strongest</b>: continual Q-table `90` states × `36` actions, `α=0.22 γ=0.95 ε 0.32→0.05`, reward `+100 goal / +progress`, persists `learning:q` Redis + `learning_q.json`, trains `POST /api/learning/train` self-play vs greedy (30×30 kicks ~15s), `0.1ms` lookup.</li>
+      <li><b>GoalNet GAT</b> — GAT + xT (Singh 2019) + centrality, `108ms`.</li>
+      <li><b>EDMS</b> — Expandable states `space+pass+score` + on/off-ball masking (Ide et al. 2025), `47ms`.</li>
     </ul>
-    <p class="meta">All `simulate_kick` → `traj, scored` 500×3 steps. Coding editor <b>/playground</b> & <b>/my-models → Available models</b> list all 19 with lat + code; <b>Leaderboard</b> `/leaderboard` AI Models tab shows Accuracy% + Speed ms + per-opponent Details. Train the learner at <code>POST /api/learning/train {games:15}</code> and check <code>GET /api/learning/status</code>.</p>
+    <p class="meta">All `simulate_kick` → `traj, scored` 500×3 steps. Coding editor <b>/playground</b> & <b>/my-models → Available models</b> list all 21 with lat + code; <b>Leaderboard</b> `/leaderboard` AI Models tab shows Accuracy% + Speed ms + per-opponent Details. Train the learner at <code>POST /api/learning/train {games:15}</code> and check <code>GET /api/learning/status</code>.</p>
   </div>
 
   <div class="glass-card card" id="physics">
