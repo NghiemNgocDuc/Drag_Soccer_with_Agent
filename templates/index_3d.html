@@ -1385,12 +1385,12 @@ function createCrowd(paletteArr, seatHex) {
   geo.setAttribute('aSpriteIndex', new THREE.BufferAttribute(si, 1, false, 1));
   geo.setAttribute('aBobOffset', new THREE.BufferAttribute(bo, 1, false, 1));
   geo.setAttribute('aCrowdColor', new THREE.BufferAttribute(cc, 3, false, 1));
-  const u = { uSpriteSheet: { value: tex }, uNumSprites: { value: 4 }, uTime: { value: 0 }, uCheerPhase: { value: 0 }, uCamRight: { value: new THREE.Vector3(1, 0, 0) }, uCamUp: { value: new THREE.Vector3(0, 1, 0) } };
+  const u = { uSpriteSheet: { value: tex }, uNumSprites: { value: 4 }, uTime: { value: 0 }, uCheerPhase: { value: 0 }, uWavePhase: { value: 0 }, uCamRight: { value: new THREE.Vector3(1, 0, 0) }, uCamUp: { value: new THREE.Vector3(0, 1, 0) } };
   mesh.material = new THREE.ShaderMaterial({
     uniforms: u,
     vertexShader: `
       attribute float aSpriteIndex; attribute float aBobOffset; attribute vec3 aCrowdColor;
-      uniform float uTime; uniform float uNumSprites; uniform float uCheerPhase;
+      uniform float uTime; uniform float uNumSprites; uniform float uCheerPhase; uniform float uWavePhase;
       uniform vec3 uCamRight; uniform vec3 uCamUp;
       varying vec2 vUv; varying vec3 vColor;
       void main() {
@@ -1399,9 +1399,17 @@ function createCrowd(paletteArr, seatHex) {
         float sp = aSpriteIndex;
         if (uCheerPhase > 0.01 && fract(aBobOffset * 1.7) > 0.6) sp = 3.0;
         vUv = vec2((uv.x + sp) / uNumSprites, uv.y);
-        vColor = aCrowdColor;
+        // realistic variation: desaturate far fans slightly for LOD
+        float dist = length(wp.xz);
+        float lod = clamp((dist-400.0)/800.0, 0.0, 0.45);
+        vColor = mix(aCrowdColor, vec3(0.78), lod*0.35);
         float amp = 0.7 + uCheerPhase * 3.5;
-        wp.y += sin(uTime * 1.5 + aBobOffset) * amp;
+        // Mexican wave: propagate around stadium (angle + radius)
+        float ang = atan(wp.z, wp.x);
+        float wave = sin(uWavePhase + ang*2.2 + length(wp.xz)*0.004) * 2.8;
+        // only 35% do wave at a time for realism
+        float waveMask = step(0.65, fract(aBobOffset*1.13));
+        wp.y += sin(uTime * 1.5 + aBobOffset) * amp + wave * waveMask;
         gl_Position = projectionMatrix * viewMatrix * vec4(wp.xyz + position.x * uCamRight * sx + position.y * uCamUp * sy, 1.0);
       }
     `,
@@ -3302,6 +3310,7 @@ function animate() {
   }
   if (crowdData) {
     crowdData.uniforms.uTime.value = performance.now() / 1000;
+    crowdData.uniforms.uWavePhase.value = performance.now() / 1000 * 1.85;
     const ce = camera.matrixWorld.elements;
     crowdData.uniforms.uCamRight.value.set(ce[0], ce[1], ce[2]);
     crowdData.uniforms.uCamUp.value.set(ce[4], ce[5], ce[6]);
