@@ -1,0 +1,2209 @@
+{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Soccer 2D</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<style>
+@import url('/static/vendor/fonts/space-grotesk.css');
+
+.canvas-wrap{
+  border-radius:22px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(14,165,233,.12),0 0 0 1px rgba(255,255,255,.4);
+  position:relative;cursor:default;background:#020617;
+}
+#pitch-container{display:block;width:100%;height:100%;min-height:500px;touch-action:none}
+.canvas-overlay{
+  display:none;position:absolute;inset:0;
+  background:rgba(15,23,42,.55);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:600;color:#fff;
+}
+.canvas-overlay.visible{display:flex}
+.sound-btn{
+  background:rgba(255,255,255,.3);border:none;
+  font-size:22px;line-height:1;padding:4px 8px;cursor:pointer;
+  border-radius:8px;transition:background .2s;color:#fff;
+}
+.sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
+#captain-hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:4;display:none;padding:6px 10px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(2,6,23,.72);color:#fff;font-size:.72rem;font-weight:700;pointer-events:none}
+#match-chat-wrap{width:100%;height:auto}
+#match-chat-wrap:empty{display:none}
+#match-chat-wrap>.chat-panel{height:380px}
+#match-chat-wrap>.chat-panel.collapsed{height:auto}
+.online-modal{position:fixed;inset:0;background:rgba(2,6,23,.62);backdrop-filter:blur(5px);
+  display:none;align-items:center;justify-content:center;z-index:70}
+.online-modal.visible{display:flex}
+.online-modal-card{background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.7);
+  border-radius:16px;padding:24px;width:min(430px,92vw);display:flex;flex-direction:column;gap:12px;
+  box-shadow:0 20px 60px rgba(2,6,23,.35)}
+.online-modal-card h3{margin:0;color:#0f172a}
+.online-modal-card p{margin:0;font-size:.85rem;color:#475569}
+.online-modal-card input{padding:9px 12px;border-radius:10px;border:1px solid rgba(148,163,184,.5);
+  font-size:.85rem;background:#fff;color:#0f172a;width:100%;box-sizing:border-box}
+.online-modal-card .row{display:flex;gap:8px}
+#online-bar{position:static;
+  background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.65);border-radius:999px;
+  padding:6px 16px;font-size:.82rem;font-weight:600;color:#0f172a;white-space:nowrap;
+  box-shadow:0 4px 16px rgba(2,6,23,.15)}
+body.as-app.as-game #online-bar{position:static;transform:none;width:100%;max-width:100%;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere}
+#online-lobby-create{display:none;flex-direction:column;gap:8px}
+#online-lobby-waiting{display:none;color:#0284c7;font-weight:600;font-size:.85rem}
+#voice-controls{display:none;align-items:center;flex-wrap:wrap;gap:8px;width:100%;min-width:0}
+#voice-btn{display:none;
+  background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.65);border-radius:999px;
+  padding:7px 14px;font-size:.82rem;font-weight:600;color:#0f172a;cursor:pointer;
+  box-shadow:0 4px 16px rgba(2,6,23,.15)}
+#voice-btn:hover{background:#fff}
+#voice-panel{display:none;align-items:center;flex-wrap:wrap;gap:8px;
+  background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.65);border-radius:12px;
+  padding:8px 10px;box-shadow:0 4px 16px rgba(2,6,23,.15)}
+body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;transform:none;max-width:100%;box-sizing:border-box}
+#voice-status{font-size:.78rem;font-weight:600;color:#0f172a;max-width:170px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+#voice-status .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#94a3b8}
+#voice-status.v-ok .dot{background:#22c55e}
+#voice-status.v-bad .dot{background:#ef4444}
+#voice-status.v-busy .dot{background:#f59e0b}
+.vp-btn{background:rgba(241,245,249,.9);border:1px solid rgba(148,163,184,.5);border-radius:8px;
+  font-size:.85rem;padding:5px 9px;cursor:pointer;color:#0f172a}
+.vp-btn:hover{background:#e2e8f0}
+.vp-btn.muted{background:#fee2e2;border-color:#f87171;color:#b91c1c}
+#voice-opp-muted{display:none;font-size:.7rem;color:#b45309;font-weight:600;background:#fef3c7;
+  border-radius:6px;padding:2px 6px}
+</style>
+<script src="/static/js/game/sound.js?v=2"></script>
+<script src="/static/js/ui/chat.js"></script>
+<script src="/static/js/ui/achievements.js"></script>
+{% include 'shared/_ui_assets.html' %}
+<link rel="stylesheet" href="/static/css/frontend-game.css">
+<link rel="stylesheet" href="/static/css/pitch-2d.css">
+</head>
+<body class="as-app as-game">
+<div class="flash-msg" id="flash-msg"></div>
+{{ app_nav('play') }}
+<main class="as-main" id="as-content">
+  {{ page_header('Match day','Every move matters.','Drag a player to aim your kick. Release to take your turn.','/customize','Team & stadium') }}
+  <div id="online-bar" style="display:none"></div>
+  <div id="fs-wrap">
+    <div class="glass hud">
+      <div class="team team-a">
+        <div class="team-name">You</div>
+        <div class="team-score" id="score-a">0</div>
+      </div>
+      <div class="hud-mid">
+        <div class="turn-badge turn-a" id="turn-badge">Your turn</div>
+        <div class="kick-counter" id="game-clock">00:00</div>
+        <div class="winner-banner" id="winner-banner"></div>
+        <div id="post-game-options" style="display:none;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center">
+          <button class="btn btn-secondary btn-sm" onclick="showHighlights()">Highlights</button>
+          <button class="btn btn-secondary btn-sm" onclick="showPlayerRatings()">Player Ratings</button>
+        </div>
+        <button class="btn btn-primary btn-sm" id="match-share-btn" style="display:none;margin-top:6px" onclick="shareMatchSummary()"> Share match summary</button>
+        <span id="match-share-msg" style="font-size:.75rem;color:#059669;display:none;margin-top:4px"></span>
+      </div>
+      <div class="team team-b">
+        <div class="team-name">AI</div>
+        <div class="team-score" id="score-b">0</div>
+      </div>
+    </div>
+
+    <div class="canvas-wrap" id="canvas-wrap">
+      <div id="pitch-container"></div>
+      <div id="captain-hint">Pull back to aim. Release to kick.</div>
+      <div class="canvas-overlay" id="canvas-overlay">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+          <div class="spinner" id="overlay-spinner"></div>
+          <span id="overlay-text">AI thinking…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="player-controls" class="player-controls" aria-label="Player controls">
+    <div class="player-control-heading"><strong>Take your turn</strong><span id="player-control-status" role="status" aria-live="polite">Loading match…</span></div>
+    <div class="player-control-fields">
+      <div class="player-control-field"><label for="player-select">Player</label><div class="player-picker"><button id="player-prev" class="btn btn-ghost" type="button" aria-label="Previous player">&larr;</button><select id="player-select"></select><button id="player-next" class="btn btn-ghost" type="button" aria-label="Next player">&rarr;</button></div></div>
+      <div class="player-control-field"><label for="aim-angle">Direction <span>degrees</span></label><input id="aim-angle" type="number" min="0" max="359" step="1" value="0" inputmode="numeric"></div>
+      <div class="player-control-field"><label for="kick-power">Power <output id="kick-power-value" for="kick-power">72%</output></label><input id="kick-power" type="range" min="0" max="100" step="1" value="72"></div>
+      <div class="player-control-actions"><button id="aim-cancel" class="btn btn-ghost" type="button">Reset aim</button><button id="kick-btn" class="btn btn-primary" type="button" disabled>Kick</button></div>
+    </div>
+    <p class="player-control-help" id="player-control-help">Pull a player back and release to kick, or set direction and power here. On the pitch: <kbd>←</kbd> <kbd>→</kbd> aim, <kbd>↑</kbd> <kbd>↓</kbd> power, <kbd>Q</kbd> switch, <kbd>Enter</kbd> kick, <kbd>Esc</kbd> cancel.</p>
+  </section>
+  <div id="voice-controls" aria-label="Voice chat" style="display:none">
+  <!-- Voice chat (1v1 online only) -->
+  <button id="voice-btn" onclick="voiceToggle()" title="Enable voice chat (microphone)"> Voice</button>
+  <div id="voice-panel">
+    <span id="voice-status"><span class="dot"></span>Voice: off</span>
+    <button id="voice-mic-btn" class="vp-btn" onclick="voiceToggleMic()" title="Mute / unmute microphone">Mic</button>
+    <span id="voice-opp-muted">opponent muted</span>
+    <button id="voice-end-btn" aria-label="Disconnect voice chat" class="vp-btn" onclick="voiceDisconnect()" title="Disconnect from voice chat">X</button>
+  </div>
+  </div>
+  <div id="match-chat-wrap"></div>
+  <section class="as-control-panel" aria-labelledby="match-controls-title"><div class="as-control-panel-heading"><h2 id="match-controls-title">Match controls</h2><p>Choose your opponent, pace, and pass.</p></div><div class="glass controls">
+    <div class="as-control-field"><label for="mode-select">Match mode</label>
+    <select id="mode-select" onchange="setMode(this.value)">
+      <option value="hvai">Human vs AI</option>
+      <option value="hvh">Human vs Human</option>
+      <option value="aivai">AI vs AI</option>
+    </select></div>
+    <div class="as-control-field"><label for="model-select">AI opponent</label><select id="model-select" onchange="switchModel(this.value)"><option value="greedy">Greedy Striker</option></select></div>
+    <div class="sep"></div>
+    <button class="btn btn-primary" onclick="resetGame()">New Game</button>
+    <button class="btn btn-ghost" onclick="undoMove()">Undo</button>
+    <div class="sep"></div>
+    <div class="speed-wrap">
+      <label class="speed-label" for="speed-slider">Playback speed</label>
+      <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1" oninput="setAnimSpeed(+this.value)">
+    </div>
+    <button class="btn btn-ghost" id="aivai-btn" style="display:none" onclick="triggerAI()">Run AI</button>
+    <div class="sep"></div>
+    <div class="pass-types" style="display:flex;gap:4px;align-items:center">
+      <span style="font-size:.68rem;color:var(--muted);font-weight:600">Pass:</span>
+      <button class="btn btn-ghost btn-sm" id="pass-normal" aria-pressed="true" onclick="setPassType('normal')" style="background:var(--accent);color:#fff">Normal</button>
+      <button class="btn btn-ghost btn-sm" id="pass-short" aria-pressed="false" onclick="setPassType('short')">S Short</button>
+      <button class="btn btn-ghost btn-sm" id="pass-long" aria-pressed="false" onclick="setPassType('long')">A Long</button>
+      <button class="btn btn-ghost btn-sm" id="pass-through" aria-pressed="false" onclick="setPassType('through')">W Through</button>
+    </div>
+    <div class="sep"></div>
+    <button class="btn btn-ghost" id="online-btn" onclick="showOnlineLobby(true)">Online</button>
+    <button class="btn btn-ghost" id="online-leave-btn" style="display:none" onclick="leaveOnlineMatch()">Leave match</button>
+    <div class="sep"></div>
+    <button class="sound-btn" id="sound-btn" aria-label="Mute sound" aria-pressed="false" onclick="SoundManager.toggleMute()">Sound</button>
+    <div class="sep"></div>
+    <button class="btn btn-ghost" id="view-settings-btn" onclick="showViewSettings(true)" title="Pitch display settings"> View</button>
+  </div></section>
+
+  <div class="glass log-panel" id="log-panel" role="log" aria-label="Match events" aria-live="polite"></div>
+
+  <!-- Online match lobby (chat-enabled 1v1) -->
+  <div class="online-modal" id="online-lobby">
+    <div class="online-modal-card" role="dialog" aria-modal="true" aria-labelledby="online-title">
+      <button class="as-dialog-close" type="button" data-dialog-close aria-label="Close online lobby" onclick="closeOnlineLobby()">&times;</button>
+      <h3 id="online-title">Play online</h3>
+      <p id="online-lobby-status">Create a match, share the link with a friend, and chat while you play.</p>
+      <div id="online-lobby-create">
+        <label for="online-invite-link">Your match invitation</label><input id="online-invite-link" readonly onclick="this.select()">
+        <div class="row">
+          <button class="btn btn-primary" id="online-copy-btn" onclick="copyInviteLink()">Copy Link</button>
+          <button class="btn btn-ghost" onclick="closeOnlineLobby()">Close</button>
+        </div>
+      </div>
+      <div id="online-lobby-join">
+        <label for="online-join-code">Match link or room code</label><input id="online-join-code" placeholder="Paste a match link or room code…">
+        <label for="online-room-password">Room password (optional)</label><input id="online-room-password" type="password" autocomplete="off">
+        <div class="row">
+          <button class="btn btn-primary" onclick="joinOnlineByCode()">Join Match</button>
+          <button class="btn btn-ghost" onclick="createOnlineMatch()">Create Match</button>
+        </div>
+      </div>
+      <div id="online-lobby-waiting">Waiting for your opponent to join&hellip;</div>
+      <div id="team-chooser" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
+        <p style="font-size:.82rem;font-weight:700;margin-bottom:6px"> Choose Team — 2 players cannot pick same team</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="team-a-select" aria-label="Team A" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team A — loading...</option></select>
+          <select id="team-b-select" aria-label="Team B" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team B — loading...</option></select>
+        </div>
+        <p id="team-error" style="font-size:.72rem;color:#ef4444;margin-top:6px;display:none"></p>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <div style="flex:1">
+            <label for="formation-a-select" style="font-size:.68rem;font-weight:600;color:#475569">Formation A</label>
+            <select id="formation-a-select" style="width:100%;padding:6px;border-radius:8px;border:1px solid rgba(148,163,184,.4);font-size:.78rem"></select>
+            <div id="manager-a" style="font-size:.68rem;color:#64748b;margin-top:2px"></div>
+          </div>
+          <div style="flex:1">
+            <label for="formation-b-select" style="font-size:.68rem;font-weight:600;color:#475569">Formation B</label>
+            <select id="formation-b-select" style="width:100%;padding:6px;border-radius:8px;border:1px solid rgba(148,163,184,.4);font-size:.78rem"></select>
+            <div id="manager-b" style="font-size:.68rem;color:#64748b;margin-top:2px"></div>
+          </div>
+        </div>
+        <p style="font-size:.68rem;color:#64748b;margin-top:4px">Player names will appear above kits — default 7 players (formation tied to manager, changeable before kickoff)</p>
+        <p id="referee-display" style="font-size:.75rem;color:#334155;margin-top:6px;font-weight:600"></p>
+      </div>
+      <div id="online-lobby-ranked" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Ranked matches pair you with a player of similar skill &mdash; your ELO rating changes with every result.</p>
+        <p id="ranked-season-line" style="font-size:.72rem;color:var(--muted);margin-bottom:8px"></p>
+        <div class="row">
+          <button class="btn btn-primary" id="ranked-btn" onclick="rankedJoin()">Play Ranked</button>
+          <button class="btn btn-ghost" id="ranked-cancel-btn" style="display:none" onclick="rankedCancel()">Cancel Queue</button>
+        </div>
+        <p id="ranked-status" style="display:none;margin-top:8px"></p>
+      </div>
+      <div id="quick-match" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
+        <p style="font-size:.85rem;font-weight:800;margin-bottom:6px">Quick Match</p>
+        <p style="font-size:.72rem;color:var(--muted);margin-bottom:8px">Player vs Player searches for an active player — if none in 8s you play a random AI. Player vs AI is instant vs a random built-in.</p>
+        <div class="row" style="gap:8px">
+          <button class="btn btn-primary" id="quick-play-btn" onclick="quickPlayPVP()">Play</button>
+          <button class="btn btn-ghost" id="match-models-btn" onclick="openMatchModels()">Match Models</button>
+          <button class="btn btn-ghost" id="quick-pva-btn" onclick="quickPlayVsAI()">Player vs AI</button>
+          <button class="btn btn-ghost" id="quick-cancel-btn" style="display:none" onclick="quickCancel()">Cancel</button>
+        </div>
+        <div id="quick-loading" style="display:none;margin-top:10px;align-items:center;gap:10px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.6);border-radius:10px;padding:10px 12px">
+          <div class="quick-spinner" style="width:18px;height:18px;border:2px solid rgba(14,165,233,.2);border-top-color:#0ea5e9;border-radius:50%;animation:qm-spin .7s linear infinite"></div>
+          <span id="quick-loading-text" style="font-size:.82rem;color:#0f172a;font-weight:600">Searching for opponent…</span>
+          <span id="quick-loading-sub" style="font-size:.72rem;color:var(--muted);margin-left:auto">8s → vs AI</span>
+        </div>
+        <p id="quick-status" style="display:none;margin-top:8px;font-size:.8rem"></p>
+      </div>
+      <style>@keyframes qm-spin{to{transform:rotate(360deg)}}</style>
+    </div>
+  </div>
+    <!-- Match Models picker (choose any stored model to play vs) -->
+    <div class="online-modal" id="match-models-modal" style="display:none">
+      <div class="online-modal-card" style="max-width:520px;max-height:80vh;overflow:auto">
+        <h3>Match Models</h3>
+        <p style="font-size:.8rem;color:#475569">Pick a model from the coding editor (builtins + your code models) to play against. Tip: <a href="/learn" style="color:#0284c7">Learn</a> shows how to code your own, <a href="/my-models" style="color:#0284c7">My Models</a> to write it.</p>
+        <div id="match-models-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:48vh;overflow:auto"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-ghost" onclick="closeMatchModels()">Close</button>
+          <a class="btn btn-primary" href="/my-models" style="margin-left:auto">Go to Code Models</a>
+        </div>
+      </div>
+    </div>
+    <!-- Post-game: Highlights (shot-only) -->
+    <div class="online-modal" id="highlights-modal" style="display:none">
+      <div class="online-modal-card" style="max-width:520px;max-height:80vh;overflow:auto">
+        <h3>Highlights — shots only</h3>
+        <p style="font-size:.78rem;color:#64748b">Revisit the goals, close chances, and fast plays from this match.</p>
+        <div id="highlights-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-ghost" onclick="closeHighlights()">Close</button><a href="/match-history" class="btn btn-ghost" style="margin-left:auto">History (last 5)</a></div>
+      </div>
+    </div>
+    <!-- Post-game: Player Ratings (WhoScored/FIFA: 6.0 baseline 0-10) -->
+    <div class="online-modal" id="ratings-modal" style="display:none">
+      <div class="online-modal-card" style="max-width:560px;max-height:80vh;overflow:auto">
+        <h3>Player Ratings</h3>
+        <p style="font-size:.78rem;color:#64748b">See how each player contributed, with a rating out of 10 and a breakdown of their performance.</p>
+        <div id="ratings-list" style="display:flex;flex-direction:column;gap:10px;margin-top:10px"></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-ghost" onclick="closeRatings()">Close</button></div>
+      </div>
+    </div>
+  <!-- Pitch resolution settings -->
+  <div class="online-modal" id="view-settings-modal">
+    <div class="online-modal-card">
+      <h3> View Settings</h3>
+      <p>The entire pitch stays in view. Auto uses your screen resolution.</p>
+      <label for="graphics-quality" style="display:flex;align-items:center;gap:10px;margin-top:12px;font-size:.84rem;color:#475569">Graphics
+        <select id="graphics-quality" class="input" style="width:auto" aria-label="Graphics resolution">
+          <option value="auto">Auto</option><option value="1080p">1080p</option><option value="1440p">1440p</option><option value="4k">4K</option>
+        </select>
+      </label>
+      <div class="row" style="margin-top:12px"><button class="btn btn-ghost" onclick="showViewSettings(false)">Close</button></div>
+    </div>
+  </div>
+  <!-- Offline Chatbot (no API) -->
+  <button id="bot-btn" onclick="toggleBot()" title="Ask the offline assistant" style="position:fixed;right:16px;bottom:90px;z-index:60;background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.7);border-radius:999px;padding:8px 12px;font-size:.85rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(2,6,23,.15)"> Assistant</button>
+  <div id="bot-panel" style="display:none;flex-direction:column;position:fixed;right:16px;bottom:130px;width:340px;height:380px;z-index:60;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.7);border-radius:16px;box-shadow:0 12px 32px rgba(2,6,23,.18);overflow:hidden">
+    <div style="padding:10px 12px;border-bottom:1px solid rgba(226,232,240,.8);display:flex;justify-content:space-between;align-items:center">
+      <strong style="font-size:.85rem">Assistant (offline)</strong><button type="button" onclick="toggleBot()" aria-label="Close assistant" style="border:none;background:transparent;cursor:pointer;font-size:1.1rem">&times;</button>
+    </div>
+    <div id="bot-log" style="flex:1;overflow:auto;padding:10px;font-size:.82rem;line-height:1.45"></div>
+    <div style="display:flex;gap:6px;padding:8px;border-top:1px solid rgba(226,232,240,.8)">
+      <input id="bot-in" aria-label="Ask the assistant" placeholder="Ask about rules, teams, formations..." style="flex:1;padding:8px 10px;border-radius:10px;border:1px solid #cbd5e1;font-size:.85rem" onkeydown="if(event.key==='Enter')sendBot()">
+      <button onclick="sendBot()" class="btn btn-primary btn-sm">Send</button>
+    </div>
+  </div>
+  <script>
+  function toggleBot(){ const p=document.getElementById('bot-panel'); p.style.display = (p.style.display==='none'||!p.style.display||p.style.display==='') ? 'flex' : 'none'; if(p.style.display==='flex') document.getElementById('bot-in').focus(); }
+  async function sendBot(){
+    const i=document.getElementById('bot-in'), m=i.value.trim(); if(!m) return; i.value='';
+    const log=document.getElementById('bot-log');
+    const esc=s=>{const d=document.createElement('div'); d.textContent=s; return d.innerHTML;};
+    log.innerHTML += '<div style="margin:6px 0"><span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:4px 8px;font-size:.75rem">You</span> '+esc(m)+'</div>';
+    log.scrollTop=log.scrollHeight;
+    try{
+      const r=await fetch('/api/chatbot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m})});
+      const d=await r.json();
+      const ans=d.response||d.error||'No response';
+      log.innerHTML += '<div style="margin:6px 0;background:rgba(241,245,249,.9);border-radius:10px;padding:8px">'+esc(ans)+'</div>';
+    }catch(e){ log.innerHTML += '<div style="color:#ef4444">Network error</div>'; }
+    log.scrollTop=log.scrollHeight;
+  }
+  </script>
+
+  <!-- Penalty shootout UI -->
+  <div id="penalty-ui" style="display:none">
+    <div id="penalty-keeper-btns" style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+      <button class="btn btn-primary" onclick="chooseKeeperDir('left')">&larr; Left</button>
+      <button class="btn btn-primary" onclick="chooseKeeperDir('center')">Center</button>
+      <button class="btn btn-primary" onclick="chooseKeeperDir('right')">Right &rarr;</button>
+    </div>
+    <div id="penalty-keeper-timer" style="text-align:center;font-size:1.2rem;font-weight:700;color:var(--accent-a);margin-top:4px"></div>
+    <div id="penalty-score" style="text-align:center;font-size:.9rem;font-weight:600;color:var(--muted);margin-top:4px"></div>
+  </div>
+</main>
+
+
+
+<script type="module">
+import { createPitch2D } from '/static/js/game/pitch-2d.js';
+import { playTrajectory2D } from '/static/js/game/playback-2d.js';
+import { controlAccess, onlineRevision, onlineReplayPlan } from '/static/js/game/player-controls.js';
+import { createPlayerInput } from '/static/js/game/player-input.js';
+const W=1400, H=875, PLAYER_R=20, PLAYER_TRAVEL=8;
+const container=document.getElementById('pitch-container');
+const pitch=createPitch2D(container);
+const requestRender=()=>pitch.loop.invalidate();
+const pitchPosition=(x,y,z=0)=>({x,y,z});
+const worldToServer=p=>p;
+const updateBall=(x,y,z=0)=>pitch.setBall(x,y,z);
+const updateReferee=(x,y)=>pitch.setReferee(x,y);
+const syncBallSize=state=>pitch.setBallSize(state?.ball_size);
+const triggerGoalEffect=()=>pitch.celebrate();
+const triggerCrowdCheer=()=>SoundManager.crowdCheer();
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+SoundManager.attach(audioCtx);
+const _kickBuf=SoundManager.makeKickBuffer(), _bounceBuf=SoundManager.makeBounceBuffer();
+function playPositional(buffer, position, options={}) {
+  if(!SoundManager.isMuted())SoundManager._play(buffer,options.volume??.65,options.playbackRate??1,'impact');
+}
+function playRefereeWhistle(){pitch.whistle();return SoundManager.whistle();}
+async function unlockAudio(){
+  await SoundManager.resume();
+  if(audioCtx.state!=='running')return;
+  SoundManager.crowdAmbient();
+  if(!window._whistlePlayed){window._whistlePlayed=true;playRefereeWhistle();}
+  for(const type of ['pointerdown','keydown','touchstart'])document.removeEventListener(type,unlockAudio,true);
+}
+for(const type of ['pointerdown','keydown','touchstart'])document.addEventListener(type,unlockAudio,{capture:true,passive:true});
+window.__pitch2D=()=>pitch.snapshot();
+window.__renderStats=()=>({...pitch.snapshot(),isAnimating});
+window.__refereePos=()=>pitch.snapshot().referee;
+const qualitySelect=document.getElementById('graphics-quality');
+qualitySelect.value=pitch.quality;
+window.setGraphicsQuality=value=>{pitch.setQuality(value);qualitySelect.value=pitch.quality;};
+qualitySelect.addEventListener('change',()=>window.setGraphicsQuality(qualitySelect.value));
+const renderLoop=pitch.loop;
+
+let gameState = null;
+let isAnimating = false;
+let animSpeed = 1.0;
+let _skipKickerIdx = -1;
+let _skipKickerTeam = '';
+const LOCAL_TURN = { generation: 0, controller: null, timer: null, pending: null };
+
+//  Online match (chat-enabled 1v1 room mode)
+const ONLINE = {
+  active: false, roomId: null, side: null, ranked: false,
+  nameA: '', nameB: '', lastKick: -1,
+  pollTimer: null, chat: null,
+  polling: false, generation: 0, ready: false, status: null,
+  leaving: false, connectionError: '', pollController: null, moveController: null,
+  rosterStamp: '', resultTimer: null, resultController: null, resultAttempts: 0,
+};
+const ONLINE_LOBBY = { generation: 0, busy: false, waitRoom: null, resumeRoom: null, cancelWait: null };
+
+async function onlineJSON(url, options = {}) {
+  const response = await fetch(url, options);
+  let data;
+  try { data = await response.json(); }
+  catch (_) { throw new Error(response.redirected ? 'Please log in before creating a match.' : 'Could not read the match response. Try again.'); }
+  if (!response.ok || data.error) {
+    const error = new Error(data.error || 'Could not connect to this match. Try again.');
+    error.status = response.status; error.data = data; throw error;
+  }
+  return data;
+}
+
+function lobbyStatus(message) { document.getElementById('online-lobby-status').textContent = message; }
+function lobbyBusy(busy) {
+  ONLINE_LOBBY.busy = busy;
+  document.querySelectorAll('#online-lobby-join button').forEach(button => { button.disabled = busy; });
+}
+function resetLobbyView() {
+  document.getElementById('online-lobby-create').style.display = 'none';
+  document.getElementById('online-lobby-join').style.display = '';
+  document.getElementById('online-lobby-waiting').style.display = 'none';
+}
+function offerResumeRoom(roomId) {
+  ONLINE_LOBBY.resumeRoom = roomId;
+  document.getElementById('online-join-code').value = roomId;
+  if (!ONLINE.active) window.showOnlineLobby(true);
+  lobbyStatus('Your opponent joined. Join this room to continue your match.');
+}
+async function cancelWaitingRoom(roomId) {
+  try {
+    await onlineJSON('/online/' + encodeURIComponent(roomId) + '/leave', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ waiting_only: true }),
+    });
+  } catch (error) {
+    if (error.status === 409) {
+      offerResumeRoom(roomId);
+    }
+  }
+}
+function cancelLobbyWait() {
+  ONLINE_LOBBY.generation++;
+  ONLINE_LOBBY.cancelWait?.(); ONLINE_LOBBY.cancelWait = null;
+  const room = ONLINE_LOBBY.waitRoom; ONLINE_LOBBY.waitRoom = null;
+  lobbyBusy(false); resetLobbyView();
+  if (room) void cancelWaitingRoom(room);
+}
+function lobbyDelay(generation) {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { if (ONLINE_LOBBY.generation === generation) ONLINE_LOBBY.cancelWait = null; resolve(); }, 1000);
+    ONLINE_LOBBY.cancelWait = () => { clearTimeout(timer); resolve(); };
+  });
+}
+
+function myTeamPlayers() {
+  if (ONLINE.active) return !['a', 'b'].includes(ONLINE.side) ? [] : gameState?.[ONLINE.side === 'a' ? 'players_a' : 'players_b'];
+  return gameState?.[controlAccess(gameState, ONLINE).team === 'b' ? 'players_b' : 'players_a'];
+}
+
+function onlineMyTurn() {
+  return ONLINE.active && controlAccess(gameState, ONLINE, isAnimating).canKick;
+}
+
+window.showOnlineLobby = function(show) {
+  if (show && isAnimating && !ONLINE.active) { playerInput.reportError('Finish the current move before joining an online match.'); return; }
+  const el = document.getElementById('online-lobby');
+  el.classList.toggle('visible', !!show);
+  if (show) {
+    if (!ONLINE_LOBBY.busy && !ONLINE_LOBBY.waitRoom) resetLobbyView();
+    window.AgentSoccerDialogs.open(el, document.getElementById('online-join-code'));
+  }
+  else window.AgentSoccerDialogs.close(el);
+};
+
+window.closeOnlineLobby = function() {
+  cancelLobbyWait();
+  if (RANKED.active || RANKED.joining) void rankedCancel();
+  if (QUICK.active) void quickCancel();
+  window.showOnlineLobby(false);
+};
+
+window.copyInviteLink = function() {
+  const input = document.getElementById('online-invite-link');
+  if (!input.value) return;
+  navigator.clipboard.writeText(input.value).then(() => {
+    const btn = document.getElementById('online-copy-btn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy Link'; }, 1500); }
+  }).catch(() => { input.focus(); input.select(); lobbyStatus('Select and copy the invitation link to share it.'); });
+};
+
+window.createOnlineMatch = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
+  const generation = ++ONLINE_LOBBY.generation; lobbyBusy(true);
+  try {
+    const data = await onlineJSON('/online/create', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: document.getElementById('online-room-password').value }) });
+    if (!data.room_id) throw new Error('Could not create a match. Try again.');
+    const roomId = data.room_id;
+    if (generation !== ONLINE_LOBBY.generation) { void cancelWaitingRoom(roomId); return; }
+    ONLINE_LOBBY.waitRoom = roomId;
+    document.getElementById('online-invite-link').value = location.origin + '/play3d?room=' + encodeURIComponent(roomId);
+    document.getElementById('online-lobby-join').style.display = 'none';
+    document.getElementById('online-lobby-create').style.display = 'flex';
+    document.getElementById('online-lobby-waiting').style.display = 'block';
+    document.getElementById('online-invite-link').focus();
+    lobbyStatus('Share this link — the match starts when your friend joins.');
+    for (let i = 0; i < 300 && generation === ONLINE_LOBBY.generation; i++) {
+      await lobbyDelay(generation);
+      if (generation !== ONLINE_LOBBY.generation) return;
+      const state = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/state?since_kick=-1');
+      if (generation !== ONLINE_LOBBY.generation) return;
+      if (state.status === 'active' && state.my_side) {
+        ONLINE_LOBBY.waitRoom = null; lobbyBusy(false);
+        startOnline(state); return;
+      }
+      if (state.status !== 'waiting') throw new Error('This invitation is no longer available. Create another match.');
+      if (i % 10 === 9) lobbyStatus('Still waiting for your opponent to join…');
+    }
+    if (generation === ONLINE_LOBBY.generation) { cancelLobbyWait(); lobbyStatus('The invitation expired. Create a new match to try again.'); }
+  } catch (error) {
+    if (generation !== ONLINE_LOBBY.generation) return;
+    cancelLobbyWait(); lobbyStatus(error.message || 'Could not create a match. Try again.');
+  } finally { if (generation === ONLINE_LOBBY.generation) lobbyBusy(false); }
+};
+
+window.joinOnlineByCode = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
+  const raw = document.getElementById('online-join-code').value.trim();
+  if (!raw) return;
+  let roomId = raw;
+  try { const url = new URL(raw, location.origin); roomId = url.searchParams.get('room') || url.pathname.match(/^\/join\/([a-zA-Z0-9]+)$/)?.[1] || raw; } catch (_) {}
+  if (!/^[a-zA-Z0-9]{6,64}$/.test(roomId)) { lobbyStatus('Enter a valid room code or invitation link.'); return; }
+  const generation = ++ONLINE_LOBBY.generation; lobbyBusy(true);
+  try {
+    const data = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/join', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: document.getElementById('online-room-password').value }) });
+    if (generation !== ONLINE_LOBBY.generation) {
+      if (data.status === 'active' && ['a', 'b'].includes(data.my_side)) offerResumeRoom(roomId);
+      return;
+    }
+    if (!['a', 'b'].includes(data.my_side)) throw new Error('You are not a player in this room.');
+    startOnline(data);
+  } catch (error) { if (generation === ONLINE_LOBBY.generation) lobbyStatus(error.message || 'Could not join this match. Try again.'); }
+  finally { if (generation === ONLINE_LOBBY.generation) lobbyBusy(false); }
+};
+
+function setOnlineUI(active) {
+  document.getElementById('mode-select').disabled = active;
+  document.getElementById('model-select').disabled = active;
+  document.getElementById('aivai-btn').style.display = 'none';
+  document.getElementById('online-btn').style.display = active ? 'none' : '';
+  document.getElementById('online-leave-btn').style.display = active ? '' : 'none';
+  document.getElementById('online-leave-btn').disabled = ONLINE.leaving;
+  document.getElementById('online-leave-btn').textContent = gameState?.game_over ? 'Back to local game' : ONLINE.status === 'waiting' ? 'Cancel match' : 'Leave match';
+  document.querySelectorAll('[onclick="resetGame()"],[onclick="undoMove()"]').forEach(button => { button.disabled = active; });
+  for (const side of ['a', 'b']) {
+    const select = document.getElementById('team-' + side + '-select');
+    if (select) select.disabled = active && (ONLINE.side !== side || !ONLINE.ready || ONLINE.lastKick > 0 || ONLINE.leaving);
+    const formation = document.getElementById('formation-' + side + '-select');
+    if (formation) formation.disabled = active;
+  }
+  voiceBtn().style.display = active && ONLINE.status === 'active' && ['a', 'b'].includes(ONLINE.side) && !VOICE.enabled ? 'block' : 'none';
+  document.getElementById('voice-controls').style.display = active && onlineCanVoice() ? 'flex' : 'none';
+  if (!active) voiceDisconnect();
+}
+
+function updateOnlineBar() {
+  const bar = document.getElementById('online-bar');
+  if (!ONLINE.active) { bar.style.display = 'none'; return; }
+  const me = ONLINE.side === 'a' ? ONLINE.nameA : ONLINE.nameB;
+  const them = ONLINE.side === 'a' ? ONLINE.nameB : ONLINE.nameA;
+  const score = gameState ? (gameState.score_a + ' – ' + gameState.score_b) : '0 – 0';
+  bar.style.display = 'block';
+  bar.textContent = me + '  vs  ' + them + '   ·   ' + score + '   ·   Room ' + String(ONLINE.roomId || '').slice(0, 8)
+    + (ONLINE.ranked ? '   ·   \uD83C\uDFC6 Ranked' : '');
+}
+
+function startOnline(joinData) {
+  if (!joinData?.room_id || !['a', 'b'].includes(joinData.my_side)) {
+    lobbyStatus('You are not a player in this room.'); return;
+  }
+  cancelLocalTurn();
+  ONLINE.generation++;
+  stopOnlineResultRetries(); ONLINE.resultAttempts = 0;
+  ONLINE.pollController?.abort(); ONLINE.moveController?.abort();
+  if (ONLINE.pollTimer) clearInterval(ONLINE.pollTimer);
+  ONLINE.chat?.destroy(); voiceDisconnect();
+  ONLINE_LOBBY.waitRoom = null; ONLINE_LOBBY.resumeRoom = null;
+  ONLINE_LOBBY.generation++; ONLINE_LOBBY.cancelWait?.(); ONLINE_LOBBY.cancelWait = null;
+  lobbyBusy(false);
+  if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
+  RANKED.generation++; RANKED.active = false; RANKED.joining = false; RANKED.polling = false; resetRankedUI();
+  QUICK.generation++; resetQuickUI();
+  ONLINE.active = true;
+  ONLINE.roomId = joinData.room_id;
+  ONLINE.side = joinData.my_side;
+  ONLINE.ranked = !!joinData.ranked;
+  ONLINE.status = joinData.status || 'active';
+  ONLINE.leaving = false; ONLINE.connectionError = ''; ONLINE.polling = false;
+  ONLINE.ready = !!joinData.game; ONLINE.rosterStamp = '';
+  document.getElementById('mode-select').value = 'hvh';
+  RANKED.delta = null;
+  ONLINE.nameA = joinData.name_a || 'Player A';
+  ONLINE.nameB = joinData.name_b || 'Player B';
+  ONLINE.lastKick = joinData.game ? onlineRevision(joinData.game, joinData) : -1;
+  window.showOnlineLobby(false);
+  history.replaceState(null, '', '/play3d?room=' + encodeURIComponent(ONLINE.roomId));
+  setOnlineUI(true);
+  isAnimating = false; animBall = null; _skipKickerIdx = -1; _skipKickerTeam = '';
+  playerInput.cancel();
+  gameState = joinData.game || {
+      ball: { x: W / 2, y: H / 2, z: 0 },
+      players_a: [], players_b: [],
+      score_a: 0, score_b: 0, is_player_a: true, kick_count: 0,
+      game_over: false, game_mode: 'hvh', penalty_shootout: false, referee: null,
+    };
+  rebuildPlayers();
+  updateBall(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
+  updateHUD(gameState);
+  updateOnlineBar();
+  ONLINE.chat = new ChatPanel({
+    mount: document.getElementById('match-chat-wrap'),
+    scope: 'match', scopeId: ONLINE.roomId,
+    name: 'Match Chat', quickReactions: true, pollMs: 2000, collapsed: true,
+  });
+  if (ONLINE.ready && (gameState.game_over || ['done', 'cancelled'].includes(ONLINE.status))) finishOnline();
+  else { void pollOnline(); ONLINE.pollTimer = setInterval(pollOnline, 1500); }
+}
+
+function commitOnlineGame(game) {
+  if (game.team_a_color) CUST_TEAM_A = game.team_a_color;
+  if (game.team_b_color) CUST_TEAM_B = game.team_b_color;
+  const rosterStamp = JSON.stringify([CUST_TEAM_A, CUST_TEAM_B, ...[game.players_a, game.players_b].map(players =>
+    (players || []).map(player => [player.stats?.size, player.color, player.name, player.number]))]);
+  const changed = rosterStamp !== ONLINE.rosterStamp;
+  gameState = game; ONLINE.ready = true; ONLINE.connectionError = '';
+  if (changed) { ONLINE.rosterStamp = rosterStamp; rebuildPlayers(); }
+  else updatePlayerPositions();
+  if (game.referee) updateReferee(game.referee.x, game.referee.y);
+  updateHUD(game); updateOnlineBar(); setOnlineUI(true);
+}
+
+function finishOnline() {
+  ONLINE.status = 'done';
+  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  ONLINE.chat?.stop(); voiceDisconnect(); setOnlineUI(true); playerInput.sync();
+  scheduleOnlineResultRetry();
+}
+
+function stopOnlineResultRetries() {
+  if (ONLINE.resultTimer) { clearTimeout(ONLINE.resultTimer); ONLINE.resultTimer = null; }
+  ONLINE.resultController?.abort(); ONLINE.resultController = null;
+}
+
+function scheduleOnlineResultRetry() {
+  if (!ONLINE.active || ONLINE.leaving || ONLINE.status !== 'done' || !ONLINE.ranked || RANKED.delta) { stopOnlineResultRetries(); return; }
+  if (ONLINE.resultTimer || ONLINE.resultController || ONLINE.resultAttempts >= 6) return;
+  const generation = ONLINE.generation, roomId = ONLINE.roomId;
+  ONLINE.resultTimer = setTimeout(() => {
+    ONLINE.resultTimer = null;
+    void retryOnlineResult(roomId, generation);
+  }, 5000);
+}
+
+async function retryOnlineResult(roomId, generation) {
+  const current = () => ONLINE.active && ONLINE.generation === generation && !ONLINE.leaving && ONLINE.status === 'done' && !RANKED.delta;
+  if (!current()) return;
+  ONLINE.resultAttempts++;
+  const controller = new AbortController(); ONLINE.resultController = controller;
+  try {
+    const data = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/state?since_kick=' + ONLINE.lastKick, { signal: controller.signal });
+    if (!current() || controller.signal.aborted) return;
+    if (data.ranked_result) { RANKED.delta = data.ranked_result; updateHUD(gameState); }
+  } catch (error) {
+    if (current() && [401, 403, 404].includes(error.status)) ONLINE.resultAttempts = 6;
+  } finally {
+    if (ONLINE.generation === generation && ONLINE.resultController === controller) {
+      ONLINE.resultController = null;
+      if (current()) { updateHUD(gameState); scheduleOnlineResultRetry(); }
+    }
+  }
+}
+
+async function pollOnline() {
+  if (!ONLINE.active || ONLINE.leaving || (ONLINE.status === 'done' && ONLINE.ready) || ONLINE.polling || isAnimating) return;
+  ONLINE.polling = true;
+  const roomId = ONLINE.roomId, generation = ONLINE.generation;
+  const controller = new AbortController(); ONLINE.pollController = controller;
+  try {
+    let url = '/online/' + ONLINE.roomId + '/state?since_kick=' + ONLINE.lastKick;
+    if (VOICE.enabled) url += '&voice_after=' + VOICE.after;
+    const data = await onlineJSON(url, { signal: controller.signal });
+    if (controller.signal.aborted || !ONLINE.active || ONLINE.generation !== generation || ONLINE.roomId !== roomId || isAnimating) return;
+    if (ONLINE.ready && onlineRevision(data.game, data) < ONLINE.lastKick) return;
+    AW.handle(data);
+    if (!data.game) throw new Error('The match response is missing its game state. Retrying…');
+    if (data.my_side !== ONLINE.side) { await endOnline('You are no longer a player in this room.'); return; }
+    ONLINE.status = data.status;
+    ONLINE.nameA = data.name_a || ONLINE.nameA;
+    ONLINE.nameB = data.name_b || ONLINE.nameB;
+    updateOnlineBar();
+    if (data.voice_signals) {
+      VOICE.after = parseInt(data.voice_after, 10);
+      if (!isNaN(VOICE.after)) {
+        const voiceGeneration = VOICE.generation, peer = VOICE.pc;
+        data.voice_signals.forEach(signal => {
+          VOICE.signalChain = VOICE.signalChain.then(() => {
+            if (VOICE.generation !== voiceGeneration || ONLINE.generation !== generation || VOICE.pc !== peer) return;
+            return handleVoiceSignal(signal);
+          }).catch(() => {});
+        });
+      }
+    }
+    if (data.ranked_result) RANKED.delta = data.ranked_result;
+    if (data.status === 'done' && !data.game.game_over) {
+      data.game.game_over = true;
+      data.game.winner = data.game.score_a > data.game.score_b ? 'A' : data.game.score_a < data.game.score_b ? 'B' : null;
+    }
+    const plan = onlineReplayPlan(data, ONLINE.lastKick);
+    for (const move of plan.moves) {
+      if (!ONLINE.active || ONLINE.generation !== generation) return;
+      await animateOnlineMove(move, data.game, generation);
+    }
+    if (!ONLINE.active || ONLINE.generation !== generation) return;
+    ONLINE.lastKick = plan.revision;
+    commitOnlineGame(data.game);
+    if (data.status === 'done' || data.game.game_over) finishOnline();
+  } catch (error) {
+    if (error.name === 'AbortError' || !ONLINE.active || ONLINE.generation !== generation) return;
+    if ([401, 403, 404].includes(error.status)) { await endOnline(error.message); return; }
+    ONLINE.connectionError = 'Connection lost. Retrying…'; playerInput.sync();
+  } finally {
+    if (ONLINE.generation === generation && ONLINE.pollController === controller) { ONLINE.polling = false; ONLINE.pollController = null; }
+  }
+}
+
+async function endOnline(msg) {
+  const generation = ++ONLINE.generation;
+  stopOnlineResultRetries();
+  ONLINE.pollController?.abort(); ONLINE.moveController?.abort();
+  ONLINE.pollController = null; ONLINE.moveController = null;
+  ONLINE.active = false;
+  ONLINE.polling = false; ONLINE.leaving = false; ONLINE.ready = false;
+  ONLINE.status = null; ONLINE.connectionError = ''; ONLINE.side = null; ONLINE.roomId = null; ONLINE.lastKick = -1;
+  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  if (ONLINE.chat) { ONLINE.chat.destroy(); ONLINE.chat = null; }
+  document.getElementById('match-chat-wrap').innerHTML = '';
+  document.getElementById('online-bar').style.display = 'none';
+  voiceDisconnect();
+  setOnlineUI(false);
+  document.getElementById('match-share-btn').style.display = 'none';
+  document.getElementById('match-share-msg').style.display = 'none';
+  isAnimating = false; animBall = null; _skipKickerIdx = -1; _skipKickerTeam = '';
+  pitch.clearAim();
+  gameState = null; playerInput.cancel();
+  const url = new URL(location.href); url.searchParams.delete('room');
+  history.replaceState(null, '', url.pathname + url.search + url.hash);
+  try {
+    const game = await onlineJSON('/state');
+    if (ONLINE.generation !== generation || ONLINE.active) return;
+    gameState = game; document.getElementById('mode-select').value = game.game_mode || 'hvai';
+    rebuildPlayers(); updateHUD(game);
+    if (msg) playerInput.reportError(msg);
+  } catch (error) { if (ONLINE.generation === generation) playerInput.reportError(msg || error.message); }
+}
+
+window.leaveOnlineMatch = async function() {
+  if (!ONLINE.active || ONLINE.leaving) return;
+  if (ONLINE.status === 'active' && !gameState?.game_over && !confirm('Leaving ends this match and awards the win to your opponent. Leave match?')) return;
+  const roomId = ONLINE.roomId, generation = ++ONLINE.generation;
+  stopOnlineResultRetries();
+  ONLINE.leaving = true; ONLINE.pollController?.abort(); ONLINE.moveController?.abort();
+  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  ONLINE.chat?.stop(); voiceDisconnect(); isAnimating = false; animBall = null;
+  _skipKickerIdx = -1; _skipKickerTeam = ''; playerInput.cancel(); setOnlineUI(true);
+  try {
+    await onlineJSON('/online/' + encodeURIComponent(roomId) + '/leave', { method: 'POST' });
+    if (ONLINE.generation === generation) await endOnline();
+  } catch (error) {
+    if (ONLINE.generation !== generation) return;
+    ONLINE.leaving = false; ONLINE.ready = false; ONLINE.lastKick = -1; ONLINE.polling = false;
+    ONLINE.status = 'active'; ONLINE.connectionError = error.message;
+    setOnlineUI(true); playerInput.reportError(error.message);
+    ONLINE.chat?.start(); void pollOnline(); ONLINE.pollTimer = setInterval(pollOnline, 1500);
+  }
+};
+
+async function shareMatchSummary() {
+  if (!ONLINE.roomId) return;
+  const url = location.origin + '/match/' + ONLINE.roomId + '/summary';
+  const msgEl = document.getElementById('match-share-msg');
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    ta.remove();
+  }
+  msgEl.textContent = 'Link copied — ' + url;
+  msgEl.style.display = 'block';
+  setTimeout(function () { msgEl.style.display = 'none'; }, 5000);
+}
+window.shareMatchSummary = shareMatchSummary;
+
+//  Ranked queue (ELO matchmaking, human players)
+const RANKED = { active: false, timer: null, delta: null, generation: 0, polling: false, joining: false, cancelling: false, request: null };
+
+function resetRankedUI() {
+  if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
+  document.getElementById('ranked-btn').style.display = '';
+  document.getElementById('ranked-btn').disabled = RANKED.cancelling;
+  document.getElementById('ranked-cancel-btn').style.display = 'none';
+  document.getElementById('ranked-status').style.display = 'none';
+}
+
+window.rankedJoin = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
+  const generation = ++RANKED.generation;
+  RANKED.active = true;
+  document.getElementById('ranked-btn').style.display = 'none';
+  document.getElementById('ranked-cancel-btn').style.display = '';
+  const st = document.getElementById('ranked-status');
+  st.style.display = 'block';
+  st.textContent = 'Joining the ranked queue…';
+  try {
+    RANKED.request = onlineJSON('/ranked/join', { method: 'POST' });
+    const data = await RANKED.request;
+    if (RANKED.generation !== generation || !RANKED.active) { if (data.room_id) offerResumeRoom(data.room_id); return; }
+    if (data.status === 'matched') { await enterRankedMatch(data, generation); return; }
+    updateRankedStatus(data); void pollRankedStatus();
+    RANKED.timer = setInterval(pollRankedStatus, 3000);
+  } catch (error) {
+    if (RANKED.generation !== generation) return;
+    RANKED.active = false; resetRankedUI(); st.style.display = 'block'; st.textContent = error.message;
+  } finally { if (RANKED.generation === generation) RANKED.request = null; }
+};
+
+function updateRankedStatus(data) {
+  const st = document.getElementById('ranked-status');
+  mergeRankedSeason(data);
+  if (data.status === 'waiting') {
+    st.textContent = 'Searching for an opponent\u2026 ' + (data.wait_s || 0) + 's   (rating ' + (data.rating || '') + ')';
+  } else if (data.status === 'idle') {
+    st.textContent = '';
+  }
+}
+
+function mergeRankedSeason(data) {
+  const line = document.getElementById('ranked-season-line');
+  if (!line || !data.season) return;
+  const s = data.season;
+  let text = 'Season ' + s.number;
+  if (s.ends_in_s > 0 && s.status !== 'completed') {
+    const d = Math.floor(s.ends_in_s / 86400);
+    const h = Math.floor((s.ends_in_s % 86400) / 3600);
+    text += d > 0 ? '  ·  ends in ' + d + 'd ' + h + 'h' : '  ·  ends in ' + Math.max(1, Math.floor(s.ends_in_s / 3600)) + 'h';
+  } else if (s.status === 'completed') {
+    text += '  ·  ended';
+  }
+  line.textContent = text;
+}
+
+async function pollRankedStatus() {
+  if (!RANKED.active || RANKED.polling || RANKED.joining) return;
+  const generation = RANKED.generation; RANKED.polling = true;
+  try {
+    const data = await onlineJSON('/ranked/status');
+    if (!RANKED.active || RANKED.generation !== generation) { if (data.room_id) offerResumeRoom(data.room_id); return; }
+    if (data.status === 'matched') { await enterRankedMatch(data, generation); return; }
+    updateRankedStatus(data);
+  } catch (error) { if (RANKED.active && RANKED.generation === generation) document.getElementById('ranked-status').textContent = 'Connection lost. Retrying the ranked search…'; }
+  finally { if (RANKED.generation === generation) RANKED.polling = false; }
+}
+
+async function enterRankedMatch(data, generation = RANKED.generation) {
+  if (RANKED.generation !== generation || RANKED.joining) return;
+  RANKED.joining = true;
+  RANKED.active = false;
+  if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
+  try {
+    const join = await onlineJSON('/online/' + encodeURIComponent(data.room_id) + '/join', { method: 'POST' });
+    if (RANKED.generation !== generation) { offerResumeRoom(data.room_id); return; }
+    resetRankedUI(); startOnline(join);
+  } catch (error) {
+    if (RANKED.generation !== generation) return;
+    resetRankedUI(); lobbyStatus(error.message);
+    document.getElementById('online-join-code').value = data.room_id;
+  } finally { if (RANKED.generation === generation) { RANKED.joining = false; RANKED.polling = false; } }
+}
+
+window.rankedCancel = async function() {
+  if (RANKED.cancelling) return;
+  const generation = ++RANKED.generation;
+  RANKED.active = false; RANKED.joining = false; RANKED.polling = false; RANKED.cancelling = true;
+  resetRankedUI();
+  try {
+    await RANKED.request?.catch(() => {});
+    const data = await onlineJSON('/ranked/cancel', { method: 'POST' });
+    if (data.room_id) offerResumeRoom(data.room_id);
+  } catch (error) { if (RANKED.generation === generation) lobbyStatus(error.message); }
+  finally { RANKED.cancelling = false; if (RANKED.generation === generation) { RANKED.request = null; resetRankedUI(); } }
+};
+
+//  Quick Match (Play — PvP with 8s AI fallback + Player vs AI random)
+const QUICK = { active: false, timer: null, fallback: null, mode: null, generation: 0, polling: false, joining: false, cancelling: false, request: null };
+window.quickPlayPVP = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || QUICK.active || QUICK.cancelling || RANKED.active || RANKED.joining || RANKED.cancelling) return;
+  const generation = ++QUICK.generation;
+  QUICK.active = true; QUICK.mode = 'pvp';
+  document.getElementById('quick-play-btn').style.display = 'none';
+  document.getElementById('quick-pva-btn').style.display = 'none';
+  document.getElementById('quick-cancel-btn').style.display = '';
+  const box = document.getElementById('quick-loading');
+  const st = document.getElementById('quick-status');
+  box.style.display = 'flex';
+  st.style.display = 'block';
+  st.textContent = 'Searching for an active player…';
+  document.getElementById('quick-loading-text').textContent = 'Searching for opponent…';
+  try {
+    QUICK.request = onlineJSON('/api/quick/join', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:'pvp'}) });
+    const data = await QUICK.request;
+    if (QUICK.generation !== generation || !QUICK.active) { if (data.room_id) offerResumeRoom(data.room_id); return; }
+    if (data.status === 'matched' && data.room_id) { await enterQuickMatch(data.room_id, generation); return; }
+    let secs = 8;
+    const sub = document.getElementById('quick-loading-sub'); sub.textContent = '8s → vs AI';
+    QUICK.fallback = setInterval(() => {
+      if (!QUICK.active || QUICK.generation !== generation) return;
+      secs--; sub.textContent = secs > 0 ? secs+'s → vs AI' : 'no player → vs AI';
+      if (secs <= 0) { clearInterval(QUICK.fallback); QUICK.fallback = null; void handleQuickFallback(generation); }
+    }, 1000);
+    QUICK.timer = setInterval(pollQuickStatus, 1000);
+  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); st.style.display='block'; st.textContent=error.message; } }
+  finally { if (QUICK.generation === generation) QUICK.request = null; }
+};
+window.quickPlayVsAI = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || QUICK.active || QUICK.cancelling || RANKED.active || RANKED.joining || RANKED.cancelling) return;
+  const generation = ++QUICK.generation; QUICK.active = true; QUICK.mode = 'pva'; QUICK.joining = true;
+  document.getElementById('quick-play-btn').disabled = true; document.getElementById('quick-pva-btn').disabled = true;
+  try {
+    QUICK.request = onlineJSON('/api/quick/join', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:'pva'}) });
+    const data = await QUICK.request;
+    if (QUICK.generation !== generation || !QUICK.active) return;
+    QUICK.request = startQuickAI(data, generation); await QUICK.request;
+  } catch (error) { if (QUICK.generation === generation) { lobbyStatus(error.message); document.getElementById('quick-status').textContent=error.message; } }
+  finally { if (QUICK.generation === generation) { QUICK.request = null; resetQuickUI(); } }
+};
+async function startQuickAI(data, generation) {
+  const current = () => QUICK.generation === generation && !ONLINE.active;
+  if (!current()) return;
+  cancelLocalTurn();
+  const localGeneration = LOCAL_TURN.generation;
+  const pick = data.ai_model || data.ai_name || 'greedy';
+  isAnimating = true; playerInput.sync();
+  try {
+    await onlineJSON('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model:pick,target:'b'}) });
+    if (!current()) return;
+    await onlineJSON('/set_mode', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:'hvai'}) });
+    if (!current()) return;
+    const game = await onlineJSON('/state');
+    if (!current()) return;
+    gameState = game; document.getElementById('model-select').value = pick; document.getElementById('mode-select').value = 'hvai';
+    rebuildPlayers(); updateHUD(game); window.showOnlineLobby(false);
+  } finally { if (!ONLINE.active && LOCAL_TURN.generation === localGeneration) { isAnimating = false; playerInput.sync(); } }
+}
+async function handleQuickFallback(generation = QUICK.generation) {
+  if (!QUICK.active || QUICK.mode!=='pvp' || QUICK.joining || QUICK.generation !== generation) return;
+  QUICK.joining = true;
+  if (QUICK.timer) { clearInterval(QUICK.timer); QUICK.timer=null; }
+  const st=document.getElementById('quick-status');
+  st.textContent='No player found — matching vs random AI…';
+  try {
+    QUICK.request = onlineJSON('/api/quick/cancel', {method:'POST'});
+    const cancelled = await QUICK.request;
+    if (QUICK.generation !== generation || !QUICK.active) { if (cancelled.room_id) offerResumeRoom(cancelled.room_id); return; }
+    if (cancelled.room_id) { QUICK.joining = false; await enterQuickMatch(cancelled.room_id, generation); return; }
+    QUICK.request = onlineJSON('/api/quick/join', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:'pva'}) });
+    const data = await QUICK.request;
+    if (QUICK.generation !== generation || !QUICK.active) return;
+    QUICK.request = startQuickAI(data, generation); await QUICK.request;
+    if (QUICK.generation === generation) resetQuickUI();
+  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); st.style.display='block'; st.textContent=error.message; } }
+  finally { if (QUICK.generation === generation) { QUICK.joining = false; QUICK.request = null; } }
+}
+async function pollQuickStatus(){
+  if (!QUICK.active || QUICK.polling || QUICK.joining) return;
+  const generation = QUICK.generation; QUICK.polling = true;
+  try {
+    const data = await onlineJSON('/api/quick/status');
+    if (!QUICK.active || QUICK.generation !== generation) { if (data.room_id) offerResumeRoom(data.room_id); return; }
+    if (QUICK.joining) return;
+    if (data.status==='matched' && data.room_id) {
+      if (QUICK.fallback) clearInterval(QUICK.fallback);
+      if (QUICK.timer) { clearInterval(QUICK.timer); QUICK.timer=null; }
+      await enterQuickMatch(data.room_id, generation);
+    }
+  } catch (error) { if (QUICK.active && QUICK.generation === generation) document.getElementById('quick-status').textContent='Connection lost. Retrying the player search…'; }
+  finally { if (QUICK.generation === generation) QUICK.polling = false; }
+}
+async function enterQuickMatch(room_id, generation = QUICK.generation){
+  if (QUICK.generation !== generation || QUICK.joining) return;
+  QUICK.joining = true;
+  if (QUICK.timer) { clearInterval(QUICK.timer); QUICK.timer=null; }
+  if (QUICK.fallback) { clearInterval(QUICK.fallback); QUICK.fallback=null; }
+  try {
+    const join = await onlineJSON('/online/'+encodeURIComponent(room_id)+'/join', {method:'POST'});
+    if (QUICK.generation !== generation || !QUICK.active) { offerResumeRoom(room_id); return; }
+    resetQuickUI(); startOnline(join);
+  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); lobbyStatus(error.message); document.getElementById('online-join-code').value=room_id; } }
+  finally { if (QUICK.generation === generation) QUICK.joining = false; }
+}
+window.quickCancel = async function(){
+  if (QUICK.cancelling) return;
+  const generation = ++QUICK.generation; QUICK.cancelling = true;
+  resetQuickUI();
+  try {
+    await QUICK.request?.catch(() => {});
+    const data = await onlineJSON('/api/quick/cancel',{method:'POST'});
+    if (data.room_id) offerResumeRoom(data.room_id);
+  } catch (error) { if (QUICK.generation === generation) lobbyStatus(error.message); }
+  finally { QUICK.cancelling = false; if (QUICK.generation === generation) { QUICK.request = null; resetQuickUI(); } }
+};
+function resetQuickUI(){
+  QUICK.active=false;
+  QUICK.joining=false; QUICK.polling=false;
+  if (QUICK.timer){ clearInterval(QUICK.timer); QUICK.timer=null; }
+  if (QUICK.fallback){ clearInterval(QUICK.fallback); QUICK.fallback=null; }
+  document.getElementById('quick-play-btn').style.display='';
+  document.getElementById('quick-pva-btn').style.display='';
+  document.getElementById('quick-play-btn').disabled=QUICK.cancelling;
+  document.getElementById('quick-pva-btn').disabled=QUICK.cancelling;
+  document.getElementById('quick-cancel-btn').style.display='none';
+  document.getElementById('quick-loading').style.display='none';
+  const st=document.getElementById('quick-status');
+  const generation=QUICK.generation;
+  setTimeout(()=>{ if(!QUICK.active && QUICK.generation===generation) st.style.display='none'; }, 1800);
+}
+window.quickPlayPVP = window.quickPlayPVP; window.quickPlayVsAI = window.quickPlayVsAI; window.quickCancel = window.quickCancel;
+
+// Match Models picker — list from coding editor (builtins + my models)
+window.openMatchModels = async function(){
+  const modal=document.getElementById('match-models-modal');
+  const list=document.getElementById('match-models-list');
+  list.innerHTML='<div style="font-size:.82rem;color:var(--muted)">Loading models…</div>';
+  modal.style.display='flex';
+  window.AgentSoccerDialogs.open(modal);
+  try{
+    const r=await fetch('/api/quick/models');
+    const d=await r.json();
+    const models=d.models||[];
+    if(!models.length){ list.innerHTML='<div style="font-size:.82rem;color:#ef4444">No models found</div>'; return; }
+    list.innerHTML='';
+    models.forEach(m=>{
+      const row=document.createElement('div');
+      row.style='display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(148,163,184,.2);border-radius:10px;cursor:pointer;background:rgba(255,255,255,.6)';
+      row.innerHTML='<div style="flex:1"><div style="font-size:.85rem;font-weight:700">'+escM(m.name)+'<span style="font-size:.68rem;color:var(--muted);margin-left:6px">'+escM(m.type)+'</span></div><div style="font-size:.72rem;color:var(--muted)">'+escM(m.desc||'')+'</div></div><button class="btn btn-primary btn-sm">Play vs this</button>';
+      row.onclick=()=> playVsModel(m.id);
+      row.querySelector('button').onclick=(e)=>{ e.stopPropagation(); playVsModel(m.id); };
+      list.appendChild(row);
+    });
+  }catch(e){ list.innerHTML='<div style="font-size:.82rem;color:#ef4444">Failed to load</div>'; }
+};
+window.closeMatchModels = function(){ const modal=document.getElementById('match-models-modal');modal.style.display='none';window.AgentSoccerDialogs.close(modal); };
+async function playVsModel(modelId){
+  closeMatchModels();
+  const st=document.getElementById('quick-status');
+  st.style.display='block'; st.textContent='Starting vs '+modelId+'…';
+  try{
+    // close quick queue if active
+    try{ await fetch('/api/quick/cancel',{method:'POST'});}catch(e){}
+    resetQuickUI();
+    await fetch('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model: modelId.replace(/^user_model:/,''), target:'b'}) });
+    closeOnlineLobby();
+    const modeSel=document.getElementById('mode-select'); if(modeSel) modeSel.value='hvai';
+    if (window.setMode) await window.setMode('hvai');
+    st.textContent='Vs '+modelId+' ready';
+    setTimeout(()=> st.style.display='none', 1800);
+  }catch(e){ st.textContent='Failed to start vs '+modelId; }
+}
+function escM(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+//  Post-game: Highlights (shot-only) + Player Ratings (WhoScored 6.0 + FIFA)
+function detectHighlights(moves){
+  const SHOT_MIN=50, NEAR_SPEED=400, FAST_SPEED=700, MARGIN=100, MOUTH=100;
+  const GY1=356, GY2=519, TX_A=1380, TX_B=20;
+  function maxSpeed(traj){
+    if(!traj||traj.length<2) return 0;
+    const st=Math.max(1, Math.round((traj.length-1)/100));
+    let mx=0;
+    for(let i=1;i<traj.length;i++){ const d=Math.hypot(traj[i].x-traj[i-1].x, traj[i].y-traj[i-1].y); mx=Math.max(mx, d*60/st); }
+    return mx;
+  }
+  function mouthDist(traj, tx){
+    const sign= tx===20?1:-1;
+    let reached=false, best=Infinity;
+    for(const p of traj){ if((p.x-tx)*sign> MARGIN) continue; reached=true; const yc=Math.min(Math.max(p.y,GY1),GY2); best=Math.min(best, Math.hypot(p.x-tx, p.y-yc)); }
+    return [reached,best];
+  }
+  const hls=[];
+  moves.forEach((m,ki)=>{
+    if(!m.trajectory||m.trajectory.length<2) return;
+    const power = m.power!=null? m.power : 100;
+    if(!m.scored && power < SHOT_MIN) return;
+    if(m.scored){ hls.push({type:'goal', kick:ki+1, label:'Goal — kick '+(ki+1), idx:ki}); return; }
+    const sp=maxSpeed(m.trajectory);
+    if(sp < NEAR_SPEED) return;
+    const tx = m.mover==='b'? TX_B: TX_A;
+    const [reached,best]=mouthDist(m.trajectory, tx);
+    if(reached && best<=MOUTH){ hls.push({type:'near', kick:ki+1, label:'Near miss — kick '+(ki+1), idx:ki}); return; }
+    if(sp>=FAST_SPEED) hls.push({type:'fast', kick:ki+1, label:'Fast play — kick '+(ki+1), idx:ki});
+  });
+  return hls;
+}
+window.showHighlights = function(){
+  const st = gameState || {};
+  const moves = st.move_history || st.history || [];
+  const hls = detectHighlights(moves);
+  const list=document.getElementById('highlights-list');
+  list.innerHTML='';
+  if(!hls.length){ list.innerHTML='<div style="font-size:.82rem;color:#64748b">No shot highlights this match — try a stronger kick (power≥50) on target.</div>'; }
+  else hls.forEach(h=>{
+    const row=document.createElement('div');
+    row.style='padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;display:flex;gap:8px;align-items:center;background:#fff';
+    const badge = h.type==='goal' ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">GOAL</span>' : h.type==='near' ? '<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">NEAR</span>' : '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">FAST</span>';
+    row.innerHTML='<span style="font-size:.82rem;font-weight:600;flex:1;cursor:pointer">'+h.label+'</span>'+badge+'<button class="btn btn-ghost btn-sm" style="font-size:.68rem">Share</button>';
+    row.querySelector('span').onclick=()=>{ closeHighlights(); stepToHighlight(h.idx); };
+    row.querySelector('button').onclick=async(e)=>{
+      e.stopPropagation();
+      const cap=prompt('Caption for social share:', h.label+' — '+(gameState.score_a||0)+'-'+(gameState.score_b||0));
+      if(cap===null) return;
+      try{
+        // try to get last history replay_id for sharing
+        let rid=null;
+        try{ const rh=await fetch('/api/history/replay/'+(gameState.replay_id||'')); if(rh.ok) rid=gameState.replay_id; }catch(e){}
+        if(!rid){
+          const hr=await fetch('/history/watch/'+(document.getElementById('highlights-list')?.dataset?.replay||'')); // fallback
+        }
+        // fallback: share current game as history video (use latest history entry)
+        const hr2=await fetch('/api/social/share',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'highlight', replay_id: h.label, caption: cap})});
+        const d=await hr2.json();
+        if(hr2.ok) alert('Shared to Social!');
+        else alert(d.error||'Failed');
+      }catch(err){ alert('Failed'); }
+    };
+    list.appendChild(row);
+  });
+  document.getElementById('highlights-modal').style.display='flex';
+  window.AgentSoccerDialogs.open(document.getElementById('highlights-modal'));
+};
+function stepToHighlight(idx){
+  requestRender();
+  // simple: highlight that move in log and flash ball
+  const panel=document.getElementById('log-panel');
+  if(panel) panel.scrollTop=0;
+  const moves=(gameState.move_history||[])[idx];
+  if(moves && moves.trajectory) {
+    const end=moves.trajectory[moves.trajectory.length-1];
+    if(end) updateBall(end.x, end.y, end.z || 0);
+  }
+}
+window.closeHighlights = function(){ const modal=document.getElementById('highlights-modal');modal.style.display='none';window.AgentSoccerDialogs.close(modal); };
+window.showPlayerRatings = function(){
+  const st = gameState||{};
+  const moves=st.move_history||[];
+  // WhoScored 6.0 baseline, FIFA 35-attr weighted (Pace/Shooting etc simplified to goals/shots/progress)
+  const players={a: {}, b:{}};
+  // init 3 each
+  for(let i=0;i<3;i++){ players.a[i]={goals:0,shots:0,onTarget:0,progress:0}; players.b[i]={goals:0,shots:0,onTarget:0,progress:0}; }
+  moves.forEach(m=>{
+    const isA = m.mover==='a' || m.player==='A';
+    const side = isA?'a':'b';
+    const pid = m.player_idx!=null? m.player_idx : 0;
+    if(players[side][pid]==null) players[side][pid]={goals:0,shots:0,onTarget:0,progress:0};
+    const traj=m.trajectory||[];
+    const end=traj.length?traj[traj.length-1]:null;
+    const start=traj.length?traj[0]:null;
+    if(m.scored && ((m.scored==='A'&&isA)||(m.scored==='B'&&!isA))) players[side][pid].goals++;
+    // shot = power>=50 and speed>200
+    const power=m.power||0;
+    const sp = (()=>{ if(!traj||traj.length<2) return 0; let mx=0; const stp=Math.max(1,Math.round((traj.length-1)/100)); for(let i=1;i<traj.length;i++) mx=Math.max(mx, Math.hypot(traj[i].x-traj[i-1].x,traj[i].y-traj[i-1].y)*60/stp); return mx; })();
+    if(power>=50 && sp>200) players[side][pid].shots++;
+    if(end && 356<=end.y && end.y<=519) players[side][pid].onTarget++;
+    if(start && end) players[side][pid].progress += (isA? end.x-start.x : start.x-end.x);
+  });
+  const list=document.getElementById('ratings-list');
+  list.innerHTML='';
+  ['a','b'].forEach(side=>{
+    const title=document.createElement('div');
+    title.style='font-size:.78rem;font-weight:800;margin-top:6px;color:#0f172a';
+    title.textContent= side==='a' ? 'Team A (You)' : 'Team B (AI)';
+    list.appendChild(title);
+    for(let i=0;i<3;i++){
+      const p=players[side][i];
+      // FIFA: Pace/Shooting... simplified to rating 6.0 + goal*1.8 + shot*0.4 + onTarget*0.5 + progress/800, capped 4-10, rare 10 needs 2+ goals
+      let r = 6.0 + p.goals*1.8 + p.shots*0.35 + p.onTarget*0.45 + Math.max(-0.8, Math.min(1.2, p.progress/900));
+      r = Math.max(4.0, Math.min(10.0, r));
+      // nudge for hat-trick style: if 0 goals and negative progress, drop a bit
+      const width = ((r-4)/6)*100;
+      const col = r>=8.5? '#16a34a' : r>=7?'#0ea5e9' : r>=6?'#64748b' : '#ef4444';
+      const row=document.createElement('div');
+      row.style='display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff';
+      row.innerHTML='<span style="width:28px;font-weight:700;text-align:center;background:'+col+';color:#fff;border-radius:6px;padding:3px 0">'+r.toFixed(1)+'</span><span style="flex:1;font-size:.82rem;font-weight:600">Player '+(i+1)+' — '+p.goals+'G '+p.shots+'S '+p.onTarget+'T</span><span style="width:90px;height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><span style="display:block;height:100%;width:'+width+'%;background:'+col+'"></span></span>';
+      list.appendChild(row);
+    }
+  });
+  document.getElementById('ratings-modal').style.display='flex';
+  window.AgentSoccerDialogs.open(document.getElementById('ratings-modal'));
+};
+window.closeRatings = function(){ const modal=document.getElementById('ratings-modal');modal.style.display='none';window.AgentSoccerDialogs.close(modal); };
+
+//  Voice chat (1v1 P2P WebRTC, STUN-only)
+const VOICE = {
+  pc: null, localStream: null, localTrack: null, audioEl: null,
+  enabled: false, connected: false, after: -1, oppMuted: false,
+  icePending: [], starting: false, generation: 0, signalChain: Promise.resolve(),
+};
+const VOICE_ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+function voiceBtn()      { return document.getElementById('voice-btn'); }
+function voicePanel()    { return document.getElementById('voice-panel'); }
+function voiceStatusEl() { return document.getElementById('voice-status'); }
+function voiceMicBtn()   { return document.getElementById('voice-mic-btn'); }
+function voiceOppMuted() { return document.getElementById('voice-opp-muted'); }
+function onlineCanVoice() { return ONLINE.active && ONLINE.status === 'active' && !ONLINE.leaving && ['a', 'b'].includes(ONLINE.side); }
+
+function setVoiceStatus(text, cls) {
+  const el = voiceStatusEl();
+  el.className = cls || '';
+  el.innerHTML = '<span class="dot"></span>' + text;
+}
+
+function showVoiceUi(show) {
+  document.getElementById('voice-controls').style.display = onlineCanVoice() ? 'flex' : 'none';
+  voiceBtn().style.display = onlineCanVoice() && !show ? 'block' : 'none';
+  voicePanel().style.display = show ? 'flex' : 'none';
+}
+
+function sendVoice(sig, peer = VOICE.pc) {
+  if (!onlineCanVoice() || !VOICE.enabled || peer !== VOICE.pc) return;
+  fetch('/online/' + ONLINE.roomId + '/voice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sig),
+  }).catch(function() {});
+}
+
+window.voiceEnable = async function() {
+  if (VOICE.enabled || VOICE.starting || !onlineCanVoice()) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showVoiceUi(true); setVoiceStatus('Voice requires HTTPS or localhost.', 'v-bad'); return;
+  }
+  const generation = ++VOICE.generation, roomGeneration = ONLINE.generation;
+  VOICE.starting = true; showVoiceUi(true); setVoiceStatus('Voice: requesting microphone…', 'v-busy');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    if (VOICE.generation !== generation || ONLINE.generation !== roomGeneration) return;
+    VOICE.starting = false;
+    showVoiceUi(true);
+    setVoiceStatus('Voice: mic permission denied', 'v-bad');
+    return;
+  }
+  if (VOICE.generation !== generation || ONLINE.generation !== roomGeneration || !onlineCanVoice()) {
+    stream.getTracks().forEach(track => track.stop()); return;
+  }
+  VOICE.starting = false;
+  const pc = new RTCPeerConnection(VOICE_ICE);
+  VOICE.pc = pc;
+  VOICE.localStream = stream;
+  VOICE.localTrack = stream.getAudioTracks()[0] || null;
+  if (VOICE.localTrack) pc.addTrack(VOICE.localTrack, stream);
+  const remote = new MediaStream();
+  pc.ontrack = function(e) {
+    if (VOICE.pc !== pc || !VOICE.enabled || ONLINE.generation !== roomGeneration) return;
+    e.streams.forEach(function(s) { s.getAudioTracks().forEach(function(t) { remote.addTrack(t); }); });
+    if (!VOICE.audioEl) {
+      VOICE.audioEl = new Audio();
+      VOICE.audioEl.autoplay = true;
+      VOICE.audioEl.srcObject = remote;
+      VOICE.audioEl.play().catch(function() {});
+    }
+  };
+  pc.onicecandidate = function(e) {
+    if (e.candidate) sendVoice({ type: 'ice', data: { candidate: e.candidate } }, pc);
+  };
+  pc.onconnectionstatechange = updateVoiceState;
+  pc.oniceconnectionstatechange = updateVoiceState;
+  VOICE.enabled = true;
+  VOICE.after = -1;
+  VOICE.oppMuted = false;
+  VOICE.icePending = [];
+  voiceOppMuted().style.display = 'none';
+  showVoiceUi(true);
+  setVoiceStatus('Voice: connecting…', 'v-busy');
+  updateVoiceMicBtn();
+  if (ONLINE.side === 'a') {
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendVoice({ type: 'offer', data: { sdp: pc.localDescription.sdp } }, pc);
+    } catch (err) { /* state handler will surface failure */ }
+  }
+  pollOnline();
+};
+
+function updateVoiceState() {
+  if (!VOICE.pc || !VOICE.enabled) return;
+  const st = VOICE.pc.connectionState || VOICE.pc.iceConnectionState;
+  if (st === 'connected' || st === 'completed') {
+    VOICE.connected = true;
+    setVoiceStatus('Voice: connected', 'v-ok');
+  } else if (st === 'connecting' || st === 'checking' || st === 'new') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: connecting…', 'v-busy');
+  } else if (st === 'disconnected') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: connection lost', 'v-bad');
+  } else if (st === 'failed') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: failed (P2P blocked? no TURN)', 'v-bad');
+  } else if (st === 'closed') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: disconnected', '');
+  }
+}
+
+function updateVoiceMicBtn() {
+  const muted = !VOICE.localTrack || !VOICE.localTrack.enabled;
+  voiceMicBtn().textContent = muted ? 'Unmute' : 'Mute';
+  voiceMicBtn().classList.toggle('muted', muted);
+  voiceMicBtn().title = muted ? 'Unmute microphone' : 'Mute microphone';
+}
+
+window.voiceToggle = function() {
+  if (!onlineCanVoice()) return;
+  if (VOICE.enabled || VOICE.starting) { voiceDisconnect(); } else { voiceEnable(); }
+};
+
+window.voiceToggleMic = function() {
+  if (!VOICE.enabled || !VOICE.localTrack) return;
+  VOICE.localTrack.enabled = !VOICE.localTrack.enabled;
+  updateVoiceMicBtn();
+  sendVoice({ type: 'mute', data: { muted: !VOICE.localTrack.enabled } });
+};
+
+window.voiceDisconnect = function() {
+  VOICE.generation++; VOICE.starting = false; VOICE.signalChain = Promise.resolve();
+  if (VOICE.pc) {
+    VOICE.pc.onicecandidate = null;
+    VOICE.pc.ontrack = null;
+    VOICE.pc.onconnectionstatechange = null;
+    VOICE.pc.oniceconnectionstatechange = null;
+    VOICE.pc.close();
+    VOICE.pc = null;
+  }
+  if (VOICE.localStream) {
+    VOICE.localStream.getTracks().forEach(function(t) { t.stop(); });
+    VOICE.localStream = null;
+  }
+  if (VOICE.audioEl) {
+    VOICE.audioEl.srcObject = null;
+    VOICE.audioEl.pause();
+    VOICE.audioEl = null;
+  }
+  VOICE.localTrack = null;
+  VOICE.enabled = false;
+  VOICE.connected = false;
+  VOICE.after = -1;
+  VOICE.oppMuted = false;
+  VOICE.icePending = [];
+  voiceOppMuted().style.display = 'none';
+  showVoiceUi(false);
+  setVoiceStatus('Voice: off', '');
+};
+
+function flushVoiceIce(pc = VOICE.pc) {
+  if (!pc || pc !== VOICE.pc || !VOICE.enabled) return;
+  VOICE.icePending.forEach(function(c) {
+    if (pc.remoteDescription && pc.remoteDescription.type) {
+      pc.addIceCandidate(new RTCIceCandidate(c)).catch(function() {});
+    }
+  });
+  VOICE.icePending = [];
+}
+
+async function handleVoiceSignal(sig) {
+  if (!VOICE.pc || !VOICE.enabled) return;
+  const pc = VOICE.pc;
+  if (sig.type === 'offer') {
+    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: sig.data.sdp }));
+    if (pc !== VOICE.pc || !VOICE.enabled) return;
+    flushVoiceIce(pc);
+    const answer = await pc.createAnswer();
+    if (pc !== VOICE.pc || !VOICE.enabled) return;
+    await pc.setLocalDescription(answer);
+    sendVoice({ type: 'answer', data: { sdp: pc.localDescription.sdp } }, pc);
+  } else if (sig.type === 'answer') {
+    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sig.data.sdp }));
+    flushVoiceIce(pc);
+  } else if (sig.type === 'ice') {
+    if (sig.data && sig.data.candidate) {
+      if (pc.remoteDescription && pc.remoteDescription.type) {
+        pc.addIceCandidate(new RTCIceCandidate(sig.data.candidate)).catch(function() {});
+      } else {
+        VOICE.icePending.push(sig.data.candidate);
+      }
+    }
+  } else if (sig.type === 'mute') {
+    VOICE.oppMuted = !!(sig.data && sig.data.muted);
+    voiceOppMuted().style.display = VOICE.oppMuted ? 'inline-block' : 'none';
+  }
+}
+
+window.__voiceState = function() {
+  const pc = VOICE.pc;
+  return {
+    active: ONLINE.active, enabled: VOICE.enabled, starting: VOICE.starting, connected: VOICE.connected,
+    after: VOICE.after, oppMuted: VOICE.oppMuted, hasPc: !!pc,
+    micMuted: !!VOICE.localTrack && !VOICE.localTrack.enabled,
+    statusText: voiceStatusEl().textContent,
+    panelShown: voicePanel().style.display !== 'none',
+    pcState: pc ? (pc.connectionState || 'null') : null,
+    iceState: pc ? (pc.iceConnectionState || 'null') : null,
+    gatherState: pc ? (pc.iceGatheringState || 'null') : null,
+    remoteDesc: pc && pc.remoteDescription ? pc.remoteDescription.type : null,
+    pendingIce: VOICE.icePending.length,
+  };
+};
+
+async function animateOnlineMove(move, game, generation = ONLINE.generation) {
+  const current = () => ONLINE.active && ONLINE.generation === generation && !ONLINE.leaving;
+  if (!current()) return;
+  isAnimating = true;
+  playerInput.sync();
+  try {
+    const team = move.mover === 'a' ? 'a' : 'b';
+    const players = team === 'a' ? game.players_a : game.players_b;
+    const kickerPos = players && players[move.player_idx];
+    if (kickerPos) playPositional(_kickBuf, pitchPosition(kickerPos.x, kickerPos.y), { volume: 0.7 });
+    const isPenalty = move.is_penalty ?? !!gameState.penalty_shootout;
+    if (isPenalty) {
+      await new Promise(r => animateTrajectory(move.trajectory, r, current));
+    } else {
+      const t0 = move.trajectory && move.trajectory[0];
+      const from = t0 && t0[team] && t0[team][move.player_idx]
+        ? { x: t0[team][move.player_idx].x, y: t0[team][move.player_idx].y }
+        : players?.[move.player_idx];
+      if (!from) return;
+      await animateKickTrajectory(move, team, from, current, animSpeed);
+    }
+    if (!current()) return;
+    syncBall(move.trajectory, move.scored);
+    logMove(move.desc, !!move.scored);
+    if (move.scored) {
+      SoundManager.goal();
+      triggerGoalEffect(typeof move.scored === 'string' ? move.scored.toLowerCase() : team);
+      triggerCrowdCheer();
+    }
+  } finally {
+    if (current()) { isAnimating = false; _skipKickerIdx = -1; _skipKickerTeam = ''; playerInput.sync(); }
+  }
+}
+
+async function submitOnlineKick(playerIdx, angleDeg, power) {
+  const legal = controlAccess(gameState, ONLINE, isAnimating);
+  if (!legal.canKick || !legal.indices.includes(playerIdx)) return;
+  isAnimating = true; playerInput.sync();
+  const roomId = ONLINE.roomId, generation = ONLINE.generation;
+  ONLINE.pollController?.abort(); ONLINE.pollController = null; ONLINE.polling = false;
+  const controller = new AbortController(); ONLINE.moveController = controller;
+  try {
+    const data = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/move', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_idx: playerIdx, angle: angleDeg, power, expected_move_count: ONLINE.lastKick }), signal: controller.signal,
+    });
+    if (!ONLINE.active || ONLINE.generation !== generation) return;
+    if (!data.move_result || !data.game) throw new Error('Could not read your move. Refreshing the match…');
+    AW.handle(data);
+    ONLINE.lastKick = onlineRevision(data.game, data);
+    if (data.ranked_result) RANKED.delta = data.ranked_result;
+    await animateOnlineMove(data.move_result, data.game, generation);
+    if (!ONLINE.active || ONLINE.generation !== generation) return;
+    commitOnlineGame(data.game);
+    if (data.game.game_over || data.status === 'done') finishOnline();
+  } catch (error) {
+    if (error.name === 'AbortError' || !ONLINE.active || ONLINE.generation !== generation) return;
+    if ([400, 409].includes(error.status) || !error.status) { ONLINE.ready = false; ONLINE.lastKick = -1; }
+    throw error;
+  } finally {
+    if (ONLINE.generation === generation) {
+      isAnimating = false; _skipKickerIdx = -1; _skipKickerTeam = ''; ONLINE.moveController = null;
+      playerInput.sync(); if (!ONLINE.ready) void pollOnline();
+    }
+  }
+}
+
+let CUST_TEAM_A = '#3b82f6';
+let CUST_TEAM_B = '#ef4444';
+
+// Penalty timer refs
+let keepTimer = null;
+let penaltyShootTimer = null;
+
+// Animated ball position
+let animBall = null;
+
+function rebuildPlayers(){
+  if(!gameState)return;
+  pitch.setTheme({team_a_color:CUST_TEAM_A,team_b_color:CUST_TEAM_B});
+  syncBallSize(gameState);updatePlayerPositions();updateReferee(gameState.referee?.x,gameState.referee?.y);
+}
+function updatePlayerPositions(syncControls=true){
+  if(!gameState)return;pitch.setRoster(gameState.players_a,gameState.players_b);
+  if(syncControls)playerInput.sync();
+}
+const playerInput=createPlayerInput({
+  canvas:pitch.canvas,getState:()=>gameState,getOnline:()=>ONLINE,isBusy:()=>isAnimating||!!LOCAL_TURN.pending,
+  getGround:(x,y)=>pitch.point(x,y),hitTest:(x,y,legal)=>pitch.hitTest(x,y,legal,gameState),
+  onAim:(home,pull)=>pitch.setAim(home,pull),onClear:()=>pitch.clearAim(),
+  onSelect:(team,index,active)=>pitch.setSelection(team,index,active),
+  onKick:submitKick,onDirty:requestRender,onHover:showCaptainHint,
+  getOrbitEnabled:()=>false,setOrbitEnabled:()=>{},
+});
+window.setPassType=value=>playerInput.setPassType(value);
+window.__playerControlState=()=>playerInput.snapshot();
+
+// Teams and formations
+let TEAMS_CACHE = [];
+async function loadTeams() {
+  try {
+    const r = await fetch('/api/teams');
+    const teams = await r.json();
+    TEAMS_CACHE = teams;
+    const aSel = document.getElementById('team-a-select');
+    const bSel = document.getElementById('team-b-select');
+    if (!aSel || !bSel) return;
+    aSel.innerHTML = '<option value="">— Team A —</option>';
+    bSel.innerHTML = '<option value="">— Team B —</option>';
+    for (const tm of teams) {
+      const o1 = document.createElement('option'); o1.value = tm.id; o1.textContent = tm.crest + ' ' + tm.name;
+      const o2 = o1.cloneNode(true);
+      aSel.appendChild(o1); bSel.appendChild(o2);
+    }
+    // set defaults from current gameState or room
+    if (typeof gameState !== 'undefined' && gameState) {
+      if (gameState.team_a) aSel.value = gameState.team_a;
+      if (gameState.team_b) bSel.value = gameState.team_b;
+    }
+  } catch(e) {}
+}
+loadTeams();
+async function loadFormations() {
+  try {
+    const r = await fetch('/api/formations');
+    const data = await r.json();
+    const aSel = document.getElementById('formation-a-select');
+    const bSel = document.getElementById('formation-b-select');
+    if (!aSel || !bSel) return;
+    aSel.innerHTML = ''; bSel.innerHTML = '';
+    for (const f of data.formations) {
+      const o1 = document.createElement('option'); o1.value=f; o1.textContent=f;
+      const o2 = o1.cloneNode(true);
+      aSel.appendChild(o1); bSel.appendChild(o2);
+    }
+    // set to manager defaults
+    const updateManager = (teamId, side) => {
+      const mgr = data.managers[teamId];
+      const el = document.getElementById(side==='a' ? 'manager-a' : 'manager-b');
+      const sel = document.getElementById(side==='a' ? 'formation-a-select' : 'formation-b-select');
+      if (mgr && el) el.textContent = 'Manager: ' + mgr.name + ' (' + mgr.style + ')';
+      if (mgr && sel) sel.value = mgr.formation;
+    };
+    // hook team change to update manager/formation
+    document.getElementById('team-a-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'a'); });
+    document.getElementById('team-b-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'b'); });
+    // also listen formation change to trigger reset
+    aSel.addEventListener('change', async e => {
+      if (ONLINE.active || isAnimating) return;
+      const generation = ONLINE.generation;
+      const a = document.getElementById('team-a-select').value;
+      const b = document.getElementById('team-b-select').value;
+      if (a && b && a!==b) {
+        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: e.target.value, formation_b: bSel.value})});
+        const st = await fetch('/state').then(r=>r.json());
+        if (ONLINE.active || ONLINE.generation !== generation) return;
+        gameState=st; rebuildPlayers(); updateHUD(st);
+      }
+    });
+    bSel.addEventListener('change', async e => {
+      if (ONLINE.active || isAnimating) return;
+      const generation = ONLINE.generation;
+      const a = document.getElementById('team-a-select').value;
+      const b = document.getElementById('team-b-select').value;
+      if (a && b && a!==b) {
+        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: aSel.value, formation_b: e.target.value})});
+        const st = await fetch('/state').then(r=>r.json());
+        if (ONLINE.active || ONLINE.generation !== generation) return;
+        gameState=st; rebuildPlayers(); updateHUD(st);
+      }
+    });
+    // referee
+    const refR = await fetch('/api/referees').then(r=>r.json());
+    const ref = refR[Math.floor(Math.random()*refR.length)];
+    const refEl = document.getElementById('referee-display');
+    if (refEl) refEl.textContent = 'Referee: ' + ref.name + ' (' + ref.country + ')';
+  } catch(e) {}
+}
+loadFormations();
+
+async function chooseTeam(side, teamId) {
+  const errEl = document.getElementById('team-error');
+  if (errEl) errEl.style.display='none';
+  if (isAnimating || ONLINE.leaving || (ONLINE.active && (side !== ONLINE.side || !ONLINE.ready || ONLINE.lastKick > 0))) {
+    if (errEl) { errEl.textContent = ONLINE.lastKick > 0 ? 'Choose your team before the first kick.' : 'Only your own team can be selected before kickoff.'; errEl.style.display='block'; }
+    return;
+  }
+  const generation = ONLINE.generation;
+  // offline: just save to local and reset game with team
+  if (!ONLINE.active) {
+    // store in localStorage and trigger reset with team
+    localStorage.setItem('team_' + side, teamId);
+    // disable same team on other select
+    const other = side === 'a' ? document.getElementById('team-b-select') : document.getElementById('team-a-select');
+    if (other) {
+      for (const opt of other.options) { opt.disabled = (opt.value && opt.value === teamId); }
+    }
+    // also update formation to manager default
+    try {
+      const r = await fetch('/api/formations').then(x=>x.json());
+      const mgr = r.managers[teamId];
+      const fSel = document.getElementById(side==='a' ? 'formation-a-select' : 'formation-b-select');
+      if (mgr && fSel) { fSel.value = mgr.formation; document.getElementById(side==='a' ? 'manager-a' : 'manager-b').textContent = 'Manager: ' + mgr.name; }
+    } catch(e) {}
+    if (ONLINE.active || ONLINE.generation !== generation) return;
+    // if both chosen, auto reset with teams + formations
+    const a = document.getElementById('team-a-select').value;
+    const b = document.getElementById('team-b-select').value;
+    const fa = document.getElementById('formation-a-select').value;
+    const fb = document.getElementById('formation-b-select').value;
+    if (a && b) {
+      if (a === b) {
+        if (errEl) { errEl.textContent = 'Teams must be different — 2 players cannot choose same team'; errEl.style.display='block'; }
+        return;
+      }
+      const teamA = TEAMS_CACHE.find(t=>t.id===a);
+      const teamB = TEAMS_CACHE.find(t=>t.id===b);
+      if (teamA) CUST_TEAM_A = teamA.primary;
+      if (teamB) CUST_TEAM_B = teamB.primary;
+      await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: fa, formation_b: fb})});
+      const st = await fetch('/state').then(r=>r.json());
+      if (ONLINE.active || ONLINE.generation !== generation) return;
+      gameState = st; rebuildPlayers(); updateHUD(st);
+    }
+    return;
+  }
+  // online: POST to room
+  if (!ONLINE.roomId) return;
+  try {
+    await onlineJSON('/online/' + encodeURIComponent(ONLINE.roomId) + '/team', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_id: teamId})});
+    if (!ONLINE.active || ONLINE.generation !== generation) return;
+    await pollOnline();
+  } catch (error) {
+    if (ONLINE.generation !== generation) return;
+    if (errEl) { errEl.textContent = error.message; errEl.style.display='block'; }
+    await loadTeams(); return;
+  }
+  // success: update UI, disable same team on other side
+  const otherSel = side === 'a' ? document.getElementById('team-b-select') : document.getElementById('team-a-select');
+  if (otherSel) {
+    for (const opt of otherSel.options) { opt.disabled = (opt.value && opt.value === teamId); }
+  }
+}
+document.getElementById('team-a-select')?.addEventListener('change', e=> chooseTeam('a', e.target.value));
+document.getElementById('team-b-select')?.addEventListener('change', e=> chooseTeam('b', e.target.value));
+
+window.showViewSettings=show=>{
+  const el=document.getElementById('view-settings-modal');el.classList.toggle('visible',!!show);
+  if(show)window.AgentSoccerDialogs.open(el);else window.AgentSoccerDialogs.close(el);
+};
+requestRender();
+
+// The match clock updates without waking the pitch renderer.
+let hudClockTimer = null;
+function updateClockTimer() {
+  if (hudClockTimer) { clearInterval(hudClockTimer); hudClockTimer = null; }
+  if (document.hidden) return;
+  if (gameState) updateMatchClock(gameState);
+  hudClockTimer = setInterval(() => { if (gameState) updateMatchClock(gameState); }, 100);
+}
+document.addEventListener('visibilitychange', updateClockTimer);
+window.addEventListener('pagehide', () => { clearInterval(hudClockTimer); hudClockTimer = null; cancelLocalTurn(); });
+window.addEventListener('pageshow', updateClockTimer);
+updateClockTimer();
+
+//  HUD helpers
+function showThinking() {
+  const tb = document.getElementById('turn-badge');
+  if (!tb) return;
+  tb.textContent = 'AI thinking…';
+  tb.className = 'turn-badge turn-b turn-thinking';
+}
+
+function updateMatchClock(st, nowMs = performance.timeOrigin + performance.now()) {
+  // Display regulation time as a conventional 0:00–90:00 match clock.
+  const gc = document.getElementById('game-clock');
+  if (gc && st.start_time) {
+    const hl = st.half_length || 45;
+    const regulationGameSeconds = hl * 2 * 60;
+    const elapsed = Math.max(0, nowMs / 1000 - st.start_time);
+    const gameSeconds = Math.min(regulationGameSeconds, elapsed * 20);
+    const mins = Math.floor(gameSeconds / 60);
+    const secs = Math.floor(gameSeconds % 60);
+    const tenths = Math.floor((gameSeconds % 1) * 10);
+    const text = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + '.' + tenths;
+    if (gc.textContent !== text) gc.textContent = text;
+    const title = st.period + (st.game_over ? ' — FT' : '');
+    if (gc.title !== title) gc.title = title;
+  }
+}
+
+function updateHUD(st) {
+  playerInput.sync();
+  document.querySelector('.team-a .team-name').textContent = ONLINE.active ? ONLINE.nameA || 'Team A' : st.game_mode === 'hvai' ? 'You' : 'Team A';
+  document.querySelector('.team-b .team-name').textContent = ONLINE.active ? ONLINE.nameB || 'Team B' : st.game_mode === 'hvai' ? 'AI' : 'Team B';
+  syncBallSize(st);
+  updateMatchClock(st);
+  if (!isAnimating && !animBall && st.ball) {
+    updateBall(st.ball.x, st.ball.y, st.ball.z || 0);
+  }
+  document.getElementById('score-a').textContent = st.score_a;
+  document.getElementById('score-b').textContent = st.score_b;
+  const tb = document.getElementById('turn-badge');
+  const wb = document.getElementById('winner-banner');
+  const over = st.game_over;
+
+  const pUI = document.getElementById('penalty-ui');
+  const keeperBtns = document.getElementById('penalty-keeper-btns');
+  const keeperTimer = document.getElementById('penalty-keeper-timer');
+  const pScore = document.getElementById('penalty-score');
+
+  if (st.penalty_shootout && !over && !ONLINE.active) {
+    pUI.style.display = 'block';
+    const isA = st.is_player_a;
+    const m = st.game_mode;
+    pScore.textContent = 'Penalty ' + (st.penalty_kick_num + 1) + '/' + (st.penalty_kicks.length || 5) +
+      ' — A: ' + st.penalty_a_score + ' / B: ' + st.penalty_b_score;
+    if (m === 'hvai' && !isA) {
+      keeperBtns.style.display = 'flex';
+      startKeeperTimer();
+    } else if (m === 'hvai' && isA) {
+      keeperBtns.style.display = 'none';
+      if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+      startPenaltyShootTimer();
+    } else {
+      keeperBtns.style.display = 'none';
+      keeperTimer.textContent = '';
+      if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+      if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
+    }
+  } else {
+    pUI.style.display = 'none';
+    if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+    if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
+  }
+
+  if (over) {
+    wb.style.display = 'block';
+    if (ONLINE.active) {
+      let msg = st.termination === 'cancelled' ? 'Match cancelled' : String(st.winner || '').toLowerCase() === ONLINE.side ? 'You win!' : st.winner ? 'Opponent wins!' : "It's a draw!";
+      if (ONLINE.ranked && RANKED.delta) {
+        const d = ONLINE.side === 'a' ? RANKED.delta.player_a.delta : RANKED.delta.player_b.delta;
+        const after = ONLINE.side === 'a' ? RANKED.delta.player_a.rating_after : RANKED.delta.player_b.rating_after;
+        msg += '  ' + (d >= 0 ? '+' + d : d) + ' rating (' + after + ')';
+      } else if (ONLINE.ranked) {
+        msg += ONLINE.resultAttempts >= 6 ? '  Rating update pending. Reopen this match to check.' : '  Updating rating…';
+      }
+      wb.textContent = msg;
+      const shareBtn = document.getElementById('match-share-btn');
+      const shareMsg = document.getElementById('match-share-msg');
+      if (ONLINE.roomId) { shareBtn.style.display = ''; shareMsg.style.display = 'none'; }
+      document.getElementById('post-game-options').style.display = 'flex';
+    } else {
+      wb.textContent = st.game_mode !== 'hvai' ? (st.winner ? 'Team ' + String(st.winner).toUpperCase() + ' wins!' : "It's a draw!") : st.winner === 'A' ? 'You win!' : st.winner === 'B' ? 'AI wins!' : "It's a draw!";
+      document.getElementById('post-game-options').style.display = 'flex';
+    }
+    wb.style.color = st.winner === 'A' ? '#059669' : st.winner === 'B' ? '#ef4444' : '#6b7fa3';
+    tb.style.display = 'none';
+  } else {
+    wb.style.display = 'none';
+    document.getElementById('post-game-options').style.display = 'none';
+    document.getElementById('match-share-btn').style.display = 'none';
+    document.getElementById('match-share-msg').style.display = 'none';
+    tb.style.display = '';
+    const isA = st.is_player_a;
+    if (ONLINE.active) {
+      if (!ONLINE.ready || ONLINE.status === 'waiting' || ONLINE.connectionError || ONLINE.leaving) {
+        tb.textContent = controlAccess(st, ONLINE, isAnimating).reason;
+        tb.className = 'turn-badge turn-b';
+      } else {
+        const myTurn = !!isA === (ONLINE.side === 'a');
+        tb.textContent = myTurn ? (st.penalty_shootout ? 'Your penalty kick' : 'Your turn') : 'Opponent\u2019s turn\u2026';
+        tb.className = 'turn-badge ' + (myTurn ? 'turn-a' : 'turn-b');
+      }
+    } else if (LOCAL_TURN.pending && !st.penalty_shootout) {
+      tb.textContent = isAnimating ? 'AI turn in progress\u2026' : 'AI turn paused \u2014 retry';
+      tb.className = 'turn-badge turn-b';
+    } else if (st.penalty_shootout) {
+      tb.textContent = st.game_mode === 'hvh' ? 'Team ' + (isA ? 'A' : 'B') + ' penalty kick' : isA ? 'Your penalty kick!' : 'Choose goalkeeper direction\u2026';
+      tb.className = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+    } else {
+      tb.textContent = st.game_mode === 'hvh' ? 'Team ' + (isA ? 'A' : 'B') + ' to play' : isA ? 'Your turn' : 'AI thinking\u2026';
+      tb.className = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+    }
+  }
+  const aiBtn = document.getElementById('aivai-btn');
+  aiBtn.style.display = !ONLINE.active && (st.game_mode === 'aivai' || (st.game_mode === 'hvai' && !st.penalty_shootout && (!st.is_player_a || LOCAL_TURN.pending))) ? '' : 'none';
+  aiBtn.disabled = isAnimating || st.game_over;
+  aiBtn.textContent = st.game_mode === 'aivai' ? 'Run AI' : 'Retry AI move';
+}
+// A separate DOM timer keeps the match clock moving between server updates.
+
+function logMove(text, isGoal) {
+  const panel = document.getElementById('log-panel');
+  const p = document.createElement('p');
+  if (isGoal) p.className = 'log-goal';
+  p.textContent = text;
+  panel.prepend(p);
+  while (panel.children.length > 20) panel.lastChild.remove();
+}
+
+//  Penalty Shootout
+async function chooseKeeperDir(dir) {
+  if (isAnimating || !gameState?.penalty_shootout || gameState.game_over) return;
+  if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+  document.getElementById('penalty-keeper-btns').style.display = 'none';
+  document.getElementById('penalty-keeper-timer').textContent = '';
+  await triggerAI({ keeperDirection: dir });
+}
+window.chooseKeeperDir = chooseKeeperDir;
+
+function startKeeperTimer() {
+  if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+  let sec = 5;
+  document.getElementById('penalty-keeper-timer').textContent = 'Goalkeeper: ' + sec + 's';
+  keepTimer = setInterval(() => {
+    sec--;
+    document.getElementById('penalty-keeper-timer').textContent = 'Goalkeeper: ' + sec + 's';
+    if (sec <= 0) {
+      clearInterval(keepTimer); keepTimer = null;
+      document.getElementById('penalty-keeper-btns').style.display = 'none';
+      document.getElementById('penalty-keeper-timer').textContent = '';
+      autoPenaltyKick();
+    }
+  }, 1000);
+}
+
+function startPenaltyShootTimer() {
+  if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
+  let sec = 10;
+  document.getElementById('penalty-keeper-timer').textContent = 'Shoot! ' + sec + 's';
+  penaltyShootTimer = setInterval(() => {
+    sec--;
+    document.getElementById('penalty-keeper-timer').textContent = 'Shoot! ' + sec + 's';
+    if (sec <= 0) {
+      clearInterval(penaltyShootTimer); penaltyShootTimer = null;
+      document.getElementById('penalty-keeper-timer').textContent = '';
+      autoPenaltyKick();
+    }
+  }, 1000);
+}
+
+async function autoPenaltyKick() {
+  if (isAnimating || !gameState || gameState.game_over) return;
+  await triggerAI({ keeperDirection: gameState.game_mode === 'hvai' && !gameState.is_player_a && !gameState.penalty_goalkeeper_move ? 'center' : null });
+}
+
+function showCaptainHint(show){
+  document.getElementById('captain-hint').style.display=show?'block':'none';
+  pitch.canvas.style.cursor=show?'grab':'default';
+}
+function animateTrajectory(trajectory,onDone,current=()=>true,playbackSpeed=animSpeed) {
+  syncBallSize(trajectory?.[0]?.ball_size?trajectory[0]:gameState);
+  playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,
+    onBounce:point=>playPositional(_bounceBuf,point,{volume:.45}),
+    onFrame:point=>{
+      gameState.ball={x:point.x,y:point.y,z:point.z||0};
+      updateBall(point.x,point.y,point.z||0);
+      for(const side of ['a','b'])if(Array.isArray(point[side])){
+        const key='players_'+side;
+        gameState[key]=point[side].map((p,i)=>(side===_skipKickerTeam&&i===_skipKickerIdx)?gameState[key][i]:({...gameState[key]?.[i],...p}));
+      }
+      if(point.ref){gameState.referee={...point.ref};updateReferee(point.ref.x,point.ref.y);}
+      updatePlayerPositions(false);
+    },onDone:()=>{onDone();}});
+}
+function animatePlayerMove(playerIdx,team,from,to,onDone,current=()=>true,playbackSpeed=animSpeed){
+  let start=null;
+  function frame(now){
+    if(!current()){onDone();return;}
+    if(start===null)start=now;
+    const t=Math.min(1,(now-start)/Math.max(150,310/playbackSpeed));
+    const p=gameState['players_'+team]?.[playerIdx];
+    if(p){p.x=from.x+(to.x-from.x)*t;p.y=from.y+(to.y-from.y)*t;updatePlayerPositions(false);}
+    if(t<1)pitch.loop.requestAnimationFrame(frame);else onDone();
+  }
+  pitch.loop.requestAnimationFrame(frame);
+}
+
+//  Move submission
+function kickEndpoint(from, angleDeg, power) {
+  const rad = angleDeg * Math.PI / 180;
+  const travel = power * PLAYER_TRAVEL;
+  return {
+    x: Math.max(PLAYER_R, Math.min(W - PLAYER_R, from.x + Math.cos(rad) * travel)),
+    y: Math.max(PLAYER_R, Math.min(H - PLAYER_R, from.y + Math.sin(rad) * travel)),
+  };
+}
+
+function syncBall(trajectory, scored) {
+  if (!trajectory || trajectory.length === 0) return;
+  const last = trajectory[trajectory.length - 1];
+  gameState.ball = scored ? { x: W / 2, y: H / 2, z: 0 } : { x: last.x, y: last.y, z: last.z || 0 };
+}
+
+async function animateKickTrajectory(result, team, from, current, playbackSpeed) {
+  const tracked = result.trajectory?.length && result.trajectory.every(point => {
+    const pawn = point[team]?.[result.player_idx];
+    return Number.isFinite(pawn?.x) && Number.isFinite(pawn?.y);
+  });
+  if (tracked) {
+    await new Promise(resolve => animateTrajectory(result.trajectory, resolve, current, playbackSpeed));
+    return;
+  }
+  // Compatibility for older recordings that omit the selected pawn's track.
+  const kickEnd = result.kick_endpoint || kickEndpoint(from, result.angle, result.power);
+  _skipKickerIdx = result.player_idx;
+  _skipKickerTeam = team;
+  await Promise.all([
+    new Promise(r => animateTrajectory(result.trajectory, r, current, playbackSpeed)),
+    new Promise(r => animatePlayerMove(result.player_idx, team, from, kickEnd, r, current, playbackSpeed)),
+  ]);
+  if (current()) { _skipKickerIdx = -1; _skipKickerTeam = ''; }
+}
+
+async function animateComputerResult(data, resultKey, team, current = () => true, playbackSpeed = animSpeed) {
+  if (!current()) return;
+  const result = data[resultKey];
+  if (!result || !result.trajectory) return;
+  const players = team === 'a' ? data.players_a : data.players_b;
+  const first = result.trajectory[0];
+  const firstTeam = first && first[team];
+  const from = firstTeam && firstTeam[result.player_idx]
+    ? firstTeam[result.player_idx]
+    : players[result.player_idx];
+  if (!from) return;
+  playPositional(_kickBuf, pitchPosition(from.x, from.y), { volume: 0.7 });
+  await animateKickTrajectory(result, team, from, current, playbackSpeed);
+  if (!current()) return;
+  _skipKickerIdx = -1;
+  _skipKickerTeam = '';
+  syncBall(result.trajectory, result.scored);
+  logMove(result.desc, !!result.scored);
+  if (result.scored) {
+    SoundManager.goal();
+    triggerGoalEffect(team);
+    triggerCrowdCheer();
+  }
+}
+
+async function displayMove(data, resultKey, team, options = {}) {
+  const current = options.current || (() => true);
+  const playbackSpeed = options.speed || animSpeed;
+  if (!current()) return;
+  const result = data[resultKey];
+  if (result?.trajectory?.length) {
+    if (gameState.penalty_shootout) {
+      const from = gameState.ball;
+      playPositional(_kickBuf, pitchPosition(from.x, from.y), { volume: 0.7 });
+      await new Promise(resolve => animateTrajectory(result.trajectory, resolve, current, playbackSpeed));
+      if (!current()) return;
+      syncBall(result.trajectory, result.scored); logMove(result.desc, !!result.scored);
+      if (result.scored) { SoundManager.goal(); triggerGoalEffect(team); triggerCrowdCheer(); }
+    } else await animateComputerResult(data, resultKey, team, current, playbackSpeed);
+  }
+  if (!current()) return;
+  gameState = data;
+  updatePlayerPositions();
+  if (gameState.referee) updateReferee(gameState.referee.x, gameState.referee.y);
+  updateHUD(gameState);
+}
+
+function cancelLocalTurn() {
+  LOCAL_TURN.generation++;
+  LOCAL_TURN.controller?.abort(); LOCAL_TURN.controller = null;
+  if (LOCAL_TURN.timer !== null) clearTimeout(LOCAL_TURN.timer);
+  LOCAL_TURN.timer = null; LOCAL_TURN.pending = null;
+  isAnimating = false; animBall = null; _skipKickerIdx = -1; _skipKickerTeam = '';
+  pitch.clearAim();
+}
+
+function beginLocalTurn() {
+  const generation = LOCAL_TURN.generation, onlineGeneration = ONLINE.generation;
+  const controller = new AbortController();
+  LOCAL_TURN.controller = controller;
+  return {
+    signal: controller.signal,
+    current: () => !controller.signal.aborted && LOCAL_TURN.controller === controller &&
+      LOCAL_TURN.generation === generation && ONLINE.generation === onlineGeneration && !ONLINE.active,
+  };
+}
+
+function finishLocalTurn(run) {
+  if (!run.current()) return;
+  LOCAL_TURN.controller = null;
+  isAnimating = false; _skipKickerIdx = -1; _skipKickerTeam = '';
+  setOverlay(false); playerInput.sync(); updateHUD(gameState);
+}
+
+async function requestMoveState(url, command, run) {
+  if (run && !run.current()) throw new DOMException('Match changed', 'AbortError');
+  const response = await fetch(url, { method: 'POST', ...(run ? { signal: run.signal } : {}), ...(command ? {
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(command),
+  } : {}) });
+  const data = await response.json();
+  if (run && !run.current()) throw new DOMException('Match changed', 'AbortError');
+  if (!response.ok || data.error) throw new Error(data.error || 'Could not submit your move. Try again.');
+  AW.handle(data); return data;
+}
+
+// A complete human cycle ends on the captain's turn: A, B, teammate A, B.
+// Keep the next leg for Retry if a request fails after an earlier leg succeeded.
+async function completeHumanTurn(run) {
+  while (run.current() && LOCAL_TURN.pending) {
+    if (gameState.game_over || gameState.penalty_shootout || gameState.game_mode !== 'hvai') {
+      LOCAL_TURN.pending = null; return;
+    }
+    const phase = LOCAL_TURN.pending.phase;
+    const teammate = phase === 1;
+    if (teammate && gameState.players_a.length <= 1) { LOCAL_TURN.pending = null; return; }
+    if (gameState.is_player_a !== teammate) { LOCAL_TURN.pending = null; return; }
+    showThinking();
+    const url = teammate ? '/random_move' : '/ai_move';
+    const key = teammate ? 'random_result' : 'ai_result';
+    const data = await requestMoveState(url, undefined, run);
+    await displayMove(data, key, teammate ? 'a' : 'b', { current: run.current, speed: animSpeed * 2 });
+    if (!run.current()) return;
+    if (phase === 2) LOCAL_TURN.pending = null;
+    else LOCAL_TURN.pending.phase++;
+  }
+}
+
+async function submitKick(playerIdx, angleDeg, power) {
+  const legal = controlAccess(gameState, ONLINE, isAnimating || !!LOCAL_TURN.pending);
+  if (!legal.canKick || !legal.indices.includes(playerIdx) || !Number.isFinite(angleDeg) || !Number.isFinite(power)) return;
+  if (ONLINE.active) return submitOnlineKick(playerIdx, angleDeg, power);
+  const run = beginLocalTurn();
+  LOCAL_TURN.pending = null;
+  isAnimating = true; setOverlay(false); playerInput.sync();
+  try {
+    const data = await requestMoveState('/move', { player_idx: playerIdx, angle: angleDeg, power }, run);
+    await displayMove(data, 'move_result', legal.team, { current: run.current });
+    if (!run.current()) return;
+    // In a shootout the human must choose their keeper direction before the AI.
+    if (!gameState.game_over && gameState.game_mode === 'hvai' && !gameState.is_player_a && !gameState.penalty_shootout) {
+      LOCAL_TURN.pending = { phase: 0 };
+      await completeHumanTurn(run);
+    }
+  } catch (error) { if (run.current()) playerInput.reportError(error.message); }
+  finally { finishLocalTurn(run); }
+}
+
+async function triggerAI({ keeperDirection = null } = {}) {
+  if (isAnimating || ONLINE.active || !gameState || gameState.game_over) return;
+  if (gameState.game_mode === 'hvai' && gameState.is_player_a && !gameState.penalty_shootout && !LOCAL_TURN.pending) return;
+  if (LOCAL_TURN.timer !== null) { clearTimeout(LOCAL_TURN.timer); LOCAL_TURN.timer = null; }
+  const run = beginLocalTurn();
+  const team = gameState.is_player_a ? 'a' : 'b';
+  isAnimating = true; playerInput.sync(); showThinking();
+  let continueAI = false;
+  try {
+    if (keeperDirection) await requestMoveState('/goalkeeper_move', { direction: keeperDirection }, run);
+    if (LOCAL_TURN.pending && !gameState.penalty_shootout) await completeHumanTurn(run);
+    else await displayMove(await requestMoveState('/ai_move', undefined, run), 'ai_result', team, { current: run.current, speed: animSpeed * 2 });
+    continueAI = run.current() && gameState.game_mode === 'aivai' && !gameState.game_over;
+  } catch (error) { if (run.current()) playerInput.reportError(error.message); }
+  finally { finishLocalTurn(run); }
+  if (continueAI) {
+    const generation = LOCAL_TURN.generation, onlineGeneration = ONLINE.generation;
+    LOCAL_TURN.timer = setTimeout(() => {
+      LOCAL_TURN.timer = null;
+      if (LOCAL_TURN.generation === generation && ONLINE.generation === onlineGeneration && !ONLINE.active) void triggerAI();
+    }, 0);
+  }
+}
+
+//  Controls
+window.resetGame = async function() {
+  if (isAnimating || ONLINE.active) return;
+  cancelLocalTurn();
+  const generation = ONLINE.generation;
+  const body = { player_count: 3 };
+  const data = await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+  if (ONLINE.active || ONLINE.generation !== generation) return;
+  AW.handle(data);
+  gameState = data;
+  rebuildPlayers();
+  updateBall(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
+  document.getElementById('log-panel').innerHTML = '';
+  updateHUD(data);
+};
+
+window.undoMove = async function() {
+  if (isAnimating || ONLINE.active) return;
+  cancelLocalTurn();
+  const generation = ONLINE.generation;
+  const data = await fetch('/undo', { method: 'POST' }).then(r => r.json());
+  if (ONLINE.active || ONLINE.generation !== generation) return;
+  AW.handle(data);
+  gameState = data;
+  rebuildPlayers();
+  updateBall(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
+  updateHUD(data);
+};
+
+window.setMode = async function(mode) {
+  if (isAnimating || ONLINE.active) return;
+  cancelLocalTurn();
+  const generation = ONLINE.generation;
+  await fetch('/set_mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+  const data = await fetch('/state').then(r => r.json());
+  if (ONLINE.active || ONLINE.generation !== generation) return;
+  AW.handle(data);
+  gameState = data;
+  rebuildPlayers();
+  updateBall(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
+  updateHUD(data);
+};
+
+window.switchModel = async function(name) {
+  if (ONLINE.active || isAnimating) return;
+  await fetch('/switch_model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name, target: 'b' }) });
+};
+
+window.setAnimSpeed = function(v) { animSpeed = v; };
+
+window.triggerAI = async function() { await triggerAI(); };
+
+
+function setOverlay(show, text) {
+  const el = document.getElementById('canvas-overlay');
+  el.classList.toggle('visible', show);
+  if (show) document.getElementById('overlay-text').textContent = text || 'AI thinking…';
+}
+
+//  Init
+(async () => {
+  try{
+    const cust=await fetch('/api/customization').then(r=>r.json());
+    pitch.setTheme(cust);
+    if(cust.team_a_color)CUST_TEAM_A=cust.team_a_color;
+    if(cust.team_b_color)CUST_TEAM_B=cust.team_b_color;
+  }catch(_){}
+
+  const urlRoom = new URLSearchParams(location.search).get('room');
+  if (urlRoom) {
+    // Online room mode (chat-enabled 1v1) — game state comes from the room
+    document.getElementById('mode-select').value = 'hvh';
+    document.getElementById('online-btn').style.display = 'none';
+    try {
+      const joinData = await onlineJSON('/online/' + encodeURIComponent(urlRoom) + '/join', { method: 'POST' });
+      startOnline(joinData);
+    } catch (error) {
+      await endOnline();
+      document.getElementById('online-join-code').value = urlRoom;
+      showOnlineLobby(true);
+      lobbyStatus(error.message || 'Could not join this match. Try again.');
+    }
+    return;
+  }
+
+  if (new URLSearchParams(location.search).get('new') === '1') {
+    await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_count: 3 }) });
+    history.replaceState(null, '', '/play3d');
+  }
+  const data = await fetch('/state').then(r => r.json());
+  AW.handle(data);
+  document.getElementById('mode-select').value = data.game_mode || 'hvai';
+  gameState = data;
+  rebuildPlayers();
+  updateBall(data.ball.x, data.ball.y, data.ball.z || 0);
+  updateHUD(data);
+
+  // Fill model selector
+  try {
+    const models = await fetch('/models').then(r => r.json());
+    const sel = document.getElementById('model-select');
+    sel.innerHTML = '';
+    models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id; opt.textContent = m.name;
+      if (m.id === data.ai_model) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

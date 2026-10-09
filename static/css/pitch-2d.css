@@ -1,0 +1,5 @@
+body.as-game #pitch-container{display:block;width:100%;height:auto!important;aspect-ratio:1552/1027;min-height:0!important;background:#102c29;touch-action:none}
+body.as-game .canvas-wrap{height:auto!important;aspect-ratio:auto!important}
+#pitch-container canvas:focus-visible{outline:3px solid #f9d97b;outline-offset:-4px}
+body.as-game #fs-wrap:fullscreen{display:flex;flex-direction:column;justify-content:center;background:#102c29}
+body.as-game #fs-wrap:fullscreen #pitch-container{max-height:calc(100vh - 110px)}

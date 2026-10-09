@@ -2,15 +2,15 @@
 
 # Agent Soccer
 
-**A soccer game and Python AI playground, in your browser.** Build a strategy, tune your squad, and watch it compete on a 3D pitch. Agent Soccer combines turn-based controls with server-side physics, online matches, and tools for comparing your agents.
+**A soccer game and Python AI playground, in your browser.** Build a strategy, tune your squad, and watch it compete on a 2D pitch. Agent Soccer combines turn-based controls with server-side physics, online matches, and tools for comparing your agents.
 
-**Python · Flask · Pymunk · Three.js · WebAudio**
+**Python · Flask · Pymunk · Canvas 2D · WebAudio**
 
 [Quick start](#quick-start) · [Build an agent](#build-an-agent) · [AI catalog](#ai-catalog) · [Documentation](#documentation) · [Demo](https://drag-soccer-with-agent.onrender.com/)
 
 ![A seven-a-side online match between Orion FC and Harbor United, with the stadium, scoreboard, and player controls visible.](docs/assets/readme/gameplay.png)
 
-*An actual local 7v7 match. The browser renders the stadium; the server resolves each kick.*
+*An actual local 7v7 match. The browser draws the 2D pitch; the server resolves each kick.*
 
 ## What you can do
 
@@ -18,19 +18,19 @@
 | --- | --- |
 | **Play** | Pull a player back, aim, and release. Play against an AI, take turns locally, or watch AI vs AI. Teams support 1–11 players. |
 | **Build** | Write Python in the AI Playground, validate your strategy, save custom models, and work through seven guided lessons. |
-| **Customize** | Allocate player stats, choose formations and kits, and set the stadium's crowd palette and environment. |
+| **Customize** | Allocate player stats, choose formations and kits, and change pitch, ball, keeper, and referee colors. |
 | **Compete** | Compare agents in the Arena, run tournaments, submit models to the model leaderboard, or play ranked human matches. |
 | **Connect** | Create online rooms, invite friends, join clans, and use match chat or opt-in voice chat. |
 | **Watch** | Spectate active matches, replay tournament games, and share automatically detected highlights. |
 
-The 3D views draw when the scene changes and pause while hidden or offscreen. Camera visibility filtering reduces crowd work. Graphics settings include Auto, 1080p, 1440p, and 4K; the drawing buffer is bounded by GPU and allocation limits. Stadium ambience and match effects use synthesized WebAudio sound.
+The Canvas 2D views show the entire pitch and draw only when something changes. Playback pauses while hidden or offscreen, and a cached pitch avoids repainting the turf and stands each frame. Auto resolution is the default; 1080p, 1440p, and 4K are available with bounded canvas allocation. Stadium ambience and match effects use synthesized WebAudio sound. See [2D rendering](docs/2d-rendering.md).
 
 <details>
-<summary><strong>Explore the player camera, AI editor, and team builder</strong></summary>
+<summary><strong>Explore player controls, the AI editor, and team builder</strong></summary>
 
-### Player camera
+### Player controls
 
-![The native player camera follows the selected footballer, with aiming and power controls below the pitch.](docs/assets/readme/player-view.png)
+![The selected player is highlighted on the 2D pitch, with aiming and power controls below it.](docs/assets/readme/player-view.png)
 
 ### AI Playground
 
@@ -162,11 +162,11 @@ Live requests use four worker slots per process and return a legal tactical fall
 
 ## Architecture
 
-The browser sends commands and plays back authoritative trajectories. **Pymunk handles planar physics; Three.js provides the 3D presentation.** Online match state and voice signaling use HTTP polling. Voice audio travels directly between peers over WebRTC.
+The browser sends commands and plays back authoritative trajectories. **Pymunk handles physics; Canvas 2D draws the match.** Online match state and voice signaling use HTTP polling. Voice audio travels directly between peers over WebRTC.
 
 ```mermaid
 flowchart LR
-    Browser["Browser<br/>Three.js · WebAudio"] <-->|"Commands and snapshots"| App["Flask application"]
+    Browser["Browser<br/>Canvas 2D · WebAudio"] <-->|"Commands and snapshots"| App["Flask application"]
     App --> Physics["Pymunk simulation"]
     App --> Agents["Python AI agents"]
     Agents -->|"Candidate checks"| Physics
@@ -178,7 +178,7 @@ flowchart LR
 | --- | --- |
 | Application | Python, Flask, Gunicorn |
 | Simulation | Pymunk / Chipmunk2D |
-| Browser | Three.js, vanilla JavaScript, shared CSS, local fonts |
+| Browser | Canvas 2D, vanilla JavaScript, shared CSS, local fonts |
 | Editor | CodeMirror with Python mode |
 | Shared state | Redis, with a local in-memory fallback |
 | Persistence and authentication | Supabase; optional Clerk integration |

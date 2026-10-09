@@ -1,7 +1,7 @@
 """Focused browser checks for game dialogs and feedback request lifetimes.
 
 Uses rendered production markup and the actual dialog functions without starting
-Three.js, a game server, or external integrations. Run this file directly.
+the pitch renderer, a game server, or external integrations. Run this file directly.
 """
 from __future__ import annotations
 
@@ -34,14 +34,14 @@ def run() -> list[dict]:
     app.secret_key = "local-dialog-fixture"
     with app.test_request_context():
         session.update(user_id="dev:dialogs", username="Dialog QA")
-        markup = render_template("game/index_3d.html", username="Dialog QA")
+        markup = render_template("game/index_2d.html", username="Dialog QA")
     # Keep the production HTML and styles, while excluding renderer initialization.
     markup = re.sub(r"<script\b[^>]*>[\s\S]*?</script>", "", markup, flags=re.IGNORECASE)
     markup = re.sub(r"<link\b[^>]*>", "", markup, flags=re.IGNORECASE)
     styles = "\n".join((ROOT / "static" / name).read_text(encoding="utf-8")
                        for name in ("css/frontend.css", "css/frontend-game.css"))
     styles = re.sub(r"@import[^;]+;", "", styles)
-    source = (ROOT / "templates/game/index_3d.html").read_text(encoding="utf-8")
+    source = (ROOT / "templates/game/index_2d.html").read_text(encoding="utf-8")
     functions = [game_function(source, name) for name in
                  ("showOnlineLobby", "closeOnlineLobby", "createOnlineMatch", "openMatchModels", "closeMatchModels",
                   "showHighlights", "closeHighlights", "showPlayerRatings", "closeRatings")]

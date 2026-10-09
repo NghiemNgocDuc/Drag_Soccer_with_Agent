@@ -126,13 +126,12 @@ def capture() -> list[dict]:
     try:
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(
-                headless=True, args=["--enable-unsafe-swiftshader"]
+                headless=True, args=["--disable-webgl"]
             )
             context = browser.new_context(
                 viewport={"width": 1600, "height": 1120}, device_scale_factor=1
             )
-            context.add_init_script("""localStorage.setItem('agent-soccer-render-quality','4k');
-              localStorage.setItem('viewMode','top');""")
+            context.add_init_script("localStorage.setItem('agent-soccer-2d-quality','auto');")
             page = context.new_page()
             page.on("pageerror", lambda error: browser_errors.append(str(error)))
             page.on("response", lambda response: failed_requests.append(response.url)
@@ -140,28 +139,19 @@ def capture() -> list[dict]:
             page.goto(base + "/__readme/sign-in", wait_until="networkidle")
 
             page.goto(base + f"/play3d?room={room_id}", wait_until="networkidle")
-            page.wait_for_function("window.__renderStats && window.__crowdInfo && window.__crowdInfo().visible > 0")
+            page.wait_for_function("window.__pitch2D?.().players_a.length === 7")
             page.wait_for_function("document.querySelector('.team-a .team-name').textContent === 'Orion FC'")
-            canvas = page.locator("#three-container canvas")
+            canvas = page.locator("#pitch-container canvas")
             bounds = canvas.bounding_box()
             assert bounds
-            # OrbitControls performs the same zoom and rotate available to users.
-            page.mouse.move(bounds["x"] + bounds["width"] * .5, bounds["y"] + bounds["height"] * .5)
-            page.mouse.wheel(0, -400)
-            page.wait_for_timeout(700)
-            page.mouse.move(bounds["x"] + bounds["width"] * .5, bounds["y"] + bounds["height"] * .5)
-            page.mouse.down()
-            page.mouse.move(bounds["x"] + bounds["width"] * .39, bounds["y"] + bounds["height"] * .51, steps=14)
-            page.mouse.up()
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(300)
             page.evaluate("window.scrollTo(0,0)")
-            save_preview(page, "gameplay.png", "A 7v7 online match with 3D players, stadium spectators, and shared turn controls.")
+            save_preview(page, "gameplay.png", "A 7v7 online match on the 2D pitch with shared turn controls.", full_page=True)
 
             page.locator("#player-select").select_option("6")
-            page.evaluate("window.setViewMode('player')")
-            page.wait_for_timeout(1200)
+            page.wait_for_timeout(300)
             page.evaluate("window.scrollTo(0,0)")
-            save_preview(page, "player-view.png", "The player camera follows the selected footballer in the same online match.")
+            save_preview(page, "player-view.png", "The selected player is highlighted on the 2D pitch.", full_page=True)
 
             context.add_init_script("sessionStorage.setItem('pg_preload_code', " + json.dumps(EXAMPLE_CODE) + ");")
             page.goto(base + "/playground", wait_until="networkidle")

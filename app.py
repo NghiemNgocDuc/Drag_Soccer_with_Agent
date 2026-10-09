@@ -946,10 +946,11 @@ def lobby_page():
     )
 
 
+@app.route("/play2d")
 @app.route("/play3d")
 @login_required
 def index_3d():
-    return render_template("game/index_3d.html", username=session.get("username", "Player"))
+    return render_template("game/index_2d.html", username=session.get("username", "Player"))
 
 
 
@@ -4067,7 +4068,7 @@ def spectate_room(room_id):
     if not room:
         flash("That match is no longer available.", "error")
         return redirect(url_for("spectate_page"))
-    return render_template("game/replay_3d.html",
+    return render_template("game/replay_2d.html",
                            username=session.get("username"),
                            t=None, match={"replay_data": [], "replay_data_len": 0},
                            highlights=[], highlight=None, live_room=room_id,
@@ -4946,6 +4947,7 @@ def tournament_watch(tid, match_id):
     return redirect(url_for("tournament_watch_3d", tid=tid, match_id=match_id))
 
 
+@app.route("/replay2d/<tid>/<match_id>")
 @app.route("/replay3d/<tid>/<match_id>")
 @login_required
 def tournament_watch_3d(tid, match_id):
@@ -4957,7 +4959,7 @@ def tournament_watch_3d(tid, match_id):
         flash("Match not available for replay")
         return redirect(url_for("tournament_view", tid=tid))
     hls = get_highlights(tid, match_id) or []
-    return render_template("game/replay_3d.html", username=session.get("username", "Player"),
+    return render_template("game/replay_2d.html", username=session.get("username", "Player"),
                            t=t, match=m, highlights=hls, highlight=None, live_room=None,
                            loss_model=None, loss_model_name=None)
 
@@ -4989,7 +4991,7 @@ def highlight_page(hid):
         flash("Match not available for replay")
         return redirect(url_for("tournament_view", tid=h["tid"]))
     hls = get_highlights(h["tid"], h["match_id"]) or []
-    return render_template("game/replay_3d.html", username=session.get("username", "Player"),
+    return render_template("game/replay_2d.html", username=session.get("username", "Player"),
                            t=t, match=m, highlights=hls, highlight=h, live_room=None,
                            loss_model=None, loss_model_name=None)
 
@@ -5674,7 +5676,7 @@ def loss_analysis_page():
         flash("Model not found or access denied")
         return redirect(url_for("my_models_page"))
     return render_template(
-        "game/replay_3d.html", username=session.get("username", "Player"),
+        "game/replay_2d.html", username=session.get("username", "Player"),
         t=None, match=None, highlights=[], highlight=None, live_room=None,
         loss_model=USER_MODEL_PREFIX + model_id, loss_model_name=m["name"],
         loss_builtin_models=MODEL_CATALOG,

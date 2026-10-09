@@ -1,17 +1,23 @@
 # Agent Soccer — Project State
 
 ## One-line
-Browser-based 2v2–11v11 3D soccer game where human/AI players take turns kicking, powered by pymunk physics. Players have 4 point-buy stats (Size/Power/Weight/Agility) that meaningfully differentiate gameplay.
+Browser-based 1v1–11v11 2D soccer game where human/AI players take turns kicking, powered by pymunk physics. Players have 4 point-buy stats (Size/Power/Weight/Agility) that meaningfully differentiate gameplay.
 
 ## Architecture
 
 - **Backend**: Flask (Python), pymunk physics engine, Redis (Upstash) + Supabase, gthread 4×2
-- **Frontend**: Three.js 3D rendering via HTML templates, shared SoundManager (`static/js/game/sound.js`), `static/css/frontend.css` and scoped page styles with local fonts
+- **Frontend**: Canvas 2D via `templates/game/index_2d.html` and `replay_2d.html`, shared `pitch-2d.js`, `playback-2d.js`, SoundManager (`static/js/game/sound.js`), shared CSS and local fonts
 - **AI models**: 12 supported IDs in `app.py:MODELS`; current catalog and approaches are in README. Built-ins share a 120 ms / 12-prediction budget, tactical seeds, and cooperative physics cancellation; the Q learner retains its immediate lookup. Live requests use four worker slots and a legal tactical fallback. Unknown/custom models retain a two-second request wait and keep their slot until done; uploaded execution has a separate five-second limit. See `docs/ai-responsiveness.md`. Historical feature sections below may describe retired agents.
 - **Auth**: Supabase + Clerk optional, Flask-Login, dev `DEV_MODE=1` in-memory
-- **3D-only**: All 2D templates deleted. The served diagram is `static/images/workflow.png`; its editable source is `docs/diagrams/workflow-source.html`. Unused root copies (including a PNG mislabeled as PDF) were removed.
+- **2D default**: `/play2d` and `/replay2d/<tid>/<match_id>` serve Canvas views; existing `/play3d` and `/replay3d` URLs remain compatible aliases. Spectators, highlights and loss review also use 2D. The old 3D templates are retained as unserved reference files. The served diagram is `static/images/workflow.png`; its editable source is `docs/diagrams/workflow-source.html`.
 
 ## What's in place
+
+### Current 2D presentation
+- Full-pitch Canvas rendering uses a cached background, numbered stat-sized players, distinct keepers, a ball with a height indicator, a referee marker, aim arrows and finite goal/whistle effects. Server physics and controls are unchanged.
+- Auto resolution is the default; optional 4K uses a 3840-pixel long edge, bounded by 4096 pixels per edge and 10 million pixels total. Idle, hidden and offscreen views stop drawing.
+- Verification: `python tools/browser/verify_2d.py` and `node --test tests/frontend/test_pitch_2d.mjs`. README images are captured by the updated `tools/browser/capture_readme.py`. See `docs/2d-rendering.md`.
+- The 3D camera, mesh, crowd and environment descriptions below are historical. They do not describe the current served renderer.
 
 ### Current referee presentation
 - `static/js/game/referee-avatar.js` shares the human player mesh cache: official shirt, black shorts and socks, pockets, badge, lanyard, watch, and radio earpiece. Both game views honor saved `ref_color`.

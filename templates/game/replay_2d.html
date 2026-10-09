@@ -1,0 +1,1126 @@
+{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% if live_room %}Live Match — Agent Soccer{% else %}Match Replay — Agent Soccer{% endif %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/design-system.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+@import url('/static/vendor/fonts/space-grotesk.css');
+.replay-controls { display:flex; justify-content:center; gap:15px; margin-top:20px; }
+.btn-play { font-size:1.1rem; padding:10px 25px; }
+.canvas-wrap{
+  border-radius:22px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(14,165,233,.12),0 0 0 1px rgba(255,255,255,.4);
+  position:relative;cursor:default;background:#020617;
+}
+#pitch-container{display:block;width:100%;height:100%;min-height:500px;touch-action:none}
+.sound-btn{
+  background:rgba(255,255,255,.3);border:none;
+  font-size:22px;line-height:1;padding:4px 8px;cursor:pointer;
+  border-radius:8px;transition:background .2s;color:#fff;
+}
+.sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
+.render-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:12px 0 0;color:#94a3b8;font-size:.8rem}
+.render-toolbar select{font:inherit;color:#e2e8f0;background:#0f172a;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:6px 9px;cursor:pointer}
+.render-toolbar select:focus-visible{outline:2px solid #38bdf8;outline-offset:2px}
+.hl-section{margin-top:18px}
+.hl-strip{display:flex;gap:2px;margin:10px 0 14px;height:22px;align-items:stretch}
+.hl-cell{flex:1;min-width:2px;background:rgba(14,165,233,.15);border-radius:3px;cursor:pointer;position:relative}
+.hl-cell:hover{background:rgba(14,165,233,.35)}
+.hl-cell.goal{background:rgba(251,191,36,.45)}
+.hl-cell.near{background:rgba(236,72,153,.45)}
+.hl-cell.fast{background:rgba(34,211,238,.45)}
+.hl-cell.current{outline:2px solid #fff;outline-offset:1px}
+.hl-cards{display:flex;flex-wrap:wrap;gap:10px}
+.hl-card{display:flex;align-items:center;gap:10px;background:rgba(255,255,255,.08);
+  border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:8px 12px}
+.hl-card .hl-ico{font-size:1.15rem}
+.hl-card .hl-label{font-weight:600;font-size:.92rem}
+.hl-card .hl-kick{font-size:.75rem;color:#94a3b8}
+.hl-card button{font-size:.8rem;padding:4px 12px;cursor:pointer;border:none;border-radius:8px;
+  background:rgba(14,165,233,.25);color:#fff;transition:background .2s}
+.hl-card button:hover{background:rgba(14,165,233,.45)}
+.hl-banner{display:inline-flex;align-items:center;gap:10px;background:rgba(251,191,36,.15);
+  border:1px solid rgba(251,191,36,.4);color:#fde68a;border-radius:10px;padding:6px 12px;font-size:.85rem}
+.hl-banner button{background:rgba(14,165,233,.3);border:none;color:#fff;border-radius:8px;
+  padding:4px 10px;cursor:pointer;font-size:.8rem}
+.hl-banner button:hover{background:rgba(14,165,233,.5)}
+
+/*  Live spectator mode  */
+.live-bar{
+  display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+  margin:18px 0 14px;
+}
+.live-tag{
+  display:inline-flex;align-items:center;gap:7px;font-size:.78rem;font-weight:700;
+  color:#4ade80;letter-spacing:.06em;text-transform:uppercase;
+}
+.live-tag::before{
+  content:"";width:9px;height:9px;border-radius:50%;background:#22c55e;
+  box-shadow:0 0 0 3px rgba(34,197,94,.2);
+}
+.live-msg{font-size:.9rem;color:#94a3b8}
+.live-msg a{color:#06b6d4}
+.live-chat{
+  margin-top:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.14);
+  border-radius:14px;padding:12px 14px;max-height:260px;overflow-y:auto;
+}
+.live-chat h4{margin:0 0 8px;font-size:.8rem;color:#94a3b8;text-transform:uppercase;letter-spacing:.08em}
+.live-chat .lc-row{font-size:.88rem;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.live-chat .lc-row:last-child{border-bottom:none}
+.live-chat .lc-name{font-weight:600;color:#7dd3fc}
+.live-chat .lc-readonly{margin-top:8px;font-size:.75rem;color:#64748b}
+
+/*  Loss analysis mode  */
+.hl-badge{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;
+  border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:4px 12px}
+.hl-cell.tag-goal{background:rgba(74,222,128,.45)}
+.hl-cell.tag-chance{background:rgba(34,211,238,.45)}
+.hl-cell.tag-neutral{background:rgba(148,163,184,.35)}
+.hl-cell.tag-poor{background:rgba(251,146,60,.5)}
+.hl-cell.tag-own{background:rgba(244,63,94,.55)}
+.hl-badge.tag-goal{background:rgba(74,222,128,.22);border-color:rgba(74,222,128,.5);color:#bbf7d0}
+.hl-badge.tag-chance{background:rgba(34,211,238,.22);border-color:rgba(34,211,238,.5);color:#a5f3fc}
+.hl-badge.tag-neutral{background:rgba(148,163,184,.22);border-color:rgba(148,163,184,.5);color:#cbd5e1}
+.hl-badge.tag-poor{background:rgba(251,146,60,.22);border-color:rgba(251,146,60,.5);color:#fed7aa}
+.hl-badge.tag-own{background:rgba(244,63,94,.22);border-color:rgba(244,63,94,.5);color:#fecdd3}
+.loss-patterns{display:flex;flex-direction:column;gap:8px}
+.loss-pattern-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.loss-pattern-block{font-size:.84rem;color:#cbd5e1;line-height:1.55}
+.loss-pattern-warn{font-size:.84rem;color:#fca5a5;background:rgba(244,63,94,.12);
+  border:1px solid rgba(244,63,94,.35);border-radius:10px;padding:7px 11px}
+.loss-caveat{font-size:.75rem;color:#64748b;margin-top:2px}
+.loss-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.loss-dec{font-size:.9rem;color:#e2e8f0}
+.loss-desc{font-size:.85rem;color:#94a3b8;margin-top:6px}
+.loss-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px}
+.loss-compare-hint{font-size:.82rem;color:#94a3b8}
+.loss-chips{display:inline-flex;flex-wrap:wrap;gap:6px}
+.loss-chip{font-size:.72rem;padding:3px 9px;text-transform:capitalize}
+.loss-compare-box{margin-top:10px;background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 12px}
+.loss-compare-title{font-size:.9rem;color:#e2e8f0}
+.loss-compare-note{font-size:.85rem;color:#cbd5e1;margin-top:4px}
+.loss-compare-note b{color:#fde68a}
+.loss-loading{font-size:.82rem;color:#94a3b8;font-style:italic}
+.loss-empty{font-size:.9rem;color:#94a3b8;line-height:1.7}
+.loss-empty a{color:#06b6d4}
+#loss-match.input{background:rgba(255,255,255,.07);color:#e2e8f0;border:1px solid rgba(255,255,255,.25);
+  border-radius:10px;padding:7px 10px;font-size:.85rem}
+#loss-match.input option{background:#0f172a;color:#e2e8f0}
+</style>
+<script src="{{ url_for('static', filename='js/game/sound.js', v=2) }}"></script>
+{% include 'shared/_ui_assets.html' %}
+<link rel="stylesheet" href="/static/css/frontend-game.css">
+<link rel="stylesheet" href="/static/css/pitch-2d.css">
+</head>
+<body class="as-app as-game">
+{{ app_nav('play') }}
+<main class="as-main" id="as-content">
+  {% if live_room %}
+  {{ page_header('From the stands','Watch the match unfold.','Follow every turn live, with the score and match chat together.','/spectate','All live matches') }}
+  {% elif loss_model %}
+  {{ page_header('Match review','Learn from the last game.',"Review your model's decisions and explore a different move.",'/my-models','My models') }}
+  {% elif t and match %}
+  {{ page_header('Match replay','Go back to the key moments.','Play each move, watch the full match, or jump to a highlight.','/tournaments/' ~ t.id,'Back to bracket') }}
+  {% else %}
+  {{ page_header('Match replay','Every game has a story.','Watch the action one move at a time.','/match-history','Match history') }}
+  {% endif %}
+
+  <div class="glass-card">
+    {% if live_room %}
+    <div class="live-bar">
+      <span class="live-tag">Live</span>
+      <span class="live-msg" id="live-msg">Connecting…</span>
+      <a href="/spectate" class="btn btn-ghost">More Live Matches</a>
+    </div>
+    {% endif %}
+
+    <div class="hud">
+      <div class="team team-a">
+        <div class="team-name" id="name-a">Player A</div>
+        <div class="team-score" id="score-a">0</div>
+      </div>
+      <div class="hud-mid">
+        {% if live_room %}
+        <div class="kick-counter">Move <span id="kick-count">0</span></div>
+        {% elif match %}
+        <div class="kick-counter">Move <span id="kick-count">0</span> / {{ match.replay_data|length }}</div>
+        {% else %}
+        <div class="kick-counter">Move <span id="kick-count">0</span></div>
+        {% endif %}
+        <div class="turn-badge turn-a" id="turn-badge">Ready</div>
+      </div>
+      <div class="team team-b">
+        <div class="team-name" id="name-b">Player B</div>
+        <div class="team-score" id="score-b">0</div>
+      </div>
+    </div>
+
+    <div class="stadium">
+      <div class="canvas-wrap">
+        <div id="pitch-container"></div>
+      </div>
+    </div>
+
+    <div class="render-toolbar">
+      <label for="render-quality">Graphics</label>
+      <select id="render-quality" aria-label="Graphics resolution">
+        <option value="auto">Auto</option>
+        <option value="1080p">1080p</option>
+        <option value="1440p">1440p</option>
+        <option value="4k" selected>4K</option>
+      </select>
+    </div>
+
+    {% if not live_room and not loss_model %}
+    <div class="replay-controls">
+      <button class="btn btn-primary btn-play" id="btn-next" onclick="playNextMove()">Next Move</button>
+      <button class="btn btn-ghost btn-play" id="btn-auto" onclick="toggleAutoPlay()">Auto Play</button>
+      <button class="sound-btn" id="sound-btn" aria-label="Mute sound" aria-pressed="false" onclick="SoundManager.toggleMute()">Sound on</button>
+    </div>
+    {% else %}
+    <div class="replay-controls">
+      <button class="sound-btn" id="sound-btn" aria-label="Mute sound" aria-pressed="false" onclick="SoundManager.toggleMute()">Sound on</button>
+    </div>
+    {% endif %}
+
+    {% if not live_room and not loss_model %}
+    <div class="hl-section" id="hl-section" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0;font-size:1rem">Highlights</h3>
+        <div class="hl-banner" id="hl-banner" style="display:none"></div>
+      </div>
+      <div class="hl-strip" id="hl-strip"></div>
+      <div class="hl-cards" id="hl-cards"></div>
+    </div>
+    {% elif loss_model %}
+    <div class="hl-section" id="loss-section">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0;font-size:1rem">Why did <span id="loss-model-name">{{ loss_model_name }}</span> lose?</h3>
+        <select id="loss-match" aria-label="Match to review" class="input" style="max-width:340px"></select>
+      </div>
+      <div id="loss-patterns" class="loss-patterns" style="margin-top:10px"></div>
+      <div class="hl-strip" id="loss-strip" style="margin-top:10px"></div>
+      <div id="loss-detail" class="loss-detail" style="margin-top:10px"></div>
+      <div id="loss-empty" class="loss-empty" style="display:none;margin-top:10px"></div>
+    </div>
+    {% else %}
+    <div class="live-chat" id="live-chat">
+      <h4>Match Chat — watching</h4>
+      <div id="live-chat-msgs"></div>
+      <div class="lc-readonly">Read-only. Spectators can watch the players' chat but can't post.</div>
+    </div>
+    {% endif %}
+  </div>
+</main>
+
+
+
+<script type="module">
+import { createPitch2D } from '/static/js/game/pitch-2d.js';
+import { playTrajectory2D } from '/static/js/game/playback-2d.js';
+import { onlineRevision, onlineReplayPlan } from '/static/js/game/player-controls.js';
+const W=1400, H=875;
+const container=document.getElementById('pitch-container');
+const pitch=createPitch2D(container);
+const requestRender=()=>pitch.loop.invalidate();
+const pitchPosition=(x,y,z=0)=>({x,y,z});
+const worldToServer=p=>p;
+const updateBall=(x,y,z=0)=>pitch.setBall(x,y,z);
+const updateReferee=(x,y)=>pitch.setReferee(x,y);
+const syncBallSize=state=>pitch.setBallSize(state?.ball_size);
+const triggerGoalEffect=()=>pitch.celebrate();
+const triggerCrowdCheer=()=>SoundManager.crowdCheer();
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+SoundManager.attach(audioCtx);
+const _kickBuf=SoundManager.makeKickBuffer(), _bounceBuf=SoundManager.makeBounceBuffer();
+function playPositional(buffer, position, options={}) {
+  if(!SoundManager.isMuted())SoundManager._play(buffer,options.volume??.65,options.playbackRate??1,'impact');
+}
+function playRefereeWhistle(){pitch.whistle();return SoundManager.whistle();}
+async function unlockAudio(){
+  await SoundManager.resume();
+  if(audioCtx.state!=='running')return;
+  SoundManager.crowdAmbient();
+  if(!window._whistlePlayed){window._whistlePlayed=true;playRefereeWhistle();}
+  for(const type of ['pointerdown','keydown','touchstart'])document.removeEventListener(type,unlockAudio,true);
+}
+for(const type of ['pointerdown','keydown','touchstart'])document.addEventListener(type,unlockAudio,{capture:true,passive:true});
+window.__pitch2D=()=>pitch.snapshot();
+window.__renderStats=()=>({...pitch.snapshot(),isAnimating});
+window.__refereePos=()=>pitch.snapshot().referee;
+const qualitySelect=document.getElementById('render-quality');
+qualitySelect.value=pitch.quality;
+window.setGraphicsQuality=value=>{pitch.setQuality(value);qualitySelect.value=pitch.quality;};
+qualitySelect.addEventListener('change',()=>window.setGraphicsQuality(qualitySelect.value));
+const demandLoop=pitch.loop;
+
+const replayData = {% if match %}{{ match.replay_data | tojson }}{% else %}[]{% endif %};
+const replayBallSize = {% if match %}{{ (match.get('ball_size') or (match.get('initial_state') or {}).get('ball_size')) | tojson }}{% else %}null{% endif %}
+  || replayData.find(move => move.trajectory?.[0]?.ball_size)?.trajectory[0].ball_size || 'normal';
+const highlights = {{ highlights | tojson }};
+const clipHighlight = {{ highlight | tojson }};
+const LIVE_ROOM = {{ live_room | tojson }};
+const LOSS_MODEL = {{ loss_model | tojson }};
+const LOSS_MODEL_NAME = {{ loss_model_name | tojson }};
+const LOSS_BUILTINS = {{ loss_builtin_models | default([]) | tojson }};
+const LOSS_DEFAULT_MODEL = {{ loss_default_model | default(none) | tojson }};
+let currentMove = 0;
+let isAnimating = false;
+let autoPlayOn = false;
+let clipEnd = null;
+
+// Entry indices of real (trajectory-bearing) moves, and per-move highlight map
+const realEntries = [];
+replayData.forEach((m, i) => { if (m.trajectory && m.trajectory.length > 0) realEntries.push(i); });
+const hlByStart = {};
+(highlights || []).forEach(h => { hlByStart[h.start] = h; });
+
+function rebuildPlayers(a,b){syncBallSize(state);pitch.setRoster(a,b);updateReferee(state.referee?.x,state.referee?.y);}
+function updatePlayerPositions(a,b){pitch.setRoster(a,b);}
+
+function replayHomePositions(count, side) {
+  const centerY = H / 2;
+  const positions = [{ x: side === 'a' ? W * 0.062 : W * 0.938, y: centerY }];
+  if (count < 2) return positions.slice(0, count);
+  const outfield = count - 1;
+  const formations = {
+    1: [0, 0, 1], 2: [1, 0, 1], 3: [1, 0, 2], 4: [2, 0, 2],
+    5: [2, 1, 2], 6: [3, 1, 2], 7: [3, 2, 2], 8: [4, 2, 2],
+    9: [4, 3, 2], 10: [4, 3, 3], 11: [4, 4, 2]
+  };
+  let [defenders, midfielders, forwards] = formations[count] || [outfield, 0, 0];
+  const total = defenders + midfielders + forwards;
+  if (total > outfield) forwards -= total - outfield;
+  else if (total < outfield) forwards += outfield - total;
+  const yRange = Math.min(H * 0.6, 80 + outfield * 25);
+  const minY = centerY - yRange / 2;
+  const x = side === 'a'
+    ? [W * 0.162, W * 0.281, W / 2 - 95]
+    : [W * 0.838, W * 0.719, W / 2 + 95];
+  function addRow(xPos, amount) {
+    for (let i = 0; i < amount; i++) {
+      positions.push({ x: xPos, y: minY + (i + 0.5) / amount * yRange });
+    }
+  }
+  addRow(x[0], defenders);
+  addRow(x[1], midfielders);
+  addRow(x[2], forwards);
+  return positions.slice(0, count);
+}
+
+
+//  State
+let state = {
+  ball_size: replayBallSize,
+  ball: { x: W / 2, y: H / 2 },
+  players_a: [],
+  players_b: [],
+  referee: null,
+  score_a: 0, score_b: 0
+};
+
+function applyMoveToState(move) {
+  const traj = move.trajectory;
+  if (!traj || traj.length === 0) return;
+  if (traj[0].ball_size) state.ball_size = traj[0].ball_size;
+  syncBallSize(state);
+  const last = traj[traj.length - 1];
+  state.ball = { x: last.x, y: last.y, z: last.z || 0 };
+  if (Array.isArray(last.a)) state.players_a = last.a.map((p,i) => ({ ...state.players_a[i], ...p }));
+  if (Array.isArray(last.b)) state.players_b = last.b.map((p,i) => ({ ...state.players_b[i], ...p }));
+  if (last.ref) state.referee = { x: last.ref.x, y: last.ref.y };
+  if (move.scored === 'A') state.score_a++;
+  else if (move.scored === 'B') state.score_b++;
+  if (move.scored) {
+    state.ball = { x: W / 2, y: H / 2, z: 0 };
+    state.players_a = replayHomePositions(state.players_a.length, 'a').map((p,i) => ({ ...state.players_a[i], ...p }));
+    state.players_b = replayHomePositions(state.players_b.length, 'b').map((p,i) => ({ ...state.players_b[i], ...p }));
+    state.referee = { x: W / 2, y: H - 80 };
+  }
+}
+
+function updateUI() {
+  document.getElementById('btn-next').disabled = isAnimating || currentMove >= replayData.length;
+  if (currentMove >= replayData.length && autoPlayOn) {autoPlayOn=false;updateAutoBtn();}
+  document.getElementById('score-a').textContent = state.score_a;
+  document.getElementById('score-b').textContent = state.score_b;
+  document.getElementById('kick-count').textContent = currentMove;
+  const cells = document.querySelectorAll('#hl-strip .hl-cell');
+  for (let i = 0; i < cells.length; i++) {
+    cells[i].classList.toggle('current', realEntries[i] <= currentMove && (i === realEntries.length - 1 || realEntries[i + 1] > currentMove));
+  }
+}
+
+//  Highlights UI
+const HL_ICON = { goal: '', near: '', fast: '' };
+
+function buildHighlightsUI() {
+  const section = document.getElementById('hl-section');
+  if (!highlights || highlights.length === 0) return;
+  section.style.display = 'block';
+
+  const strip = document.getElementById('hl-strip');
+  realEntries.forEach((e, i) => {
+    const cell = document.createElement('div');
+    cell.className = 'hl-cell';
+    const hl = hlByStart[e];
+    if (hl) {
+      cell.classList.add(hl.type);
+      cell.title = hl.label;
+      cell.onclick = () => playHighlight(hl);
+    }
+    strip.appendChild(cell);
+  });
+
+  const cards = document.getElementById('hl-cards');
+  highlights.forEach(h => {
+    const card = document.createElement('div');
+    card.className = 'hl-card';
+    card.innerHTML =
+      '<span class="hl-ico">' + HL_ICON[h.type] + '</span>' +
+      '<div><div class="hl-label">' + h.label + '</div>' +
+      '<div class="hl-kick">move ' + (h.start + 1) + '–' + (h.end + 1) + '</div></div>' +
+      '<button data-hl="watch">Watch</button>' +
+      '<button data-hl="share">Share</button>';
+    card.querySelector('[data-hl="watch"]').onclick = () => playHighlight(h);
+    const shareBtn = card.querySelector('[data-hl="share"]');
+    shareBtn.onclick = () => shareHighlight(h, shareBtn);
+    cards.appendChild(card);
+  });
+}
+
+function seekToEntry(target) {
+  const first = replayData.find(move => move.trajectory?.length)?.trajectory[0];
+  state = {
+    ball_size: replayBallSize,
+    ball: first ? {x:first.x,y:first.y,z:first.z||0} : { x: W / 2, y: H / 2 },
+    players_a: Array.isArray(first?.a) ? first.a.map(p=>({...p})) : [],
+    players_b: Array.isArray(first?.b) ? first.b.map(p=>({...p})) : [],
+    referee: first?.ref ? {...first.ref} : null, score_a: 0, score_b: 0,
+  };
+  for (let i = 0; i < target && i < replayData.length; i++) applyMoveToState(replayData[i]);
+  syncBallSize(state);
+  currentMove = target;
+  updateBall(state.ball.x, state.ball.y, state.ball.z || 0);
+  updatePlayerPositions(state.players_a, state.players_b);
+  updateReferee(state.referee?.x, state.referee?.y);
+  updateUI();
+  requestRender();
+}
+
+function showClipBanner(h, done) {
+  const banner = document.getElementById('hl-banner');
+  if (!h) { banner.style.display = 'none'; return; }
+  banner.style.display = 'inline-flex';
+  banner.innerHTML = HL_ICON[h.type] + ' <b>' + h.label + '</b>' +
+    (done ? ' — clip finished' : '') +
+    ' <button id="hl-full">Watch Full Match</button>';
+  document.getElementById('hl-full').onclick = watchFullMatch;
+}
+
+function updateAutoBtn() {
+  const btn = document.getElementById('btn-auto');
+  if (autoPlayOn) {
+    btn.textContent = "Stop Auto";
+    btn.className = "btn btn-primary btn-play";
+  } else {
+    btn.textContent = "Auto Play";
+    btn.className = "btn btn-ghost btn-play";
+  }
+}
+
+let highlightSilent = false;
+function playHighlight(h) {
+  if (isAnimating) return;
+  highlightSilent = true;
+  autoPlayOn = false;
+  seekToEntry(h.start);
+  clipEnd = h.end;
+  showClipBanner(h, false);
+  autoPlayOn = true;
+  updateAutoBtn();
+  window.playNextMove();
+}
+
+function watchFullMatch() {
+  clipEnd = null;
+  showClipBanner(null, false);
+  if (currentMove >= replayData.length) seekToEntry(0);
+  if (!autoPlayOn) {
+    autoPlayOn = true;
+    updateAutoBtn();
+  }
+  window.playNextMove();
+}
+
+function clipFinishedCheck() {
+  if (clipEnd !== null && currentMove > clipEnd) {
+    const h = clipHighlight || highlights.find(x => x.end === clipEnd) || null;
+    clipEnd = null;
+    highlightSilent = false;
+    autoPlayOn = false;
+    updateAutoBtn();
+    showClipBanner(h, true);
+  }
+}
+
+async function shareHighlight(h, btn) {
+  const url = location.origin + '/highlight/' + h.id;
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    document.body.removeChild(ta);
+  }
+  if (btn) {
+    const old = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(() => { btn.textContent = old; }, 1500);
+  }
+}
+window.__hlState = () => ({
+  n: highlights ? highlights.length : 0,
+  realMoves: realEntries.length,
+  clipEnd: clipEnd,
+  auto: autoPlayOn,
+  current: currentMove,
+  bannerShown: document.getElementById('hl-banner').style.display !== 'none',
+});
+
+// Shared time-based 2D playback.
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+let _skipKickerIdx = -1;
+let _skipKickerTeam = '';
+
+function animateTrajectory(trajectory,onDone,current=()=>true,playbackSpeed=1) {
+  syncBallSize(trajectory?.[0]?.ball_size?trajectory[0]:state);
+  playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,
+    onBounce:point=>playPositional(_bounceBuf,point,{volume:.45}),
+    onFrame:point=>{
+      state.ball={x:point.x,y:point.y,z:point.z||0};
+      updateBall(point.x,point.y,point.z||0);
+      for(const side of ['a','b'])if(Array.isArray(point[side])){
+        const key='players_'+side;
+        state[key]=point[side].map((p,i)=>(side===_skipKickerTeam&&i===_skipKickerIdx)?state[key][i]:({...state[key]?.[i],...p}));
+      }
+      if(point.ref){state.referee={...point.ref};updateReferee(point.ref.x,point.ref.y);}
+      updatePlayerPositions(state.players_a,state.players_b);
+    },onDone:()=>{onDone();}});
+}
+function animatePlayerMove(playerIdx,team,from,to,onDone,current=()=>true,playbackSpeed=1){
+  let start=null;
+  function frame(now){
+    if(!current()){onDone();return;}
+    if(start===null)start=now;
+    const t=Math.min(1,(now-start)/Math.max(150,310/playbackSpeed));
+    const p=state['players_'+team]?.[playerIdx];
+    if(p){p.x=from.x+(to.x-from.x)*t;p.y=from.y+(to.y-from.y)*t;updatePlayerPositions(state.players_a,state.players_b);}
+    if(t<1)pitch.loop.requestAnimationFrame(frame);else onDone();
+  }
+  pitch.loop.requestAnimationFrame(frame);
+}
+
+window.playNextMove = function() {
+  if (isAnimating || currentMove >= replayData.length) return;
+  const move = replayData[currentMove];
+  const raw = move.trajectory;
+  if (!raw || raw.length === 0) {
+    currentMove++;
+    updateUI();
+    clipFinishedCheck();
+    if (autoPlayOn && currentMove < replayData.length) setTimeout(window.playNextMove, 200);
+    return;
+  }
+
+  isAnimating = true;
+  document.getElementById('btn-next').disabled = true;
+  const badge = document.getElementById('turn-badge');
+  badge.textContent = move.mover === 'a' ? "Player A's Move" : "Player B's Move";
+  badge.className = "turn-badge " + (move.mover === 'a' ? "turn-a" : "turn-b");
+
+  const _preA = raw[0].a ? raw[0].a.map(p => ({ x: p.x, y: p.y })) : [];
+  const _preB = raw[0].b ? raw[0].b.map(p => ({ x: p.x, y: p.y })) : [];
+  const HOME_A = replayHomePositions(state.players_a.length, 'a');
+  const HOME_B = replayHomePositions(state.players_b.length, 'b');
+  function finish() {
+    applyMoveToState(move);
+    currentMove++;
+    isAnimating = false;
+    document.getElementById('btn-next').disabled = false;
+    updateBall(state.ball.x, state.ball.y, state.ball.z || 0);
+    updatePlayerPositions(state.players_a, state.players_b);
+    if (state.referee) updateReferee(state.referee.x, state.referee.y);
+    updateUI();
+    clipFinishedCheck();
+    if (autoPlayOn && currentMove < replayData.length) {
+      setTimeout(window.playNextMove, 500);
+    }
+  }
+
+  if (move.scored && raw.length > 0) {
+    // Kick sound at kicker position
+    const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
+    if (!highlightSilent && kickerSrv) playPositional(_kickBuf, pitchPosition(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
+    // Animate trajectory, then slide back to kickoff positions
+    animateTrajectory(raw, () => {
+      // Celebrate at the goal, then reset from the final physical positions.
+      // Rewinding to the pre-kick roster here caused a visible teleport.
+      if (!highlightSilent) SoundManager.goal();
+      triggerGoalEffect(move.mover === 'a' ? 'a' : 'b');
+      triggerCrowdCheer();
+      const resetA = state.players_a.map(p => ({ x: p.x, y: p.y }));
+      const resetB = state.players_b.map(p => ({ x: p.x, y: p.y }));
+      const dur = 200;
+      let st = null;
+      function slide(ts) {
+        if (st === null) st = ts;
+        const t = Math.min((ts - st) / dur, 1);
+        const e = 1 - Math.pow(1 - t, 2);
+        for (let i = 0; i < state.players_a.length; i++) {
+          state.players_a[i].x = resetA[i].x + (HOME_A[i].x - resetA[i].x) * e;
+          state.players_a[i].y = resetA[i].y + (HOME_A[i].y - resetA[i].y) * e;
+        }
+        for (let i = 0; i < state.players_b.length; i++) {
+          state.players_b[i].x = resetB[i].x + (HOME_B[i].x - resetB[i].x) * e;
+          state.players_b[i].y = resetB[i].y + (HOME_B[i].y - resetB[i].y) * e;
+        }
+        updatePlayerPositions(state.players_a, state.players_b);
+        if (t < 1) demandLoop.requestAnimationFrame(slide);
+        else finish();
+      }
+      demandLoop.requestAnimationFrame(slide);
+    });
+  } else {
+    // Kick sound at kicker position
+    const kickerSrv2 = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
+    if (!highlightSilent && kickerSrv2) playPositional(_kickBuf, pitchPosition(kickerSrv2.x, kickerSrv2.y), { volume: 0.7 });
+    animateTrajectory(raw, finish);
+  }
+};
+
+window.toggleAutoPlay = function() {
+  if (autoPlayOn) {
+    autoPlayOn = false;
+    clipEnd = null;
+    updateAutoBtn();
+  } else {
+    autoPlayOn = true;
+    updateAutoBtn();
+    window.playNextMove();
+  }
+};
+
+window.__replayMeta = () => ({
+  n: replayData.length,
+  firstTrajLen: replayData.length && replayData[0].trajectory ? replayData[0].trajectory.length : -1,
+  firstRef: replayData.length && replayData[0].trajectory && replayData[0].trajectory[0] ? Boolean(replayData[0].trajectory[0].ref) : false,
+  movesWithRef: replayData.filter(m => m.trajectory && m.trajectory.length > 0 && m.trajectory[0].ref).length,
+  hasRefFrames: replayData.some(m => m.trajectory && m.trajectory.length > 0 && m.trajectory[0].ref),
+  hasStateRef: state.referee !== null,
+  stateRef: state.referee
+});
+
+const LIVE = {
+  room: LIVE_ROOM,
+  lastKick: -1,
+  pollTimer: null,
+  polling: false,
+  chatTimer: null,
+  chatAfter: null,
+  over: false,
+  rosterKey: null,
+  snap: function (game) {
+    state.ball_size = game.ball_size || 'normal';
+    syncBallSize(state);
+    state.ball = game.ball || state.ball;
+    state.players_a = game.players_a || [];
+    state.players_b = game.players_b || [];
+    state.referee = game.referee || null;
+    state.score_a = game.score_a || 0;
+    state.score_b = game.score_b || 0;
+    const rosterKey = JSON.stringify([state.players_a, state.players_b].map(players =>
+      players.map(player => [player.name, player.color, player.stats, player.radius, player.mass])));
+    if (rosterKey !== this.rosterKey) {
+      rebuildPlayers(state.players_a, state.players_b);
+      this.rosterKey = rosterKey;
+    }
+    updateBall(state.ball.x, state.ball.y, state.ball.z || 0);
+    updatePlayerPositions(state.players_a, state.players_b);
+    updateReferee(state.referee?.x, state.referee?.y);
+    document.getElementById('score-a').textContent = state.score_a;
+    document.getElementById('score-b').textContent = state.score_b;
+    document.getElementById('kick-count').textContent = onlineRevision(game);
+  },
+  hud: function (game) {
+    const badge = document.getElementById('turn-badge');
+    if (game.game_over) {
+      badge.textContent = 'Full time';
+      badge.className = 'turn-badge turn-a';
+    } else if (game.penalty_shootout) {
+      badge.textContent = 'Penalty shootout';
+      badge.className = 'turn-badge turn-b';
+    } else {
+      badge.textContent = game.is_player_a ? "Player A's Move" : "Player B's Move";
+      badge.className = 'turn-badge ' + (game.is_player_a ? 'turn-a' : 'turn-b');
+    }
+  },
+  status: function (text) {
+    const el = document.getElementById('live-msg');
+    if (el) el.innerHTML = text;
+  },
+};
+
+function liveMsgEsc(s) {
+  const d = document.createElement('div');
+  d.textContent = s == null ? '' : String(s);
+  return d.innerHTML;
+}
+
+function liveCompletionMessage(data) {
+  const link = ' <a href="/spectate">Watch another</a>';
+  if (data.status === 'cancelled') return 'This match was cancelled.' + link;
+  const game = data.game;
+  const winner = String(game.winner || '').toUpperCase();
+  const side = winner === 'A' || winner === 'B' ? winner
+    : game.score_a > game.score_b ? 'A' : game.score_b > game.score_a ? 'B' : null;
+  const name = side === 'A' ? (data.name_a || 'Player A') : (data.name_b || 'Player B');
+  return side ? liveMsgEsc(name) + ' wins! Match over.' + link : 'Full time — draw!' + link;
+}
+
+async function pollLive() {
+  if (!LIVE.room || LIVE.over || LIVE.polling || isAnimating) return;
+  LIVE.polling = true;
+  try {
+    const res = await fetch('/online/' + LIVE.room + '/state?since_kick=' + LIVE.lastKick);
+    if (!res.ok) {
+      if ([403, 404].includes(res.status)) endLive('This match is no longer available. <a href="/spectate">Watch another</a>');
+      return;
+    }
+    const data = await res.json();
+    if (data.error || !data.game) { endLive('This match is no longer available. <a href="/spectate">Watch another</a>'); return; }
+    document.getElementById('name-a').textContent = data.name_a || 'Player A';
+    document.getElementById('name-b').textContent = data.name_b || 'Player B';
+    const plan = onlineReplayPlan(data, LIVE.lastKick);
+    if (plan.revision < LIVE.lastKick) return;
+    for (const move of plan.moves) {
+      LIVE.lastKick = move.kick_count;
+      const raw = move.trajectory;
+      const badge = document.getElementById('turn-badge');
+      badge.textContent = move.mover === 'a' ? "Player A's Move" : "Player B's Move";
+      badge.className = 'turn-badge ' + (move.mover === 'a' ? 'turn-a' : 'turn-b');
+      document.getElementById('kick-count').textContent = LIVE.lastKick;
+      if (!raw || raw.length === 0) continue;
+      const _preA = raw[0].a ? raw[0].a.map(p => ({ x: p.x, y: p.y })) : [];
+      const _preB = raw[0].b ? raw[0].b.map(p => ({ x: p.x, y: p.y })) : [];
+      const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
+      if (!highlightSilent && kickerSrv) playPositional(_kickBuf, pitchPosition(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
+      const wasGoal = move.scored === 'A' || move.scored === 'B';
+      if (wasGoal) {
+        if (!highlightSilent) SoundManager.goal();
+        triggerGoalEffect(move.scored.toLowerCase());
+        triggerCrowdCheer();
+      }
+      isAnimating = true;
+      await new Promise(resolve => animateTrajectory(raw, resolve));
+      isAnimating = false;
+    }
+    if (!isAnimating) {
+      LIVE.lastKick = plan.revision;
+      data.game.online_move_count = plan.revision;
+      LIVE.snap(data.game);
+      LIVE.hud(data.game);
+      if (data.status === 'done' || data.status === 'cancelled' || data.game.game_over) endLive(liveCompletionMessage(data));
+    }
+  } catch (e) { /* transient — retry next tick */ }
+  finally { LIVE.polling = false; isAnimating = false; }
+}
+
+async function pollLiveChat() {
+  if (!LIVE.room || LIVE.over) return;
+  try {
+    let url = '/chat/messages?scope=match&scope_id=' + LIVE.room + '&limit=60';
+    if (LIVE.chatAfter !== null) url += '&after=' + LIVE.chatAfter;
+    const res = await fetch(url);
+    if (res.status === 403) return; // match over — stop silently
+    const data = await res.json();
+    if (!data || !data.messages) return;
+    const wrap = document.getElementById('live-chat-msgs');
+    data.messages.forEach(function (m) {
+      const row = document.createElement('div');
+      row.className = 'lc-row';
+      row.innerHTML = '<span class="lc-name">' + liveMsgEsc(m.sender_name || m.name || 'Player') + ':</span> ' + liveMsgEsc(m.body || m.text || '');
+      wrap.appendChild(row);
+    });
+    if (data.messages.length) wrap.scrollTop = wrap.scrollHeight;
+    if (data.next_after) LIVE.chatAfter = parseInt(data.next_after, 10);
+  } catch (e) { /* transient */ }
+}
+
+function endLive(html) {
+  clearInterval(LIVE.pollTimer);
+  clearInterval(LIVE.chatTimer);
+  LIVE.over = true;
+  LIVE.status(html);
+  const badge = document.getElementById('turn-badge');
+  badge.textContent = 'Full time';
+  badge.className = 'turn-badge turn-a';
+}
+
+window.__liveState = () => ({
+  room: LIVE.room,
+  lastKick: LIVE.lastKick,
+  over: LIVE.over,
+  chatAfter: LIVE.chatAfter,
+  nameA: document.getElementById('name-a').textContent,
+  nameB: document.getElementById('name-b').textContent,
+  scoreA: document.getElementById('score-a').textContent,
+  scoreB: document.getElementById('score-b').textContent,
+  badge: document.getElementById('turn-badge').textContent,
+  status: document.getElementById('live-msg').textContent,
+  chatRows: document.querySelectorAll('#live-chat-msgs .lc-row').length,
+});
+
+async function initLive() {
+  try {
+    const res = await fetch('/online/' + LIVE.room + '/state?since_kick=-1');
+    if (!res.ok) { endLive('Could not connect. <a href="/spectate">Watch another</a>'); return; }
+    const data = await res.json();
+    if (data.error || !data.game) { endLive('This match is no longer available. <a href="/spectate">Watch another</a>'); return; }
+    document.getElementById('name-a').textContent = data.name_a || 'Player A';
+    document.getElementById('name-b').textContent = data.name_b || 'Player B';
+    LIVE.lastKick = onlineRevision(data.game, data);
+    data.game.online_move_count = LIVE.lastKick;
+    LIVE.snap(data.game);
+    LIVE.hud(data.game);
+    if (data.status === 'done' || data.status === 'cancelled' || data.game.game_over) { endLive(liveCompletionMessage(data)); return; }
+    LIVE.status('Watching <b>' + liveMsgEsc(data.name_a || 'Player A') + '</b> vs <b>' + liveMsgEsc(data.name_b || 'Player B') + '</b>');
+    pollLive();
+    LIVE.pollTimer = setInterval(pollLive, 1500);
+    pollLiveChat();
+    LIVE.chatTimer = setInterval(pollLiveChat, 2000);
+  } catch (e) {
+    endLive('Could not connect. <a href="/spectate">Watch another</a>');
+  }
+}
+
+
+//  Loss analysis mode
+// Turn-by-turn viewer over a user's own model's decision traces ("why did
+// my model lose this match?"). All heavy work (rebuilding the pre-kick
+// state, re-running the kick, comparisons) happens server-side from the
+// stored snapshot; the client renders the scene and the diagnostics.
+const LOSS = {
+  model: LOSS_MODEL,
+  match: null,
+  traces: [],
+  current: -1,
+  patternsDone: false,
+  builtins: LOSS_BUILTINS,
+  snap: function (tr) {
+    const s = tr.state;
+    state.ball_size = s.ball_size || 'normal';
+    syncBallSize(state);
+    state.ball = s.ball || { x: W / 2, y: H / 2, z: 0 };
+    state.players_a = s.players_a || [];
+    state.players_b = s.players_b || [];
+    state.referee = s.referee || null;
+    state.score_a = s.score_a || 0;
+    state.score_b = s.score_b || 0;
+    updateBall(state.ball.x, state.ball.y, state.ball.z || 0);
+    updatePlayerPositions(state.players_a, state.players_b);
+    if (state.referee) updateReferee(state.referee.x, state.referee.y);
+    document.getElementById('score-a').textContent = state.score_a;
+    document.getElementById('score-b').textContent = state.score_b;
+    document.getElementById('kick-count').textContent = s.kick_count || 0;
+  },
+  badge: function () {
+    const badge = document.getElementById('turn-badge');
+    badge.textContent = 'Decision turn';
+    badge.className = 'turn-badge turn-a';
+  },
+};
+
+const LOSS_TAG = {{ loss_tag_meta | default({}) | tojson }};
+
+function lossEls() {
+  return {
+    sel: document.getElementById('loss-match'),
+    patterns: document.getElementById('loss-patterns'),
+    strip: document.getElementById('loss-strip'),
+    detail: document.getElementById('loss-detail'),
+    empty: document.getElementById('loss-empty'),
+  };
+}
+
+function lossUrl(path) {
+  return '/api/loss/models/' + encodeURIComponent(LOSS_MODEL) + path;
+}
+
+async function initLossAnalysis() {
+  const els = lossEls();
+  LOSS.badge();
+  try {
+    const res = await fetch(lossUrl('/matches'));
+    const data = await res.json();
+    const matches = data.matches || [];
+    if (!matches.length) {
+      els.sel.style.display = 'none';
+      els.patterns.style.display = 'none';
+      els.strip.style.display = 'none';
+      els.detail.style.display = 'none';
+      els.empty.style.display = 'block';
+      els.empty.innerHTML =
+        'No traced matches for this model yet.<br>' +
+        'Traces are captured when the model plays in an ' +
+        '<a href="/arena">AI Arena</a> battle, a ' +
+        '<a href="/my-models">leaderboard benchmark</a>, or a tournament it is entered in.' +
+        '<div class="loss-caveat">Traces expire after 30 days (capped at ~200 matches per model).</div>';
+      return;
+    }
+    matches.forEach(function (m) {
+      const opt = document.createElement('option');
+      opt.value = m.match_id;
+      const resultTxt = m.result === 'win' ? 'W' : m.result === 'loss' ? 'L' : 'D';
+      opt.textContent = m.opponent + ' · ' + m.score_for + '–' + m.score_against +
+                        ' (' + resultTxt + ') · ' + m.turn_count + ' turns';
+      els.sel.appendChild(opt);
+    });
+    els.sel.onchange = function () { loadLossMatch(els.sel.value); };
+    await renderLossPatterns();
+    await loadLossMatch(matches[0].match_id);
+  } catch (e) {
+    els.empty.style.display = 'block';
+    els.empty.textContent = 'Could not load loss-analysis data.';
+  }
+}
+
+async function loadLossMatch(matchId) {
+  const els = lossEls();
+  els.strip.innerHTML = '';
+  els.detail.innerHTML = '<div class="loss-loading">Loading decisions…</div>';
+  LOSS.match = matchId;
+  LOSS.current = -1;
+  try {
+    const res = await fetch(lossUrl('/matches/' + encodeURIComponent(matchId)));
+    const data = await res.json();
+    if (data.error || !data.traces || !data.traces.length) {
+      els.detail.innerHTML = 'No decisions recorded for this match.';
+      return;
+    }
+    LOSS.traces = data.traces.slice().sort(function (a, b) { return a.turn - b.turn; });
+    const tracedSide = LOSS.traces[0].mover;
+    const me = LOSS_MODEL_NAME || 'Your model';
+    document.getElementById('name-a').textContent = tracedSide === 'a' ? me : (data.match && data.match.opponent || 'Opponent (A)');
+    document.getElementById('name-b').textContent = tracedSide === 'b' ? me : (data.match && data.match.opponent || 'Opponent (B)');
+    LOSS.traces.forEach(function (tr, i) {
+      const cell = document.createElement('div');
+      const meta = LOSS_TAG[tr.outcome_tag] || LOSS_TAG.neutral;
+      cell.className = 'hl-cell ' + meta.cls;
+      cell.title = 'Turn ' + tr.turn + ' — ' + meta.label;
+      cell.textContent = meta.emoji;
+      cell.onclick = function () { selectLossTurn(i); };
+      els.strip.appendChild(cell);
+    });
+    selectLossTurn(0);
+  } catch (e) {
+    els.detail.innerHTML = 'Could not load this match.';
+  }
+}
+
+function selectLossTurn(i) {
+  if (i < 0 || i >= LOSS.traces.length) return;
+  LOSS.current = i;
+  const tr = LOSS.traces[i];
+  document.querySelectorAll('#loss-strip .hl-cell').forEach(function (c, j) {
+    c.classList.toggle('current', j === i);
+  });
+  LOSS.snap(tr);
+  LOSS.badge();
+  const meta = LOSS_TAG[tr.outcome_tag] || LOSS_TAG.neutral;
+  const d = tr.decision || {};
+  document.getElementById('loss-detail').innerHTML =
+    '<div class="loss-row">' +
+      '<span class="hl-badge ' + meta.cls + '">' + meta.emoji + ' ' + meta.label + '</span>' +
+      '<span class="loss-dec">Decided: player <b>' + (d.player_idx != null ? d.player_idx : '?') + '</b> · ' +
+        'angle <b>' + (d.angle != null ? d.angle : '?') + '°</b> · power <b>' + (d.power != null ? d.power : '?') + '</b></span>' +
+    '</div>' +
+    '<div class="loss-desc">' + meta.description + '</div>' +
+    '<div class="loss-actions">' +
+      '<button class="btn btn-ghost btn-sm" onclick="window.playLossTurn()"> Play this kick</button> ' +
+      '<span class="loss-compare-hint">Compare another agent in the same position:</span>' +
+      '<span class="loss-chips"></span>' +
+    '</div>' +
+    '<div id="loss-compare-box" class="loss-compare-box"></div>';
+  const chips = document.querySelector('#loss-detail .loss-chips');
+  LOSS.builtins.forEach(function (model) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'btn btn-ghost btn-sm loss-chip';
+    button.textContent = model.name;
+    button.onclick = function () { window.compareLossTurn(model.id); };
+    chips.appendChild(button);
+  });
+  if (LOSS_DEFAULT_MODEL) window.compareLossTurn(LOSS_DEFAULT_MODEL, true);
+}
+
+window.playLossTurn = async function () {
+  const tr = LOSS.traces[LOSS.current];
+  const box = document.getElementById('loss-compare-box');
+  if (!tr) return;
+  const d = tr.decision || {};
+  box.innerHTML = '<div class="loss-loading">Simulating kick…</div>';
+  try {
+    const res = await fetch(lossUrl('/matches/' + encodeURIComponent(LOSS.match) +
+                                    '/turns/' + tr.turn + '/playback'), { method: 'POST' });
+    const data = await res.json();
+    if (data.error || !data.trajectory) { box.innerHTML = data.error || 'Could not simulate.'; return; }
+    const raw = data.trajectory;
+    if (Array.isArray(raw[0]?.a)) state.players_a = raw[0].a.map((p,i) => ({...state.players_a[i],...p}));
+    if (Array.isArray(raw[0]?.b)) state.players_b = raw[0].b.map((p,i) => ({...state.players_b[i],...p}));
+    updatePlayerPositions(state.players_a, state.players_b);
+    const kickerSrv = (tr.state.is_player_a ? state.players_a : state.players_b)[d.player_idx];
+    if (!highlightSilent && kickerSrv) playPositional(_kickBuf, pitchPosition(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
+    if (data.scored === 'A' || data.scored === 'B') {
+      if (!highlightSilent) SoundManager.goal();
+      triggerGoalEffect(data.scored === 'A' ? 'a' : 'b');
+      triggerCrowdCheer();
+    }
+    isAnimating = true;
+    animateTrajectory(raw, function () {
+      isAnimating = false;
+      LOSS.snap(tr);
+      LOSS.badge();
+    });
+    box.innerHTML = '<div class="loss-loading">Played: ' + (data.desc || 'kick simulated') + '</div>';
+  } catch (e) {
+    box.innerHTML = 'Could not simulate the kick.';
+  }
+};
+
+window.compareLossTurn = async function (modelKey, quiet) {
+  const tr = LOSS.traces[LOSS.current];
+  const box = document.getElementById('loss-compare-box');
+  if (!tr || !box) return;
+  if (!quiet) box.innerHTML = '<div class="loss-loading">Thinking…</div>';
+  try {
+    const res = await fetch(lossUrl('/matches/' + encodeURIComponent(LOSS.match) +
+                                    '/turns/' + tr.turn + '/compare?model=' + encodeURIComponent(modelKey)));
+    const data = await res.json();
+    if (data.error) { if (!quiet) box.innerHTML = data.error; return; }
+    const y = data.yours || {}, t = data.theirs || {}, diff = data.diff || {};
+    let note;
+    if (t.player_idx !== y.player_idx) {
+      note = 'It would kick with a <b>different player</b> (' + t.player_idx + ' instead of ' + y.player_idx + ').';
+    } else if (Math.abs(diff.angle_delta) >= 10 && Math.abs(diff.power_delta) >= 15) {
+      note = 'Substantially different angle and power.';
+    } else if (Math.abs(diff.angle_delta) >= 10) {
+      note = 'Aim would be <b>' + (diff.angle_delta > 0 ? '+' : '') + diff.angle_delta + '°</b> different.';
+    } else if (Math.abs(diff.power_delta) >= 15) {
+      note = 'Power would differ by <b>' + (diff.power_delta > 0 ? '+' : '') + diff.power_delta + '</b>.';
+    } else {
+      note = 'Very similar to what your model did — this turn wasn\'t the problem.';
+    }
+    box.innerHTML =
+      '<div class="loss-compare-title">' + t.name + ' would do: player <b>' + t.player_idx + '</b> · ' +
+        'angle <b>' + t.angle + '°</b> · power <b>' + t.power + '</b></div>' +
+      '<div class="loss-compare-note">' + note + '</div>' +
+      '<div class="loss-caveat">One turn isn\'t a verdict — this only shows what a built-in agent picks ' +
+      'given the exact same situation.</div>';
+  } catch (e) {
+    if (!quiet) box.innerHTML = 'Comparison failed.';
+  }
+};
+
+async function renderLossPatterns() {
+  const els = lossEls();
+  try {
+    const res = await fetch(lossUrl('/patterns'));
+    const p = await res.json();
+    if (!p || !p.n_matches) { els.patterns.innerHTML = '<div class="loss-caveat">No pattern data yet.</div>'; return; }
+    const rec = p.record || {};
+    const outs = p.outcomes || {};
+    const thirds = p.by_third || {};
+    const fmt = function (o) {
+      return (o.goal || 0) + ' goals · ' + (o.good_chance || 0) + ' chances · ' +
+             (o.poor || 0) + ' poor · ' + (o.neutral || 0) + ' neutral' +
+             ((o.own_goal_risk || 0) ? ' · ' + o.own_goal_risk + ' own-goal risks' : '');
+    };
+    let html =
+      '<div class="loss-pattern-row">' +
+        '<span class="hl-badge">' + p.n_matches + ' matches</span> ' +
+        '<span class="hl-badge">' + rec.wins + 'W–' + rec.losses + 'L–' + rec.draws + 'D</span> ' +
+        '<span class="hl-badge">' + p.n_turns + ' of your decisions</span> ' +
+        '<span class="hl-badge">' + p.poor_rate + '% non-threatening</span>' +
+      '</div>' +
+      '<div class="loss-pattern-block"><b>By match phase:</b><br>early [' + fmt(thirds.early) + ']<br>' +
+      'middle [' + fmt(thirds.middle) + ']<br>late [' + fmt(thirds.late) + ']</div>';
+    if (p.own_goal_match_ids && p.own_goal_match_ids.length) {
+      html += '<div class="loss-pattern-warn"> Your model kicked toward its own goal in ' +
+              p.own_goal_match_ids.length + ' match(es) — check those first.</div>';
+    }
+    html += p.caveats.map(function (c) { return '<div class="loss-caveat">' + c + '</div>'; }).join('');
+    els.patterns.innerHTML = html;
+  } catch (e) {
+    els.patterns.innerHTML = '';
+  }
+}
+
+window.__lossState = function () {
+  return {
+    model: LOSS_MODEL,
+    match: LOSS.match,
+    current: LOSS.current,
+    tracedTurns: LOSS.traces.length,
+    selOptions: document.getElementById('loss-match').options.length,
+    stripCells: document.querySelectorAll('#loss-strip .hl-cell').length,
+    detailText: document.getElementById('loss-detail').textContent,
+    hasEmpty: document.getElementById('loss-empty').style.display === 'block',
+  };
+};
+
+//  Render loop
+
+//  Init
+(async () => {
+  try{pitch.setTheme(await fetch('/api/customization').then(r=>r.json()));}catch(_){}
+
+  if (LIVE_ROOM) {
+    initLive();
+    return;
+  }
+
+  if (LOSS_MODEL) {
+    initLossAnalysis();
+    return;
+  }
+
+  const first = replayData.find(m => m.trajectory && m.trajectory.length > 0);
+  if (first) {
+    const traj = first.trajectory;
+    if (traj && traj[0]) {
+      if (traj[0].ball_size) state.ball_size = traj[0].ball_size;
+      state.ball = { x: traj[0].x, y: traj[0].y, z: traj[0].z || 0 };
+      if (Array.isArray(traj[0].a)) state.players_a = traj[0].a.map(p => ({ ...p }));
+      if (Array.isArray(traj[0].b)) state.players_b = traj[0].b.map(p => ({ ...p }));
+      if (traj[0].ref) state.referee = { x: traj[0].ref.x, y: traj[0].ref.y };
+    }
+  }
+  rebuildPlayers(state.players_a, state.players_b);
+  syncBallSize(state);
+  updateBall(state.ball.x, state.ball.y, state.ball.z || 0);
+  updateUI();
+  buildHighlightsUI();
+  if (clipHighlight) setTimeout(() => playHighlight(clipHighlight), 400);
+})();
+</script>
+<script src="/static/js/ui/autosave.js"></script>
+</body>
+</html>

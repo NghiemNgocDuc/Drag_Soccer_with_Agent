@@ -33,7 +33,7 @@
     <circle cx="221" cy="371" r="3" fill="#d7ef82"/>
     <text x="247" y="378" fill="#8eaea0" font-size="19" letter-spacing="2">PHYSICS SIMULATION</text>
     <circle cx="503" cy="371" r="3" fill="#d7ef82"/>
-    <text x="529" y="378" fill="#8eaea0" font-size="19" letter-spacing="2">3D FOOTBALL</text>
+    <text x="529" y="378" fill="#8eaea0" font-size="19" letter-spacing="2">2D FOOTBALL</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="936" y="60" width="590" height="360" rx="30" fill="#0c2922" stroke="#365a48" stroke-width="2"/>

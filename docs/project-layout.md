@@ -24,7 +24,9 @@ Run the app with `python app.py` as before; Render still loads `app:app`.
 
 Templates use nine folders: `shared`, `auth`, `game`, `competition`, `workshop`,
 `social`, `account`, `public`, and `hubs`. For example, the match view is
-`templates/game/index_3d.html`, and login is `templates/auth/login.html`.
+`templates/game/index_2d.html`, and login is `templates/auth/login.html`.
+Live games and replay/spectator views share `static/js/game/pitch-2d.js` and
+`playback-2d.js`. The old 3D templates remain as unserved reference files.
 HTTP routes keep their existing URLs.
 
 `models/soccer_logic.py` stays at its established import path because AI agents
