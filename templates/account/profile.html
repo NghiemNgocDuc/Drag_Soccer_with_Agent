@@ -1,0 +1,510 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile — Agent Soccer</title>
+<link href="/static/vendor/fonts/be-vietnam.css" rel="stylesheet">
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-social as-page-profile">
+
+
+{{ app_nav('profile') }}
+
+
+<main class="as-main" id="as-content">
+  {% set gp = stats.games_played or 0 %}
+  {% set w  = stats.wins or 0 %}
+  {% set l  = stats.losses or 0 %}
+  {% set d  = stats.draws or 0 %}
+  {% set gf = stats.goals_for or 0 %}
+  {% set ga = stats.goals_against or 0 %}
+  {% set op = stats.online_played or 0 %}
+  {% set ow = stats.online_wins or 0 %}
+  {% set rate = (w / gp * 100) if gp > 0 else 0 %}
+
+{{ page_header('YOUR CLUB', 'Player profile', 'Your career, models, and account in one place.') }}
+  <!-- Player summary -->
+  <div class="hero">
+    <button type="button" class="avatar" id="hero-avatar" aria-label="Choose a new profile photo" onclick="document.getElementById('photo-input').click()">{% if avatar_url %}<img class="avatar-img" src="{{ avatar_url }}" alt="{{ username }}">{% else %}{{ username[0].upper() }}{% endif %}</button>
+    <div class="hero-info">
+      <h2>{{ username }}</h2>
+      <p class="tagline">Player · Agent Soccer{% if rating.rating >= 1600 %} · Gold{% elif rating.rating >= 1400 %} · Silver{% elif rating.rating >= 1200 %} · Bronze{% else %} · Rookie{% endif %}</p>
+      <div class="player-tags">
+        <span>ELO {{ rating.rating }}</span>
+        <span>{{ achievement_count }}/{{ achievements|length }} badges</span>
+        <span>Peak {{ rating.peak_rating }}</span>
+        <span id="money-badge">… coins</span>
+      </div>
+    </div>
+    <div class="hero-badge">
+      <div class="val">{{ gp }}</div>
+      <div class="lbl">Total Games</div>
+      <div style="font-size:.65rem;color:var(--sc-muted);margin-top:4px">{{ w }}W {{ l }}L {{ d }}D</div>
+    </div>
+  </div>
+
+  <!-- Stats Grid -->
+  <div class="stats-grid">
+    <div class="stat-card played">
+      <div class="stat-icon"></div>
+      <div class="stat-val">{{ gp }}</div>
+      <div class="stat-lbl">Played</div>
+    </div>
+    <div class="stat-card wins">
+      <div class="stat-icon"></div>
+      <div class="stat-val">{{ w }}</div>
+      <div class="stat-lbl">Wins</div>
+    </div>
+    <div class="stat-card losses">
+      <div class="stat-icon"></div>
+      <div class="stat-val">{{ l }}</div>
+      <div class="stat-lbl">Losses</div>
+    </div>
+    <div class="stat-card draws">
+      <div class="stat-icon"></div>
+      <div class="stat-val">{{ d }}</div>
+      <div class="stat-lbl">Draws</div>
+    </div>
+    <div class="stat-card rate">
+      <div class="stat-icon"></div>
+      <div class="stat-val">{{ rate | round(1) }}%</div>
+      <div class="stat-lbl">Win Rate</div>
+    </div>
+    <div class="stat-card elo">
+      <div class="stat-icon"></div>
+      <div class="stat-val">{{ rating.rating }}</div>
+      <div class="stat-lbl">ELO Rating</div>
+    </div>
+    <a href="/achievements" class="stat-card ach">
+      <div class="stat-icon"></div>
+      <div class="stat-val">{{ achievement_count }}</div>
+      <div class="stat-lbl">Achievements</div>
+    </a>
+    <div class="stat-card seasons">
+      <div class="stat-icon"></div>
+      <div class="stat-val">{{ season_career.seasons_played }}</div>
+      <a href="/leaderboard/ranked" style="text-decoration:none;color:inherit">
+        <div class="stat-lbl">Seasons Played</div>
+      </a>
+    </div>
+  </div>
+
+  {% set rp = rating.games_played or 0 %}
+  {% if rp < placement_games %}
+  <div class="placement-note" style="margin:-8px 0 20px;font-size:.75rem;color:var(--sc-muted)">
+    Ranked: {{ rp }}/{{ placement_games }} placement matches — your rating appears on the
+    <a href="/leaderboard/ranked" style="color:var(--accent)">ranked leaderboard</a> after placement.
+    ({{ rating.wins }}W / {{ rating.losses }}L, peak {{ rating.peak_rating }})
+  </div>
+  {% else %}
+  <div class="placement-note" style="margin:-8px 0 20px;font-size:.75rem;color:var(--sc-muted)">
+    Ranked: placed at {{ rating.rating }} — see the
+    <a href="/leaderboard/ranked" style="color:var(--accent)">ranked leaderboard</a>.
+    ({{ rating.games_played }} games, {{ rating.wins }}W / {{ rating.losses }}L, peak {{ rating.peak_rating }}{% if season_career.best_rank %}, best season finish #{{ season_career.best_rank }}{% endif %}) ·
+    Season {{ current_season }} is live — ratings soft-reset each season.
+  </div>
+  {% endif %}
+
+  <!-- Achievements — viewable in profile, unlock as you play more -->
+  <h2 class="section-title" style="display:flex;align-items:center;gap:8px">Achievements <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--sc-muted)">{{ achievement_count }} / {{ achievements|length }} unlocked</span> <a href="/achievements" style="margin-left:auto;font-size:.7rem;color:var(--accent);text-decoration:none;font-weight:600">View all →</a></h2>
+  <div class="glass-card" style="padding:16px;margin-bottom:20px">
+    <div class="profile-badges">
+      {% for a in achievements[:6] %}
+        <div class="profile-badge"><span class="achievement-symbol">{{ icon("trophy") }}</span><div>
+          <strong>{{ a.name }}</strong>
+          <small>{{ a.description }}</small>
+          <div class="unlock-state">{{ "Unlocked" if a.earned else "Locked" }}</div>
+        </div></div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- Performance Graph (coh3 PlayerCard trend) -->
+  <h2 class="section-title">Performance Trend</h2>
+  <div class="glass-card" style="padding:16px;margin-bottom:20px">
+    <canvas id="perf-chart" height="120" role="img" aria-label="Recent match results: 100 percent indicates a win" {% if not stats.recent %}hidden{% endif %}></canvas>
+    {% if not stats.recent %}<p class="meta">Your results will appear here after your first match. <a href="/play3d">Go to the pitch →</a></p>{% endif %}
+    <div style="display:{{ 'flex' if stats.recent else 'none' }};justify-content:space-between;margin-top:8px;font-size:.68rem;color:var(--sc-muted)"><span>Last 5 games</span><span id="perf-summary">{{ rate|round(1) }}% win rate</span></div>
+  </div>
+  <script src="/static/vendor/chartjs/chart.umd.min.js"></script>
+  <script>
+  (function(){
+    const recent = {{ stats.recent | tojson }};
+    if (!recent.length) return;
+    const labels = recent.map((g,i)=> 'G'+(i+1)).reverse();
+    const wins = recent.map(g=> g.winner==='A'?1:0).reverse();
+    let cum=0; const trend = wins.map(v=>{ cum+=v; return Math.round(cum/(wins.indexOf(v)+1)*100); }); // cumulative win%
+    // but simpler: per-game win 0/100
+    const data = wins.map(v=> v*100);
+    const ctx=document.getElementById('perf-chart'); if(!ctx) return;
+    new Chart(ctx, {type:'line', data:{labels, datasets:[{label:'Win', data, borderColor:'#087f70', backgroundColor:'rgba(8,127,112,.12)', tension:0.35, fill:true, pointRadius:4}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}, x:{grid:{display:false}}}}});
+  })();
+  </script>
+  {% if gp > 0 %}
+  <!-- Win Rate Breakdown -->
+  <div class="winrate-section">
+    <h2 class="section-title">Performance</h2>
+    <div class="winrate-card">
+      {% set circum = 2 * 22 / 7 * 38 %}
+      {% set offset = circum - (circum * rate / 100) %}
+      <div class="ring-wrap">
+        <svg width="100" height="100" viewBox="0 0 100 100">
+          <circle class="ring-bg" cx="50" cy="50" r="38"/>
+          <circle class="ring-fg" cx="50" cy="50" r="38" stroke-dasharray="{{ circum }}" stroke-dashoffset="{{ offset }}"/>
+        </svg>
+        <div class="ring-label">
+          <span class="pct">{{ rate | round(1) }}%</span>
+          <span class="sub">Win Rate</span>
+        </div>
+      </div>
+      <div class="winrate-detail">
+        <div class="wr-row"><span class="lbl">Wins</span><span class="val green">{{ w }}</span></div>
+        <div class="wr-row"><span class="lbl">Losses</span><span class="val red">{{ l }}</span></div>
+        <div class="wr-row"><span class="lbl">Draws</span><span class="val">{{ d }}</span></div>
+        <div class="wr-row"><span class="lbl">Win Rate vs AI</span><span class="val">{{ rate | round(1) }}%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Goal Stats -->
+  <h2 class="section-title">Scoring</h2>
+  <div class="goal-grid">
+    <div class="goal-card for">
+      <div class="g-icon"></div>
+      <div class="g-val">{{ gf }}</div>
+      <div class="g-lbl">Goals For</div>
+    </div>
+    <div class="goal-card against">
+      <div class="g-icon"></div>
+      <div class="g-val">{{ ga }}</div>
+      <div class="g-lbl">Goals Against</div>
+    </div>
+    <div class="goal-card diff">
+      <div class="g-icon"></div>
+      <div class="g-val">{% if gf >= ga %}+{% endif %}{{ gf - ga }}</div>
+      <div class="g-lbl">Goal Diff</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if op > 0 %}
+  <h2 class="section-title">Online</h2>
+  <div class="goal-grid">
+    <div class="goal-card for">
+      <div class="g-icon"></div>
+      <div class="g-val">{{ op }}</div>
+      <div class="g-lbl">Games</div>
+    </div>
+    <div class="goal-card diff">
+      <div class="g-icon"></div>
+      <div class="g-val">{{ ow }}</div>
+      <div class="g-lbl">Wins</div>
+    </div>
+    <div class="goal-card diff">
+      <div class="g-icon"></div>
+      <div class="g-val">{{ (ow / op * 100) | round(1) }}%</div>
+      <div class="g-lbl">Win Rate</div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if stats.recent %}
+  <h2 class="section-title">Recent matches</h2>
+  <div class="recent-card">
+    <table class="recent-table">
+      <thead><tr><th>Mode</th><th>Score</th><th>Result</th><th></th></tr></thead>
+      <tbody>
+      {% for g in stats.recent %}
+        {% set winner = g.winner %}
+        {% set sa = g.score_a %}
+        {% set sb = g.score_b %}
+        {% set is_win = (winner == "A" and g.mode == "hvai") or (winner == "A" and g.mode == "online") %}
+        {% set is_loss = (winner == "B") %}
+        {% set is_draw = (winner == "Draw") %}
+        <tr>
+          <td><span class="mode-tag mode-{{ g.mode }}">{{ g.mode }}</span></td>
+          <td class="score-cell {% if is_win %}win{% elif is_loss %}loss{% else %}draw{% endif %}">{{ sa }} – {{ sb }}</td>
+          <td style="color:var(--sc-muted);font-size:.75rem">
+            {% if is_win %}Win{% elif is_loss %}Loss{% else %}Draw{% endif %}
+          </td>
+          <td>{% if g.replay_id %}<a href="/history/watch/{{ g.replay_id }}" class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:.72rem">Watch</a>{% elif g.id %}<a href="/history/watch/{{ g.id }}" class="btn btn-ghost btn-sm" style="padding:4px 10px;font-size:.72rem">Watch</a>{% else %}<span style="font-size:.68rem;color:var(--dim)">No replay</span>{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <div style="display:flex;justify-content:space-between;padding:12px;align-items:center"><span style="font-size:.72rem;color:var(--sc-muted)">Your five most recent matches</span><a href="/match-history" style="font-size:.8rem;color:var(--accent);font-weight:600;text-decoration:none">View full history →</a></div>
+  </div>
+  {% endif %}
+  <!-- Models Showcase (coh3 PlayerCard Units) -->
+  <h2 class="section-title" style="margin-top:20px">Your models</h2>
+  <div class="glass-card" style="padding:16px;margin-bottom:20px" id="profile-models"></div>
+  <script>
+  (async()=>{
+    const el=document.getElementById('profile-models');
+    if(!el) return;
+    try{
+      let models=[];
+      try{ const r2=await fetch('/models'); if(r2.ok) models=(await r2.json()).filter(model=>model.type==='user'); }catch(e){}
+      if(!models.length) { el.innerHTML='<div style="font-size:.82rem;color:var(--sc-muted)">No models yet — <a href="/my-models" style="color:var(--accent)">create one</a></div>'; return; }
+      models=models.slice(0,3);
+      const escape=text=>{const span=document.createElement('span');span.textContent=String(text||'');return span.innerHTML;};
+      el.innerHTML=models.map(m=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border:1px solid var(--sc-border);border-radius:10px;margin-bottom:12px;background:#fff"><div><div style="font-weight:700;font-size:1rem">'+escape(m.name||m.id)+'</div><div style="font-size:.875rem;color:var(--sc-muted)">'+escape(m.desc)+'</div></div><a href="/my-models" class="btn btn-ghost btn-sm">Open</a></div>').join('') + '<div style="text-align:center;margin-top:8px"><a href="/my-models" style="font-size:.875rem;color:var(--accent)">Manage models →</a> · <a href="/learn" style="font-size:.875rem;color:var(--accent)">Learn</a></div>';
+    }catch(e){ el.innerHTML='<div style="font-size:.82rem;color:var(--sc-muted)">Models unavailable</div>'; }
+  })();
+  </script>
+
+  {% if gp == 0 %}
+  <div style="text-align:center;padding:40px 16px;color:var(--dim);font-size:.9rem">
+    No games played yet. <a href="/play3d" style="color:var(--accent);text-decoration:none;font-weight:600">Play your first game!</a>
+  </div>
+  {% endif %}
+  <!-- Account Settings -->
+  <h2 class="section-title">Account settings</h2><div class="account-grid">
+  <div class="settings-card">
+    <div class="settings-row">
+      <div class="photo-preview" id="photo-preview">
+        {% if avatar_url %}<img src="{{ avatar_url }}" alt="">{% else %}{{ username[0].upper() }}{% endif %}
+      </div>
+      <div>
+        <div class="settings-row" style="gap:10px">
+          <label class="btn btn-ghost" for="photo-input" style="cursor:pointer;margin:0">Choose Photo</label>
+          <input type="file" id="photo-input" accept="image/jpeg,image/png,image/webp" style="display:none">
+          <button type="button" class="btn btn-primary" id="photo-upload-btn">Upload</button>
+          <button type="button" class="btn btn-danger" id="photo-remove-btn">Remove Photo</button>
+        </div>
+        <div class="hint">JPG, PNG or WebP, up to 5 MB. Your photo appears on your profile and the leaderboard.</div>
+        <div class="form-status" id="photo-status" role="status" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-card">
+    <h3>Change email</h3>
+    <div class="settings-field">
+      <label for="current-password">Current password (required to confirm)</label>
+      <input type="password" id="current-password" class="settings-input" autocomplete="current-password">
+    </div>
+    <div class="settings-field">
+      <label for="new-email">New email address</label>
+      <input type="email" id="new-email" class="settings-input" autocomplete="email">
+    </div>
+    <div class="settings-field">
+      <label for="confirm-email">Confirm new email</label>
+      <input type="email" id="confirm-email" class="settings-input" autocomplete="email">
+    </div>
+    <button type="button" class="btn btn-primary" id="email-change-btn">Request Email Change</button>
+    <div class="hint">A confirmation link is emailed to the new address — your email only changes once you click it.</div>
+    <div class="form-status" id="email-status" role="status" aria-live="polite"></div>
+    <div id="pending-email-wrap" style="display:none;margin-top:12px;padding:10px;border:1px solid #e0e7ff;border-radius:8px;background:rgba(224,231,255,.3)">
+      <div style="font-size:.78rem;color:var(--sc-muted)">Pending change to <b id="pending-email-text"></b></div>
+      <button type="button" class="btn btn-ghost" id="resend-btn" style="margin-top:8px">Resend confirmation email</button>
+      <div class="form-status" id="resend-status" role="status" aria-live="polite"></div>
+    </div>
+  </div>
+
+</div>
+</main>
+<script>
+const AVATAR_URL = {{ avatar_url | tojson }};
+const avatarChar = {{ username[0] | upper | tojson }};
+let pendingPhoto = null;
+let hasPhoto = !!AVATAR_URL;
+
+const photoInput    = document.getElementById('photo-input');
+const photoPreview  = document.getElementById('photo-preview');
+const uploadBtn     = document.getElementById('photo-upload-btn');
+const removeBtn     = document.getElementById('photo-remove-btn');
+const photoStatus   = document.getElementById('photo-status');
+const heroAvatar    = document.querySelector('.hero .avatar');
+
+function showStatus(el, text, ok) {
+  el.textContent = text;
+  el.className = 'form-status ' + (ok ? 'ok' : 'err');
+}
+
+function renderPreview(url) {
+  photoPreview.innerHTML = '';
+  if (url) {
+    const img = document.createElement('img');
+    img.src = url;
+    img.alt = '';
+    photoPreview.appendChild(img);
+  } else {
+    photoPreview.textContent = avatarChar;
+  }
+}
+
+function renderHeroAvatar(url) {
+  heroAvatar.innerHTML = '';
+  if (url) {
+    const img = document.createElement('img');
+    img.className = 'avatar-img';
+    img.src = url;
+    img.alt = '';
+    heroAvatar.appendChild(img);
+  } else {
+    heroAvatar.textContent = avatarChar;
+  }
+}
+
+photoInput.addEventListener('change', () => {
+  const f = photoInput.files && photoInput.files[0];
+  photoStatus.className = 'form-status';
+  if (!f) { pendingPhoto = null; renderPreview(AVATAR_URL); return; }
+  const okType = ['image/jpeg', 'image/png', 'image/webp'].includes(f.type);
+  if (!okType) {
+    showStatus(photoStatus, 'Only JPG, PNG or WebP images are allowed.', false);
+    photoInput.value = '';
+    pendingPhoto = null;
+    renderPreview(AVATAR_URL);
+    return;
+  }
+  if (f.size > 5 * 1024 * 1024) {
+    showStatus(photoStatus, 'Image must be 5 MB or smaller.', false);
+    photoInput.value = '';
+    pendingPhoto = null;
+    renderPreview(AVATAR_URL);
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => { pendingPhoto = reader.result; renderPreview(pendingPhoto); };
+  reader.readAsDataURL(f);
+});
+
+uploadBtn.addEventListener('click', async () => {
+  if (!pendingPhoto) { showStatus(photoStatus, 'Choose a photo first.', false); return; }
+  uploadBtn.disabled = true;
+  showStatus(photoStatus, 'Uploading…', true);
+  try {
+    const blob = await (await fetch(pendingPhoto)).blob();
+    const fd = new FormData();
+    fd.append('photo', blob, 'photo.' + (blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg'));
+    const r = await fetch('/api/profile/photo', { method: 'POST', body: fd });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      showStatus(photoStatus, 'Photo updated.', true);
+      renderHeroAvatar(data.avatar_url);
+      renderPreview(data.avatar_url);
+      pendingPhoto = null;
+      hasPhoto = true;
+      photoInput.value = '';
+    } else {
+      showStatus(photoStatus, data.error || 'Upload failed. Try again.', false);
+    }
+  } catch (e) {
+    showStatus(photoStatus, 'Network error — upload failed. Try again.', false);
+  } finally {
+    uploadBtn.disabled = false;
+  }
+});
+
+removeBtn.addEventListener('click', async () => {
+  if (!hasPhoto && !pendingPhoto) { showStatus(photoStatus, 'No photo to remove.', false); return; }
+  if (!confirm('Remove your profile photo?')) return;
+  removeBtn.disabled = true;
+  showStatus(photoStatus, 'Removing…', true);
+  try {
+    const r = await fetch('/api/profile/photo', { method: 'DELETE' });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      showStatus(photoStatus, 'Photo removed.', true);
+      renderHeroAvatar(null);
+      renderPreview(null);
+      pendingPhoto = null;
+      hasPhoto = false;
+      photoInput.value = '';
+    } else {
+      showStatus(photoStatus, data.error || 'Could not remove photo. Try again.', false);
+    }
+  } catch (e) {
+    showStatus(photoStatus, 'Network error — could not remove photo.', false);
+  } finally {
+    removeBtn.disabled = false;
+  }
+});
+
+const emailBtn  = document.getElementById('email-change-btn');
+const emailStat = document.getElementById('email-status');
+
+emailBtn.addEventListener('click', async () => {
+  const cur  = document.getElementById('current-password').value;
+  const newE = document.getElementById('new-email').value.trim().toLowerCase();
+  const conf = document.getElementById('confirm-email').value.trim().toLowerCase();
+  if (!cur) { showStatus(emailStat, 'Enter your current password.', false); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(newE)) { showStatus(emailStat, 'Enter a valid new email address.', false); return; }
+  if (newE !== conf) { showStatus(emailStat, 'The new email addresses do not match.', false); return; }
+  emailBtn.disabled = true;
+  showStatus(emailStat, 'Requesting…', true);
+  try {
+    const r = await fetch('/api/account/change-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ current_password: cur, new_email: newE }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (r.ok) {
+      showStatus(emailStat,
+        'Confirmation email sent to ' + data.pending_email + ' — check your inbox and click the link to complete the change.',
+        true);
+      document.getElementById('current-password').value = '';
+      document.getElementById('new-email').value = '';
+      document.getElementById('confirm-email').value = '';
+      checkPendingEmail();
+    } else {
+      showStatus(emailStat, data.error || 'Could not request the change. Try again.', false);
+    }
+  } catch (e) {
+    showStatus(emailStat, 'Network error — could not request the change.', false);
+  } finally {
+    emailBtn.disabled = false;
+  }
+});
+async function checkPendingEmail(){
+  try{
+    const r=await fetch('/api/account/pending-email');
+    const d=await r.json();
+    const wrap=document.getElementById('pending-email-wrap');
+    const txt=document.getElementById('pending-email-text');
+    if(d.pending_email){
+      txt.textContent=d.pending_email;
+      wrap.style.display='block';
+    } else {
+      wrap.style.display='none';
+    }
+  }catch(e){}
+}
+fetch('/api/money/balance').then(r=>r.json()).then(d=>{ const b=document.getElementById('money-badge'); if(b&&d.coins!=null) b.textContent=d.coins+' coins'; }).catch(()=>{});
+document.getElementById('resend-btn')?.addEventListener('click', async ()=>{
+  const btn=document.getElementById('resend-btn');
+  const stat=document.getElementById('resend-status');
+  btn.disabled=true;
+  stat.textContent='Resending...';
+  stat.className='form-status ok';
+  try{
+    const r=await fetch('/api/account/change-email/resend', {method:'POST'});
+    const d=await r.json().catch(()=>({}));
+    if(r.ok){
+      stat.textContent='Confirmation email resent to '+d.pending_email;
+      stat.className='form-status ok';
+    } else {
+      stat.textContent=d.error||'Could not resend';
+      stat.className='form-status err';
+    }
+  }catch(e){
+    stat.textContent='Network error';
+    stat.className='form-status err';
+  } finally { btn.disabled=false; }
+});
+checkPendingEmail();
+</script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

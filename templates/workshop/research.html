@@ -1,0 +1,316 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Research — Agent Soccer</title>
+<link href="/static/vendor/fonts/be-vietnam.css" rel="stylesheet">
+<link rel="stylesheet" href="/static/vendor/codemirror/codemirror.min.css">
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-learn as-page-research">
+<div class="flash-msg" id="flash-msg" role="status" aria-live="polite"></div>
+
+{{ app_nav('learn') }}
+
+
+<main class="as-main" id="as-content">
+{{ page_header('THE LIBRARY', 'Research for your next move', 'Find useful papers on game AI, save your reading list, and keep notes together.') }}
+  <div class="tab-bar" role="tablist" aria-label="Research views">
+    <button type="button" class="tab active" role="tab" data-tab="search" aria-selected="true" aria-controls="tab-search" onclick="switchTab('search')">Find papers</button>
+    <button type="button" class="tab" role="tab" data-tab="library" aria-selected="false" aria-controls="tab-library" onclick="switchTab('library')">My library <span class="tab-count" id="lib-count">0</span></button>
+  </div>
+  <!-- Search Tab -->
+  <div id="tab-search" class="tab-content" role="tabpanel">
+    <div class="glass search-section">
+      <label class="as-field-label" for="search-input">Search academic papers</label>
+      <div class="search-row">
+        <input type="search" id="search-input" placeholder='Search papers — e.g. "multi-agent reinforcement learning soccer"' onkeydown="if(event.key==='Enter') searchPapers()">
+        <button class="btn btn-primary" onclick="searchPapers()">Search</button>
+      </div>
+      <div class="suggested" id="suggested">
+        {% for q in suggested_queries %}
+        <button type="button" class="chip" onclick='quickSearch({{ q|tojson|forceescape }})'>{{ q }}</button>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="glass results-section" id="results-section">
+      <div class="empty-state">
+        <strong>Search for papers</strong>
+        <p>Search the Semantic Scholar database for academic papers on game AI, RL, planning, and soccer agents</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Library Tab -->
+  <div id="tab-library" class="tab-content" role="tabpanel" style="display:none">
+    <div class="glass library-section" id="library-section">
+      <div class="empty-state" id="lib-empty">
+        <strong>No saved papers yet</strong>
+        <p>Search and save papers to build your research library</p>
+      </div>
+      <div class="library-grid" id="library-grid"></div>
+    </div>
+  </div>
+</main>
+
+<!-- Detail Modal -->
+<div class="modal-overlay" id="detail-modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Paper details" tabindex="-1">
+    <button type="button" aria-label="Close paper details" class="modal-close" onclick="closeDetail()">&times;</button>
+    <div id="modal-content">
+      <div class="spinner"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+let detailReturnFocus = null;
+let savedPapers = [];
+let currentSearchResults = [];
+
+function flash(msg, type) {
+  const el = document.getElementById('flash-msg');
+  el.textContent = msg;
+  el.className = 'flash-msg ' + type + ' show';
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function switchTab(tab) {
+  document.querySelectorAll('.tab').forEach(t => {t.classList.remove('active');t.setAttribute('aria-selected','false');});
+  document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+  document.querySelector(`.tab[data-tab="${tab}"]`).classList.add('active');
+  document.querySelector(`.tab[data-tab="${tab}"]`).setAttribute('aria-selected','true');
+  document.getElementById('tab-' + tab).style.display = 'block';
+  if (tab === 'library') loadLibrary();
+}
+
+function quickSearch(q) {
+  document.getElementById('search-input').value = q;
+  searchPapers();
+}
+
+async function searchPapers() {
+  const q = document.getElementById('search-input').value.trim();
+  if (!q || q.length < 2) { flash('Enter at least 2 characters', 'error'); return; }
+  const section = document.getElementById('results-section');
+  section.innerHTML = '<div class="spinner"></div>';
+  try {
+    const r = await fetch('/api/research/search?q=' + encodeURIComponent(q) + '&limit=15');
+    const d = await r.json();
+    if (d.error) { section.innerHTML = '<div class="empty-state"><strong>Error</strong><p>' + d.error + '</p></div>'; return; }
+    currentSearchResults = d.results || [];
+    renderResults(d.results);
+  } catch (e) {
+    section.innerHTML = '<div class="empty-state"><strong>Search failed</strong><p>Check your connection and try again</p></div>';
+  }
+}
+
+function renderResults(results) {
+  const section = document.getElementById('results-section');
+  if (!results.length) {
+    section.innerHTML = '<div class="empty-state"><strong>No results</strong><p>Try a different search term</p></div>';
+    return;
+  }
+  let html = '';
+  for (const p of results) {
+    const isSaved = savedPapers.some(sp => sp.paper_id === p.paperId);
+    html += paperCard(p, isSaved);
+  }
+  section.innerHTML = html;
+}
+
+function paperCard(p, isSaved) {
+  const authors = (p.authors || []).slice(0, 4).map(a => a.name).join(', ');
+  const hasMore = (p.authors || []).length > 4;
+  const cites = p.citationCount || 0;
+  const citesCls = cites > 100 ? 'high' : cites > 20 ? 'med' : 'low';
+  const abstract = (p.abstract || '').length > 300 ? (p.abstract || '').slice(0, 300) + '...' : (p.abstract || '');
+  const pid = p.paperId || '';
+  return `<div class="paper-card">
+    <button type="button" class="paper-title" onclick="openDetail('${pid}')">${escHtml(p.title || 'Untitled')}</button>
+    <div class="paper-authors">${escHtml(authors)}${hasMore ? ', …' : ''}</div>
+    <div class="paper-meta">
+      ${p.venue ? `<span class="paper-venue">${escHtml(p.venue)}</span>` : ''}
+      ${p.year ? `<span class="paper-year">${p.year}</span>` : ''}
+      ${cites > 0 ? `<span class="paper-cites ${citesCls}">${cites} citations</span>` : ''}
+      ${isSaved ? '<span class="saved-badge"> Saved</span>' : ''}
+    </div>
+    ${abstract ? `<div class="paper-abstract" id="abs-${pid}">${escHtml(abstract)}</div>` : ''}
+    <div class="paper-actions">
+      <button class="btn btn-ghost btn-xs" onclick="toggleAbstract('${pid}')">Abstract</button>
+      ${p.url ? `<a class="btn btn-ghost btn-xs" href="${p.url}" target="_blank" rel="noopener noreferrer">Open</a>` : ''}
+      <button class="btn btn-xs ${isSaved ? 'btn-danger' : 'btn-success'}" onclick="toggleSave('${pid}')">${isSaved ? 'Remove' : 'Save'}</button>
+    </div>
+    <div class="paper-id">ID: ${pid}</div>
+  </div>`;
+}
+
+function escHtml(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+function toggleAbstract(pid) {
+  const el = document.getElementById('abs-' + pid);
+  if (el) el.classList.toggle('open');
+}
+
+async function toggleSave(paperId) {
+  const isSaved = savedPapers.some(p => p.paper_id === paperId);
+  if (isSaved) {
+    const r = await fetch('/api/research/delete', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paper_id: paperId}) });
+    const d = await r.json();
+    if (d.ok) { flash('Removed from library', 'success'); loadLibrary(); searchPapers(); }
+    else flash('Failed to remove', 'error');
+  } else {
+    const paper = currentSearchResults.find(p => p.paperId === paperId);
+    if (!paper) return;
+    const r = await fetch('/api/research/save', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paper: paper}) });
+    const d = await r.json();
+    if (d.ok) { flash('Saved to library!', 'success'); loadLibrary(); renderResults(currentSearchResults); }
+    else flash('Failed to save', 'error');
+  }
+}
+
+async function openDetail(paperId) {
+  const modal = document.getElementById('detail-modal');
+  const content = document.getElementById('modal-content');
+  content.innerHTML = '<div class="spinner"></div>';
+  if (!modal.classList.contains('visible')) detailReturnFocus = document.activeElement;
+  modal.classList.add('visible');
+  modal.querySelector('.modal-close').focus();
+  try {
+    const r = await fetch('/api/research/detail?paper_id=' + encodeURIComponent(paperId));
+    const d = await r.json();
+    if (d.error) { content.innerHTML = '<p style="color:#ef4444">' + d.error + '</p>'; return; }
+    renderDetail(d.paper, d.recommendations || []);
+  } catch (e) {
+    content.innerHTML = '<p style="color:#ef4444">Failed to load paper details</p>';
+  }
+}
+
+function closeDetail() {
+  document.getElementById('detail-modal').classList.remove('visible');
+  detailReturnFocus?.focus();
+}
+
+function renderDetail(paper, recs) {
+  const authors = (paper.authors || []).map(a => a.name).join(', ');
+  const cites = paper.citationCount || 0;
+  const extIds = paper.externalIds || {};
+  const isSaved = savedPapers.some(p => p.paper_id === paper.paperId);
+  const savedNote = savedPapers.find(p => p.paper_id === paper.paperId);
+
+  let extLinks = '';
+  if (extIds.DOI) extLinks += `<a class="ext-link" href="https://doi.org/${extIds.DOI}" target="_blank" rel="noopener noreferrer">DOI</a>`;
+  if (extIds.ArXiv) extLinks += `<a class="ext-link" href="https://arxiv.org/abs/${extIds.ArXiv}" target="_blank" rel="noopener noreferrer">arXiv</a>`;
+  if (extIds.PubMed) extLinks += `<a class="ext-link" href="https://pubmed.ncbi.nlm.nih.gov/${extIds.PubMed}" target="_blank" rel="noopener noreferrer">PubMed</a>`;
+  if (paper.url) extLinks += `<a class="ext-link" href="${paper.url}" target="_blank" rel="noopener noreferrer">Semantic Scholar</a>`;
+
+  let recHtml = '';
+  if (recs.length) {
+    recHtml = '<div class="label">Recommended Papers</div>';
+    for (const r of recs) {
+      const ra = (r.authors || []).slice(0, 3).map(a => a.name).join(', ');
+      recHtml += `<div class="rec-card" onclick="openDetail('${r.paperId || ''}')">
+        <div class="rec-title">${escHtml(r.title || 'Untitled')}</div>
+        <div class="rec-auth">${escHtml(ra)}${(r.authors||[]).length > 3 ? ', …' : ''} — ${r.year || ''}</div>
+      </div>`;
+    }
+  }
+
+  const content = document.getElementById('modal-content');
+  content.innerHTML = `
+    <h2>${escHtml(paper.title || 'Untitled')}</h2>
+    <div class="authors">${escHtml(authors)}</div>
+    <div class="meta-row">
+      ${paper.venue ? `<span>${escHtml(paper.venue)}</span>` : ''}
+      ${paper.year ? `<span>${paper.year}</span>` : ''}
+      <span>${cites} citations</span>
+      ${paper.fieldsOfStudy ? `<span>${(paper.fieldsOfStudy || []).join(', ')}</span>` : ''}
+    </div>
+    ${extLinks ? `<div class="external-links">${extLinks}</div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-xs ${isSaved ? 'btn-danger' : 'btn-success'}" onclick="toggleSave('${paper.paperId}')">${isSaved ? 'Remove from Library' : 'Save to Library'}</button>
+    </div>
+    <div class="label">Abstract</div>
+    <div class="abstract-text">${escHtml(paper.abstract || 'No abstract available')}</div>
+    <div class="label">Notes</div>
+    <textarea class="notes-area" id="detail-notes" placeholder="Add your research notes here…" oninput="saveNotes('${paper.paperId}')">${escHtml(savedNote?.notes || '')}</textarea>
+    <div class="label">Citation</div>
+    <div class="abstract-text" style="font-size:.78rem;font-style:italic">${escHtml(paper._citation || '')}</div>
+    ${recHtml}
+  `;
+}
+
+async function saveNotes(paperId) {
+  const notes = document.getElementById('detail-notes').value;
+  await fetch('/api/research/save/notes', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({paper_id: paperId, notes: notes}) });
+}
+
+async function loadLibrary() {
+  try {
+    const r = await fetch('/api/research/saved');
+    const d = await r.json();
+    savedPapers = d.papers || [];
+    document.getElementById('lib-count').textContent = savedPapers.length;
+    const grid = document.getElementById('library-grid');
+    const empty = document.getElementById('lib-empty');
+    if (!savedPapers.length) {
+      grid.innerHTML = '';
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    let html = '';
+    for (const p of savedPapers) {
+      const authors = (p.authors || []).slice(0, 4).map(a => a.name || a).join(', ');
+      const tags = p.tags || [];
+      html += `<div class="lib-card">
+        <button type="button" class="lib-title" onclick="openDetail('${p.paper_id}')">${escHtml(p.title || 'Untitled')}</button>
+        <div class="lib-authors">${escHtml(authors)}${(p.authors||[]).length > 4 ? ', …' : ''}</div>
+        <div class="lib-meta">
+          ${p.venue ? `<span>${escHtml(p.venue)}</span>` : ''}
+          ${p.year ? `<span>${p.year}</span>` : ''}
+          <span>Saved ${new Date(p.saved_at).toLocaleDateString()}</span>
+        </div>
+        ${p.notes ? `<div class="lib-notes">${escHtml(p.notes)}</div>` : ''}
+        ${tags.length ? `<div class="lib-tags">${tags.map(t => `<span class="lib-tag">${escHtml(t)}</span>`).join('')}</div>` : ''}
+        <div class="lib-actions">
+          <button class="btn btn-ghost btn-xs" onclick="openDetail('${p.paper_id}')">View</button>
+          <button class="btn btn-danger btn-xs" onclick="toggleSave('${p.paper_id}')">Remove</button>
+        </div>
+      </div>`;
+    }
+    grid.innerHTML = html;
+  } catch (e) {
+    console.error('Failed to load library', e);
+  }
+}
+
+document.addEventListener('keydown', event => {
+  const modal=document.getElementById('detail-modal');
+  if(!modal.classList.contains('visible')) return;
+  if(event.key==='Escape') closeDetail();
+  if(event.key==='Tab'){
+    const controls=[...modal.querySelectorAll('button,a[href],textarea,input,[tabindex="0"]')];
+    const first=controls[0], last=controls.at(-1);
+    if(event.shiftKey && document.activeElement===first){event.preventDefault();last?.focus();}
+    else if(!event.shiftKey && document.activeElement===last){event.preventDefault();first?.focus();}
+  }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+  loadLibrary();
+  document.getElementById('detail-modal').addEventListener('click', function(e) {
+    if (e.target === this) closeDetail();
+  });
+});
+</script>
+</body>
+</html>

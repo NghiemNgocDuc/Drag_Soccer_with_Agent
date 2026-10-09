@@ -1,0 +1,21 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Social — Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head><body class="as-app as-social as-page-hub_social">
+{{ app_nav("social") }}
+<main class="as-main" id="as-content">
+{{ page_header("THE CLUBHOUSE", "Good games start with good company.", "Find your people, organize a match, or watch the next rivalry unfold.") }}
+<div class="route-grid">
+  <a class="route-card featured" href="/messages"><span class="route-symbol">{{ icon("message") }}</span><h2>Friends & messages</h2><p>See who's online, invite a friend to a match, and keep the conversation going.</p><span class="route-cta">Enter the clubhouse {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/clans"><span class="route-symbol">{{ icon("users") }}</span><h2>Find your clan</h2><p>Join a club or create your own. Bring your squad together for tournaments and clan chat.</p><span class="route-cta">Explore clans {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/spectate"><span class="route-symbol">{{ icon("eye") }}</span><h2>Watch live</h2><p>Take a seat at an online match and follow the action in 3D, as it happens.</p><span class="route-cta">See live matches {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/community"><span class="route-symbol">{{ icon("code") }}</span><h2>Community models</h2><p>Discover what other builders are working on. Read, discuss, and share soccer AI ideas.</p><span class="route-cta">Meet the builders {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/profile"><span class="route-symbol">{{ icon("settings") }}</span><h2>Your player profile</h2><p>Review your career, recent results, and models. Keep your account details up to date.</p><span class="route-cta">View your profile {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/achievements"><span class="route-symbol">{{ icon("trophy") }}</span><h2>Career milestones</h2><p>Every match and model is a step forward. See the badges you've earned and what's next.</p><span class="route-cta">Track achievements {{ icon("arrow") }}</span></a>
+</div>
+<aside class="hub-note"><div><strong>Ready to settle it on the pitch?</strong><p>Start a game, then invite a friend from Messages.</p></div><a class="btn btn-primary" href="/play3d">Play a match</a></aside>
+</main>
+</body></html>

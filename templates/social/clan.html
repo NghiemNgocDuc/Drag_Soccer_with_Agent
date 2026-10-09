@@ -1,0 +1,330 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ clan.name }} — Clan — Agent Soccer</title>
+
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-social as-page-clan">
+{{ app_nav('social') }}
+
+
+<main class="as-main" id="as-content">
+  <a class="as-back-link" href="/clans">← All clans</a>
+{{ page_header('YOUR CLUB', 'Clan clubhouse', 'Members, match days, and conversation in one place.') }}
+  <div class="hero" style="margin-top:10px">
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <h2>{{ clan.name }}</h2>
+      <span class="badge {{ 'badge-open' if clan.join_type=='open' else 'badge-request' }}">{{ clan.join_type }}</span>
+      <span class="meta">{{ clan.member_count }}/{{ clan.member_limit }} members</span>
+    </div>
+    <p class="meta" style="margin-top:6px">{{ clan.description or 'No description' }}</p>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="join-clan-btn" class="btn btn-primary" onclick="join()">Join clan</button>
+      <button id="leave-clan-btn" class="btn btn-secondary" onclick="leave()" hidden>Leave clan</button>
+      <button id="delete-clan-btn" class="btn btn-danger" onclick="delClan()" hidden>Delete clan</button>
+      <span id="c-msg" role="status" aria-live="polite" class="meta"></span>
+    </div>
+  </div>
+
+  <div class="glass-card" style="padding:14px;margin-bottom:14px">
+    <h2 class="section-title">Members</h2>
+    <div id="members"></div>
+  </div>
+
+  <div class="glass-card" id="req-card" style="padding:14px;{{ '' if pending else 'display:none' }}">
+    <h2 class="section-title">Pending requests</h2>
+    <div id="requests"></div>
+  </div>
+
+  <div class="glass-card" style="padding:14px;margin-top:14px">
+    <h2 class="section-title">Clan tournaments</h2>
+    <p class="meta" style="margin:0 0 8px">Leader creates, members join (including leader). Set match time with timezone. If a player does not join within 10 minutes of scheduled time, they are disqualified.</p>
+    <div id="ct-create" style="display:none;margin-bottom:12px;padding:10px;background:rgba(255,255,255,.6);border:1px solid rgba(226,232,240,.9);border-radius:10px">
+      <h4 style="font-size:.82rem;margin:0 0 8px">Create tournament</h4>
+      <label class="as-field-label" for="ct-name">Tournament name</label>
+<input id="ct-name" class="input" placeholder="Tournament name" style="margin-bottom:8px">
+      <div class="form-grid schedule-grid">
+        <div class="field"><label for="ct-date">Match date</label><input id="ct-date" type="date" class="input"></div>
+        <div class="field"><label for="ct-time">Match time</label><input id="ct-time" type="time" class="input"></div>
+        <div class="field"><label for="ct-tz">Time zone</label><select id="ct-tz" class="input"></select></div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+        <button class="btn btn-primary btn-sm" onclick="createClanTourn()">Create</button>
+        <span id="ct-msg" role="status" aria-live="polite" class="meta"></span>
+      </div>
+      <div class="meta" style="margin-top:6px">Example: 8am UTC+7 → pick date, 08:00, UTC+7 — stored as UTC, shown in your local time.</div>
+    </div>
+    <div id="ct-list"></div>
+  </div>
+
+  <div class="glass-card" style="padding:14px;margin-top:14px">
+    <h2 class="section-title">Clan chat</h2>
+    <p class="meta" style="margin:0 0 8px">Chat with clan members — global and friend-to-friend chats also available in Messages.</p>
+    <div id="clan-chat-mount" style="height:380px"></div>
+  </div>
+  <div class="glass-card" id="leader-controls" style="padding:14px;margin-bottom:14px;display:none">
+    <h2 class="section-title">Leader controls</h2>
+    <div class="leader-fields">
+      <div class="field"><label for="rename-input">New clan name</label><input id="rename-input" class="input" placeholder="New clan name" maxlength="24"></div>
+      <button class="btn btn-primary btn-sm" onclick="renameClan()">Rename</button>
+    </div>
+    <div class="leader-fields">
+      <div class="field"><label for="add-member-input">Add member by username</label><input id="add-member-input" class="input" placeholder="Player username"></div>
+      <button class="btn btn-secondary btn-sm" onclick="addMember()">Add member</button>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="btn btn-ghost btn-sm" onclick="createInviteLink()">Create shareable invite link</button>
+      <span id="invite-link" class="meta" style="word-break:break-all"></span>
+      <button class="btn btn-ghost btn-sm" id="copy-link-btn" style="display:none" onclick="copyInviteLink()">Copy</button>
+    </div>
+    <div id="leader-msg" role="status" aria-live="polite" class="meta" style="margin-top:6px"></div>
+  </div>
+
+</main>
+<script src="/static/js/ui/chat.js"></script>
+<script>
+const CLAN_ID = "{{ clan.id }}";
+const MY_UID = {{ session.get('user_id','') | tojson }};
+let IS_LEADER = {{ clan.leader_id | tojson }} === MY_UID;
+
+async function load(){
+  const r=await fetch('/api/clans/'+CLAN_ID); const j=await r.json();
+  if(j.error){ document.getElementById('c-msg').textContent=j.error; return; }
+  const c=j.clan; const members=c.members||[];
+  IS_LEADER = c.leader_id === MY_UID;
+  const isMember = members.some(member => member.user_id === MY_UID);
+  document.getElementById('join-clan-btn').hidden = isMember;
+  document.getElementById('leave-clan-btn').hidden = !isMember;
+  document.getElementById('delete-clan-btn').hidden = !IS_LEADER;
+  document.getElementById('leader-controls').style.display = IS_LEADER ? 'block' : 'none';
+  document.getElementById('ct-create').style.display = IS_LEADER ? 'block' : 'none';
+  const box=document.getElementById('members'); box.innerHTML='';
+  members.forEach(m=>{
+    const isLead = m.user_id===c.leader_id;
+    const row=document.createElement('div'); row.className='member-row';
+    row.innerHTML=`<b style="flex:1">${m.username}${isLead?' <span class=leader>LEADER</span>':''}</b><span class="meta">${m.joined_at?m.joined_at.slice(0,10):''}</span>
+      ${IS_LEADER && !isLead ? `<button class="btn btn-secondary btn-sm" onclick="transfer('${m.user_id}')">Make leader</button>`:''}`;
+    box.appendChild(row);
+  });
+  const rqBox=document.getElementById('requests'); const card=document.getElementById('req-card');
+  const pend=j.pending||[];
+  if(pend.length && IS_LEADER){
+    card.style.display=''; rqBox.innerHTML='';
+    pend.forEach(pr=>{
+      const row=document.createElement('div'); row.className='member-row';
+      row.innerHTML=`<span style="flex:1"><b>${pr.username||pr.user_id.slice(0,8)}</b> <span class="meta">${pr.created_at?pr.created_at.slice(0,16):''}</span></span>
+        <button class="btn btn-primary btn-sm" onclick="approve('${pr.id}')">Approve</button><button class="btn btn-secondary btn-sm" onclick="decline('${pr.id}')">Decline</button>`;
+      rqBox.appendChild(row);
+    });
+  } else if(card) { if(!pend.length) card.style.display='none'; }
+}
+async function join(){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})}); const j=await r.json();
+  document.getElementById('c-msg').textContent=j.ok?(j.joined?'Joined!':'Request sent'): (j.error||'Failed'); load();
+}
+async function leave(){
+  if(!confirm('Leave clan?')) return;
+  const r=await fetch('/api/clans/'+CLAN_ID+'/leave',{method:'POST'}); const j=await r.json();
+  document.getElementById('c-msg').textContent=j.ok?'Left':(j.error||'Failed'); if(j.ok) location.href='/clans';
+}
+async function approve(id){
+  await fetch('/api/clans/'+CLAN_ID+'/requests/'+id+'/approve',{method:'POST'}); load();
+}
+async function decline(id){
+  await fetch('/api/clans/'+CLAN_ID+'/requests/'+id+'/decline',{method:'POST'}); load();
+}
+async function transfer(newId){
+  if(!confirm('Transfer leadership to this member? You will lose leader role.')) return;
+  const r=await fetch('/api/clans/'+CLAN_ID+'/transfer',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({new_leader_id:newId})}); const j=await r.json();
+  document.getElementById('c-msg').textContent=j.ok?'Transferred':(j.error||'Failed'); load();
+}
+async function delClan(){
+  if(!confirm('Delete clan? This removes all members.')) return;
+  const r=await fetch('/api/clans/'+CLAN_ID,{method:'DELETE'}); const j=await r.json();
+  if(j.ok) location.href='/clans'; else document.getElementById('c-msg').textContent=j.error;
+}
+async function renameClan(){
+  const inp=document.getElementById('rename-input');
+  const name=(inp.value||'').trim();
+  const msg=document.getElementById('leader-msg');
+  if(!name){ msg.textContent='Name required'; return; }
+  const r=await fetch('/api/clans/'+CLAN_ID,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({name})});
+  const j=await r.json();
+  if(j.ok){ msg.textContent='Renamed!'; msg.style.color='#059669'; location.reload(); }
+  else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+async function addMember(){
+  const inp=document.getElementById('add-member-input');
+  const username=(inp.value||'').trim();
+  const msg=document.getElementById('leader-msg');
+  if(!username){ msg.textContent='Username required'; return; }
+  const r=await fetch('/api/clans/'+CLAN_ID+'/add-member',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username})});
+  const j=await r.json();
+  if(j.ok){ msg.textContent='Added '+j.member.username; msg.style.color='#059669'; load(); }
+  else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+async function createInviteLink(){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/invite-link',{method:'POST'});
+  const j=await r.json();
+  const msg=document.getElementById('leader-msg');
+  const linkEl=document.getElementById('invite-link');
+  const copyBtn=document.getElementById('copy-link-btn');
+  if(j.ok){
+    linkEl.textContent=j.link;
+    linkEl.dataset.link=j.link;
+    copyBtn.style.display='inline-block';
+    msg.textContent='Invite link created (7 days, shareable)';
+    msg.style.color='#059669';
+  } else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+function copyInviteLink(){
+  const el=document.getElementById('invite-link');
+  const link=el.dataset.link||el.textContent;
+  if(!link) return;
+  navigator.clipboard.writeText(link).then(()=>{
+    const msg=document.getElementById('leader-msg');
+    msg.textContent='Link copied!';
+    setTimeout(()=>msg.textContent='',2000);
+  });
+}
+load();
+// Clan tournaments — timezone aware, 10min DQ
+function fillTz(){
+  const sel=document.getElementById('ct-tz');
+  if(!sel) return;
+  for(let o=-12;o<=14;o++){
+    const label = o===0 ? 'UTC+0' : (o>0 ? `UTC+${o}` : `UTC${o}`);
+    const opt=document.createElement('option'); opt.value=String(o); opt.textContent=label;
+    if(o===0) opt.selected=true;
+    sel.appendChild(opt);
+  }
+  try{ const off=-new Date().getTimezoneOffset()/60; sel.value=String(off);}catch(e){}
+}
+fillTz();
+if(IS_LEADER){
+  document.getElementById('ct-create').style.display='block';
+  const lc=document.getElementById('leader-controls');
+  if(lc) lc.style.display='block';
+}
+function toISOWithTZ(d,t,off){
+  if(!d||!t) return null;
+  const o=parseInt(off,10), s=o>=0?'+':'-', a=Math.abs(o), pad=n=>String(n).padStart(2,'0');
+  return `${d}T${t}:00${s}${pad(a)}:00`;
+}
+function fmtTime(iso){
+  if(!iso) return '—';
+  try{
+    const d=new Date(iso);
+    const local=d.toLocaleString([],{year:'numeric',month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',timeZoneName:'short'});
+    return `${local} <span class="meta">(${iso} UTC)</span>`;
+  }catch(e){ return iso; }
+}
+function fmtCountdown(iso){
+  if(!iso) return '';
+  const d=new Date(iso); const diff=d - new Date();
+  if(diff<0) return 'started';
+  const m=Math.floor(diff/60000), h=Math.floor(m/60);
+  if(h>0) return `in ${h}h ${m%60}m`;
+  return `in ${m}m`;
+}
+async function loadClanTournaments(){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments');
+  const j=await r.json();
+  const box=document.getElementById('ct-list'); box.innerHTML='';
+  if(j.error){ box.innerHTML=`<div class="meta">${j.error}</div>`; return; }
+  if(!(j.tournaments||[]).length){ box.innerHTML='<div class="meta">No clan tournaments yet — leader creates one above.</div>'; return; }
+  for(const t of j.tournaments){
+    const card=document.createElement('div'); card.style='padding:10px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;background:#fff';
+    const isPending=t.status==='pending';
+    const joined = t.participants?.some(p=>p.participant_id===`clan_user:${window._myUid||''}`);
+    card.innerHTML=`<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><b>${t.name}</b><span class="badge ${t.status==='pending'?'badge-request':'badge-open'}">${t.status}</span><span class="meta">${t.participants?.length||0} joined</span></div>
+      <div class="meta">Scheduled: ${t.scheduled_at? fmtTime(t.scheduled_at): 'not set'} ${t.scheduled_at? `<span class="meta">${fmtCountdown(t.scheduled_at)}</span>`:''}</div>
+      <div class="meta">ID ${t.id.slice(0,8)}</div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${isPending? `<button class="btn btn-primary btn-sm" onclick="joinClanTourn('${t.id}')" ${joined?'disabled':''}>${joined?'Joined':'Join'}</button>`:''}
+        ${IS_LEADER && isPending? `<button class="btn btn-secondary btn-sm" onclick="genClanBracket('${t.id}')">Generate bracket</button>`:''}
+        <a class="btn btn-ghost btn-sm" href="/tournaments/${t.id}">View</a>
+      </div>
+      <div id="ct-matches-${t.id}" style="margin-top:8px"></div>`;
+    box.appendChild(card);
+    // render matches if any
+    if(t.matches && t.matches.length){
+      const mbox=card.querySelector(`#ct-matches-${t.id}`);
+      mbox.innerHTML='<div style="font-size:.75rem;font-weight:600;margin-bottom:4px">Matches</div>';
+      const pmap={}; (t.participants||[]).forEach(p=>pmap[p.id]=p.name);
+      t.matches.forEach(m=>{
+        const aName=pmap[m.participant_a]||m.participant_a?.slice(0,8)||'—';
+        const bName=pmap[m.participant_b]||m.participant_b?.slice(0,8)||'bye';
+        const sched=m.scheduled_at? fmtTime(m.scheduled_at): 'no time';
+        const status=m.status==='completed' ? (m.disqualified? `DQ ${m.disqualified.slice(0,8)} → ${pmap[m.winner]||m.winner}` : `Winner ${pmap[m.winner]||m.winner||''}`) : `pending ${m.scheduled_at? fmtCountdown(m.scheduled_at):''} ${m.joined_a?'A':''} ${m.joined_b?'B':''}`;
+        mbox.innerHTML+=`<div style="display:flex;gap:6px;align-items:center;padding:6px;border:1px solid #f1f5f9;border-radius:8px;margin-bottom:4px;background:${m.status==='completed'?'#f8fafc':'#fff'}">
+          <span style="font-size:.75rem;flex:1">${aName} vs ${bName} — ${sched} — <b>${status}</b></span>
+          ${m.status==='pending' ? `<button class="btn btn-primary btn-sm" onclick="joinClanMatch('${t.id}','${m.id}')">Join match (10min)</button>`:''}
+        </div>`;
+      });
+    }
+  }
+}
+// fetch my pid for join check
+fetch('/api/clans/'+CLAN_ID+'/tournaments').then(()=>{}); // warm
+fetch('/api/clans/'+CLAN_ID).then(r=>r.json()).then(j=>{
+  // try to get my participant id via /api/clans/<id>/tournaments list participants
+}).catch(()=>{});
+async function createClanTourn(){
+  const name=document.getElementById('ct-name').value.trim();
+  const d=document.getElementById('ct-date').value;
+  const tm=document.getElementById('ct-time').value;
+  const tz=document.getElementById('ct-tz').value;
+  const msg=document.getElementById('ct-msg');
+  if(!name){ msg.textContent='Name required'; return; }
+  let iso=null; if(d && tm) iso=toISOWithTZ(d, tm, tz);
+  msg.textContent='Creating...';
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, scheduled_at: iso})});
+  const j=await r.json();
+  if(j.ok){ msg.textContent='Created'; msg.style.color='#059669'; loadClanTournaments(); }
+  else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+async function joinClanTourn(tid){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments/'+tid+'/join',{method:'POST'});
+  const j=await r.json();
+  alert(j.ok?'Joined':(j.error||'Failed'));
+  loadClanTournaments();
+}
+async function genClanBracket(tid){
+  const d=document.getElementById('ct-date').value;
+  const tm=document.getElementById('ct-time').value;
+  const tz=document.getElementById('ct-tz').value;
+  let iso=null;
+  if(d && tm) iso=toISOWithTZ(d, tm, tz);
+  else { const now=new Date(Date.now()+3600000); iso=now.toISOString(); }
+  if(!confirm('Generate bracket with match time '+ (iso? fmtTime(iso):'now')+'? 10min DQ applies.')) return;
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments/'+tid+'/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({match_scheduled_at: iso})});
+  const j=await r.json();
+  alert(j.ok?'Bracket generated':(j.error||'Failed'));
+  loadClanTournaments();
+}
+async function joinClanMatch(tid, mid){
+  const r=await fetch('/api/clans/'+CLAN_ID+'/tournaments/'+tid+'/matches/'+mid+'/join',{method:'POST'});
+  const j=await r.json();
+  alert(j.ok?'Joined match — you have 10min':(j.error||'Failed'));
+  loadClanTournaments();
+}
+loadClanTournaments();
+// Clan chat — same ChatPanel used for global/friend
+let clanChat=null;
+function initClanChat(){
+  const mount=document.getElementById('clan-chat-mount');
+  if(!mount) return;
+  clanChat = new ChatPanel({mount, scope:'clan', scopeId: CLAN_ID, name:'Clan Chat', pollMs: 2500, collapsed:false});
+}
+document.addEventListener('DOMContentLoaded', initClanChat);
+</script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

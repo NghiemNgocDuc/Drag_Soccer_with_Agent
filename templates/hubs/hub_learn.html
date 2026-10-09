@@ -1,0 +1,21 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Learn — Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head><body class="as-app as-learn as-page-hub_learn">
+{{ app_nav("learn") }}
+<main class="as-main" id="as-content">
+{{ page_header("THE TRAINING GROUND", "Build a better soccer brain.", "Start with the fundamentals, explore the research, and turn an idea into a working agent.") }}
+<div class="route-grid">
+  <a class="route-card featured" href="/learn"><span class="route-symbol">{{ icon("book") }}</span><h2>Start the lessons</h2><p>Go from your first kick to a complete soccer AI with starter code and checked milestones.</p><span class="route-cta">Begin your training {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/research"><span class="route-symbol">{{ icon("search") }}</span><h2>Research library</h2><p>Find academic papers on game AI and reinforcement learning. Save papers and your notes.</p><span class="route-cta">Find an idea {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/about"><span class="route-symbol">{{ icon("ball") }}</span><h2>The game guide</h2><p>Learn how turns, player stats, game modes, and custom agents fit together.</p><span class="route-cta">Get to know the game {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/workflow"><span class="route-symbol">{{ icon("diagram") }}</span><h2>Inside the engine</h2><p>Follow the system diagram from the browser to the physics engine, AI, and storage.</p><span class="route-cta">Explore the workflow {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/playground"><span class="route-symbol">{{ icon("code") }}</span><h2>Try it on the pitch</h2><p>Experiment with Python code and test your next decision against a built-in agent.</p><span class="route-cta">Open the playground {{ icon("arrow") }}</span></a>
+  <a class="route-card" href="/my-models"><span class="route-symbol">{{ icon("trophy") }}</span><h2>Make it your own</h2><p>Save your model, share it with the community, and submit it to the model leaderboard.</p><span class="route-cta">Manage your models {{ icon("arrow") }}</span></a>
+</div>
+<aside class="hub-note"><div><strong>A small idea is a good place to start.</strong><p>Try a simple rule, watch what happens, then improve the next move.</p></div><a class="btn btn-primary" href="/learn">Start lesson one</a></aside>
+</main>
+</body></html>

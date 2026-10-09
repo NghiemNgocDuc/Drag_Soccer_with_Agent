@@ -1,0 +1,112 @@
+{% from 'shared/_ui.html' import icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f6f2">
+  <title>Welcome back | Agent Soccer</title>
+  {% include 'shared/_ui_assets.html' %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/frontend-login.css') }}">
+</head>
+<body class="as-app as-public as-auth as-login">
+  <a class="as-skip" href="#as-content">Skip to sign in</a>
+  <header class="as-header as-login-header">
+    <nav class="as-nav" aria-label="Account navigation">
+      <a class="as-brand" href="/">{{ icon('ball',32) }}<span>AGENT<span class="as-brand-sub">SOCCER</span></span></a>
+      <div class="as-login-nav-action"><span>New to the club?</span><a href="/register">Create an account {{ icon('arrow-right',16) }}</a></div>
+    </nav>
+  </header>
+
+  <main class="as-login-main" id="as-content">
+    <div class="as-login-layout">
+      <aside class="as-login-story" aria-labelledby="login-story-title">
+        <div class="as-login-story-copy">
+          <p class="as-eyebrow"><span class="as-login-mark" aria-hidden="true"></span> The game is yours</p>
+          <h2 id="login-story-title">Your next move<br> starts <span>here.</span></h2>
+          <p>Take the pitch. Build your team.<br>Put your football intelligence to the test.</p>
+        </div>
+        <div class="as-login-illustration" aria-hidden="true">
+          <div class="as-login-pitch-caption"><span>THE TACTICS BOARD</span><span>01 / YOUR NEXT PLAY</span></div>
+          {% include 'shared/_login_pitch_art.html' %}
+          <div class="as-login-play-note">{{ icon('diagram',18) }}<span>One move can change the match.</span>{{ icon('arrow-right',18) }}</div>
+        </div>
+        <div class="as-login-features" aria-label="Game features">
+          <span>{{ icon('ball',20) }}<span>Play in 3D</span></span>
+          <span>{{ icon('code',20) }}<span>Build your AI</span></span>
+          <span>{{ icon('trophy',20) }}<span>Compete</span></span>
+        </div>
+      </aside>
+
+      <section class="as-login-form-panel" aria-labelledby="auth-title">
+        <div class="as-login-card">
+          <div class="as-login-heading">
+            <span class="as-login-club-icon" aria-hidden="true">{{ icon('ball',26) }}</span>
+            <p class="as-eyebrow">Back to the clubhouse</p>
+            <h1 id="auth-title">Welcome back.</h1>
+            <p>Sign in and pick up where you left off.</p>
+          </div>
+          {% with messages = get_flashed_messages() %}
+          {% for msg in messages %}<div class="flash as-login-error" role="alert">{{ msg }}</div>{% endfor %}
+          {% endwith %}
+
+          <form method="POST" action="/auth/login" id="login-form">
+            <div class="field">
+              <label for="email">Email address</label>
+              <input type="email" id="email" name="email" autocomplete="email" inputmode="email" autocapitalize="none" spellcheck="false" placeholder="you@example.com" required>
+            </div>
+            <div class="field">
+              <div class="as-login-field-label"><label for="password">Password</label><a href="/forgot-password">Forgot password?</a></div>
+              <input type="password" id="password" name="password" autocomplete="current-password" placeholder="Your password" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block as-login-submit">Sign in {{ icon('arrow-right',19) }}</button>
+          </form>
+
+          <p class="as-login-register">No account yet? <a href="/register">Join the club {{ icon('arrow-right',15) }}</a></p>
+          <details class="as-demo-account">
+            <summary><span>{{ icon('play',19) }} Try the demo account</span>{{ icon('plus',17) }}</summary>
+            <div class="as-login-demo-content">
+              <p>Take a look around before creating your team.</p>
+              <div class="auth-demo-row"><span>Email</span><code>edward@umass.edu</code><button type="button" data-copy="edward@umass.edu" aria-label="Copy demo email">Copy</button></div>
+              <div class="auth-demo-row"><span>Password</span><code>123456</code><button type="button" data-copy="123456" aria-label="Copy demo password">Copy</button></div>
+              <button type="button" class="as-login-use-demo" id="use-demo">Use demo details {{ icon('arrow-right',16) }}</button>
+            </div>
+          </details>
+        </div>
+      </section>
+    </div>
+    <footer class="as-login-footer"><a href="/">{{ icon('arrow-right',15) }} Back to Agent Soccer</a><span>Football. Intelligence. Your way.</span></footer>
+  </main>
+
+  <div id="toast" class="as-toast" role="status" aria-live="polite"></div>
+  <script>
+    (() => {
+      const toast = document.getElementById('toast');
+      let toastTimer;
+      const announce = message => {
+        clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.classList.add('show');
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+      };
+      document.querySelectorAll('[data-copy]').forEach(button => {
+        button.addEventListener('click', async () => {
+          const value = button.dataset.copy;
+          try {
+            await navigator.clipboard.writeText(value);
+            announce('Demo ' + (value.includes('@') ? 'email' : 'password') + ' copied.');
+          } catch {
+            announce('Copy unavailable. Select the demo detail to copy it.');
+          }
+        });
+      });
+      document.getElementById('use-demo').addEventListener('click', () => {
+        document.getElementById('email').value = 'edward@umass.edu';
+        document.getElementById('password').value = '123456';
+        document.querySelector('.as-login-submit').focus();
+        announce('Demo details filled in. Choose Sign in to continue.');
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -140,6 +140,19 @@ def analyze_player_positions(state: dict) -> dict:
     return result
 
 
+def bounded_match_winner(state: dict) -> str:
+    """Keep a finished result, or settle a kick-limited simulation by score."""
+    winner = state.get("winner")
+    if winner in ("A", "B", "Draw"):
+        return winner
+    score_a, score_b = state.get("score_a", 0), state.get("score_b", 0)
+    if score_a > score_b:
+        return "A"
+    if score_b > score_a:
+        return "B"
+    return "Draw"
+
+
 def run_model_battle(
     model_a,
     model_b,
@@ -176,7 +189,8 @@ def run_model_battle(
             is_a = st["is_player_a"]
             mod = model_a if is_a else model_b
             try:
-                pidx, ang, pwr = mod.get_ai_move(st, is_a)
+                from models.search_budget import get_model_move
+                pidx, ang, pwr = get_model_move(mod, st, is_a)
             except Exception:
                 st["winner"] = "B" if is_a else "A"
                 st["game_over"] = True
@@ -208,7 +222,7 @@ def run_model_battle(
                 "player_idx": pidx, "angle": round(ang, 1), "power": round(pwr, 1),
                 "trajectory": traj, "scored": scored,
             })
-        w = st.get("winner", "Draw")
+        w = bounded_match_winner(st)
         ga_a = analyze_game({**st, "move_history": [m for m in st["move_history"] if m.get("mover") == "a"]})
         ga_b = analyze_game({**st, "move_history": [m for m in st["move_history"] if m.get("mover") == "b"]})
         gr = {
@@ -356,7 +370,7 @@ def benchmark_model_vs_builtins(
     Aggregates `run_model_battle` results into the leaderboard score:
     the arithmetic mean of the per-opponent win rates (0-100), plus the
     per-opponent breakdown and aggregate shot stats. `opponents` accepts
-    catalog ids or model objects (default: all 7 built-ins). Returns
+    catalog ids or model objects (default: the current built-in catalog). Returns
     {"score", "n_games", "details": [...], "avg_stats": {...}, "avg_latency": ms}.
 
     When `tracer` is given (dict with a "side" — see run_model_battle), the

@@ -1,0 +1,81 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clans — Agent Soccer</title>
+
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-social as-page-clans">
+{{ app_nav('social') }}
+
+
+<main class="as-main" id="as-content">
+{{ page_header('SOCIAL', 'Find your club', 'Join a group of players, build your squad, and organize matches together.') }}
+  {% if my_clan %}
+  <div class="glass-card" style="padding:14px;margin-bottom:16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+    <div><b>Your clan:</b> <a href="/clans/{{ my_clan.id }}" style="font-weight:700">{{ my_clan.name }}</a> <span class="badge {{ 'badge-open' if my_clan.join_type=='open' else 'badge-request' }}">{{ my_clan.join_type }}</span> <span class="meta">· {{ my_clan.member_count }}/{{ my_clan.member_limit }} · Leader: {{ username if my_clan.leader_id == session.get('user_id') else my_clan.leader_id[:8] }}</span></div>
+    <a class="btn btn-secondary btn-sm" href="/clans/{{ my_clan.id }}">View</a>
+  </div>
+  {% endif %}
+
+  <section class="glass-card" style="padding:24px;margin:24px 0">
+    <div class="panel-heading"><h2>Create a clan</h2><span class="meta">One club. Your people.</span></div>
+    <form onsubmit="event.preventDefault();createClan()">
+      <div class="form-grid">
+        <div class="field"><label for="c-name">Clan name</label><input id="c-name" class="input" required minlength="2" maxlength="24" placeholder="Your club name"><span class="meta">2–24 letters, numbers, underscores, or hyphens.</span></div>
+        <div class="field"><label for="c-type">Membership</label><select id="c-type" class="input"><option value="request">By request · leader approves</option><option value="open">Open · anyone can join</option></select></div>
+        <div class="field form-span"><label for="c-desc">Description <span class="meta">(optional)</span></label><input id="c-desc" class="input" maxlength="120" placeholder="What brings your clan together?"></div>
+      </div>
+      <div class="action-row"><button type="submit" class="btn btn-primary">Create clan</button><span id="c-msg" class="meta" role="status" aria-live="polite"></span></div>
+    </form>
+  </section>
+  <h2 class="section-title">Explore clans</h2>
+  <div id="clan-list" class="clan-grid"></div>
+</main>
+<script>
+const MY_CLAN_ID = {{ (my_clan.id if my_clan else '') | tojson }};
+function escapeClanText(value){const text=document.createElement('span');text.textContent=value||'';return text.innerHTML;}
+async function loadClans(){
+  const r=await fetch('/api/clans'); const j=await r.json();
+  const list=document.getElementById('clan-list'); list.innerHTML='';
+  (j.clans||[]).forEach(c=>{
+    const card=document.createElement('div'); card.className='glass-card clan-card';
+    const isMine = c.id === MY_CLAN_ID;
+    const leaderName = (c.members||[]).find(member => member.user_id === c.leader_id)?.username || c.leader_id.slice(0,8);
+    card.innerHTML=`<div style="display:flex;gap:8px;align-items:center;justify-content:space-between"><h3>${c.name}</h3><span class="badge ${c.join_type==='open'?'badge-open':'badge-request'}">${c.join_type}</span></div>
+      <div class="meta">${c.description||''}</div>
+      <div class="meta" style="margin-top:4px">${c.member_count}/${c.member_limit} members · Leader ${escapeClanText(leaderName)}</div>
+      <div style="margin-top:10px;display:flex;gap:8px;align-items:center"><a class="btn btn-secondary btn-sm" href="/clans/${c.id}">View</a>${isMine ? '<span class="badge">Your clan</span>' : `<button class="btn btn-primary btn-sm" onclick="joinClan('${c.id}')">Join</button>`}</div>`;
+    list.appendChild(card);
+  });
+  if(!(j.clans||[]).length) list.innerHTML='<div class="meta">No clans yet — create the first one!</div>';
+}
+async function createClan(){
+  const name=document.getElementById('c-name').value.trim();
+  const jt=document.getElementById('c-type').value;
+  const desc=document.getElementById('c-desc').value.trim();
+  const msg=document.getElementById('c-msg');
+  msg.textContent='Creating...';
+  const r=await fetch('/api/clans',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name, join_type:jt, description:desc})});
+  const j=await r.json();
+  if(j.ok){ msg.textContent='Created!'; msg.style.color='#059669'; loadClans(); setTimeout(()=>location.href='/clans/'+j.clan.id,400); }
+  else { msg.textContent=j.error||'Failed'; msg.style.color='#dc2626'; }
+}
+async function joinClan(id){
+  const r=await fetch('/api/clans/'+id+'/join',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+  const j=await r.json();
+  if(j.ok){
+    if(j.joined) { alert('Joined!'); location.href='/clans/'+id; }
+    else alert('Request sent — waiting for leader approval');
+  } else alert(j.error||'Failed');
+}
+loadClans();
+</script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

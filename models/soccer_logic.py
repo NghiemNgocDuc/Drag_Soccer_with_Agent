@@ -1,24 +1,37 @@
-"""soccer_logic.py — Soccer game physics engine (pymunk). Batch API 30-40x (pymunk 6.6+) per web bench."""
+"""Soccer physics with fixed substeps and timestamped replay trajectories."""
 from __future__ import annotations
 import math
 import time
 import pymunk
+from models.search_budget import current_search
 
-try:
-    import pymunk.batch as _batch  # 30-40x for >5 bodies (our 8 bodies: 6 players+ball+ref)
-    _HAS_BATCH = True
-except Exception:
-    _batch = None
-    _HAS_BATCH = False
 
-def _batch_get_positions(bodies):
-    """Batch get positions when available — falls back to per-body .position."""
-    if _HAS_BATCH and len(bodies) >= 5:
-        try:
-            return [(b.position.x, b.position.y) for b in bodies]
-        except Exception:
-            pass
-    return [(b.position.x, b.position.y) for b in bodies]
+def _player_positions(bodies, cache=None):
+    # Each position property crosses the Python/C boundary. Read it once.
+    positions = []
+    for body in bodies:
+        cached = cache.get(body) if cache is not None else None
+        if cached is not None and body.is_sleeping:
+            positions.append(cached.copy())
+            continue
+        pos = body.position
+        point = {"x": round(pos.x, 1), "y": round(pos.y, 1)}
+        if cache is not None:
+            cache[body] = point.copy()
+        positions.append(point)
+    return positions
+
+
+def _sample_trajectory(trajectory, target=100):
+    """Thin a replay without losing impacts or duplicating the final frame."""
+    stride = max(1, (len(trajectory) - 1 + target - 1) // target)
+    indices = set(range(0, len(trajectory), stride))
+    indices.add(len(trajectory) - 1)
+    for i, point in enumerate(trajectory):
+        if point.get("bounce") or (i and trajectory[i - 1].get("z", 0) > 0
+                                   and point.get("z", 0) == 0):
+            indices.update((i - 1, i))
+    return [trajectory[i] for i in sorted(indices) if i >= 0]
 
 FIELD_W: int   = 1400
 FIELD_H: int   = 875
@@ -57,7 +70,7 @@ PLAYER_COUNT: int = 3  # default, override via game state
 REFEREE_POS: tuple[float, float] = (FIELD_W / 2, FIELD_H - 80.0)  # (~700, ~795)
 
 #  3D vertical-axis physics constants 
-G: float = 980.0                 # px/s² gravity (approximates real 9.8 m/s² in pixel world)
+G: float = 980.0                 # game-world gravity for optional vertical simulation
 _VERTICAL_RESTITUTION: float = 0.5  # bounce when ball lands
 _VZ_MIN: float = 5.0                # below this, treat vertical velocity as settled
 
@@ -282,8 +295,7 @@ _CONTACT = float(PLAYER_R + BALL_R)
 _P2P     = float(PLAYER_R * 2)
 
 #  Referee (cosmetic) motion 
-# The referee starts fixed at REFEREE_POS and uses the same collision body as a
-# player, so it only moves when struck by the ball or another player.
+# The referee has no collision shape; its deterministic movement is cosmetic.
 _REF_WANDER_SPEED   = 75.0    # px/s ambient patrol speed (human jog)
 _REF_DODGE_SPEED    = 300.0   # px/s evasion sidestep
 _REF_PATH_TRIGGER   = 75.0    # dodge when the ball's path comes within this many px
@@ -296,31 +308,29 @@ _REF_GOAL_SAFE_X    = 70.0    # near a goal mouth: keep out of the goal band
 _REF_GOAL_SAFE_PAD  = 12.0    # px outside the goal band the ref keeps
 
 #  Pymunk physics parameters 
-# Tuned from web research (pymunk/Chipmunk docs, SO constant-deceleration model,
-# FIFA ball COR 0.6–0.8, Veryst FE restitution). Previous 1.0/1.0/1.0 was
-# perfectly elastic → endless bouncing, jittery player collisions.
+# Fixed 180 Hz contact steps, recorded at 60 Hz. Distances use game-world
+# pixels; these coefficients are gameplay tuning, not measured SI ball data.
 _PM_DT        = 1.0 / 60.0
 _PM_DAMPING   = 1.0          # no global damping; friction via pivot joints
 _PM_MAX_STEPS = 500
 _PM_KICK_VEL  = 10.0      # px/s per unit of power (100 -> 1000)
 _PM_MASS_P    = 5
 _PM_MASS_B    = 1
-# Restitution: Chipmunk multiplies the two shapes (perfectly elastic 1.0
-# gives lively gameplay but extra bounce). Kept at 1.0 for stat-differentiation
-# — balance_test expects this — solver damping + idle thresholds handle settling.
-_PM_ELASTICITY_P = 1.0
-_PM_ELASTICITY_B = 1.0
-_PM_ELASTICITY_W = 1.0
+# Pymunk multiplies material restitution: ball-wall = .64, ball-player = .48.
+# Contacts transfer momentum while losing energy instead of acting as pinball.
+_PM_ELASTICITY_P = 0.6
+_PM_ELASTICITY_B = 0.8
+_PM_ELASTICITY_W = 0.8
 _PM_FRICTION  = 0.0
-# Solver: keep pymunk defaults (iterations 10, slop 0.1) for original balance
+# Explicit solver settings keep prediction and match simulation identical.
 _PM_ITERATIONS = 10
 _PM_COLLISION_SLOP = 0.1
 
-# Linear friction deceleration (px/s^2) — constant-deceleration Coulomb model
-# (SO: sliding halt is linear v(t), not exponential damping). Pivot max_force=m*fric.
+# Constant rolling resistance, implemented as a bounded impulse via a pivot.
+# max_force = mass * deceleration; the solver stops without reversing velocity.
 _PM_LINEAR_FRICTION_P = 1500.0
-_PM_LINEAR_FRICTION_B = 1000.0
-_BALL_AIR_FRICTION = 100.0   # px/s² deceleration while airborne (10% of ground) → Path B fix
+_PM_LINEAR_FRICTION_B = 300.0
+_BALL_AIR_FRICTION = 30.0
 
 # Rocket League mutators — multipliers applied via customization (ball_type etc.)
 _MUTATOR_BALL_TYPE = {
@@ -331,20 +341,7 @@ _MUTATOR_BALL_TYPE = {
     "puck":   {"bounciness": 0.4, "mass": 0.9, "friction": 0.3},
 }
 _MUTATOR_BOUNCINESS = {"normal": 1.0, "high": 1.4, "super_high": 1.9}
-_MUTATOR_GRAVITY = {"normal": 1.0, "low": 0.55, "high": 1.6, "super_high": 2.2}
-_MUTATOR_BOOST = {"default": 1.0, "unlimited": 2.5, "slow_recharge": 0.6, "none": 0.0}
-
-# Rocket League mutators — multipliers applied via customization (ball_type etc.)
-_MUTATOR_BALL_TYPE = {
-    "normal": {"bounciness": 1.0, "mass": 1.0, "friction": 1.0},
-    "beach":  {"bounciness": 1.6, "mass": 0.7, "friction": 0.7},
-    "boomer": {"bounciness": 1.4, "mass": 0.6, "friction": 0.6},
-    "cube":   {"bounciness": 1.2, "mass": 1.3, "friction": 1.0},
-    "puck":   {"bounciness": 0.4, "mass": 0.9, "friction": 0.3},
-}
-_MUTATOR_BOUNCINESS = {"normal": 1.0, "high": 1.4, "super_high": 1.9}
-_MUTATOR_GRAVITY = {"normal": 1.0, "low": 0.55, "high": 1.6, "super_high": 2.2}
-_MUTATOR_BOOST = {"default": 1.0, "unlimited": 2.5, "slow_recharge": 0.6, "none": 0.0}
+_BALL_SIZE = {"small": 0.82, "normal": 1.0, "large": 1.18}
 
 # Collision categories (bit flags for pymunk ShapeFilter)
 _CAT_PLAYER = 1
@@ -425,117 +422,169 @@ def _seg_pt_dist(ax: float, ay: float, bx: float, by: float, px: float, py: floa
     return math.hypot(ax + t*dx - px, ay + t*dy - py)
 
 
-def _build_space(state: dict):
-    """Create a pymunk Space with field, players, and ball at current state positions."""
+def normalize_kick(state, player_idx, angle_deg, power, is_player_a):
+    """Validate before mutation and use one command contract for every caller."""
+    try:
+        angle, strength, index = float(angle_deg), float(power), float(player_idx)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Kick index, angle and power must be finite numbers") from exc
+    if not all(math.isfinite(value) for value in (angle, strength, index)):
+        raise ValueError("Kick index, angle and power must be finite numbers")
+    players = state["players_a" if is_player_a else "players_b"]
+    if not players:
+        raise ValueError("The kicking team has no players")
+    cap = float(state.get("power_cap", 100))
+    if not math.isfinite(cap):
+        raise ValueError("Power cap must be finite")
+    return (max(0, min(len(players) - 1, int(index))), angle % 360.0,
+            max(0.0, min(100.0, cap, strength)))
+
+
+def _ball_physics(state):
+    """A shared material for regular play and shootouts; unknown presets default."""
+    material = _MUTATOR_BALL_TYPE.get(state.get("ball_type"), _MUTATOR_BALL_TYPE["normal"])
+    bounce = _MUTATOR_BOUNCINESS.get(state.get("ball_bounciness"), 1.0)
+    return {
+        "radius": BALL_R * _BALL_SIZE.get(state.get("ball_size"), 1.0),
+        "size": state.get("ball_size") if state.get("ball_size") in _BALL_SIZE else "normal",
+        "mass": _PM_MASS_B * material["mass"],
+        "restitution": min(0.95, _PM_ELASTICITY_B * material["bounciness"] * bounce),
+        "rolling_deceleration": _PM_LINEAR_FRICTION_B * material["friction"],
+        "air_deceleration": _BALL_AIR_FRICTION * material["friction"],
+    }
+
+
+def _goal_for_ball(position, radius, z=0.0):
+    """IFAB whole-ball rule, including the aperture and the rendered crossbar.
+
+    z is the bottom of the ball above the pitch; the goal is 60 world units high.
+    """
+    x, y = position
+    if not (GOAL_Y1 + radius <= y <= GOAL_Y2 - radius):
+        return None
+    if z < 0 or z + 2 * radius > _GOAL_DEPTH * 1.2:
+        return None
+    if x + radius < _MARGIN:
+        return "B"
+    if x - radius > FIELD_W - _MARGIN:
+        return "A"
+    return None
+
+
+def _on_collision(space, a, b, **callbacks):
+    # The project supports Pymunk 6.5 as well as the 7.x collision API.
+    if hasattr(space, "on_collision"):
+        space.on_collision(a, b, **callbacks)
+    else:
+        handler = space.add_collision_handler(a, b)
+        for name, callback in callbacks.items():
+            setattr(handler, name, callback)
+
+
+def _new_physics_space(state):
+    """Build field contacts once, shared by both match and penalty simulation."""
     space = pymunk.Space()
     space.damping = _PM_DAMPING
+    space.iterations = _PM_ITERATIONS
+    space.collision_slop = _PM_COLLISION_SLOP
+    # Resting players leave the solver until a real contact or impulse wakes them.
+    space.sleep_time_threshold = 0.1
+    space.idle_speed_threshold = 0.5
+    space._soccer_ball = _ball_physics(state)
+    space._soccer_events = {"bounce": False}
     static = space.static_body
-
-    m = float(_MARGIN)
-    fw, fh = float(FIELD_W), float(FIELD_H)
+    m, fw, fh = float(_MARGIN), float(FIELD_W), float(FIELD_H)
     gy1, gy2 = float(GOAL_Y1), float(GOAL_Y2)
-    br = float(BALL_R)
-    pw = 5.0
-
-    wall_filter   = pymunk.ShapeFilter(categories=_CAT_WALL,   mask=_CAT_PLAYER | _CAT_BALL)
-    goal_filter   = pymunk.ShapeFilter(categories=_CAT_GOAL_BARRIER, mask=_CAT_PLAYER)
-    player_filter = pymunk.ShapeFilter(categories=_CAT_PLAYER, mask=_CAT_PLAYER | _CAT_BALL | _CAT_WALL | _CAT_GOAL_BARRIER)
-    ball_filter   = pymunk.ShapeFilter(categories=_CAT_BALL,   mask=_CAT_PLAYER | _CAT_WALL)
-
-    # Outer walls (top/bottom) — collide with players and ball
-    outer_walls = [
-        pymunk.Segment(static, (0, m), (fw, m), pw),                    # top
-        pymunk.Segment(static, (0, fh - m), (fw, fh - m), pw),         # bottom
-        pymunk.Segment(static, (m, m), (m, gy1 - br), pw),             # left upper
-        pymunk.Segment(static, (m, gy2 + br), (m, fh - m), pw),       # left lower
-        pymunk.Segment(static, (fw - m, m), (fw - m, gy1 - br), pw),  # right upper
-        pymunk.Segment(static, (fw - m, gy2 + br), (fw - m, fh - m), pw), # right lower
+    wall_filter = pymunk.ShapeFilter(categories=_CAT_WALL, mask=_CAT_PLAYER | _CAT_BALL)
+    goal_filter = pymunk.ShapeFilter(categories=_CAT_GOAL_BARRIER, mask=_CAT_PLAYER)
+    # Segment end caps are the physical posts. Do not enlarge the aperture by R.
+    segments = [
+        ((0, m), (fw, m)), ((0, fh - m), (fw, fh - m)),
+        ((m, m), (m, gy1)), ((m, gy2), (m, fh - m)),
+        ((fw - m, m), (fw - m, gy1)), ((fw - m, gy2), (fw - m, fh - m)),
     ]
-    for w in outer_walls:
-        w.elasticity = _PM_ELASTICITY_W
-        w.friction = _PM_FRICTION
-        w.filter = wall_filter
-    space.add(*outer_walls)
-
-    # Goal barriers — cover the goal mouth so players can't exit but ball passes through
-    goal_barriers = [
-        pymunk.Segment(static, (m, gy1), (m, gy2), pw),
-        pymunk.Segment(static, (fw - m, gy1), (fw - m, gy2), pw),
+    net_segments = [
+        ((m - _GOAL_DEPTH, gy1), (m - _GOAL_DEPTH, gy2)),
+        ((m - _GOAL_DEPTH, gy1), (m, gy1)), ((m - _GOAL_DEPTH, gy2), (m, gy2)),
+        ((fw - m + _GOAL_DEPTH, gy1), (fw - m + _GOAL_DEPTH, gy2)),
+        ((fw - m, gy1), (fw - m + _GOAL_DEPTH, gy1)),
+        ((fw - m, gy2), (fw - m + _GOAL_DEPTH, gy2)),
     ]
-    for gb in goal_barriers:
-        gb.elasticity = _PM_ELASTICITY_W
-        gb.friction = _PM_FRICTION
-        gb.filter = goal_filter
-    space.add(*goal_barriers)
+    for endpoints, radius, restitution, shape_filter, collision_type in (
+        (segments, 5.0, _PM_ELASTICITY_W, wall_filter, _CAT_WALL),
+        (net_segments, 3.0, 0.2, wall_filter, _CAT_WALL),
+        ([((m, gy1), (m, gy2)), ((fw - m, gy1), (fw - m, gy2))],
+         5.0, _PM_ELASTICITY_W, goal_filter, _CAT_GOAL_BARRIER),
+    ):
+        for a, b in endpoints:
+            shape = pymunk.Segment(static, a, b, radius)
+            shape.elasticity, shape.friction = restitution, _PM_FRICTION
+            shape.filter, shape.collision_type = shape_filter, collision_type
+            space.add(shape)
 
-    # Goal back walls — stop anything that enters the goal (collide with everything)
-    back_walls = [
-        pymunk.Segment(static, (m - _GOAL_DEPTH, gy1), (m - _GOAL_DEPTH, gy2), 3),
-        pymunk.Segment(static, (m - _GOAL_DEPTH, gy1), (m, gy1), 3),
-        pymunk.Segment(static, (m - _GOAL_DEPTH, gy2), (m, gy2), 3),
-        pymunk.Segment(static, (fw - m + _GOAL_DEPTH, gy1), (fw - m + _GOAL_DEPTH, gy2), 3),
-        pymunk.Segment(static, (fw - m, gy1), (fw - m + _GOAL_DEPTH, gy1), 3),
-        pymunk.Segment(static, (fw - m, gy2), (fw - m + _GOAL_DEPTH, gy2), 3),
-    ]
-    for bw in back_walls:
-        bw.elasticity = _PM_ELASTICITY_W
-        bw.friction = _PM_FRICTION
-        bw.filter = wall_filter
-    space.add(*back_walls)
+    def wall_impact(arbiter, collision_space, _data):
+        # Real contact impulses, not proximity, drive replay/audio impact events.
+        if arbiter.is_first_contact and arbiter.total_impulse.length_squared > 1.0:
+            collision_space._soccer_events["bounce"] = True
 
-    def _make_player(x, y, stats=None, radius_bonus=0.0, rush_mult=1.0):
-        if stats is None:
-            stats = DEFAULT_STATS
-        r = _get_player_radius(stats) + float(radius_bonus)
-        m = _get_player_mass(stats)
-        fric = _get_player_friction(stats) * float(rush_mult)
-        body = pymunk.Body(m, pymunk.moment_for_circle(m, 0, r))
-        body.position = (float(x), float(y))
-        shape = pymunk.Circle(body, r)
-        shape.elasticity = _PM_ELASTICITY_P
-        shape.friction = _PM_FRICTION
-        shape.filter = player_filter
-        
-        pivot = pymunk.PivotJoint(space.static_body, body, (0, 0), (0, 0))
-        pivot.max_bias = 0
-        pivot.max_force = m * fric
-        space.add(body, shape, pivot)
-        return body
+    _on_collision(space, _CAT_BALL, _CAT_WALL, post_solve=wall_impact)
+    return space
 
-    # Keeper PlayStyle bonuses (keeper is idx 0)
-    rb_a = _keeper_radius_bonus(state, True)
-    rb_b = _keeper_radius_bonus(state, False)
-    rush_a = _keeper_rush_mult(state, True)
-    rush_b = _keeper_rush_mult(state, False)
-    bodies_a = [_make_player(p["x"], p["y"], p.get("stats"),
-                             radius_bonus=(rb_a if i == 0 else 0),
-                             rush_mult=(rush_a if i == 0 else 1.0))
-                for i, p in enumerate(state["players_a"])]
-    bodies_b = [_make_player(p["x"], p["y"], p.get("stats"),
-                             radius_bonus=(rb_b if i == 0 else 0),
-                             rush_mult=(rush_b if i == 0 else 1.0))
-                for i, p in enumerate(state["players_b"])]
 
-    # Referee — cosmetic only: body WITHOUT a collision shape and no pivot,
-    # so the ball and players pass straight through it (no physics presence).
+def _make_player(space, position, stats=None, radius_bonus=0.0, rush_mult=1.0,
+                 restitution=_PM_ELASTICITY_P):
+    stats = DEFAULT_STATS if stats is None else {**DEFAULT_STATS, **stats}
+    radius = _get_player_radius(stats) + radius_bonus
+    mass = _get_player_mass(stats)
+    body = pymunk.Body(mass, pymunk.moment_for_circle(mass, 0, radius))
+    body.position = position
+    shape = pymunk.Circle(body, radius)
+    shape.elasticity, shape.friction = restitution, _PM_FRICTION
+    shape.filter = pymunk.ShapeFilter(categories=_CAT_PLAYER,
+                                     mask=_CAT_PLAYER | _CAT_BALL | _CAT_WALL | _CAT_GOAL_BARRIER)
+    shape.collision_type = _CAT_PLAYER
+    pivot = pymunk.PivotJoint(space.static_body, body, (0, 0), (0, 0))
+    pivot.max_bias = 0
+    pivot.max_force = mass * _get_player_friction(stats) * rush_mult
+    space.add(body, shape, pivot)
+    return body
+
+
+def _make_ball(space, position):
+    material = space._soccer_ball
+    radius, mass = material["radius"], material["mass"]
+    body = pymunk.Body(mass, pymunk.moment_for_circle(mass, 0, radius))
+    body.position = position
+    shape = pymunk.Circle(body, radius)
+    shape.elasticity, shape.friction = material["restitution"], _PM_FRICTION
+    shape.filter = pymunk.ShapeFilter(categories=_CAT_BALL, mask=_CAT_PLAYER | _CAT_WALL)
+    shape.collision_type = _CAT_BALL
+    pivot = pymunk.PivotJoint(space.static_body, body, (0, 0), (0, 0))
+    pivot.max_bias = 0
+    pivot.max_force = mass * material["rolling_deceleration"]
+    space.add(body, shape, pivot)
+    return body, pivot
+
+
+def _build_space(state: dict):
+    """Create an isolated deterministic world from authoritative match positions."""
+    space = _new_physics_space(state)
+    teams = []
+    for side in (True, False):
+        players = state["players_a" if side else "players_b"]
+        teams.append([
+            _make_player(space, (float(p["x"]), float(p["y"])), p.get("stats"),
+                         _keeper_radius_bonus(state, side) if i == 0 else 0.0,
+                         _keeper_rush_mult(state, side) if i == 0 else 1.0)
+            for i, p in enumerate(players)
+        ])
     ref_pos = state.get("referee", {"x": REFEREE_POS[0], "y": REFEREE_POS[1]})
+    # No shape or joint: the referee remains entirely cosmetic.
     ref_body = pymunk.Body(_PM_MASS_P, pymunk.moment_for_circle(_PM_MASS_P, 0, PLAYER_R))
     ref_body.position = (float(ref_pos["x"]), float(ref_pos["y"]))
     space.add(ref_body)
-
-    ball_body = pymunk.Body(_PM_MASS_B, pymunk.moment_for_circle(_PM_MASS_B, 0, BALL_R))
-    ball_body.position = (float(state["ball"]["x"]), float(state["ball"]["y"]))
-    ball_shape = pymunk.Circle(ball_body, BALL_R)
-    ball_shape.elasticity = _PM_ELASTICITY_B
-    ball_shape.friction = _PM_FRICTION
-    ball_shape.filter = ball_filter
-    
-    ball_pivot = pymunk.PivotJoint(space.static_body, ball_body, (0, 0), (0, 0))
-    ball_pivot.max_bias = 0
-    ball_pivot.max_force = _PM_MASS_B * _PM_LINEAR_FRICTION_B
-    space.add(ball_body, ball_shape, ball_pivot)
-
-    return space, bodies_a, bodies_b, ball_body, ref_body, ball_pivot
+    ball_body, ball_pivot = _make_ball(space, (float(state["ball"]["x"]), float(state["ball"]["y"])))
+    return space, teams[0], teams[1], ball_body, ref_body, ball_pivot
 
 
 #  Penalty shootout 
@@ -558,11 +607,11 @@ def _setup_penalty_positions(state: dict, is_player_a: bool) -> None:
     state["ball"] = {"x": spot_x, "y": _PENALTY_SPOT_Y, "z": 0.0}
     keeper_cy = _PENALTY_KEEPER_DIVE_TARGETS.get("center", _PENALTY_SPOT_Y)
     if is_player_a:
-        state["players_a"][0] = {"x": kicker_x, "y": _PENALTY_SPOT_Y}
-        state["players_b"][0] = {"x": keeper_x, "y": keeper_cy}
+        state["players_a"][0].update(x=kicker_x, y=_PENALTY_SPOT_Y)
+        state["players_b"][0].update(x=keeper_x, y=keeper_cy)
     else:
-        state["players_b"][0] = {"x": kicker_x, "y": _PENALTY_SPOT_Y}
-        state["players_a"][0] = {"x": keeper_x, "y": keeper_cy}
+        state["players_b"][0].update(x=kicker_x, y=_PENALTY_SPOT_Y)
+        state["players_a"][0].update(x=keeper_x, y=keeper_cy)
 
     # All outfield players (index > 0) stand in a line at midfield
     center_x = FIELD_W / 2
@@ -575,181 +624,90 @@ def _setup_penalty_positions(state: dict, is_player_a: bool) -> None:
     for side, x_off in (("a", -12), ("b", 12)):
         players = state["players_a"] if side == "a" else state["players_b"]
         for i in range(1, len(players)):
-            players[i] = {"x": center_x + x_off, "y": y_spacing * outfield_pos}
+            players[i].update(x=center_x + x_off, y=y_spacing * outfield_pos)
             outfield_pos += 1
 
     state["referee"] = {"x": -100, "y": -100}
     state["penalty_goalkeeper_move"] = None
 
 
-def _build_penalty_space(state: dict, is_player_a: bool):
-    """Build a pymunk space for a penalty kick with ball, kicker, and keeper."""
-    space = pymunk.Space()
-    space.damping = _PM_DAMPING
-    static = space.static_body
-
-    m = float(_MARGIN)
-    fw, fh = float(FIELD_W), float(FIELD_H)
-    gy1, gy2 = float(GOAL_Y1), float(GOAL_Y2)
-    pw = 5.0
-    br = float(BALL_R)
-
-    wall_filter   = pymunk.ShapeFilter(categories=_CAT_WALL, mask=_CAT_PLAYER | _CAT_BALL)
-    goal_filter   = pymunk.ShapeFilter(categories=_CAT_GOAL_BARRIER, mask=_CAT_PLAYER)
-    player_filter = pymunk.ShapeFilter(categories=_CAT_PLAYER, mask=_CAT_PLAYER | _CAT_BALL | _CAT_WALL | _CAT_GOAL_BARRIER)
-    ball_filter   = pymunk.ShapeFilter(categories=_CAT_BALL, mask=_CAT_PLAYER | _CAT_WALL)
-
-    # Outer walls (simplified — just top/bottom/left/right)
-    outer_walls = [
-        pymunk.Segment(static, (0, m), (fw, m), pw),
-        pymunk.Segment(static, (0, fh - m), (fw, fh - m), pw),
-        pymunk.Segment(static, (m, m), (m, gy1 - br), pw),
-        pymunk.Segment(static, (m, gy2 + br), (m, fh - m), pw),
-        pymunk.Segment(static, (fw - m, m), (fw - m, gy1 - br), pw),
-        pymunk.Segment(static, (fw - m, gy2 + br), (fw - m, fh - m), pw),
-    ]
-    for w in outer_walls:
-        w.elasticity = _PM_ELASTICITY_W
-        w.friction = _PM_FRICTION
-        w.filter = wall_filter
-    space.add(*outer_walls)
-
-    # Goal barriers
-    goal_barriers = [
-        pymunk.Segment(static, (m, gy1), (m, gy2), pw),
-        pymunk.Segment(static, (fw - m, gy1), (fw - m, gy2), pw),
-    ]
-    for gb in goal_barriers:
-        gb.elasticity = _PM_ELASTICITY_W
-        gb.friction = _PM_FRICTION
-        gb.filter = goal_filter
-    space.add(*goal_barriers)
-
-    # Back walls
-    back_walls = [
-        pymunk.Segment(static, (m - _GOAL_DEPTH, gy1), (m - _GOAL_DEPTH, gy2), 3),
-        pymunk.Segment(static, (m - _GOAL_DEPTH, gy1), (m, gy1), 3),
-        pymunk.Segment(static, (m - _GOAL_DEPTH, gy2), (m, gy2), 3),
-        pymunk.Segment(static, (fw - m + _GOAL_DEPTH, gy1), (fw - m + _GOAL_DEPTH, gy2), 3),
-        pymunk.Segment(static, (fw - m, gy1), (fw - m + _GOAL_DEPTH, gy1), 3),
-        pymunk.Segment(static, (fw - m, gy2), (fw - m + _GOAL_DEPTH, gy2), 3),
-    ]
-    for bw in back_walls:
-        bw.elasticity = _PM_ELASTICITY_W
-        bw.friction = _PM_FRICTION
-        bw.filter = wall_filter
-    space.add(*back_walls)
-
-    def _make_player(x, y, stats=None, radius_bonus=0.0, rush_mult=1.0):
-        if stats is None:
-            stats = DEFAULT_STATS
-        r = _get_player_radius(stats) + float(radius_bonus)
-        m = _get_player_mass(stats)
-        fric = _get_player_friction(stats) * float(rush_mult)
-        body = pymunk.Body(m, pymunk.moment_for_circle(m, 0, r))
-        body.position = (float(x), float(y))
-        shape = pymunk.Circle(body, r)
-        shape.elasticity = _PM_ELASTICITY_P
-        shape.friction = _PM_FRICTION
-        shape.filter = player_filter
-        pivot = pymunk.PivotJoint(space.static_body, body, (0, 0), (0, 0))
-        pivot.max_bias = 0
-        pivot.max_force = m * fric
-        space.add(body, shape, pivot)
-        return body
-
-    # Keeper style bonuses for penalty (radius + rush)
-    rb_kick_a = _keeper_radius_bonus(state, False) if is_player_a else _keeper_radius_bonus(state, True)
-    rush_kick_a = _keeper_rush_mult(state, False) if is_player_a else _keeper_rush_mult(state, True)
-    if is_player_a:
-        ball_x, ball_y = _PENALTY_SPOT_X_A, _PENALTY_SPOT_Y
-        kicker_x = ball_x - _PENALTY_KICKER_BEHIND
-        keeper_x = _PENALTY_KEEPER_X_A
-        keeper_y = _PENALTY_SPOT_Y
-        kicker_stats = _get_player_stats(state, True, 0)
-        keeper_stats = _get_player_stats(state, False, 0)
-        kicker_body = _make_player(kicker_x, _PENALTY_SPOT_Y, kicker_stats)
-        keeper_body = _make_player(keeper_x, keeper_y, keeper_stats, radius_bonus=rb_kick_a, rush_mult=rush_kick_a)
-    else:
-        ball_x, ball_y = _PENALTY_SPOT_X_B, _PENALTY_SPOT_Y
-        kicker_x = ball_x + _PENALTY_KICKER_BEHIND
-        keeper_x = _PENALTY_KEEPER_X_B
-        keeper_y = _PENALTY_SPOT_Y
-        kicker_stats = _get_player_stats(state, False, 0)
-        keeper_stats = _get_player_stats(state, True, 0)
-        kicker_body = _make_player(kicker_x, _PENALTY_SPOT_Y, kicker_stats)
-        keeper_body = _make_player(keeper_x, keeper_y, keeper_stats, radius_bonus=rb_kick_a, rush_mult=rush_kick_a)
-
-    ball_body = pymunk.Body(_PM_MASS_B, pymunk.moment_for_circle(_PM_MASS_B, 0, br))
-    ball_body.position = (ball_x, ball_y)
-    ball_shape = pymunk.Circle(ball_body, br)
-    ball_shape.elasticity = _PM_ELASTICITY_B
-    ball_shape.friction = _PM_FRICTION
-    ball_shape.filter = ball_filter
-    pivot_b = pymunk.PivotJoint(space.static_body, ball_body, (0, 0), (0, 0))
-    pivot_b.max_bias = 0
-    pivot_b.max_force = _PM_MASS_B * _PM_LINEAR_FRICTION_B
-    space.add(ball_body, ball_shape, pivot_b)
-
-    return space, kicker_body, ball_body, keeper_body
+def _build_penalty_space(state: dict, is_player_a: bool, player_idx=0):
+    """Only the selected kicker, opposing keeper and ball are active in a shootout."""
+    space = _new_physics_space(state)
+    space._soccer_penalty_target = "A" if is_player_a else "B"
+    ball_x = _PENALTY_SPOT_X_A if is_player_a else _PENALTY_SPOT_X_B
+    kicker_x = ball_x + (-_PENALTY_KICKER_BEHIND if is_player_a else _PENALTY_KICKER_BEHIND)
+    keeper_x = _PENALTY_KEEPER_X_A if is_player_a else _PENALTY_KEEPER_X_B
+    kicker = _make_player(space, (kicker_x, _PENALTY_SPOT_Y),
+                          _get_player_stats(state, is_player_a, player_idx))
+    keeper_side = not is_player_a
+    effects = _keeper_effect(state, keeper_side)
+    # Deflector loses more contact energy. A save never teleports the endpoint.
+    restitution = _PM_ELASTICITY_P
+    if effects.get("safe_deflect"):
+        restitution *= max(0.0, min(1.0, float(effects.get("deflect_speed_mult", 0.6))))
+    keeper = _make_player(space, (keeper_x, _PENALTY_SPOT_Y),
+                          _get_player_stats(state, keeper_side, 0),
+                          _keeper_radius_bonus(state, keeper_side),
+                          _keeper_rush_mult(state, keeper_side), restitution)
+    ball, _ = _make_ball(space, (ball_x, _PENALTY_SPOT_Y))
+    return space, kicker, ball, keeper
 
 
-def _sim_penalty(space, kicker_body, ball_body, keeper_body, keeper_dive_dir, max_steps=_PM_MAX_STEPS, dive_mult=1.0):
-    """Run pymunk simulation for a penalty kick.
-
-    Returns (trajectory, scored).
-    """
-    # Apply keeper dive velocity — PlayStyle Far Reach / Rush Out / Footwork boost dive speed
-    target_y = _PENALTY_KEEPER_DIVE_TARGETS.get(keeper_dive_dir, 250.0)
+def _sim_penalty(space, kicker_body, ball_body, keeper_body, keeper_dive_dir,
+                 max_steps=_PM_MAX_STEPS, dive_mult=1.0, search=None):
+    """Use the same substeps, contact materials and whole-ball scoring as a match."""
+    target_y = _PENALTY_KEEPER_DIVE_TARGETS.get(keeper_dive_dir, _PENALTY_SPOT_Y)
     dy = target_y - keeper_body.position.y
-    vel = _PENALTY_KEEPER_DIVE_VEL * float(dive_mult)
-    keeper_body.velocity = (0.0, math.copysign(vel, dy) if abs(dy) > 1 else 0.0)
-
-    trajectory: list[dict] = []
+    speed = _PENALTY_KEEPER_DIVE_VEL * float(dive_mult)
+    keeper_body.apply_impulse_at_local_point((0.0, keeper_body.mass *
+                                             (math.copysign(speed, dy) if abs(dy) > 1 else 0.0)))
+    trajectory = []
     scored = False
+    goal = None
+    elapsed = 0.0
+    radius = space._soccer_ball["radius"]
 
-    # Record initial state
-    trajectory.append({
-        "x": round(ball_body.position.x, 1),
-        "y": round(ball_body.position.y, 1),
-        "kicker": {"x": round(kicker_body.position.x, 1), "y": round(kicker_body.position.y, 1)},
-        "keeper": {"x": round(keeper_body.position.x, 1), "y": round(keeper_body.position.y, 1)},
-    })
+    def frame():
+        ball, kicker, keeper = ball_body.position, kicker_body.position, keeper_body.position
+        point = {"x": round(ball.x, 1), "y": round(ball.y, 1), "z": 0.0, "t": elapsed,
+                 "kicker": {"x": round(kicker.x, 1), "y": round(kicker.y, 1)},
+                 "keeper": {"x": round(keeper.x, 1), "y": round(keeper.y, 1)}}
+        if not trajectory:
+            point["ball_size"] = space._soccer_ball["size"]
+        if space._soccer_events["bounce"]:
+            point["bounce"] = True
+        trajectory.append(point)
 
-    for step_i in range(max_steps):
-        space.step(_PM_DT / 3.0)
-        space.step(_PM_DT / 3.0)
-        space.step(_PM_DT / 3.0)
-
-        bx, by = ball_body.position.x, ball_body.position.y
-        trajectory.append({
-            "x": round(bx, 1),
-            "y": round(by, 1),
-            "kicker": {"x": round(kicker_body.position.x, 1), "y": round(kicker_body.position.y, 1)},
-            "keeper": {"x": round(keeper_body.position.x, 1), "y": round(keeper_body.position.y, 1)},
-        })
-
-        # Goal detection — ball edge crosses the goal line
-        if GOAL_Y1 <= by <= GOAL_Y2:
-            if bx - BALL_R <= _MARGIN:
-                scored = True
+    frame()
+    for step in range(max_steps):
+        if search is not None and step % 8 == 0:
+            search.checkpoint()
+        space._soccer_events["bounce"] = False
+        for _ in range(3):
+            space.step(_PM_DT / 3.0)
+            elapsed += _PM_DT / 3.0
+            goal = _goal_for_ball(ball_body.position, radius)
+            if goal:
+                scored = goal == space._soccer_penalty_target
                 break
-            if bx + BALL_R >= FIELD_W - _MARGIN:
-                scored = True
-                break
-
-        # Early exit when settled
-        all_settled = True
-        if abs(ball_body.velocity.x) >= 0.5 or abs(ball_body.velocity.y) >= 0.5:
-            all_settled = False
-        elif abs(kicker_body.velocity.x) >= 0.5 or abs(kicker_body.velocity.y) >= 0.5:
-            all_settled = False
-        elif abs(keeper_body.velocity.x) >= 0.5 or abs(keeper_body.velocity.y) >= 0.5:
-            all_settled = False
-        if all_settled:
+        frame()
+        if goal or all(body.velocity.length_squared < 0.25
+                         for body in (ball_body, kicker_body, keeper_body)):
             break
-
     return trajectory, scored
+
+
+def _penalty_trajectory(state, player_idx, angle_deg, power, is_player_a, search=None):
+    """Prediction and execution share the same selected kicker and keeper dive."""
+    space, kicker, ball, keeper = _build_penalty_space(state, is_player_a, player_idx)
+    _launch_kicker(state, kicker, player_idx, angle_deg, power, is_player_a)
+    effects = _keeper_effect(state, not is_player_a)
+    dive_mult = float(effects.get("dive_speed_mult", 1.0)) * float(effects.get("rush_speed_mult", 1.0))
+    trajectory, scored = _sim_penalty(space, kicker, ball, keeper,
+                                     state.get("penalty_goalkeeper_move") or "center",
+                                     dive_mult=dive_mult, search=search)
+    return _sample_trajectory(trajectory, target=80), scored
 
 
 def apply_penalty_kick(
@@ -763,54 +721,9 @@ def apply_penalty_kick(
 
     Returns (trajectory, scored, description).
     """
-    player_idx = max(0, min(len(state["players_a"]) - 1, player_idx))
+    player_idx, angle_deg, power = normalize_kick(state, player_idx, angle_deg, power, is_player_a)
     keeper_move = state.get("penalty_goalkeeper_move") or "center"
-
-    space, kicker_body, ball_body, keeper_body = _build_penalty_space(state, is_player_a)
-
-    stats = _get_player_stats(state, is_player_a, player_idx)
-    kick_vel = _get_player_kick_vel(stats)
-    angle_rad = math.radians(angle_deg)
-    kicker_body.velocity = (
-        math.cos(angle_rad) * power * kick_vel,
-        math.sin(angle_rad) * power * kick_vel,
-    )
-
-    # Recoil for penalty kicks too
-    _RECOIL_BASE = 1.2
-    recoil_factor = _RECOIL_BASE * (stats["power"] / _STAT_DEFAULT)
-    if recoil_factor > 0:
-        kicker_body.velocity = (
-            kicker_body.velocity.x - math.cos(angle_rad) * power * recoil_factor,
-            kicker_body.velocity.y - math.sin(angle_rad) * power * recoil_factor,
-        )
-
-    # Keeper PlayStyle dive bonus (Far Reach / Footwork / Rush Out)
-    keeper_is_a = not is_player_a
-    keeper_eff = _keeper_effect(state, keeper_is_a)
-    dive_mult = float(keeper_eff.get("dive_speed_mult", 1.0)) * float(keeper_eff.get("rush_speed_mult", 1.0))
-    trajectory, scored = _sim_penalty(space, kicker_body, ball_body, keeper_body, keeper_move, dive_mult=dive_mult)
-
-    # Deflector: safe deflection — if saved, damp ball and push to corner (less rebound)
-    if not scored and keeper_eff.get("safe_deflect"):
-        mult = float(keeper_eff.get("deflect_speed_mult", 0.6))
-        # Damp the final ball position toward safe side (away from center)
-        if trajectory:
-            last = trajectory[-1]
-            # pull ball toward nearest sideline corner
-            safe_y = 95 if last["y"] < FIELD_H / 2 else FIELD_H - 95
-            # nudge last point toward safe corner and damp
-            last["x"] = round(last["x"] * mult + (FIELD_W/2) * (1-mult), 1)
-            last["y"] = round(last["y"] * mult + safe_y * (1-mult), 1)
-
-    # Far Throw: after save, keeper distribution would go far — extend final point
-    if not scored and "throw_dist_mult" in keeper_eff:
-        # Represented as extra push upfield after save (keeper throws to teammate)
-        pass  # trajectory already reflects save; distribution handled in next kick setup
-
-    # Decimate trajectory
-    step = max(1, len(trajectory) // 80)
-    traj_out = trajectory[::step] + [trajectory[-1]] if len(trajectory) > step else trajectory
+    traj_out, scored = _penalty_trajectory(state, player_idx, angle_deg, power, is_player_a)
 
     # Update penalty state
     kick_num = state.get("penalty_kick_num", 0)
@@ -851,19 +764,11 @@ def apply_penalty_kick(
 
 
 def _loft_angle(power: float) -> float:
-    """Ball stays on ground — no flight.
-
-    Web/physics research (ground rolling vs sliding) shows rolling friction
-    is the correct model for a ball in contact with the pitch (constant
-    deceleration, pivot-joint friction). Previous loft curve lifted the ball
-    up to 30°; user request is ground-only movement, so launch angle is
-    forced to 0° for all powers. G / _VERTICAL_RESTITUTION remain for
-    completeness but are unused while vz0 == 0 → ball_z stays 0.
-    """
+    """Normal commands are ground passes; vertical simulation remains opt-in."""
     return 0.0
 
 
-def _referee_step(ref_body, ball_body, dt: float) -> None:
+def _referee_step(ref_body, ball_body, dt: float, ball_pos=None, ball_vel=None) -> None:
     """Deterministic ambient referee motion: flow-field patrol + ball dodging.
 
     Purely cosmetic — the referee body has no collision shape, so its
@@ -872,9 +777,9 @@ def _referee_step(ref_body, ball_body, dt: float) -> None:
     (referee position, ball position/velocity), so AI lookahead via
     ``simulate_kick`` stays reproducible.
     """
-    rx, ry = ref_body.position.x, ref_body.position.y
-    bx, by = ball_body.position.x, ball_body.position.y
-    bvx, bvy = ball_body.velocity.x, ball_body.velocity.y
+    rx, ry = ref_body.position
+    bx, by = ball_body.position if ball_pos is None else ball_pos
+    bvx, bvy = ball_body.velocity if ball_vel is None else ball_vel
     ball_speed = math.hypot(bvx, bvy)
 
     vx = vy = 0.0
@@ -929,111 +834,96 @@ def _referee_step(ref_body, ball_body, dt: float) -> None:
     ref_body.position = (round(nx, 1), round(ny, 1))
 
 
-def _sim(space, bodies_a, bodies_b, ball_body, ref_body, kicker_idx, is_player_a, max_steps=_PM_MAX_STEPS, vz0=0.0, ball_pivot=None):
-    """Run pymunk simulation and record results.
-
-    Args:
-        vz0: initial vertical (z-axis) velocity after kick, px/s.
-             If non-zero, enables 3D ball-flight tracking alongside 2D physics.
-
-    Returns (ball_trajectory, scored, kicker_body).
-    """
+def _sim(space, bodies_a, bodies_b, ball_body, ref_body, kicker_idx, is_player_a,
+         max_steps=_PM_MAX_STEPS, vz0=0.0, ball_pivot=None, search=None):
+    """Advance one deterministic world, recording real contacts and physical time."""
     kicker = (bodies_a if is_player_a else bodies_b)[kicker_idx]
-    trajectory: list[dict] = []
-    scored: str | None = None
-    ball_moved = False
-    _was_near_wall = False
-    ball_z = 0.0
-    ball_vz = vz0
+    trajectory = []
+    scored = None
+    ball_z, ball_vz = 0.0, vz0
+    players = bodies_a + bodies_b
+    sub_dt = _PM_DT / 3.0
+    material = space._soccer_ball
+    ground_force = ball_body.mass * material["rolling_deceleration"]
+    air_force = ball_body.mass * material["air_deceleration"]
+    friction_force = None
+    elapsed = 0.0
+    position_cache = {}
 
-    # Record initial state before any physics step
-    trajectory.append({
-        "x": round(ball_body.position.x, 1),
-        "y": round(ball_body.position.y, 1),
-        "z": round(ball_z, 1),
-        "a": [{"x": round(b.position.x, 1), "y": round(b.position.y, 1)} for b in bodies_a],
-        "b": [{"x": round(b.position.x, 1), "y": round(b.position.y, 1)} for b in bodies_b],
-        "ref": {"x": round(ref_body.position.x, 1), "y": round(ref_body.position.y, 1)},
-    })
+    def frame(ball_pos, ref_pos):
+        point = {"x": round(ball_pos.x, 1), "y": round(ball_pos.y, 1),
+                 "z": round(ball_z, 1), "t": elapsed,
+                 "a": _player_positions(bodies_a, position_cache),
+                 "b": _player_positions(bodies_b, position_cache),
+                 "ref": {"x": round(ref_pos.x, 1), "y": round(ref_pos.y, 1)}}
+        if not trajectory:
+            point["ball_size"] = material["size"]
+        if space._soccer_events["bounce"]:
+            point["bounce"] = True
+        trajectory.append(point)
 
-    for step_i in range(max_steps):
+    frame(ball_body.position, ref_body.position)
+    for step in range(max_steps):
+        if search is not None and step % 8 == 0:
+            search.checkpoint()
+        space._soccer_events["bounce"] = False
+        frame_dt = 0.0
         for _ in range(3):
-            space.step(_PM_DT / 3.0)
-            # Vertical-axis ball flight (decoupled from pymunk 2D physics)
+            # Choose resistance before the step, including the initial takeoff.
+            if ball_pivot is not None:
+                force = air_force if ball_z > 0.0 or ball_vz > 0.0 else ground_force
+                if force != friction_force:
+                    ball_pivot.max_force = force
+                    friction_force = force
+            space.step(sub_dt)
+            elapsed += sub_dt
+            frame_dt += sub_dt
             if ball_z > 0.0 or ball_vz != 0.0:
-                ball_vz -= G * (_PM_DT / 3.0)
-                ball_z += ball_vz * (_PM_DT / 3.0)
+                ball_vz -= G * sub_dt
+                ball_z += ball_vz * sub_dt
                 if ball_z <= 0.0:
                     ball_z = 0.0
-                    if abs(ball_vz) > _VZ_MIN:
-                        ball_vz *= -_VERTICAL_RESTITUTION
-                    else:
-                        ball_vz = 0.0
-            # Reduce ground friction while ball is airborne
-            if ball_pivot is not None:
-                if ball_z > 0.0:
-                    ball_pivot.max_force = _PM_MASS_B * _BALL_AIR_FRICTION
-                else:
-                    ball_pivot.max_force = _PM_MASS_B * _PM_LINEAR_FRICTION_B
-
-        # Ambient referee motion (wander + dodge) — cosmetic only
-        _referee_step(ref_body, ball_body, _PM_DT)
-
-        bx = ball_body.position.x
-        by = ball_body.position.y
-
-        _near = (
-            (by <= _MARGIN + BALL_R + 2) or
-            (by >= FIELD_H - _MARGIN - BALL_R - 2) or
-            (bx <= _MARGIN + BALL_R + 2 and not (GOAL_Y1 <= by <= GOAL_Y2)) or
-            (bx >= FIELD_W - _MARGIN - BALL_R - 2 and not (GOAL_Y1 <= by <= GOAL_Y2))
-        )
-        _bounce = _near and not _was_near_wall
-        _was_near_wall = _near
-
-        trajectory.append({
-            "x": round(bx, 1), 
-            "y": round(by, 1),
-            "z": round(ball_z, 1),
-            "a": [{"x": round(b.position.x, 1), "y": round(b.position.y, 1)} for b in bodies_a],
-            "b": [{"x": round(b.position.x, 1), "y": round(b.position.y, 1)} for b in bodies_b],
-            "ref": {"x": round(ref_body.position.x, 1), "y": round(ref_body.position.y, 1)},
-        })
-        if _bounce:
-            trajectory[-1]["b"] = True
-
-        # Goal detection — ball center crosses the goal line
-        if GOAL_Y1 <= by <= GOAL_Y2:
-            if bx <= _MARGIN:
-                scored = "B"
+                    ball_vz = -ball_vz * _VERTICAL_RESTITUTION if abs(ball_vz) > _VZ_MIN else 0.0
+            # Test every contact substep before a fast ball can rebound off the net.
+            scored = _goal_for_ball(ball_body.position, material["radius"], ball_z)
+            if scored:
                 break
-            if bx >= FIELD_W - _MARGIN:
-                scored = "A"
-                break
-
-        # Early exit: all bodies have settled
-        all_settled = True
-        if abs(ball_body.velocity.x) >= 0.5 or abs(ball_body.velocity.y) >= 0.5:
-            all_settled = False
-        else:
-            for b in bodies_a + bodies_b + [ref_body]:
-                if abs(b.velocity.x) >= 0.5 or abs(b.velocity.y) >= 0.5:
+        ball_pos, ball_vel = ball_body.position, ball_body.velocity
+        if search is None:
+            _referee_step(ref_body, ball_body, frame_dt, ball_pos, ball_vel)
+            frame(ball_pos, ref_body.position)
+        if scored:
+            if search is not None:
+                frame(ball_pos, ref_body.position)
+            break
+        all_settled = (ball_vel.length_squared < 0.25 and ball_z == 0.0 and ball_vz == 0.0)
+        if all_settled:
+            for body in players:
+                if body.velocity.length_squared >= 0.25:
                     all_settled = False
                     break
-        
+        # AI lookahead needs real contacts and the final roster, but not a
+        # cosmetic referee or a player snapshot for every rendered frame.
+        if search is not None and (step % 4 == 0 or all_settled
+                                   or step == max_steps - 1
+                                   or space._soccer_events["bounce"]):
+            frame(ball_pos, ref_body.position)
         if all_settled:
             break
-
-    # Post-loop goal check: if ball settled inside the goal area, count it
-    if scored is None:
-        bx, by = ball_body.position.x, ball_body.position.y
-        if GOAL_Y1 <= by <= GOAL_Y2:
-            if bx <= _MARGIN:
-                scored = "B"
-            elif bx >= FIELD_W - _MARGIN:
-                scored = "A"
-
+    # Ensure subsequent moves never inherit a stale airborne resistance value.
+    if ball_pivot is not None and ball_z == 0.0 and ball_vz == 0.0:
+        ball_pivot.max_force = ground_force
     return trajectory, scored, kicker
+
+
+def _launch_kicker(state, kicker, player_idx, angle_deg, power, is_player_a):
+    """Launch the selected pawn with a momentum impulse; contacts provide recoil."""
+    stats = _get_player_stats(state, is_player_a, player_idx)
+    speed = power * _get_player_kick_vel(stats)
+    angle = math.radians(angle_deg)
+    desired = pymunk.Vec2d(math.cos(angle) * speed, math.sin(angle) * speed)
+    kicker.apply_impulse_at_local_point((desired - kicker.velocity) * kicker.mass)
+    return math.sin(math.radians(_loft_angle(power))) * speed
 
 
 def simulate_kick(
@@ -1043,31 +933,33 @@ def simulate_kick(
     power: float,
     is_player_a: bool,
 ) -> tuple[list[dict], str | None]:
-    pc = state.get("player_count", 3)
-    player_idx = max(0, min(pc - 1, player_idx))
+    player_idx, angle_deg, power = normalize_kick(state, player_idx, angle_deg, power, is_player_a)
+    search = current_search()
+    move = (player_idx, angle_deg, power)
+    if search is not None:
+        cached = search.cached(state, move, is_player_a)
+        if cached is not None:
+            return cached
+        search.begin()
+    if state.get("penalty_shootout"):
+        trajectory, scored = _penalty_trajectory(state, player_idx, angle_deg, power, is_player_a, search=search)
+        result = trajectory, ("A" if is_player_a else "B") if scored else None
+        if search is not None:
+            search.record(state, move, is_player_a, result)
+        return result
     space, bodies_a, bodies_b, ball_body, ref_body, ball_pivot = _build_space(state)
 
     kicker = (bodies_a if is_player_a else bodies_b)[player_idx]
-    stats = _get_player_stats(state, is_player_a, player_idx)
-    kick_vel = _get_player_kick_vel(stats)
-    angle_rad = math.radians(angle_deg)
-    kicker.velocity = (math.cos(angle_rad) * power * kick_vel,
-                       math.sin(angle_rad) * power * kick_vel)
+    vz0 = _launch_kicker(state, kicker, player_idx, angle_deg, power, is_player_a)
 
-    loft_deg = _loft_angle(power)
-    vz0 = math.sin(math.radians(loft_deg)) * power * kick_vel
+    trajectory, scored, _ = _sim(space, bodies_a, bodies_b, ball_body, ref_body, player_idx, is_player_a,
+                               vz0=vz0, ball_pivot=ball_pivot, search=search)
 
-    trajectory, scored, _ = _sim(space, bodies_a, bodies_b, ball_body, ref_body, player_idx, is_player_a, vz0=vz0, ball_pivot=ball_pivot)
-
-    # If ball never moved, return single-point trajectory
-    ball_moved = any(pt["x"] != trajectory[0]["x"] or pt["y"] != trajectory[0]["y"] for pt in trajectory)
-    if not ball_moved:
-        bx = float(state["ball"]["x"])
-        by = float(state["ball"]["y"])
-        return [{"x": round(bx, 1), "y": round(by, 1), "z": 0.0}], None
-
-    step = max(1, len(trajectory) // 100)
-    return trajectory[::step] + [trajectory[-1]] if len(trajectory) > step else trajectory, scored
+    # Misses still contain the launched pawn: prediction and playback agree.
+    result = _sample_trajectory(trajectory), scored
+    if search is not None:
+        search.record(state, move, is_player_a, result)
+    return result
 
 
 def apply_kick(
@@ -1076,42 +968,17 @@ def apply_kick(
     angle_deg: float,
     power: float,
     is_player_a: bool,
-) -> tuple[list[dict], str | None, str]:
-    pc = state.get("player_count", 3)
-    player_idx = max(0, min(pc - 1, player_idx))
+) -> tuple[list[dict], str | None, str, dict, None]:
+    player_idx, angle_deg, power = normalize_kick(state, player_idx, angle_deg, power, is_player_a)
     space, bodies_a, bodies_b, ball_body, ref_body, ball_pivot = _build_space(state)
 
     kicker = (bodies_a if is_player_a else bodies_b)[player_idx]
-    stats = _get_player_stats(state, is_player_a, player_idx)
-    kick_vel = _get_player_kick_vel(stats)
-    angle_rad = math.radians(angle_deg)
-    kicker.velocity = (math.cos(angle_rad) * power * kick_vel,
-                       math.sin(angle_rad) * power * kick_vel)
-
-    loft_deg = _loft_angle(power)
-    vz0 = math.sin(math.radians(loft_deg)) * power * kick_vel
-
-    # Recoil: higher Power = kicker pushed back more, proportional to stat above default
-    _RECOIL_BASE = 1.2  # Base recoil multiplier at Power-50; 1.2 means ~120% of power contributes to recoil
-    recoil_factor = _RECOIL_BASE * (stats["power"] / _STAT_DEFAULT)
-    recoil_vx = -math.cos(angle_rad) * power * recoil_factor
-    recoil_vy = -math.sin(angle_rad) * power * recoil_factor
-    # Add recoil on top of existing kick velocity (opposite direction)
-    if recoil_factor > 0:
-        kicker.velocity = (kicker.velocity.x + recoil_vx, kicker.velocity.y + recoil_vy)
-
-    # Record starting positions for push detection
-    start_pos_a = [{"x": p["x"], "y": p["y"]} for p in state["players_a"]]
-    start_pos_b = [{"x": p["x"], "y": p["y"]} for p in state["players_b"]]
+    vz0 = _launch_kicker(state, kicker, player_idx, angle_deg, power, is_player_a)
 
     trajectory, scored, _ = _sim(space, bodies_a, bodies_b, ball_body, ref_body, player_idx, is_player_a, vz0=vz0, ball_pivot=ball_pivot)
 
     #  Decimate trajectory 
-    if len(trajectory) > 1:
-        step = max(1, len(trajectory) // 100)
-        traj_out = trajectory[::step] + [trajectory[-1]]
-    else:
-        traj_out = trajectory
+    traj_out = _sample_trajectory(trajectory)
 
     #  Update state 
     final = traj_out[-1]

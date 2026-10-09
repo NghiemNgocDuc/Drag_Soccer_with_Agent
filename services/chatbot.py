@@ -33,7 +33,7 @@ INTENTS: dict[str, str] = {
     r'view|top|player.*view': "Top view (-1500,790,320) broadcast vs Player view behind ball (-260/+260,92,135) follows ball. Settings  120s timeout.",
     r'sound|music|mute|crowd': "Sound synth WebAudio, no assets: kick 0.16s, bounce 0.10s, goal fanfare 1s, whistle 0.8s, crowd ambient 0.10 + cheer 2.5s ducks 0.35. Toggle .",
     r'stadium|crowd|bench|field|grass': "Stadium 8-tier bowl 2.2k north-blue south-red, striped grass 512, LED W+40, FIFA 105×68 lines PA 220×519, sun 170+halo 300 +11 clouds.",
-    r'model|ai|langchain|minimax|greedy': "7 built-in AIs + LangChain Tactician (LLM-guided + physics verify, <1.5s, fallback pruned). Pick in Game → Model or Playground.",
+    r'model|ai|langchain|minimax|greedy|expectimax': "Choose a built-in AI from the Game model menu or Playground opponent selector. Try Greedy Striker, Expectimax, or a space-aware agent, and build your own model in My Models.",
 }
 
 def get_response(msg: str) -> str:

@@ -1,0 +1,67 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Match replay &mdash; Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+
+<link rel="stylesheet" href="/static/css/frontend-compete.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-compete">
+{{ app_nav('compete') }}
+<main class="as-main" id="as-content">
+{{ page_header('Match archive', 'Replay / ' ~ meta.mode, 'Review the match one move at a time.', '/match-history', 'Match history') }}
+<div class="cp-panel cp-replay-meta"><div><span class="cp-eyebrow">{{ meta.ai_model or 'Match result' }}</span><h2 class="cp-history-score" style="margin:8px 0">{{ meta.score_a }} / {{ meta.score_b }}</h2><div class="meta">{{ meta.ended_at }} / {{ meta.total_moves }} kicks</div></div>{% if meta.winner=='A' %}<span class="badge badge-win">Win</span>{% elif meta.winner=='B' %}<span class="badge badge-loss">Loss</span>{% else %}<span class="badge badge-draw">Draw</span>{% endif %}</div>
+<section class="cp-panel"><div class="cp-section-head"><div><h2>Match timeline</h2><p class="cp-muted">Choose a move to inspect it, or play through the whole sequence.</p></div><span class="cp-status" id="step-label" aria-live="polite"></span></div>
+<div class="cp-toolbar"><button type="button" class="btn btn-primary btn-sm" onclick="playAll()">{{ icon('play') }} Play</button><button type="button" class="btn btn-secondary btn-sm" onclick="pause()">Pause</button><button type="button" class="btn btn-secondary btn-sm" onclick="step(-1)">Previous move</button><button type="button" class="btn btn-secondary btn-sm" onclick="step(1)">Next move</button><button type="button" class="btn btn-secondary btn-sm" onclick="shareToSocial()">Share to social</button><span class="meta" id="share-msg" role="status"></span></div>
+<div id="moves" role="region" aria-label="Recorded match moves"></div></section>
+<p class="cp-muted" style="margin-top:20px">Saved replay {{ replay_id }} / Available for 30 days</p>
+</main>
+<script>
+const REPLAY = {{ replay | tojson }};
+const META = {{ meta | tojson }};
+let idx=0, timer=null;
+function render(){
+  const box=document.getElementById('moves');
+  box.replaceChildren();
+  REPLAY.forEach((m,i)=>{
+    const row=document.createElement('button');
+    row.type='button'; row.className='cp-move-row'+(i===idx?' active':'');
+    row.setAttribute('aria-current',i===idx?'step':'false');
+    const number=document.createElement('span');number.className='cp-move-number';number.textContent=String(i+1).padStart(2,'0');
+    const description=document.createElement('span');
+    description.textContent=(m.player||m.mover||'?')+' / '+(m.desc || (m.angle?.toFixed ? m.angle.toFixed(0)+' deg / power '+m.power : JSON.stringify(m).slice(0,60)));
+    row.append(number,description);
+    if(m.scored){const goal=document.createElement('span');goal.className='cp-status active';goal.textContent='Goal';row.append(goal);}
+    row.onclick=()=>{idx=i;render();};
+    box.appendChild(row);
+  });
+  document.getElementById('step-label').textContent=REPLAY.length?(idx+1)+' / '+REPLAY.length+' moves':'No recorded moves';
+  if(!REPLAY.length){const empty=document.createElement('p');empty.className='cp-empty';empty.textContent='No moves were recorded for this match.';box.appendChild(empty);}
+  const selected=box.querySelector('.active');if(selected)box.scrollTop=Math.max(0,selected.offsetTop-80);
+}
+function playAll(){
+  if(timer) return;
+  timer=setInterval(()=>{ if(idx < REPLAY.length-1){ idx++; render(); } else { clearInterval(timer); timer=null; } }, 900);
+}
+function pause(){ if(timer){ clearInterval(timer); timer=null; } }
+function step(d){ pause(); idx=Math.max(0,Math.min(REPLAY.length-1, idx+d)); render(); }
+async function shareToSocial(){
+  const cap = prompt('Caption for social share (video summary will be auto-added):', META.mode+' vs '+META.ai_model+' '+META.score_a+'-'+META.score_b);
+  if(cap===null) return;
+  const msg=document.getElementById('share-msg');
+  msg.textContent='Sharing…';
+  try{
+    const r=await fetch('/api/social/share',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'history', replay_id:'{{ replay_id }}', caption: cap})});
+    const d=await r.json();
+    if(r.ok){ msg.textContent='Shared to Social!'; setTimeout(()=> msg.textContent='',2500); } else { msg.textContent=d.error||'Failed'; }
+  }catch(e){ msg.textContent='Failed'; }
+}
+render();
+</script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

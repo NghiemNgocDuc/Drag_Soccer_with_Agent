@@ -1,0 +1,218 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Messages — Agent Soccer</title>
+
+
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-social as-page-messages">
+
+{{ app_nav('social') }}
+
+
+<main class="as-main" id="as-content">
+{{ page_header('SOCIAL', 'The clubhouse', 'Keep up with friends, find a conversation, or join the server chat.') }}
+
+  <div class="tab-bar" role="tablist" aria-label="Message channels">
+    <button class="tab active" id="tab-friends" role="tab" aria-controls="panel-friends" aria-selected="true" onclick="switchTab('friends')"> Friends</button>
+    <button class="tab" id="tab-global" role="tab" aria-controls="panel-global" aria-selected="false" onclick="switchTab('global')"> Server</button>
+  </div>
+
+  <!-- Friends panel -->
+  <div id="panel-friends" role="tabpanel" aria-labelledby="tab-friends">
+    <div class="msg-layout">
+      <div class="msg-side">
+        <!-- Friend management (EA FC style: cap, presence, invite) -->
+        <div class="friend-card" id="friends-card">
+          <h4>Friends <span id="friend-cap" class="badge">0/32</span> <span id="presence-summary" style="font-size:.7rem;color:#64748b;margin-left:auto"></span></h4>
+          <div><label class="as-field-label" for="friend-search">Add a friend by username</label><div class="friend-add-row">
+            <input id="friend-search" class="input" type="text" placeholder="Add by username (exact)…">
+            <button class="btn-xs primary" onclick="addFriend()">Add</button>
+          </div>
+          </div><div id="friend-list"></div>
+          <div id="friend-requests" style="margin-top:8px"></div>
+          <div id="friend-recent" style="margin-top:8px"></div>
+          <div id="friend-msg" class="nc-hint" role="status" aria-live="polite"></div>
+        </div>
+
+        <h2 class="section-title">Conversations</h2><label class="as-field-label" for="new-chat-search">Find a player to message</label>
+        <input id="new-chat-search" class="input" type="text" placeholder="Search conversations…">
+        <div id="new-chat-results"></div>
+        <div id="conv-list"></div>
+      </div>
+      <div class="glass-card msg-main">
+        <div id="dm-chat-mount"></div>
+        <div class="msg-empty" id="dm-empty">Your next conversation starts here. Select a friend or search for a player.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server panel -->
+  <div id="panel-global" role="tabpanel" aria-labelledby="tab-global" style="display:none">
+    <div class="glass-card server-chat-card">
+      <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 4px"> Server Chat</h3>
+      <p style="font-size:.78rem;color:#64748b;margin:0 0 10px">Chat with everyone on the server — friendly, no spam (10 msgs/10s limit).</p>
+      <div id="global-chat-mount" style="flex:1;min-height:0"></div>
+    </div>
+  </div>
+</main>
+
+<script src="/static/js/ui/chat.js"></script>
+<script>
+(function(){
+  window.switchTab = function(which){
+    document.getElementById('tab-friends').setAttribute('aria-selected',String(which==='friends'));
+    document.getElementById('tab-global').setAttribute('aria-selected',String(which==='global'));
+    document.getElementById('tab-friends').classList.toggle('active', which==='friends');
+    document.getElementById('tab-global').classList.toggle('active', which==='global');
+    document.getElementById('panel-friends').style.display = which==='friends' ? '' : 'none';
+    document.getElementById('panel-global').style.display = which==='global' ? '' : 'none';
+    if(which==='global' && !window._globalPanel){
+      window._globalPanel = new ChatPanel({mount: document.getElementById('global-chat-mount'),scope:'global',scopeId:'global',name:'Server Chat',pollMs:2500,collapsed:false});
+    }
+  };
+
+  var panel=null, searchTimer=null;
+  function fmtTime(ts){var d=new Date(typeof ts==='string'?ts:(ts||0)*1000);if(isNaN(d.getTime()))return'';var now=new Date();var sameDay=d.toDateString()===now.toDateString();var t=d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});return sameDay?t:d.toLocaleDateString([],{month:'short',day:'numeric'})+' '+t;}
+  function renderConvs(convs){
+    var list=document.getElementById('conv-list');list.innerHTML='';
+    if(!convs||!convs.length){var n=document.createElement('div');n.className='nc-hint';n.textContent='No conversations yet. Search for a friend to start one.';list.appendChild(n);return;}
+    convs.forEach(function(c){
+      var item=document.createElement('button');item.type='button';item.className='conv-item'+(panel&&c.conv_id===panel.opts.scopeId?' active':'');
+      var name=document.createElement('div');name.className='conv-name';
+      var n=document.createElement('span');n.textContent=c.other_name||'Player';name.appendChild(n);
+      if(c.unread>0){var b=document.createElement('span');b.className='conv-unread';b.textContent=c.unread>99?'99+':String(c.unread);name.appendChild(b);}
+      var last=document.createElement('div');last.className='conv-last';last.textContent=(c.last_body||'')+(c.last_ts?' · '+fmtTime(c.last_ts):'');
+      item.appendChild(name);item.appendChild(last);
+      item.addEventListener('click',function(){selectConversation(c);});
+      list.appendChild(item);
+    });
+  }
+  function loadConvs(){
+    fetch('/chat/conversations').then(r=>r.json()).then(d=>{
+      if(d.error) return;
+      renderConvs(d.conversations||[]);
+    }).catch(()=>{});
+  }
+  function selectConversation(c){
+    var empty=document.getElementById('dm-empty');
+    if(empty) empty.style.display='none';
+    if(!panel){panel=new ChatPanel({mount:document.getElementById('dm-chat-mount'),scope:'dm',name:c.other_name||'Messages',pollMs:2500,collapsed:false});}
+    panel.setConversation(c.conv_id,c.other_name||'Messages');loadConvs();
+  }
+
+  // ---- Friends (persistent + presence + invite + recent) ----
+  function presenceLabel(p, last){
+    if(p==='in_match') return 'In match';
+    if(p==='online') return 'Online';
+    if(last){var mins=Math.floor((Date.now()/1000-last)/60); if(mins<60) return mins<=2?'Just now':mins+'m ago'; return Math.floor(mins/60)+'h ago';}
+    return 'Offline';
+  }
+  function loadFriends(){
+    fetch('/api/friends').then(r=>r.json()).then(d=>{
+      var cap=document.getElementById('friend-cap');
+      if(cap) cap.textContent=(d.friends||[]).length+'/'+(d.cap||32);
+      var online=(d.friends||[]).filter(x=>x.presence==='online').length;
+      var ingame=(d.friends||[]).filter(x=>x.presence==='in_match').length;
+      var ps=document.getElementById('presence-summary');
+      if(ps) ps.textContent=online?online+' online'+(ingame? ' · '+ingame+' in match':''):'';
+      renderFriends(d.friends||[], d.requests||[], d.recent||[]);
+      // nav + title badges
+      var reqCount=(d.requests||[]).length;
+      document.title = reqCount ? '('+reqCount+') Messages — Agent Soccer' : 'Messages — Agent Soccer';
+      var nb=document.getElementById('nav-msg-badge');
+      if(nb){ if(reqCount){ nb.textContent=reqCount; nb.style.display='inline-block'; } else nb.style.display='none'; }
+      // also unread DM badge (best-effort)
+      fetch('/chat/conversations').then(r=>r.json()).then(cd=>{
+        var unread=(cd.conversations||[]).reduce((s,c)=>s+(c.unread||0),0);
+        if(nb && unread){ nb.textContent=(reqCount?reqCount+'+':'')+(unread? unread:''); nb.style.display='inline-block'; }
+      }).catch(()=>{});
+    }).catch(()=>{});
+  }
+  function renderFriends(friends, requests, recent){
+    var list=document.getElementById('friend-list'); list.innerHTML='';
+    if(!friends.length){var h=document.createElement('div');h.className='nc-hint';h.textContent='No friends yet. Add by exact username above.';list.appendChild(h);} 
+    else friends.forEach(function(f){
+      var row=document.createElement('div'); row.className='friend-item';
+      var dot=document.createElement('span'); dot.className='dot '+(f.presence||'offline'); row.appendChild(dot);
+      var name=document.createElement('div'); name.className='friend-name'; name.textContent=f.nickname||f.username; name.title=f.nickname?f.username+' ('+f.nickname+')':f.username; row.appendChild(name);
+      var meta=document.createElement('span'); meta.className='friend-meta'; meta.textContent=presenceLabel(f.presence, f.last_seen); row.appendChild(meta);
+      var acts=document.createElement('div'); acts.className='friend-actions';
+      var favBtn=document.createElement('button'); favBtn.className='btn-xs'; favBtn.textContent=f.favorite?'Fav*': 'Fav'; favBtn.title=f.favorite?'Unfavorite':'Favorite (pin to top)'; favBtn.onclick=function(){fetch('/api/friends/'+f.uid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({favorite:!f.favorite})}).then(()=>loadFriends());};
+      var nickBtn=document.createElement('button'); nickBtn.className='btn-xs'; nickBtn.textContent='Edit'; nickBtn.title='Edit nickname'; nickBtn.onclick=function(){var cur=f.nickname||''; var nv=prompt('Nickname for '+f.username+' (empty to clear, max 24):',cur); if(nv===null) return; fetch('/api/friends/'+f.uid,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({nickname:nv})}).then(r=>r.json()).then(d=>{if(d.error) alert(d.error); loadFriends();});};
+      var chatBtn=document.createElement('button'); chatBtn.className='btn-xs'; chatBtn.textContent='Chat'; chatBtn.onclick=function(){selectConversation({conv_id:'', other_name:f.username}); setTimeout(function(){var empty=document.getElementById('dm-empty');if(empty)empty.style.display='none'; if(!panel){panel=new ChatPanel({mount:document.getElementById('dm-chat-mount'),scope:'dm',withUid:f.uid,name:f.username,pollMs:2500,collapsed:false});} else panel.setRecipient(f.uid,f.username); loadConvs();},0);};
+      var invBtn=document.createElement('button'); invBtn.className='btn-xs primary'; invBtn.textContent='Invite'; invBtn.disabled=(f.presence==='in_match'); invBtn.title=f.presence==='in_match'?'In match':'Invite to lobby (optional password via prompt)'; invBtn.onclick=function(){var pw=prompt('Password for room? Leave empty for open:',''); var body={friend_uid:f.uid}; if(pw) body.password=pw; invBtn.disabled=true; fetch('/api/friends/invite-match',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json()).then(d=>{if(d.ok) document.getElementById('friend-msg').textContent='Invite sent to '+f.username+(d.has_password?' (locked)':''); else document.getElementById('friend-msg').textContent=d.error||'Invite failed'; setTimeout(()=>document.getElementById('friend-msg').textContent='',2500);}).finally(()=>invBtn.disabled=false);};
+      var blockBtn=document.createElement('button'); blockBtn.className='btn-xs'; blockBtn.textContent='Block'; blockBtn.title='Block'; blockBtn.onclick=function(){if(!confirm('Block '+f.username+'? You will also be removed as friends.'))return; fetch('/chat/block',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({user_id:f.uid})}).then(()=>fetch('/api/friends/'+f.uid,{method:'DELETE'})).then(()=>loadFriends());};
+      var rmBtn=document.createElement('button'); rmBtn.className='btn-xs'; rmBtn.textContent='×'; rmBtn.title='Remove'; rmBtn.setAttribute('aria-label','Remove '+f.username+' from friends'); rmBtn.onclick=function(){if(!confirm('Remove '+f.username+'?'))return; fetch('/api/friends/'+f.uid,{method:'DELETE'}).then(()=>loadFriends());};
+      acts.appendChild(favBtn); acts.appendChild(nickBtn); acts.appendChild(chatBtn); acts.appendChild(invBtn); acts.appendChild(blockBtn); acts.appendChild(rmBtn); row.appendChild(acts);
+      list.appendChild(row);
+    });
+    var rqBox=document.getElementById('friend-requests'); rqBox.innerHTML='';
+    if(requests.length){
+      var title=document.createElement('div'); title.style='font-weight:700;font-size:.78rem;margin:4px 0 6px;color:#0f172a'; title.textContent='Requests ('+requests.length+')'; rqBox.appendChild(title);
+      requests.forEach(function(r){
+        var row=document.createElement('div'); row.className='friend-item';
+        var n=document.createElement('div'); n.className='friend-name'; n.textContent=r.from_username; row.appendChild(n);
+        var acc=document.createElement('button'); acc.className='btn-xs primary'; acc.textContent='Accept'; acc.onclick=function(){fetch('/api/friends/accept/'+r.id,{method:'POST'}).then(()=>loadFriends());};
+        var dec=document.createElement('button'); dec.className='btn-xs'; dec.textContent='Decline'; dec.onclick=function(){fetch('/api/friends/decline/'+r.id,{method:'POST'}).then(()=>loadFriends());};
+        row.appendChild(acc); row.appendChild(dec); rqBox.appendChild(row);
+      });
+    }
+    var recBox=document.getElementById('friend-recent'); recBox.innerHTML='';
+    if(recent.length){
+      var t2=document.createElement('div'); t2.style='font-weight:700;font-size:.78rem;margin:6px 0 6px;color:#0f172a'; t2.textContent='Recently Met'; recBox.appendChild(t2);
+      recent.slice(0,8).forEach(function(r){
+        var row=document.createElement('div'); row.className='friend-item';
+        var n=document.createElement('div'); n.className='friend-name'; n.textContent=r.username||r.uid.slice(0,8); row.appendChild(n);
+        var add=document.createElement('button'); add.className='btn-xs primary'; add.textContent='Add'; add.onclick=function(){fetch('/api/friends/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:r.username})}).then(r=>r.json()).then(d=>{document.getElementById('friend-msg').textContent=d.ok?'Request sent':(d.error||'Failed'); setTimeout(()=>document.getElementById('friend-msg').textContent='',2000); loadFriends();});};
+        row.appendChild(add); recBox.appendChild(row);
+      });
+    }
+  }
+  window.addFriend=function(){
+    var inp=document.getElementById('friend-search'); var q=(inp.value||'').trim(); if(!q) return;
+    fetch('/api/friends/request',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:q})}).then(r=>r.json()).then(d=>{
+      var m=document.getElementById('friend-msg'); m.textContent=d.ok?'Request sent to '+d.to:' '+(d.error||'Failed'); m.style.color=d.ok?'#059669':'#dc2626';
+      if(d.ok) inp.value=''; loadFriends(); setTimeout(()=>m.textContent='',2500);
+    });
+  };
+  document.getElementById('friend-search')?.addEventListener('keydown', e=>{ if(e.key==='Enter') addFriend(); });
+
+  loadFriends(); loadConvs();
+  setInterval(loadFriends, 15000);
+  setInterval(()=>fetch('/api/friends/heartbeat',{method:'POST'}).catch(()=>{}), 45000);
+
+  var searchInput=document.getElementById('new-chat-search');
+  searchInput.addEventListener('input',function(){
+    clearTimeout(searchTimer);
+    var q=searchInput.value.trim();
+    if(q.length<2){document.getElementById('new-chat-results').innerHTML='';return;}
+    searchTimer=setTimeout(function(){
+      fetch('/online/invite/search?q='+encodeURIComponent(q)).then(r=>r.json()).then(users=>{
+        var box=document.getElementById('new-chat-results');box.innerHTML='';
+        (users||[]).slice(0,6).forEach(function(u){
+          var item=document.createElement('button');item.type='button';item.className='nc-item';item.textContent=u.username;item.title='Message '+u.username+' (friends only)';
+          item.addEventListener('click',function(){
+            box.innerHTML='';searchInput.value='';
+            var empty=document.getElementById('dm-empty');if(empty)empty.style.display='none';
+            if(!panel){panel=new ChatPanel({mount:document.getElementById('dm-chat-mount'),scope:'dm',withUid:u.id,name:u.username,pollMs:2500,collapsed:false});}
+            else panel.setRecipient(u.id,u.username);
+            loadConvs();
+          });
+          box.appendChild(item);
+        });
+      }).catch(()=>{});
+    },350);
+  });
+  setInterval(loadConvs,15000);
+})();
+</script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

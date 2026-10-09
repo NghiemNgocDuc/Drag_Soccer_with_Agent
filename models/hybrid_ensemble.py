@@ -47,7 +47,8 @@ _STACK_WEIGHTS = {
 def _load_expert(name):
     import importlib
     try:
-        return importlib.import_module(f"models.{name}" if "." not in name else name)
+        module = "models.greedy_model" if name == "greedy" else (f"models.{name}" if "." not in name else name)
+        return importlib.import_module(module)
     except Exception:
         return None
 

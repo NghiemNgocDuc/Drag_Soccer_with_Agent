@@ -1,0 +1,109 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ranked standings &mdash; Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+
+<link rel="stylesheet" href="/static/css/frontend-compete.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-compete">
+{{ app_nav('compete') }}
+<main class="as-main" id="as-content">
+{{ page_header('Seasonal competition', 'Ranked standings', 'Human opponents. Every result counts. See who is leading the season.', '/play3d', 'Play ranked') }}
+<div class="tab-bar"><a class="tab active" href="/leaderboard/ranked" aria-current="page">Ranked ELO</a><a class="tab" href="/leaderboard">Players &amp; AI models {{ icon('arrow-right') }}</a></div>
+<div class="cp-banner placement-note"><p><strong>{{ placement_games }} matches to place.</strong> Your provisional rating stays private until placements are complete. Start ranked play from the game page.</p><a class="btn btn-secondary btn-sm" href="/play3d">Find a match</a></div>
+<div class="season-bar"><span class="tag">Season {{ current_season.number }}</span><span class="ends" id="season-ends"></span><div class="cp-field"><label for="season-select">View season</label><select id="season-select" onchange="switchSeason()"><option value="current">Season {{ current_season.number }} (current)</option>{% for s in seasons %}{% if s.number != current_season.number %}<option value="{{ s.number }}">Season {{ s.number }}{% if s.status == 'completed' %} (ended){% endif %}</option>{% endif %}{% endfor %}<option value="all">All-time (no reset)</option></select></div></div>
+<div class="past-banner" id="past-banner" style="display:none" role="status"></div>
+<section class="cp-panel cp-table-panel"><div class="cp-table-intro"><div><h2>Season table</h2><p class="cp-muted">Placed players, ordered by rating. Past seasons show final standings.</p></div><span class="cp-eyebrow">Human vs human</span></div><div class="cp-table-scroll" tabindex="0" role="region" aria-label="Ranked player standings"><table><thead><tr><th scope="col" class="rank">Rank</th><th scope="col">Player</th><th scope="col">Rating</th><th scope="col">Wins</th><th scope="col">Losses</th><th scope="col">Games</th><th scope="col">Win rate</th><th scope="col">Peak</th></tr></thead><tbody id="ranked-tbody"></tbody></table></div><div class="empty" id="ranked-empty" style="display:none"><h2>The season is waiting for its first players</h2><p>Finish {{ placement_games }} ranked matches to establish your rating and appear here.</p><a class="btn btn-primary" href="/play3d">Start your placements</a></div><div class="spinner" id="ranked-spinner" role="status" aria-label="Loading ranked standings"></div><button type="button" class="load-more" id="ranked-more" style="display:none" onclick="loadRanked()">Load more players</button></section>
+</main>
+<script src="/static/js/ui/feedback.js"></script>
+<script>
+let offset = 0;
+const limit = 20;
+const YOU = {{ username | tojson }};
+
+function rowHTML(e) {
+  const avatar = e.avatar_url ? '<img class="lb-avatar" src="' + e.avatar_url + '" alt="">' : '';
+  const you = e.username === YOU ? '<span class="you-badge">You</span>' : '';
+  return '<tr>' +
+    '<td class="rank rank-' + e.rank + '">' + e.rank + '</td>' +
+    '<td class="username-cell">' + avatar + e.username + you + '</td>' +
+    '<td class="rating-val">' + e.rating + '</td>' +
+    '<td>' + e.wins + '</td>' +
+    '<td>' + e.losses + '</td>' +
+    '<td>' + e.games_played + '</td>' +
+    '<td class="win-rate">' + e.win_rate + '%</td>' +
+    '<td class="peak">' + e.peak_rating + '</td>' +
+    '</tr>';
+}
+
+function fmtCountdown(endsAt) {
+  if (!endsAt) return '';
+  var t = new Date(endsAt).getTime() - Date.now();
+  if (!isFinite(t) || t <= 0) return '';
+  var d = Math.floor(t / 86400000);
+  var h = Math.floor((t % 86400000) / 3600000);
+  if (d > 0) return 'ends in ' + d + 'd ' + h + 'h';
+  var m = Math.floor((t % 3600000) / 60000);
+  if (h > 0) return 'ends in ' + h + 'h ' + m + 'm';
+  return 'ends in ' + Math.max(1, Math.floor(t / 60000)) + 'm';
+}
+
+function currentSeasonParam() {
+  const s = document.getElementById('season-select');
+  return s ? s.value : 'current';
+}
+
+function renderSeasonHud(data) {
+  // Countdown in the season bar (only meaningful while viewing the live season)
+  var el = document.getElementById('season-ends');
+  if (el) {
+    var viewingNow = data.viewing !== 'all' && String(data.viewing) === String(data.season.number);
+    el.textContent = viewingNow && data.season ? fmtCountdown(data.season.ends_at) : '';
+  }
+  // Past-season banner
+  const banner = document.getElementById('past-banner');
+  if (banner) {
+    const past = data.viewing !== 'all' && data.viewing !== data.season.number;
+    banner.style.display = past ? 'flex' : 'none';
+    if (past) banner.textContent = 'Season ' + data.viewing + ' ended — these are its archived final standings. Season rewards were granted from this snapshot.';
+  }
+}
+
+async function loadRanked(reset) {
+  const resp = await fetch('/api/leaderboard/ranked?season=' +
+    encodeURIComponent(currentSeasonParam()) + '&limit=' + limit + '&offset=' + offset);
+  if (!resp.ok) return;
+  const data = await resp.json();
+  document.getElementById('ranked-spinner').style.display = 'none';
+  renderSeasonHud(data);
+  const tbody = document.getElementById('ranked-tbody');
+  if (reset) tbody.innerHTML = '';
+  if (data.entries.length === 0 && offset === 0) {
+    document.getElementById('ranked-empty').style.display = 'block';
+  } else {
+    document.getElementById('ranked-empty').style.display = 'none';
+  }
+  data.entries.forEach(e => { tbody.insertAdjacentHTML('beforeend', rowHTML(e)); });
+  offset += data.entries.length;
+  const more = document.getElementById('ranked-more');
+  more.style.display = offset < data.total ? 'block' : 'none';
+}
+
+function switchSeason() {
+  offset = 0;
+  document.getElementById('ranked-tbody').innerHTML = '';
+  document.getElementById('ranked-empty').style.display = 'none';
+  document.getElementById('ranked-spinner').style.display = 'block';
+  document.getElementById('past-banner').style.display = 'none';
+  loadRanked(false);
+}
+
+loadRanked(true);
+</script>
+</body>
+</html>

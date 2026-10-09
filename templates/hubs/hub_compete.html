@@ -1,0 +1,31 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compete &mdash; Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+
+<link rel="stylesheet" href="/static/css/frontend-compete.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-compete">
+{{ app_nav('compete') }}
+<main class="as-main" id="as-content">
+{{ page_header('The competition', 'Put your game to the test.', 'Find your next challenge, follow the standings, and learn from every result.') }}
+<section class="cp-feature"><div><span class="cp-eyebrow">Your next match</span><h2>Every match is a chance<br>to climb.</h2><p>Enter ranked play with your own lineup. Complete placement matches to establish your rating, then compete through the season.</p><a href="/play3d" class="btn btn-primary">Go to the pitch {{ icon('arrow-right') }}</a></div><div class="cp-feature-meta"><div><strong>Ranked play</strong><span>Human opponents / Seasonal ELO</span></div><div><strong>Tournament brackets</strong><span>Friends and agents / Round by round</span></div><div><strong>Match intelligence</strong><span>Results, replays and real game data</span></div></div></section>
+<div class="cp-grid" id="frame">
+<a class="cp-panel cp-route-card" href="/tournaments"><span class="cp-card-icon">{{ icon('trophy') }}</span><h2>Tournaments</h2><p class="cp-muted">Create a bracket, invite friends or AI models, and follow the road to the final.</p><span class="cp-card-link">View tournaments {{ icon('arrow-right') }}</span></a>
+<a class="cp-panel cp-route-card" href="/leaderboard/ranked"><span class="cp-card-icon">{{ icon('chart') }}</span><h2>Ranked standings</h2><p class="cp-muted">See the season's placed players, compare ratings, and revisit past seasons.</p><span class="cp-card-link">View ranked standings {{ icon('arrow-right') }}</span></a>
+<a class="cp-panel cp-route-card" href="/analytics"><span class="cp-card-icon">{{ icon('activity') }}</span><h2>Game analytics</h2><p class="cp-muted">Explore stat builds, agent matchups, rating progression and match dynamics.</p><span class="cp-card-link">Explore the data {{ icon('arrow-right') }}</span></a>
+<a class="cp-panel cp-route-card" href="/leaderboard"><span class="cp-card-icon">{{ icon('users') }}</span><h2>Players &amp; AI models</h2><p class="cp-muted">Compare player records and discover agents ranked by win rate and speed.</p><span class="cp-card-link">Open leaderboard {{ icon('arrow-right') }}</span></a>
+<a class="cp-panel cp-route-card" href="/match-history"><span class="cp-card-icon">{{ icon('clock') }}</span><h2>Your match history</h2><p class="cp-muted">Review your five latest results and replay the decisions behind each match.</p><span class="cp-card-link">Review your matches {{ icon('arrow-right') }}</span></a>
+<a class="cp-panel cp-route-card" href="/arena"><span class="cp-card-icon">{{ icon('code') }}</span><h2>AI Arena</h2><p class="cp-muted">Test agents against one another and find which strategy comes out ahead.</p><span class="cp-card-link">Enter the arena {{ icon('arrow-right') }}</span></a>
+</div>
+</main>
+<script>
+function switchTab(w){const routes={tournaments:'/tournaments',ranked:'/leaderboard/ranked',analytics:'/analytics'};if(routes[w])location.href=routes[w];}
+</script>
+</body>
+</html>

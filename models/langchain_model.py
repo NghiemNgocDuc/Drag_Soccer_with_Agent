@@ -9,8 +9,9 @@ Design (strong + fast):
   “defensive clear if own half”) and weaker candidates are never simulated.
 - If LLM is unavailable / slow / parses badly → instant fallback to
   minimax-style 2-stage coarse→fine sweep (same as greedy, ~0.4s).
-- Hard timeout 1.5s total via ThreadPoolExecutor in app.py (execute_user_model
-  already 5s, but this model self-limits to 1.5s). No move takes >2s.
+- The shared runner uses the local strategy for budgets below 1000 ms.
+  Remote inference is optional with a larger budget; a running network call
+  can outlive a Future timeout and keeps its worker until it finishes.
 
 Setup:
   pip install langchain langchain-openai langchain-community
@@ -31,7 +32,7 @@ from models.soccer_logic import simulate_kick, FIELD_W, FIELD_H, GOAL_Y1, GOAL_Y
 from models.common import needs_clear, progress_score, goal_targets, aim_through, dist_to_goal, suggested_powers
 
 MODEL_NAME = "LangChain Tactician"
-DESCRIPTION = "LLM-guided (LangChain) + physics-verified. Fast 1-2s, fallback to minimax sweep if LLM unavailable."
+DESCRIPTION = "Physics-verified tactics with fast local search; optional LLM guidance at a larger thinking budget."
 
 #  Tunables 
 _LLM_TIMEOUT = 0.75  # seconds for LLM call alone

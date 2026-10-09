@@ -1,0 +1,70 @@
+{% macro icon(name, size=20) -%}
+<svg class="as-icon" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+{% if name in ['ball','play','soccer'] %}<circle cx="12" cy="12" r="9"/><path d="m12 7 5 4-2 6H9l-2-6 5-4ZM12 3v4m9 4-4 0m0 8-2-2m-8 2 2-2m-6-6h4"/>
+{% elif name in ['code','workshop'] %}<path d="m8 7-5 5 5 5m8-10 5 5-5 5m-3-12-2 14"/>
+{% elif name in ['trophy','compete'] %}<path d="M8 3h8v7a4 4 0 0 1-8 0V3Zm0 2H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4m-4 2v7m-4 0h8"/>
+{% elif name in ['users','social','team'] %}<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-16a3 3 0 0 1 0 6m3 10v-3a6 6 0 0 0-3-5"/>
+{% elif name in ['book','learn'] %}<path d="M12 5C8 2 4 3 3 4v15c3-2 6-1 9 1 3-2 6-3 9-1V4c-1-1-5-2-9 1Zm0 0v15"/>
+{% elif name in ['chart','analytics'] %}<path d="M4 3v17h17M8 16v-4m5 4V8m5 8V5"/>
+{% elif name in ['settings','customize'] %}<path d="M4 6h16M4 12h16M4 18h16"/><circle cx="8" cy="6" r="2" fill="currentColor"/><circle cx="16" cy="12" r="2" fill="currentColor"/><circle cx="10" cy="18" r="2" fill="currentColor"/>
+{% elif name in ['eye','watch'] %}<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>
+{% elif name in ['mail','message'] %}<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/>
+{% elif name in ['arrow','arrow-right'] %}<path d="M4 12h16m-6-6 6 6-6 6"/>
+{% elif name in ['check','ready'] %}<path d="m5 12 4 4L19 6"/>
+{% elif name in ['search','research'] %}<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>
+{% elif name in ['clock','history'] %}<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>
+{% elif name == 'diagram' %}<rect x="8" y="2" width="8" height="6" rx="1"/><path d="M12 8v5M4 16v-3h16v3"/><rect x="1" y="16" width="6" height="5" rx="1"/><rect x="9" y="16" width="6" height="5" rx="1"/><rect x="17" y="16" width="6" height="5" rx="1"/>
+{% elif name == 'lock' %}<rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3"/>
+{% elif name in ['star','achievement'] %}<path d="m12 3 3 6 6 1-4.5 4.5 1 6.5-5.5-3-5.5 3 1-6.5L3 10l6-1 3-6Z"/>
+{% elif name == 'plus' %}<path d="M12 4v16M4 12h16"/>
+{% elif name == 'activity' %}<path d="M2 12h4l3-8 6 16 3-8h4"/>
+{% elif name in ['menu'] %}<path d="M4 6h16M4 12h16M4 18h16"/>
+{% else %}<path d="m9 6 6 6-6 6"/>{% endif %}
+</svg>
+{%- endmacro %}
+
+{% macro app_nav(section='') -%}
+{% set signed_in = session.get('user_id') %}
+<a class="as-skip" href="#as-content">Skip to content</a>
+<header class="as-header">
+  <nav class="as-nav" aria-label="Main navigation">
+    <a class="as-brand" href="{{ '/lobby' if signed_in else '/' }}">{{ icon('ball',30) }}<span>AGENT<span class="as-brand-sub">SOCCER</span></span></a>
+    <button class="as-menu-toggle" type="button" aria-controls="as-nav-links" aria-expanded="false" aria-label="Open navigation">{{ icon('menu',22) }}</button>
+    <div class="as-nav-links" id="as-nav-links">
+      {% for key,label,href,links in [
+        ('play','Play','/hub/play',[('/play3d','Play a match'),('/lobby','Locker room'),('/spectate','Watch live')]),
+        ('workshop','Workshop','/hub/workshop',[('/my-models','My models'),('/playground','Code playground'),('/arena','AI Arena'),('/community','Community models'),('/customize','Team & stadium')]),
+        ('compete','Compete','/hub/compete',[('/tournaments','Tournaments'),('/leaderboard','Leaderboards'),('/leaderboard/ranked','Ranked players'),('/analytics','Analytics'),('/match-history','Match history')]),
+        ('social','Club','/hub/social',[('/messages','Messages & friends'),('/clans','Clans'),('/achievements','Achievements'),('/spectate','Watch live')]),
+        ('learn','Learn','/hub/learn',[('/learn','AI lessons'),('/research','Research library'),('/about','About the game'),('/workflow','How it works')])
+      ] %}
+      <div class="as-nav-group {{ 'is-active' if section == key else '' }}">
+        <a class="as-nav-link" href="{{ href }}" {% if section == key %}aria-current="page"{% endif %}>{{ label }}</a>
+        <details class="as-nav-menu">
+          <summary aria-label="{{ label }} pages">{{ icon('chevron',14) }}</summary>
+          <div class="as-dropdown">{% for destination,text in links %}<a href="{{ destination }}">{{ text }}</a>{% endfor %}</div>
+        </details>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="as-account">
+    {% if signed_in %}
+      <a href="/play3d" class="as-nav-play">Play now {{ icon('arrow-right',16) }}</a>
+      <details class="as-account-menu">
+        <summary aria-label="Account menu"><span class="as-avatar">{{ (username|default(session.get('username','Player'),true))[:1]|upper }}</span></summary>
+        <div class="as-dropdown as-dropdown-right"><span class="as-account-name">{{ username|default(session.get('username','Player'),true) }}</span><a href="/profile">Your profile</a><a href="/achievements">Achievements</a><a href="/customize">Team & stadium</a><a href="/feedback">Send feedback</a><a href="/auth/logout">Log out</a></div>
+      </details>
+    {% else %}
+      <a class="as-nav-login" href="/login">Log in</a><a class="as-nav-play" href="/register">Join the club {{ icon('arrow-right',16) }}</a>
+    {% endif %}
+    </div>
+  </nav>
+</header>
+{%- endmacro %}
+
+{% macro page_header(eyebrow,title,description='',action_href=None,action_label=None) -%}
+<section class="as-page-header" aria-label="Page introduction">
+  <div><p class="as-eyebrow">{{ eyebrow }}</p><h1>{{ title }}</h1>{% if description %}<p class="as-description">{{ description }}</p>{% endif %}</div>
+  {% if action_href and action_label %}<a href="{{ action_href }}" class="btn btn-primary">{{ action_label }} {{ icon('arrow-right',18) }}</a>{% endif %}
+</section>
+{%- endmacro %}

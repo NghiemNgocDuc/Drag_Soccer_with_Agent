@@ -132,9 +132,9 @@ def _action_to_move(action_idx: int, state, is_player_a: bool):
     rem = action_idx % per_player
     ang_idx = rem // n_pow
     pow_idx = rem % n_pow
-    player_idx = max(0, min(2, player_idx))
     # angle via aim_through to goal centre + offset
     players = state["players_a"] if is_player_a else state["players_b"]
+    player_idx = max(0, min(2, len(players) - 1, player_idx))
     bx, by = state["ball"]["x"], state["ball"]["y"]
     p = players[player_idx]
     gx = state["field"]["width"] if is_player_a else 0.0
@@ -196,15 +196,19 @@ def get_ai_move(state, is_player_a: bool):
     # fast Q lookup
     k = _key_for(state, is_player_a)
     q = _ensure_state(k)
+    # Keep the persisted 36-action table, but never select a missing pawn in
+    # one- or two-player squads. Learning metadata then names the actual action.
+    players = state["players_a"] if is_player_a else state["players_b"]
+    action_count = min(3, len(players)) * len(_ACTIONS_ANGLES) * len(_ACTIONS_POWERS_IDX)
     # epsilon greedy
     eps = _epsilon()
     if random.random() < eps:
-        a = random.randrange(len(q))
+        a = random.randrange(action_count)
     else:
         # argmax
         best = 0
         bestv = q[0]
-        for i in range(1, len(q)):
+        for i in range(1, action_count):
             if q[i] > bestv:
                 bestv = q[i]
                 best = i
@@ -249,6 +253,7 @@ def train_self_play(n_games: int = 50, opponent_id: str = "greedy") -> dict:
     """Blocking self-play training vs opponent; updates Q and returns stats."""
     import importlib
     from models.soccer_logic import new_soccer_state, apply_kick
+    from models.search_budget import get_model_move
     # lazy load opponent
     try:
         from services.game_analytics import _load_model as _lm
@@ -292,7 +297,7 @@ def train_self_play(n_games: int = 50, opponent_id: str = "greedy") -> dict:
                 prev_bx = snap["ball"]["x"]
                 pidx_use, ang_use, pwr_use = pidx, ang, pwr
             else:
-                pidx_use, ang_use, pwr_use = opp.get_ai_move(st, is_a)
+                pidx_use, ang_use, pwr_use = get_model_move(opp, st, is_a)
             # apply
             traj, scored, _, _, _ = apply_kick(st, pidx_use, ang_use, pwr_use, is_a)
             end = traj[-1] if len(traj) > 1 else None

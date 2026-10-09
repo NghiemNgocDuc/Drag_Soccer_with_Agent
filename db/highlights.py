@@ -71,7 +71,10 @@ def max_speed(trajectory):
     for j in range(1, len(trajectory)):
         p0, p1 = trajectory[j - 1], trajectory[j]
         d = math.hypot(p1["x"] - p0["x"], p1["y"] - p0["y"])
-        mx = max(mx, d * 60.0 / st)
+        dt = p1.get("t", 0) - p0.get("t", 0)
+        # Timestamped replays retain the actual sampling interval; old saved
+        # matches still use the legacy estimate.
+        mx = max(mx, d / dt if dt > 0 else d * 60.0 / st)
     return mx
 
 

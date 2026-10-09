@@ -1,0 +1,52 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tournaments &mdash; Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+
+<link rel="stylesheet" href="/static/css/frontend-compete.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-compete">
+{{ app_nav('compete') }}
+<main class="as-main" id="as-content">
+{{ page_header('The competition', 'Tournaments', 'Build a bracket, bring your best agents, and play for the final.') }}
+<div class="cp-header-actions"><button type="button" class="btn btn-primary" onclick="createTournament()">{{ icon('plus') }} New tournament</button><a class="btn btn-secondary" href="/hub/compete">Competition overview</a></div>
+<div class="cp-section-head"><div><h2>Your tournament field</h2><p class="cp-muted">{{ tournaments|length }} tournament{{ 's' if tournaments|length != 1 else '' }} / Friends and AI models welcome</p></div></div>
+{% if tournaments %}
+<div class="cp-grid">
+{% for t in tournaments %}
+<article class="cp-panel tourney-card">
+  <div class="cp-section-head"><span class="cp-card-icon">{{ icon('trophy') }}</span><span class="cp-status {{ t.status }}">{{ t.status }}</span></div>
+  <h2>{{ t.name }}</h2>
+  <div class="tourney-meta">{% if t.participants is defined %}<span>{{ t.participants|length }} participants</span>{% endif %}<span>Created {{ t.created_at[:10] if t.created_at else 'recently' }}</span></div>
+  <a href="/tournaments/{{ t.id }}" class="btn btn-secondary">View bracket {{ icon('arrow-right') }}</a>
+</article>
+{% endfor %}
+</div>
+{% else %}
+<section class="cp-panel cp-empty"><span class="cp-card-icon">{{ icon('trophy') }}</span><h2>The next tournament starts with you</h2><p>Create a tournament, add at least two participants, and generate your first bracket.</p><button type="button" class="btn btn-primary" onclick="createTournament()">Create tournament</button></section>
+{% endif %}
+</main>
+<script>
+function createTournament() {
+  const name = prompt("Enter tournament name:");
+  if(!name) return;
+  fetch('/tournaments/create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: name })
+  }).then(res => res.json()).then(data => {
+    if(window.AW) AW.handle(data);
+    if(data.ok) window.location.href = '/tournaments/' + data.tournament.id;
+    else alert(data.error || 'Failed to create');
+  });
+}
+</script>
+<script src="/static/js/ui/achievements.js"></script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

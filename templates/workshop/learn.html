@@ -1,0 +1,376 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Learn to build a soccer AI — Agent Soccer</title>
+<meta name="description" content="7 machine-checked lessons from First Kick to Capstone: beat Random, Greedy, Potential Field or Voronoi, and Expectimax, use player stats and submit to the model leaderboard.">
+<meta property="og:title" content="Learn — Build a Soccer AI">
+<meta property="og:description" content="7 lessons, real engine checks, from first kick to leaderboard.">
+<meta property="og:image" content="/static/images/workflow.png">
+
+
+
+<link rel="stylesheet" href="/static/vendor/codemirror/codemirror.min.css">
+<script src="/static/vendor/codemirror/codemirror.min.js"></script>
+<script src="/static/vendor/codemirror/python.min.js"></script>
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-learn as-page-learn">
+{{ app_nav('learn') }}
+
+
+<main class="as-main" id="as-content">
+{{ page_header('TRAINING GROUND', 'Build your first soccer AI', 'Work through short lessons, try the starter code, and check each milestone with real matches.') }}
+    <div class="learn-progress">
+      <div class="learn-bar"><div id="progress-fill" style="width:0%"></div></div>
+      <span class="learn-count" id="progress-label">0 / 7 lessons</span>
+    </div>
+
+  <h2 class="section-title">Your lessons</h2>
+  <div class="lessons" id="lessons">
+    {% for lesson in lessons %}
+    {% set st = state.get(lesson.id, 'locked') %}
+    <div class="glass-card lesson {{ st }} {% if loop.first and st != 'locked' %}open{% endif %}"
+         data-id="{{ lesson.id }}" data-kind="{{ lesson.kind }}" data-st=" {{ st }} ">
+      <button type="button" class="lesson-head" aria-expanded="{{ 'true' if loop.first and st != 'locked' else 'false' }}" aria-controls="lesson-body-{{ lesson.id }}" {% if st == 'locked' %}disabled{% endif %}>
+        <div class="lesson-icon" aria-hidden="true">{{ loop.index }}</div>
+        <div>
+          <div class="lesson-idx">Lesson {{ loop.index }}{% if lesson.optional %} · optional{% endif %}</div>
+          <div class="lesson-title">{{ lesson.title }}</div>
+          <div class="lesson-tag">{{ lesson.tagline }}</div>
+        </div>
+        <span class="lesson-status {{ st }}" data-status="{{ st }}">{{ st }}</span>
+        <span class="lesson-open"></span>
+      </button>
+      <div class="lesson-body" id="lesson-body-{{ lesson.id }}">
+        {% for heading, body in lesson.sections %}
+        <div class="sec">
+          <h3>{{ heading }}</h3>
+          {% for para in body.split('\n\n') %}
+            {% if para.strip().startswith('    ') or para.strip().startswith('\t') %}
+            <pre>{{ para.strip('\n') }}</pre>
+            {% elif para.strip() %}
+            <p>{{ para }}</p>
+            {% endif %}
+          {% endfor %}
+        </div>
+        {% endfor %}
+        <div class="milestone-chip"> Milestone: {{ lesson.milestone }}</div>
+        {% if lesson.hint %}<div class="note"> Hint: {{ lesson.hint }}</div>{% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  <h2 class="section-title">Practice workspace</h2><div class="learn-grid" id="workspace" style="margin-bottom:var(--space-7)">
+    <div class="glass-card editor-card">
+      <div class="editor-toolbar">
+        <span class="et-title" id="ws-title">Editor</span>
+        <span class="et-tag" style="font-size:.72rem;color:var(--sc-muted)">Python</span>
+        <span class="et-spacer"></span>
+        <button type="button" class="btn btn-ghost btn-sm" id="ws-reset">↺ Reset to starter</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="ws-playground"> Open in Playground</button>
+      </div>
+      <label class="as-sr-only" for="code-editor">Python model code</label><div class="cm-wrap"><textarea id="code-editor"></textarea></div>
+      <div class="check-state" id="check-state" role="status" aria-live="polite">Pick a lesson to start. Your code is checked automatically — no saving needed.</div>
+    </div>
+    <div class="glass-card" style="padding:0;overflow:hidden">
+      <div class="target-row" id="target-row" style="display:none">
+        <span style="font-size:.78rem;font-weight:700">Beat:</span>
+        {% for lesson in lessons if lesson.target_choice %}
+        {% for target in lesson.target_choice %}
+        <label data-lesson="{{ lesson.id }}"><input type="radio" name="tut-target" data-lesson="{{ lesson.id }}" value="{{ target }}"> {{ lesson.target_labels.get(target, target) }}</label>
+        {% endfor %}
+        {% endfor %}
+      </div>
+      <div class="editor-toolbar" style="justify-content:flex-start;border-bottom:none">
+        <button type="button" class="btn btn-primary check-btn" id="check-btn" disabled> Check milestone</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="stop-btn" style="display:none">Stop</button>
+      </div>
+      <div class="result-line" id="result-line" role="status" style="padding:0 14px 16px"></div>
+    </div>
+  </div>
+
+  <div class="glass-card" style="margin-bottom:var(--space-7)">
+    <div style="padding:16px 18px">
+      <div class="sec"><h3>How the checks work</h3>
+        <p>Each check runs your exact editor code headlessly for up to 30 kicks per match
+           against the lesson's opponent using the real physics and goals. At the kick limit,
+           the higher score wins; equal scores are a draw.
+           Most lessons need 3 wins out of 5. Search opponents like Expectimax can take
+           longer; the page shows check status. Completed lessons stay
+           completed — re-runs never undo progress.</p>
+      </div>
+      <div class="sec"><h3>Where to take your model next</h3>
+        <p><strong>Playground</strong> — test your code interactively (human vs code,
+           or code vs any built-in with auto-play). <strong>My Models</strong> — save
+           your code, then <strong>Submit to Leaderboard</strong> in the capstone to
+           rank it against the current built-ins and every other builder's models.</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer">
+  <div class="container">Agent Soccer — the tutorial milestones are computed on the server from real engine matches.</div>
+</footer>
+
+<script src="/static/js/ui/achievements.js"></script>
+<script>
+(function () {
+  'use strict';
+  var META = {{ lesson_meta | tojson }};
+  var editor = null;
+  var lessonId = null;       // currently open lesson
+  var pollTimer = null;
+  var dirty = false;
+
+  var statusEl = document.getElementById('check-state');
+  var resultEl = document.getElementById('result-line');
+  var checkBtn = document.getElementById('check-btn');
+
+  function meta(id) {
+    for (var i = 0; i < META.length; i++) if (META[i].id === id) return META[i];
+    return null;
+  }
+
+  //  Editor 
+  function initEditor() {
+    editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
+      mode: 'python', lineNumbers: true, indentUnit: 4, tabSize: 4,
+      indentWithTabs: false,
+      extraKeys: { Tab: function (cm) { cm.replaceSelection('    '); } },
+    });
+    editor.on('change', function () { dirty = true; });
+    setStatus('Pick a lesson to start.', '');
+  }
+
+  function loadStarter() {
+    var m = meta(lessonId);
+    if (!m || !m.starter) return;
+    if (dirty && !confirm('Replace your edited code with the lesson starter?')) return;
+    editor.setValue(m.starter);
+    dirty = false;
+    setStatus('Starter code loaded for lesson ' + lessonId + '.', '');
+  }
+
+  function openInPlayground() {
+    if (!lessonId) return;
+    try { sessionStorage.setItem('pg_preload_code', editor.getValue()); } catch (e) {}
+    window.location.href = '/playground';
+  }
+
+  //  Lesson selection 
+  var heads = document.querySelectorAll('.lesson-head');
+  Array.prototype.forEach.call(heads, function (head) {
+    head.addEventListener('click', function () {
+      var card = head.parentElement;
+      if (card.classList.contains('locked')) return;
+      var id = parseInt(card.getAttribute('data-id'), 10);
+      selectLesson(id);
+    });
+  });
+
+  function selectLesson(id) {
+    stopPoll();
+    lessonId = id;
+    var cards = document.querySelectorAll('.lesson');
+    Array.prototype.forEach.call(cards, function (c) {
+      const selected=parseInt(c.getAttribute('data-id'),10)===id;
+      c.classList.toggle('open',selected);
+      c.querySelector('.lesson-head').setAttribute('aria-expanded',String(selected));
+    });
+    document.getElementById('ws-title').textContent = 'Editor — Lesson ' + id;
+    var m = meta(id);
+    if (m && m.starter) {
+      editor.setValue(m.starter);
+    } else {
+      editor.setValue('# Capstone: no code needed.\n# Open My Models → Submit to Leaderboard.');
+    }
+    dirty = false;
+    var tr = document.getElementById('target-row');
+    tr.style.display = m && m.target_choice ? 'flex' : 'none';
+    var firstTarget = null;
+    Array.prototype.forEach.call(tr.querySelectorAll('label[data-lesson]'), function (label) {
+      var selected = parseInt(label.getAttribute('data-lesson'), 10) === id;
+      label.style.display = selected ? '' : 'none';
+      var input = label.querySelector('input');
+      input.disabled = !selected;
+      if (selected && !firstTarget) firstTarget = input;
+    });
+    if (firstTarget && !tr.querySelector('input:not(:disabled):checked')) firstTarget.checked = true;
+    checkBtn.disabled = false;
+    setStatus('Press "Check milestone" to run ' + (m.games || 1) + ' match(es) against ' +
+              (m.opponent_label || 'the target') + '.', '');
+    resultEl.innerHTML = '';
+    // Show existing completed state.
+    var stEl = cardStatus(id);
+    if (stEl === 'completed') setStatus(' This lesson is already complete. Re-running won\'t undo it.', 'pass');
+  }
+
+  function cardStatus(id) {
+    var card = document.querySelector('.lesson[data-id="' + id + '"]');
+    return card ? card.getAttribute('data-st').trim() : 'locked';
+  }
+
+  function refreshCardStatus(completedList) {
+    // Initial progress is a lesson-id map; milestone responses may be an array.
+    var done = (Array.isArray(completedList) ? completedList : Object.keys(completedList || {}))
+      .map(Number).filter(Number.isFinite);
+    Array.prototype.forEach.call(META, function (m) {
+      var card = document.querySelector('.lesson[data-id="' + m.id + '"]');
+      if (!card) return;
+      var st = done.indexOf(m.id) !== -1 ? 'completed' :
+               allDone(m.requires, done) ? 'unlocked' : 'locked';
+      card.setAttribute('data-st', st);
+      card.className = 'glass-card lesson ' + st + (card.classList.contains('open') ? ' open' : '');
+      card.querySelector('.lesson-head').disabled = st === 'locked';
+      var badge = card.querySelector('.lesson-status');
+      badge.textContent = st;
+      badge.className = 'lesson-status ' + st;
+      if (st === 'locked') {
+        card.querySelector('.lesson-head').onclick = function () { return false; };
+      }
+    });
+    var fill = document.getElementById('progress-fill');
+    var pct = Math.round(done.length / META.length * 100);
+    fill.style.width = pct + '%';
+    document.getElementById('progress-label').textContent = done.length + ' / ' + META.length + ' lessons';
+  }
+
+  function allDone(reqs, done) {
+    for (var i = 0; i < reqs.length; i++) if (done.indexOf(reqs[i]) === -1) return false;
+    return true;
+  }
+
+  //  Check flow 
+  function runCheck() {
+    if (!lessonId) return;
+    var m = meta(lessonId);
+    if (m && m.target_choice) {
+      var sel = document.querySelector('input[name="tut-target"]:not(:disabled):checked');
+      if (!sel) { setStatus('Pick an opponent first.', 'fail'); return; }
+    }
+    checkBtn.disabled = true;
+    stopPoll();
+    var body = { lesson_id: lessonId, code: editor.getValue() };
+    var sel = document.querySelector('input[name="tut-target"]:not(:disabled):checked');
+    if (sel) body.target = sel.value;
+
+    fetch('/api/tutorial/check', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) { setStatus(res.d.error || 'Check could not start.', 'fail'); checkBtn.disabled = false; return; }
+        if (res.d.status === 'done') {
+          handleDone(res.d);
+        } else {
+          setStatus('Running matches… 0 / ' + (res.d.games || 1), 'run');
+          document.getElementById('stop-btn').style.display = 'inline-block';
+          pollStatus(lessonId);
+        }
+        if (window.AW && res.d.achievements) AW.handle(res.d.achievements);
+      })
+      .catch(function () { setStatus('Network error — try again.', 'fail'); checkBtn.disabled = false; });
+  }
+
+  function pollStatus(id) {
+    if (pollTimer) clearTimeout(pollTimer);
+    pollTimer = setTimeout(function () {
+      fetch('/api/tutorial/check-status?lesson_id=' + id)
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.status === 'running') {
+            setStatus('Running matches… ' + (d.done || 0) + ' / ' + (d.total || 1), 'run');
+            pollStatus(id);
+          } else if (d.status === 'done') {
+            handleDone(d);
+          } else if (d.status === 'failed') {
+            setStatus('Check failed: ' + (d.error || 'unknown error'), 'fail');
+            checkBtn.disabled = false;
+            document.getElementById('stop-btn').style.display = 'none';
+          } else {
+            setStatus('No check running — press "Check milestone".', '');
+            checkBtn.disabled = false;
+          }
+          if (window.AW && d.achievements) AW.handle(d.achievements);
+        })
+        .catch(function () { setStatus('Status poll failed — retrying…', 'run'); pollStatus(id); });
+    }, 2000);
+  }
+
+  function stopPoll() {
+    if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
+    document.getElementById('stop-btn').style.display = 'none';
+  }
+
+  function handleDone(d) {
+    stopPoll();
+    checkBtn.disabled = false;
+    if (d.completed) refreshCardStatus(d.completed);
+    var r = d.result || {};
+    var kind = meta(d.lesson_id) && meta(d.lesson_id).kind;
+    if (d.passed) {
+      setStatus(' Milestone passed! Lesson ' + d.lesson_id + ' completed.', 'pass');
+      if (kind === 'leaderboard_submit' && d.submitted) {
+        resultEl.innerHTML = 'Leaderboard entry confirmed: <b>' + (d.submitted.length) + '</b> submitted model(s).';
+      }
+    } else if (kind === 'leaderboard_submit') {
+      setStatus('Not yet — submit a model to the leaderboard first (My Models → Submit to Leaderboard).', 'fail');
+    } else {
+      setStatus(' Not this time — ' + (d.error || (r.wins || 0) + ' wins out of ' + (r.games || 0) + ' matches.'), 'fail');
+    }
+    if (kind !== 'leaderboard_submit' && r.games) {
+      resultEl.innerHTML =
+        '<span>Wins <b>' + (r.wins || 0) + '</b></span>' +
+        '<span>Losses <b>' + (r.losses || 0) + '</b></span>' +
+        '<span>Draws <b>' + (r.draws || 0) + '</b></span>' +
+        '<span>vs <b>' + (r.target || '—') + '</b></span>' +
+        (r.elapsed_s ? '<span style="color:var(--sc-muted)">' + r.elapsed_s + ' s</span>' : '');
+    }
+  }
+
+  function setStatus(msg, cls) {
+    statusEl.textContent = '';
+    statusEl.className = 'check-state' + (cls ? ' ' + cls : '');
+    if (msg) {
+      var sp = document.createElement('span');
+      sp.textContent = msg;
+      statusEl.appendChild(sp);
+    }
+  }
+
+  //  Boot 
+  window.__tutorialState = function () {
+    return {
+      lessonId: lessonId,
+      statusText: statusEl.textContent,
+    };
+  };
+
+  document.addEventListener('DOMContentLoaded', function () {
+    initEditor();
+    document.getElementById('ws-reset').addEventListener('click', loadStarter);
+    document.getElementById('ws-playground').addEventListener('click', openInPlayground);
+    checkBtn.addEventListener('click', runCheck);
+    document.getElementById('stop-btn').addEventListener('click', stopPoll);
+    var cards = document.querySelectorAll('.lesson');
+    var firstOpen = null;
+    Array.prototype.forEach.call(cards, function (c) {
+      if (!c.classList.contains('locked') && firstOpen === null) firstOpen = parseInt(c.getAttribute('data-id'), 10);
+    });
+    if (firstOpen !== null) selectLesson(firstOpen);
+    refreshCardStatus({{ completed | tojson }});
+    if (window.AW) AW.pump();
+  });
+})();
+</script>
+</body>
+</html>

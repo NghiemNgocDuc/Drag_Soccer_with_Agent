@@ -1,0 +1,59 @@
+{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ model.name }} — Community — Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+<style>
+.hero{padding:20px 22px;border-radius:20px;background:linear-gradient(135deg,rgba(14,165,233,.13),rgba(139,92,246,.12));border:1px solid rgba(255,255,255,.65);backdrop-filter:blur(18px);margin-bottom:16px}
+.meta{font-size:.78rem;color:#64748b}
+pre.code{background:#0d1117;color:#cdd6f4;border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:14px;overflow:auto;font-size:.78rem;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.badge{font-size:.68rem;padding:2px 8px;border-radius:999px;font-weight:700;background:rgba(14,165,233,.12);color:#0284c7;border:1px solid rgba(14,165,233,.25)}
+.comment{padding:10px;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:8px;background:#fff}
+</style>
+<link rel="stylesheet" href="/static/css/frontend-workshop.css">
+{% include 'shared/_ui_assets.html' %}
+</head>
+<body class="as-app as-workshop as-model-detail">
+{{ app_nav('workshop') }}
+
+<main class="as-main" id="as-content">
+<div class="detail-topline"><a href="/community">&larr; Community models</a><span class="workshop-muted">Shared strategy</span></div>
+{{ page_header('Workshop / Community model', model.name, model.description or 'Explore this community strategy and its performance on the pitch.') }}
+<div class="detail-topline"><p class="meta">Built by <strong>{{ model.owner_name }}</strong>{% if model.created_at %} &middot; {{ model.created_at[:10] }}{% endif %}</p><div class="workshop-actions"><button class="btn btn-secondary" id="like-btn" onclick="toggleLike()" aria-pressed="false"><span id="like-label">Like model</span> (<span id="like-count">{{ model.likes }}</span>)</button><a href="#comments" class="btn btn-ghost">{{ model.comments|length }} comments</a></div></div>
+<div class="detail-layout">
+  <div>
+    <section class="glass-card source-panel" aria-labelledby="source-heading"><div class="workshop-kicker">Under the hood</div><h2 id="source-heading">Strategy source</h2><p class="meta">Read how this agent chooses a player, a direction, and kick power.</p><pre class="code" aria-label="Python strategy source">{{ model.code[:3000] }}</pre><p class="meta">{% if model.code|length > 3000 %}Showing the first 3,000 characters. Benchmarks run the complete file.{% else %}Benchmarks run this strategy file.{% endif %}</p>
+    {% if model.links %}<div style="margin-top:24px"><h3 style="font-size:1rem;margin-bottom:12px">From the builder</h3>{% for l in model.links %}<p style="margin:8px 0"><a href="{{ l.url }}" target="_blank" rel="noopener">{{ l.title }} &nearr;</a></p>{% endfor %}</div>{% endif %}
+    </section>
+    <section class="glass-card discussion-panel" aria-labelledby="discussion-heading"><h2 id="discussion-heading">Talk tactics</h2><p class="meta">Ask a question or share an idea for the next version.</p><div class="comment-form"><div><label for="comment-input">Your comment</label><input id="comment-input" class="input" placeholder="What do you think of this strategy?" maxlength="500" aria-describedby="comment-help"><p id="comment-help" class="meta">Up to 500 characters.</p></div><button class="btn btn-primary" onclick="postComment()">Post comment</button></div><div id="comments">{% for c in model.comments %}<article class="comment"><strong>{{ c.username }}</strong> <span class="meta">{{ c.created_at[:16] if c.created_at else '' }}</span><p style="margin-top:8px;white-space:pre-wrap">{{ c.body }}</p></article>{% endfor %}{% if not model.comments %}<div class="workshop-empty"><strong>Start the conversation.</strong><p>No comments yet. Share a question or a useful observation.</p></div>{% endif %}</div></section>
+  </div>
+  <aside class="glass-card benchmark-panel" aria-labelledby="benchmark-heading"><div class="workshop-kicker">Performance</div><h2 id="benchmark-heading">Benchmark</h2>{% if model.score is not none %}<div class="benchmark-score">{{ "%.1f"|format(model.score) }}%</div><p class="meta" style="margin-bottom:20px">Mean win rate against seven built-in agents.</p>{% for d in model.details or [] %}<div class="benchmark-row"><div><strong>{{ d.opponent }}</strong><p class="meta">{{ d.wins }} wins &middot; {{ d.losses }} losses</p></div><strong>{{ "%.1f"|format(d.win_rate) }}%</strong></div>{% endfor %}{% else %}<p class="meta">This model has not been benchmarked yet. Its owner can submit it from My models.</p>{% endif %}<a href="/leaderboard" class="btn btn-ghost" style="margin-top:20px">Explore the leaderboard</a></aside>
+</div>
+</main>
+<script>
+const MODEL_ID = "{{ model.id }}";
+async function toggleLike(){
+  const r=await fetch(`/api/community/${MODEL_ID}/like`, {method:'POST'});
+  const j=await r.json();
+  if(j.error){ alert(j.error); return; }
+  document.getElementById('like-count').textContent=j.likes;
+  const btn=document.getElementById('like-btn');
+  document.getElementById('like-label').textContent=j.liked?'Liked model':'Like model';
+  btn.setAttribute('aria-pressed',j.liked?'true':'false');
+}
+async function postComment(){
+  const inp=document.getElementById('comment-input');
+  const body=(inp.value||'').trim();
+  if(!body){ alert('Comment required'); return; }
+  const r=await fetch(`/api/community/${MODEL_ID}/comment`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({body})});
+  const j=await r.json();
+  if(j.error){ alert(j.error); return; }
+  location.reload();
+}
+</script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

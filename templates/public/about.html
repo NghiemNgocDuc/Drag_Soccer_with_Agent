@@ -1,0 +1,59 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Game guide — Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head><body class="as-app as-learn as-page-about">
+{{ app_nav("learn") }}
+<main class="as-main" id="as-content">
+{{ page_header("THE GAME GUIDE", "A pitch for players and builders.", "Play a turn, shape your squad, or write the soccer AI that makes the next move.") }}
+<div class="guide-grid">
+  <section class="glass-card guide-card"><h2>Your first match</h2><ol><li><strong>Choose your teams.</strong> Set the lineup and formation before kickoff.</li><li><strong>Pick a player and kick.</strong> Drag backward, then release. The direction and distance of your drag set the kick.</li><li><strong>Read the result.</strong> Watch the ball and players move, then plan your next turn.</li><li><strong>Play for the win.</strong> Score goals and stay ahead. Tied matches can continue into extra time and penalties.</li></ol><a class="btn btn-primary" href="/play3d">Go to the pitch</a></section>
+  <section class="glass-card guide-card"><h2>A team that feels like yours</h2><p>Choose teams, formations, names, and kits. Four player stats affect how the squad moves:</p><ul><li><strong>Size</strong> changes a player's radius.</li><li><strong>Power</strong> changes kick strength.</li><li><strong>Weight</strong> changes mass and collision response.</li><li><strong>Agility</strong> changes how quickly motion settles.</li></ul><a class="btn btn-secondary" href="/customize">Customize your squad</a></section>
+  <section class="glass-card guide-card"><h2>Choose your competition</h2><p>Play against an AI, share the controls with another player, or watch two agents compete. Online rooms let you face a friend; ranked games build your rating.</p><p>Tournaments bring players and models into a bracket. Replays and highlights let you return to the moments that mattered.</p><div class="action-row"><a class="btn btn-secondary" href="/tournaments">Tournaments</a><a class="btn btn-ghost" href="/spectate">Watch live</a></div></section>
+  <section class="glass-card guide-card"><h2>Build the next tactician</h2><p>Write a Python function that reads the match state and returns a player, angle, and power. Test it in the Playground, then save your agent in My Models.</p><pre>def get_ai_move(state, is_player_a):
+    # Read the ball and player positions.
+    return player_idx, angle_degrees, power</pre><div class="action-row"><a class="btn btn-primary" href="/learn">Start the lessons</a><a class="btn btn-ghost" href="/playground">Try the editor</a></div></section>
+  <section class="glass-card guide-card"><h2>The clubhouse</h2><p>Add friends, send a match invite, or find a clan. Clan leaders can organize tournaments and members can talk in clan chat.</p><p>Share a model in the community to discuss your approach with other builders.</p><a class="btn btn-secondary" href="/hub/social">Meet your people</a></section>
+  <section class="glass-card guide-card" id="physics"><h2>Behind each move</h2><p>The server runs the authoritative match using pymunk physics. The browser displays the resulting trajectories in Three.js.</p><p>AI agents evaluate game states and choose their next kick. The same match engine powers games, replay data, and tutorial checks.</p><a class="btn btn-secondary" href="/workflow">See the system workflow</a></section>
+</div>
+<section class="glass-card figure" id="workflow" style="margin-top:24px">
+  <div class="panel-heading"><h2>Follow a move through the system</h2><a href="/workflow">Open workflow →</a></div>
+  <img id="wf-img" src="/static/images/workflow.png" alt="Agent Soccer workflow connecting browser, server, storage, physics, and AI" loading="lazy" role="button" tabindex="0" aria-label="Enlarge workflow diagram">
+  <div class="figure-actions"><a class="btn btn-secondary" href="/static/images/workflow.png" download="agent-soccer-workflow.png">Download PNG</a><button class="btn btn-ghost" type="button" onclick="document.getElementById('wf-img').scrollIntoView({behavior:'smooth',block:'center'})">Focus diagram</button></div>
+</section>
+<section class="glass-card guide-card" style="margin-top:24px">
+  <h2>Make the next version better</h2><p>Found a problem or have an idea? Send a note to the maintainer.</p>
+  <form onsubmit="event.preventDefault();sendAboutFeedback()">
+    <div class="form-grid"><div class="field"><label for="fb-name">Name <span class="meta">(optional)</span></label><input id="fb-name" class="input" autocomplete="name"></div><div class="field"><label for="fb-email">Email <span class="meta">(optional)</span></label><input id="fb-email" type="email" class="input" autocomplete="email"></div><div class="field form-span"><label for="fb-msg">Your message</label><textarea id="fb-msg" class="input" rows="5" required minlength="5"></textarea></div></div>
+    <div class="action-row"><button type="submit" class="btn btn-primary">Send feedback</button><span id="fb-status" class="meta" role="status" aria-live="polite"></span></div>
+  </form>
+</section>
+</main>
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Workflow diagram" onclick="if(event.target===this)closeDiagram()"><button class="lightbox-close" type="button" onclick="closeDiagram()">Close diagram</button><img src="/static/images/workflow.png" alt="Workflow enlarged"></div>
+<script>
+const image=document.getElementById('wf-img');
+function openDiagram(){document.getElementById('lightbox').classList.add('open');document.querySelector('.lightbox-close').focus();}
+function closeDiagram(){document.getElementById('lightbox').classList.remove('open');image.focus();}
+image.addEventListener('click',openDiagram);
+image.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openDiagram();}});
+document.addEventListener('keydown',event=>{if(!document.getElementById('lightbox').classList.contains('open'))return;if(event.key==='Escape')closeDiagram();if(event.key==='Tab'){event.preventDefault();document.querySelector('.lightbox-close').focus();}});
+async function sendAboutFeedback(){
+  const name=document.getElementById('fb-name').value.trim();
+  const email=document.getElementById('fb-email').value.trim();
+  const message=document.getElementById('fb-msg').value.trim();
+  const status=document.getElementById('fb-status');
+  if(message.length<5){status.textContent='Please write at least five characters.';return;}
+  const button=document.querySelector('button[type="submit"]');button.disabled=true;status.textContent='Sending…';
+  try{
+    const response=await fetch('/api/feedback/about',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name,email,message})});
+    const result=await response.json();
+    status.textContent=result.ok?'Thanks! Your feedback has been sent.':result.error||'Unable to send feedback.';
+    if(result.ok) document.getElementById('fb-msg').value='';
+  }catch(error){status.textContent='Connection failed. Please try again.';}
+  finally{button.disabled=false;}
+}
+</script>
+
+</body></html>

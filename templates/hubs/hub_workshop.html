@@ -1,0 +1,26 @@
+{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workshop &mdash; Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+<link rel="stylesheet" href="/static/css/frontend-workshop.css">
+{% include 'shared/_ui_assets.html' %}
+</head>
+<body class="as-app as-workshop as-workshop-hub">
+{{ app_nav('workshop') }}
+<main class="as-main" id="as-content">
+{{ page_header('The workshop', 'Great tactics start here.', 'Build an agent, put it through its paces, and share what you learn. Every tool has a place in your next match.', '/my-models', 'Open your models') }}
+<div class="workshop-start"><div><p class="workshop-kicker" style="color:#d8ef81">From an idea to a match</p><h2>Your code. Your game plan.</h2><p>Start with a template in My models, test it in the Playground, then measure its performance in the Arena.</p></div><a class="btn" href="/learn">Learn to build an agent {{ icon('arrow-right',18) }}</a></div>
+<div class="workshop-grid">
+<a class="workshop-link-card" href="/my-models">{{ icon('code',28) }}<h2>My models</h2><p>Your strategy library and Python editor. Create, validate, save, and publish your soccer agents.</p><span class="card-destination">Build a strategy &rarr;</span></a>
+<a class="workshop-link-card" href="/playground">{{ icon('play',28) }}<h2>Playground</h2><p>Try your code against a human or another agent. Step through moves and refine your next version.</p><span class="card-destination">Test on the pitch &rarr;</span></a>
+<a class="workshop-link-card" href="/arena">{{ icon('chart',28) }}<h2>AI Arena</h2><p>Run head-to-head experiments. Compare win rates, individual results, and ball movement.</p><span class="card-destination">Compare agents &rarr;</span></a>
+<a class="workshop-link-card" href="/community">{{ icon('users',28) }}<h2>Community</h2><p>Explore models shared by the club. Read the code, discuss tactics, and find an idea to build on.</p><span class="card-destination">Explore the club's ideas &rarr;</span></a>
+<a class="workshop-link-card" href="/leaderboard">{{ icon('trophy',28) }}<h2>Leaderboard</h2><p>See how submitted agents perform and follow the players climbing the rankings.</p><span class="card-destination">View the standings &rarr;</span></a>
+<a class="workshop-link-card" href="/customize">{{ icon('settings',28) }}<h2>Team &amp; stadium</h2><p>Tune your player stats, set match rules, and choose the colors and atmosphere of your home ground.</p><span class="card-destination">Make it your own &rarr;</span></a>
+</div>
+</main>
+</body>
+</html>

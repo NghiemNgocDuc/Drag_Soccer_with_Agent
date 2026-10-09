@@ -1,0 +1,11 @@
+{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play | Agent Soccer</title><link rel="stylesheet" href="/static/css/frontend-public.css">{% include 'shared/_ui_assets.html' %}</head>
+<body class="as-app as-public">{{ app_nav('play') }}
+<main class="as-main" id="as-content">{{ page_header('Match day','Find your next game.','Play an AI, challenge a friend, or watch the action from the stands.','/play3d','Play a match') }}
+<div class="as-grid">
+{% for href,glyph,title,description,action in [('/play3d','ball','Take the pitch','Choose AI, local two-player, or online play. All match controls are together in one place.','Play now'),('/lobby','users','Your locker room','Check your player build and prepare for your next match.','Get ready'),('/spectate','eye','Watch live','Find active online matches and watch the next move unfold.','Find a live match'),('/playground','code','Test a new idea','Run your AI on the practice pitch and see how it plays.','Open playground'),('/arena','trophy','Let the models compete','Compare two agents or run a matchup matrix in the AI Arena.','Open the Arena'),('/match-history','clock','Review your games','Return to recorded matches and learn from your decisions.','View match history')] %}
+<a href="{{ href }}" class="as-destination">{{ icon(glyph) }}<h2>{{ title }}</h2><p>{{ description }}</p><span>{{ action }} {{ icon('arrow-right',16) }}</span></a>{% endfor %}
+</div><div class="as-callout"><div>{{ icon('settings',24) }}</div><div><h2>Your team. Your style.</h2><p>Balance your stats, pick your colors, and build a stadium that feels like home.</p></div><a href="/customize" class="btn btn-secondary">Customize your team</a></div></main>
+
+</body></html>

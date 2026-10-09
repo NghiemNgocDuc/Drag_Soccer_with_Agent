@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="480" viewBox="0 0 1600 480" role="img" aria-labelledby="title description">
+  <title id="title">Agent Soccer</title>
+  <desc id="description">Build an agent. Play the match. A forest-green project banner with a stylized soccer tactics board.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#112f2b"/>
+      <stop offset="1" stop-color="#071d1b"/>
+    </linearGradient>
+    <linearGradient id="pitch" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#235447"/>
+      <stop offset="1" stop-color="#12372f"/>
+    </linearGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M48 0H0V48" fill="none" stroke="#c8decf" stroke-opacity=".045"/>
+    </pattern>
+    <filter id="shadow" x="-25%" y="-30%" width="150%" height="170%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity=".24"/>
+    </filter>
+    <clipPath id="pitchClip"><rect x="948" y="72" width="566" height="336" rx="24"/></clipPath>
+  </defs>
+  <rect width="1600" height="480" rx="24" fill="url(#background)"/>
+  <rect width="1600" height="480" rx="24" fill="url(#grid)"/>
+  <path d="M865 0h735v480h-950z" fill="#ffffff" opacity=".025"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <g transform="translate(76 77)">
+      <circle cx="22" cy="22" r="20" fill="none" stroke="#d7ef82" stroke-width="3"/>
+      <path d="m22 10 11 8-4 13H15l-4-13zm0 0V2m11 16 8-3M29 31l6 7M15 31l-7 7M11 18l-8-3" fill="none" stroke="#d7ef82" stroke-width="2.5" stroke-linejoin="round"/>
+      <text x="65" y="29" fill="#d7ef82" font-size="19" font-weight="700" letter-spacing="4">CODE. COMPETE. IMPROVE.</text>
+    </g>
+    <text x="76" y="229" fill="#f5f8ef" font-size="96" font-weight="700" letter-spacing="-4">Agent Soccer</text>
+    <text x="80" y="286" fill="#d1e1d6" font-size="32">Build an agent. Play the match.</text>
+    <text x="81" y="378" fill="#8eaea0" font-size="19" letter-spacing="2">PYTHON AI</text>
+    <circle cx="221" cy="371" r="3" fill="#d7ef82"/>
+    <text x="247" y="378" fill="#8eaea0" font-size="19" letter-spacing="2">PHYSICS SIMULATION</text>
+    <circle cx="503" cy="371" r="3" fill="#d7ef82"/>
+    <text x="529" y="378" fill="#8eaea0" font-size="19" letter-spacing="2">3D FOOTBALL</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="936" y="60" width="590" height="360" rx="30" fill="#0c2922" stroke="#365a48" stroke-width="2"/>
+    <rect x="948" y="72" width="566" height="336" rx="24" fill="url(#pitch)"/>
+    <g clip-path="url(#pitchClip)" fill="#ffffff" opacity=".025">
+      <path d="M948 72h70v336h-70zm140 0h70v336h-70zm140 0h70v336h-70zm140 0h70v336h-70z"/>
+    </g>
+    <g fill="none" stroke="#bdd5bc" stroke-opacity=".55" stroke-width="2">
+      <rect x="975" y="96" width="512" height="288" rx="2"/>
+      <path d="M1231 96v288M975 158h83v164h-83m512-164h-83v164h83M975 204h30v72h-30m512-72h-30v72h30"/>
+      <circle cx="1231" cy="240" r="46"/>
+      <circle cx="1231" cy="240" r="3" fill="#bdd5bc"/>
+      <path d="M1058 203a46 46 0 0 1 0 74m346-74a46 46 0 0 0 0 74"/>
+    </g>
+    <g fill="#d7ef82" stroke="#193c26" stroke-width="3">
+      <circle cx="1018" cy="239" r="11"/><circle cx="1110" cy="169" r="11"/>
+      <circle cx="1093" cy="307" r="11"/><circle cx="1188" cy="285" r="11"/>
+      <circle cx="1210" cy="173" r="11"/><circle cx="1325" cy="228" r="11"/>
+    </g>
+    <g fill="#57b9ae" stroke="#163c37" stroke-width="3">
+      <circle cx="1447" cy="240" r="11"/><circle cx="1380" cy="162" r="11"/>
+      <circle cx="1383" cy="316" r="11"/><circle cx="1287" cy="310" r="11"/>
+      <circle cx="1318" cy="158" r="11"/><circle cx="1170" cy="239" r="11"/>
+    </g>
+    <path d="M1198 282c58-68 107-69 163-67" fill="none" stroke="#f0b96f" stroke-width="3" stroke-dasharray="8 9"/>
+    <path d="m1351 206 14 9-14 9" fill="none" stroke="#f0b96f" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="1253" cy="247" r="9" fill="#f5f8ef" stroke="#193b31" stroke-width="3"/>
+  </g>
+</svg>

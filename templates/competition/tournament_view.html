@@ -1,0 +1,71 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ t.name }} / Tournament &mdash; Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+
+<link rel="stylesheet" href="/static/css/frontend-compete.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-compete">
+{{ app_nav('compete') }}
+<main class="as-main" id="as-content">
+{{ page_header('Tournament', t.name, 'Follow every round from the first matchup to the final.', '/tournaments', 'All tournaments') }}
+<div class="cp-banner"><p><strong>{{ t.participants|length }} participants</strong> / {{ t.matches|length }} matches</p><span class="cp-status {{ t.status }}">{{ t.status }}</span></div>
+{% if t.status == 'pending' %}
+<section class="cp-panel">
+  <div class="cp-section-head"><div><h2>Build your tournament</h2><p class="cp-muted">Add AI models or friends, then generate the matchups.</p></div><span class="cp-eyebrow">01 / Set the field</span></div>
+  <div class="cp-grid-two">
+    <div class="cp-field"><label for="modelSelect">AI model</label><div class="cp-field-row"><select id="modelSelect"><option value="">Choose a model</option>{% for m in models %}<option value="{{ m.id }}">{{ m.name }}</option>{% endfor %}</select><button type="button" class="btn btn-secondary" onclick="addParticipant('model')">Add model</button></div></div>
+    <div class="cp-field"><label for="friendSelect">Friend</label><div class="cp-field-row"><select id="friendSelect"><option value="">Choose a friend</option>{% for f in friends %}<option value="friend:{{ f.uid }}">{{ f.username }}</option>{% endfor %}</select><button type="button" class="btn btn-secondary" onclick="addParticipant('friend')">Add friend</button></div></div>
+  </div>
+  <div class="cp-participants"><h3>Participants / {{ t.participants|length }}</h3>{% if t.participants %}<div>{% for p in t.participants %}<span class="participant-pill">{{ p.name }}</span>{% endfor %}</div>{% else %}<p class="cp-muted">Your field is empty. Add two participants to unlock the bracket.</p>{% endif %}</div>
+  {% if t.participants|length >= 2 %}<div class="cp-participants"><button type="button" class="btn btn-primary" onclick="generateBracket()">Generate bracket {{ icon('arrow-right') }}</button></div>{% else %}<p class="cp-muted">At least two participants are required.</p>{% endif %}
+</section>
+{% else %}
+<section class="cp-panel cp-bracket-panel">
+  <div class="cp-section-head"><div><h2>The bracket</h2><p class="cp-muted">Run pending matches or watch completed matches with saved replays.</p></div><span class="cp-eyebrow">Road to the final</span></div>
+  <div class="cp-bracket-scroll" tabindex="0" role="region" aria-label="Tournament rounds, scroll horizontally to view all rounds">
+  <div class="bracket-wrap">
+  {% set rounds = [] %}{% for m in t.matches %}{% if m.round_num not in rounds %}{% set _ = rounds.append(m.round_num) %}{% endif %}{% endfor %}
+  {% for r in rounds|sort %}
+  <section class="bracket-col" aria-label="Round {{ r }}"><h3>Round {{ r }}</h3>
+  {% for m in t.matches %}{% if m.round_num == r %}
+    {% set names = namespace(a='TBD', b='TBD') %}{% for p in t.participants %}{% if p.id == m.participant_a %}{% set names.a = p.name %}{% endif %}{% if p.id == m.participant_b %}{% set names.b = p.name %}{% endif %}{% endfor %}
+    <article class="match-card">
+      <div class="match-part {% if m.winner and m.winner == m.participant_a %}winner{% endif %}"><span>{{ names.a }}</span>{% if m.winner and m.winner == m.participant_a %}<span aria-label="Winner">Won</span>{% endif %}</div>
+      <div class="match-part {% if m.winner and m.winner == m.participant_b %}winner{% endif %}"><span>{{ names.b }}</span>{% if m.winner and m.winner == m.participant_b %}<span aria-label="Winner">Won</span>{% endif %}</div>
+      <div class="cp-match-action">{% if m.status == 'pending' and m.participant_a and m.participant_b %}<button type="button" class="btn btn-primary btn-sm" onclick="simulateMatch('{{ m.id }}')">Simulate match</button>{% elif m.status == 'completed' and m.participant_a and m.participant_b and m.replay_data %}<a href="/tournaments/{{ t.id }}/watch/{{ m.id }}" class="btn btn-secondary btn-sm">Watch replay</a>{% else %}<span class="cp-muted">{{ 'Bye / advanced' if m.winner else 'Awaiting opponent' }}</span>{% endif %}</div>
+    </article>
+  {% endif %}{% endfor %}</section>
+  {% else %}<div class="cp-empty"><h2>No matchups yet</h2><p>The bracket will appear here when it is generated.</p></div>{% endfor %}
+  {% if rounds %}
+  {% set upcoming = namespace(slots=t.matches|selectattr('round_num','equalto',1)|list|length) %}
+  {% for r in range(2, 9) %}{% if upcoming.slots > 1 %}
+    {% set upcoming.slots = (upcoming.slots + 1) // 2 %}
+    {% if r not in rounds %}
+    <section class="bracket-col" aria-label="Upcoming round {{ r }}"><h3>{{ 'Final' if upcoming.slots == 1 else 'Round ' ~ r }} <span class="cp-muted">/ Upcoming</span></h3>
+      {% for slot in range(upcoming.slots) %}<article class="match-card cp-upcoming-match"><div class="match-part"><span>Round {{ r - 1 }} winner</span></div><div class="match-part"><span>Round {{ r - 1 }} winner</span></div><div class="cp-match-action"><span class="cp-muted">Awaiting results</span></div></article>{% endfor %}
+    </section>
+    {% endif %}
+  {% endif %}{% endfor %}
+  {% endif %}
+  </div></div>
+</section>
+{% endif %}
+<section class="cp-panel cp-chat-panel"><div class="cp-section-head"><div><h2>Tournament chat</h2><p class="cp-muted">A shared space for the organiser and invited friends.</p></div></div><div id="lobby-chat" style="height:340px"></div></section>
+</main>
+<script>
+function addParticipant(type){let s=document.getElementById(type+'Select'),v=s.value,t=s.options[s.selectedIndex].text;if(!v)return;fetch('/tournaments/{{ t.id }}/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({participant_id:v,name:t})}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();else alert(d.error);});}
+function generateBracket(){fetch('/tournaments/{{ t.id }}/generate',{method:'POST'}).then(r=>r.json()).then(d=>{if(d.ok)location.reload();else alert(d.error);});}
+function simulateMatch(id){fetch('/tournaments/{{ t.id }}/simulate/'+id,{method:'POST'}).then(r=>r.json()).then(d=>{if(d.ok){if(d.achievements&&d.achievements.length){AW.handle(d);setTimeout(()=>location.reload(),2200);}else location.reload();}else alert(d.error);});}
+</script>
+<script src="/static/js/ui/chat.js"></script>
+<script src="/static/js/ui/achievements.js"></script>
+<script>new ChatPanel({mount:document.getElementById('lobby-chat'),scope:'tournament',scopeId:'{{ t.id }}',name:'Tournament Chat',quickReactions:false,pollMs:3000,collapsed:false});</script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

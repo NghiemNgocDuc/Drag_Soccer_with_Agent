@@ -205,7 +205,8 @@ def builtin_decision(snapshot: dict, model_key: str) -> dict | None:
     name = next((m["name"] for m in ga.MODEL_CATALOG if m["id"] == model_key), model_key)
     try:
         st = reconstruct_state(snapshot)
-        pidx, ang, pwr = mod.get_ai_move(st, bool(snapshot.get("is_player_a")))
+        from models.search_budget import get_model_move
+        pidx, ang, pwr = get_model_move(mod, st, bool(snapshot.get("is_player_a")))
     except Exception:
         return None
     return {
@@ -218,7 +219,7 @@ def builtin_decision(snapshot: dict, model_key: str) -> dict | None:
 
 
 def default_comparison_model() -> str:
-    return "minimax"
+    return "expectimax"
 
 
 def playback_turn(snapshot: dict, decision: dict) -> dict:

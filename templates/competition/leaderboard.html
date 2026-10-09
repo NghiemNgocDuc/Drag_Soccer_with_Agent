@@ -1,0 +1,162 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leaderboards &mdash; Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+<meta name="description" content="Player records and AI model benchmarks, ranked by win rate, decision time and recent results.">
+<link rel="stylesheet" href="/static/css/frontend-compete.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-compete">
+{{ app_nav('compete') }}
+<main class="as-main" id="as-content">
+{{ page_header('The standings', 'Leaderboards', 'Meet the players and agents setting the pace.', '/play3d', 'Play a match') }}
+<div class="tab-bar" role="tablist" aria-label="Leaderboard type"><button type="button" class="tab active" id="tab-btn-players" onclick="switchTab('players')" role="tab" aria-selected="true" aria-controls="panel-players">Players</button><button type="button" class="tab" id="tab-btn-models" onclick="switchTab('models')" role="tab" aria-selected="false" aria-controls="panel-models">AI models</button><a class="tab" href="/leaderboard/ranked">Ranked ELO {{ icon('arrow-right') }}</a></div>
+<section id="panel-players" role="tabpanel" aria-labelledby="tab-btn-players">
+  <div class="cp-panel cp-table-panel"><div class="cp-table-intro"><div><h2>Player records</h2><p class="cp-muted">Wins, losses and draws from played matches.</p></div><span class="cp-status">{{ entries|length }} players</span></div>
+  {% if entries %}<div class="cp-table-scroll" tabindex="0" role="region" aria-label="Player standings"><table><thead><tr><th scope="col" class="rank">Rank</th><th scope="col">Player</th><th scope="col">Wins</th><th scope="col">Losses</th><th scope="col">Draws</th><th scope="col">Games</th><th scope="col">Win rate</th></tr></thead><tbody>{% for e in entries %}<tr><td class="rank rank-{{ loop.index }}">{{ loop.index }}</td><td class="username-cell">{% if e.avatar_url %}<img class="lb-avatar" src="{{ e.avatar_url }}" alt="">{% endif %}{{ e.username }}{% if e.username == username %} <span class="you-badge">You</span>{% endif %}</td><td>{{ e.wins }}</td><td>{{ e.losses }}</td><td>{{ e.draws }}</td><td>{{ e.games_played }}</td><td class="win-rate">{{ e.win_rate or 0 }}%</td></tr>{% endfor %}</tbody></table></div>
+  {% else %}<div class="cp-empty"><span class="cp-card-icon">{{ icon('users') }}</span><h2>The board is open</h2><p>Finish a match to start your record and earn a place in the standings.</p><a class="btn btn-primary" href="/play3d">Play your first match</a></div>{% endif %}</div>
+</section>
+<section id="panel-models" style="display:none" role="tabpanel" aria-labelledby="tab-btn-models">
+  <div class="cp-panel cp-table-panel"><div class="cp-table-intro"><div><h2>AI model benchmarks</h2><p class="cp-muted">Win rate against built-in opponents and average decision time.</p></div><a class="btn btn-secondary btn-sm" href="/my-models">Submit your model</a></div>
+  <div class="sort-row" style="padding:20px 24px" role="group" aria-label="Sort AI models"><label>Sort by</label><button type="button" class="sort-btn active" id="sort-score" onclick="sortModels('score')">Win rate</button><button type="button" class="sort-btn" id="sort-speed" onclick="sortModels('speed')">Speed</button><button type="button" class="sort-btn" id="sort-recent" onclick="sortModels('recent')">Recently benchmarked</button></div>
+  <div class="cp-table-scroll" tabindex="0" role="region" aria-label="AI model standings"><table><thead><tr><th scope="col" class="rank">Rank</th><th scope="col">Model</th><th scope="col">Publisher</th><th scope="col">Win rate</th><th scope="col">Speed</th><th scope="col">Games / opponent</th><th scope="col">Last benchmarked</th><th scope="col">Details</th></tr></thead><tbody id="models-tbody"></tbody></table></div>
+  <div class="empty" id="models-empty" style="display:none"><h2>No benchmarks yet</h2><p>Publish and submit an agent from <a href="/my-models">My models</a> to start the competition.</p></div><div class="spinner" id="models-spinner" role="status" aria-label="Loading AI standings"></div><button type="button" class="load-more" id="models-more" style="display:none" onclick="loadModels()">Load more models</button></div>
+</section>
+<div class="modal-overlay" id="detail-modal" onclick="if(event.target===this)closeModal()"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="detail-name"><h3 id="detail-name"></h3><div class="m-sub" id="detail-sub"></div><div id="detail-body"></div><button type="button" class="close-modal" onclick="closeModal()">Close benchmark details</button></section></div>
+</main>
+<script>
+let modelsOffset = 0;
+let modelsSort = 'score';
+let detailTrigger = null;
+const leaderboardUser = {{ username | tojson }};
+
+function switchTab(name) {
+  const isPlayers = name === 'players';
+  document.getElementById('tab-btn-players').classList.toggle('active', isPlayers);
+  document.getElementById('tab-btn-models').classList.toggle('active', !isPlayers);
+  document.getElementById('panel-players').style.display = isPlayers ? '' : 'none';
+  document.getElementById('panel-models').style.display = isPlayers ? 'none' : '';
+  document.getElementById('tab-btn-players').setAttribute('aria-selected', String(isPlayers));
+  document.getElementById('tab-btn-models').setAttribute('aria-selected', String(!isPlayers));
+  if (!isPlayers && modelsOffset === 0) loadModels();
+}
+
+function sortModels(sort) {
+  modelsSort = sort;
+  document.getElementById('sort-score').classList.toggle('active', sort === 'score');
+  document.getElementById('sort-speed').classList.toggle('active', sort === 'speed');
+  document.getElementById('sort-recent').classList.toggle('active', sort === 'recent');
+  modelsOffset = 0;
+  document.getElementById('models-tbody').innerHTML = '';
+  document.getElementById('models-more').style.display = 'none';
+  document.getElementById('models-empty').style.display = 'none';
+  loadModels();
+}
+
+async function loadModels() {
+  document.getElementById('models-spinner').style.display = 'block';
+  try {
+    const r = await fetch('/api/leaderboard/models?limit=20&offset=' + modelsOffset + '&sort=' + modelsSort);
+    const d = await r.json();
+    document.getElementById('models-spinner').style.display = 'none';
+    if (!d.entries || !d.entries.length) {
+      document.getElementById('models-empty').style.display = 'block';
+      document.getElementById('models-more').style.display = 'none';
+      return;
+    }
+    appendRows(d.entries);
+    modelsOffset += d.entries.length;
+    document.getElementById('models-more').style.display = modelsOffset < (d.total || 0) ? '' : 'none';
+  } catch (e) {
+    document.getElementById('models-spinner').style.display = 'none';
+  }
+}
+
+function appendRows(entries) {
+  const tbody = document.getElementById('models-tbody');
+  entries.forEach((e, i) => {
+    const rank = (modelsOffset) + i + 1;
+    const tr = document.createElement('tr');
+    const pub = '<div class="publisher-cell">' + (e.avatar_url ? '<img class="lb-avatar" src="' + esc(e.avatar_url) + '" alt="">' : '<div class="lb-avatar" style="background:#087f70;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7rem;font-weight:700">' + esc(e.username[0]||'?').toUpperCase() + '</div>') + '<div><div class="publisher-name">' + esc(e.username) + (e.username === leaderboardUser ? ' <span class="you-badge">You</span>' : '') + '</div><div class="publisher-sub">ID ' + esc(e.model_id.slice(0,8)) + '</div></div></div>';
+    const speed = e.avg_latency != null ? Number(e.avg_latency).toFixed(0) + ' ms' : '—';
+    const speedClass = e.avg_latency != null && e.avg_latency < 500 ? 'speed-val' : (e.avg_latency != null && e.avg_latency < 1000 ? 'speed-val' : 'win-rate');
+    tr.innerHTML =
+      '<td class="rank">' + rank + '</td>' +
+      '<td class="username-cell">' + esc(e.model_name) + '</td>' +
+      '<td>' + pub + '</td>' +
+      '<td class="score-val">' + Number(e.score).toFixed(1) + '%</td>' +
+      '<td class="' + speedClass + '">' + speed + '</td>' +
+      '<td>' + e.games_per_opponent + '</td>' +
+      '<td class="ml-ago">' + ago(e.benchmarked_at) + '</td>' +
+      '<td><button class="btn-detail" onclick="showModel(\'' + esc(e.model_id) + '\')">Details</button></td>';
+    tbody.appendChild(tr);
+  });
+}
+
+function ago(iso) {
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60000) return 'just now';
+  if (ms < 3600000) return Math.floor(ms / 60000) + 'm ago';
+  if (ms < 86400000) return Math.floor(ms / 3600000) + 'h ago';
+  return Math.floor(ms / 86400000) + 'd ago';
+}
+
+async function showModel(modelId) {
+  detailTrigger = document.activeElement;
+  const r = await fetch('/api/leaderboard/models/' + modelId);
+  const d = await r.json();
+  if (d.error) { closeModal(); return; }
+  const pub = (d.avatar_url ? '<img src="' + esc(d.avatar_url) + '" style="width:28px;height:28px;border-radius:50%;vertical-align:middle;margin-right:8px">' : '') + esc(d.username) + (d.avg_latency != null ? ' · ' + Number(d.avg_latency).toFixed(0) + ' ms avg' : '');
+  document.getElementById('detail-name').textContent = d.model_name;
+  document.getElementById('detail-sub').innerHTML =
+    'Publisher ' + pub + ' · win rate ' + Number(d.score).toFixed(1) + '% · speed ' + (d.avg_latency != null ? Number(d.avg_latency).toFixed(0) + ' ms' : '—') + ' · ' + d.games_per_opponent + ' games per opponent';
+  let html = '';
+  (d.details || []).forEach(x => {
+    const pct = Number(x.win_rate || 0);
+    html += '<div class="detail-row">' +
+      '<div class="d-name">' + esc(x.opponent) + '</div>' +
+      '<div class="detail-track"><div class="detail-fill" style="width:' + Math.min(pct, 100) + '%"></div></div>' +
+      '<div class="detail-vals">' + pct.toFixed(1) + '% · ' + x.wins + 'W ' + x.draws + 'D ' + x.losses + 'L</div>' +
+      '</div>';
+  });
+  document.getElementById('detail-body').innerHTML = html;
+  document.getElementById('detail-modal').classList.add('open');
+  document.getElementById('detail-modal').querySelector('.close-modal').focus();
+}
+
+function closeModal() {
+  document.getElementById('detail-modal').classList.remove('open');
+  detailTrigger?.focus();
+}
+
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML;
+}
+</script>
+<script src="/static/js/ui/feedback.js"></script>
+<script>
+document.addEventListener('keydown',function(event){
+  const modal=document.getElementById('detail-modal');
+  if(!modal.classList.contains('open'))return;
+  if(event.key==='Escape'){event.preventDefault();closeModal();}
+  if(event.key==='Tab'){
+    const close=modal.querySelector('.close-modal');
+    event.preventDefault();close.focus();
+  }
+});
+const leaderboardTabs=['tab-btn-players','tab-btn-models'].map(id=>document.getElementById(id));
+leaderboardTabs.forEach((tab,index)=>tab.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();
+  const target=event.key==='Home'?0:event.key==='End'?1:1-index;
+  leaderboardTabs[target].click();leaderboardTabs[target].focus();
+}));
+</script>
+</body>
+</html>

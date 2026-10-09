@@ -1,0 +1,41 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Workflow — Agent Soccer</title>
+
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-learn as-page-workflow">
+{{ app_nav('learn') }}
+
+
+<main class="as-main" id="as-content">
+  <div class="breadcrumb"><a href="/about">About</a> <span style="margin:0 6px">›</span> <span style="color:#0f172a;font-weight:700">Workflow</span></div>
+{{ page_header('INSIDE THE CLUB', 'How the game connects', 'Follow a move from the browser to the game engine, AI agents, and storage.') }}
+  <div class="figure glass-card">
+    <img id="wf-img" role="button" tabindex="0" aria-label="Enlarge workflow diagram" src="/static/images/workflow.png" alt="Agent Soccer workflow overview diagram" loading="lazy">
+    <div class="figure-actions">
+      <a class="btn btn-primary btn-sm" href="/static/images/workflow.png" download="agent-soccer-workflow.png">Download PNG</a>
+      <a class="btn btn-secondary btn-sm" href="/about">Back to About</a>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="document.getElementById('wf-img').scrollIntoView({behavior:'smooth',block:'center'})">Focus diagram</button>
+    </div>
+    <p class="meta">Select the diagram to enlarge it, or download a copy to explore the system.</p>
+  </div>
+</main>
+<div class="lightbox" id="lightbox" role="dialog" aria-modal="true" aria-label="Workflow diagram" onclick="if(event.target===this)closeDiagram()"><button type="button" class="lightbox-close" onclick="closeDiagram()">Close diagram</button><img src="/static/images/workflow.png" alt="Workflow enlarged"></div>
+<script>
+  const image=document.getElementById('wf-img');
+  function openDiagram(){document.getElementById('lightbox').classList.add('open');document.querySelector('.lightbox-close').focus();}
+  function closeDiagram(){document.getElementById('lightbox').classList.remove('open');image.focus();}
+  image.addEventListener('click',openDiagram);
+  image.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();openDiagram();}});
+  document.addEventListener('keydown',event=>{if(!document.getElementById('lightbox').classList.contains('open'))return;if(event.key==='Escape')closeDiagram();if(event.key==='Tab'){event.preventDefault();document.querySelector('.lightbox-close').focus();}});
+</script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

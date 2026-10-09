@@ -1,0 +1,4084 @@
+{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Agent Soccer 3D</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+<link rel="stylesheet" href="/static/css/style.css">
+<style>
+@import url('/static/vendor/fonts/space-grotesk.css');
+
+.canvas-wrap{
+  border-radius:22px;overflow:hidden;
+  box-shadow:0 12px 40px rgba(14,165,233,.12),0 0 0 1px rgba(255,255,255,.4);
+  position:relative;cursor:default;background:#020617;
+}
+#three-container{display:block;width:100%;height:100%;min-height:500px;touch-action:none}
+.canvas-overlay{
+  display:none;position:absolute;inset:0;
+  background:rgba(15,23,42,.55);backdrop-filter:blur(6px);
+  align-items:center;justify-content:center;
+  font-size:1.1rem;font-weight:600;color:#fff;
+}
+.canvas-overlay.visible{display:flex}
+.sound-btn{
+  background:rgba(255,255,255,.3);border:none;
+  font-size:22px;line-height:1;padding:4px 8px;cursor:pointer;
+  border-radius:8px;transition:background .2s;color:#fff;
+}
+.sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
+#captain-hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:4;display:none;padding:6px 10px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(2,6,23,.72);color:#fff;font-size:.72rem;font-weight:700;pointer-events:none}
+#match-chat-wrap{width:100%;height:auto}
+#match-chat-wrap:empty{display:none}
+#match-chat-wrap>.chat-panel{height:380px}
+#match-chat-wrap>.chat-panel.collapsed{height:auto}
+.online-modal{position:fixed;inset:0;background:rgba(2,6,23,.62);backdrop-filter:blur(5px);
+  display:none;align-items:center;justify-content:center;z-index:70}
+.online-modal.visible{display:flex}
+.online-modal-card{background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.7);
+  border-radius:16px;padding:24px;width:min(430px,92vw);display:flex;flex-direction:column;gap:12px;
+  box-shadow:0 20px 60px rgba(2,6,23,.35)}
+.online-modal-card h3{margin:0;color:#0f172a}
+.online-modal-card p{margin:0;font-size:.85rem;color:#475569}
+.online-modal-card input{padding:9px 12px;border-radius:10px;border:1px solid rgba(148,163,184,.5);
+  font-size:.85rem;background:#fff;color:#0f172a;width:100%;box-sizing:border-box}
+.online-modal-card .row{display:flex;gap:8px}
+#online-bar{position:static;
+  background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.65);border-radius:999px;
+  padding:6px 16px;font-size:.82rem;font-weight:600;color:#0f172a;white-space:nowrap;
+  box-shadow:0 4px 16px rgba(2,6,23,.15)}
+body.as-app.as-game #online-bar{position:static;transform:none;width:100%;max-width:100%;box-sizing:border-box;white-space:normal;overflow-wrap:anywhere}
+#online-lobby-create{display:none;flex-direction:column;gap:8px}
+#online-lobby-waiting{display:none;color:#0284c7;font-weight:600;font-size:.85rem}
+#voice-controls{display:none;align-items:center;flex-wrap:wrap;gap:8px;width:100%;min-width:0}
+#voice-btn{display:none;
+  background:rgba(255,255,255,.88);border:1px solid rgba(255,255,255,.65);border-radius:999px;
+  padding:7px 14px;font-size:.82rem;font-weight:600;color:#0f172a;cursor:pointer;
+  box-shadow:0 4px 16px rgba(2,6,23,.15)}
+#voice-btn:hover{background:#fff}
+#voice-panel{display:none;align-items:center;flex-wrap:wrap;gap:8px;
+  background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.65);border-radius:12px;
+  padding:8px 10px;box-shadow:0 4px 16px rgba(2,6,23,.15)}
+body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;transform:none;max-width:100%;box-sizing:border-box}
+#voice-status{font-size:.78rem;font-weight:600;color:#0f172a;max-width:170px;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+#voice-status .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;background:#94a3b8}
+#voice-status.v-ok .dot{background:#22c55e}
+#voice-status.v-bad .dot{background:#ef4444}
+#voice-status.v-busy .dot{background:#f59e0b}
+.vp-btn{background:rgba(241,245,249,.9);border:1px solid rgba(148,163,184,.5);border-radius:8px;
+  font-size:.85rem;padding:5px 9px;cursor:pointer;color:#0f172a}
+.vp-btn:hover{background:#e2e8f0}
+.vp-btn.muted{background:#fee2e2;border-color:#f87171;color:#b91c1c}
+#voice-opp-muted{display:none;font-size:.7rem;color:#b45309;font-weight:600;background:#fef3c7;
+  border-radius:6px;padding:2px 6px}
+</style>
+<script src="/static/js/game/sound.js?v=2"></script>
+<script src="/static/js/ui/chat.js"></script>
+<script src="/static/js/ui/achievements.js"></script>
+{% include 'shared/_ui_assets.html' %}
+<link rel="stylesheet" href="/static/css/frontend-game.css">
+</head>
+<body class="as-app as-game">
+<div class="flash-msg" id="flash-msg"></div>
+{{ app_nav('play') }}
+<main class="as-main" id="as-content">
+  {{ page_header('Match day','Every move matters.','Drag a player to aim your kick. Release to take your turn.','/customize','Team & stadium') }}
+  <div id="online-bar" style="display:none"></div>
+  <div id="fs-wrap">
+    <div class="glass hud">
+      <div class="team team-a">
+        <div class="team-name">You</div>
+        <div class="team-score" id="score-a">0</div>
+      </div>
+      <div class="hud-mid">
+        <div class="turn-badge turn-a" id="turn-badge">Your turn</div>
+        <div class="kick-counter" id="game-clock">00:00</div>
+        <div class="winner-banner" id="winner-banner"></div>
+        <div id="post-game-options" style="display:none;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center">
+          <button class="btn btn-secondary btn-sm" onclick="showHighlights()">Highlights</button>
+          <button class="btn btn-secondary btn-sm" onclick="showPlayerRatings()">Player Ratings</button>
+        </div>
+        <button class="btn btn-primary btn-sm" id="match-share-btn" style="display:none;margin-top:6px" onclick="shareMatchSummary()"> Share match summary</button>
+        <span id="match-share-msg" style="font-size:.75rem;color:#059669;display:none;margin-top:4px"></span>
+      </div>
+      <div class="team team-b">
+        <div class="team-name">AI</div>
+        <div class="team-score" id="score-b">0</div>
+      </div>
+    </div>
+
+    <div class="canvas-wrap" id="canvas-wrap">
+      <div id="three-container"></div>
+      <div id="captain-hint">Pull back to aim. Release to kick.</div>
+      <div class="canvas-overlay" id="canvas-overlay">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+          <div class="spinner" id="overlay-spinner"></div>
+          <span id="overlay-text">AI thinking…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <section id="player-controls" class="player-controls" aria-label="Player controls">
+    <div class="player-control-heading"><strong>Take your turn</strong><span id="player-control-status" role="status" aria-live="polite">Loading match…</span></div>
+    <div class="player-control-fields">
+      <div class="player-control-field"><label for="player-select">Player</label><div class="player-picker"><button id="player-prev" class="btn btn-ghost" type="button" aria-label="Previous player">&larr;</button><select id="player-select"></select><button id="player-next" class="btn btn-ghost" type="button" aria-label="Next player">&rarr;</button></div></div>
+      <div class="player-control-field"><label for="aim-angle">Direction <span>degrees</span></label><input id="aim-angle" type="number" min="0" max="359" step="1" value="0" inputmode="numeric"></div>
+      <div class="player-control-field"><label for="kick-power">Power <output id="kick-power-value" for="kick-power">72%</output></label><input id="kick-power" type="range" min="0" max="100" step="1" value="72"></div>
+      <div class="player-control-actions"><button id="aim-cancel" class="btn btn-ghost" type="button">Reset aim</button><button id="kick-btn" class="btn btn-primary" type="button" disabled>Kick</button></div>
+    </div>
+    <p class="player-control-help" id="player-control-help">Pull a player back and release to kick, or set direction and power here. On the pitch: <kbd>←</kbd> <kbd>→</kbd> aim, <kbd>↑</kbd> <kbd>↓</kbd> power, <kbd>Q</kbd> switch, <kbd>Enter</kbd> kick, <kbd>Esc</kbd> cancel.</p>
+  </section>
+  <div id="voice-controls" aria-label="Voice chat" style="display:none">
+  <!-- Voice chat (1v1 online only) -->
+  <button id="voice-btn" onclick="voiceToggle()" title="Enable voice chat (microphone)"> Voice</button>
+  <div id="voice-panel">
+    <span id="voice-status"><span class="dot"></span>Voice: off</span>
+    <button id="voice-mic-btn" class="vp-btn" onclick="voiceToggleMic()" title="Mute / unmute microphone">Mic</button>
+    <span id="voice-opp-muted">opponent muted</span>
+    <button id="voice-end-btn" aria-label="Disconnect voice chat" class="vp-btn" onclick="voiceDisconnect()" title="Disconnect from voice chat">X</button>
+  </div>
+  </div>
+  <div id="match-chat-wrap"></div>
+  <section class="as-control-panel" aria-labelledby="match-controls-title"><div class="as-control-panel-heading"><h2 id="match-controls-title">Match controls</h2><p>Choose your opponent, pace, and pass.</p></div><div class="glass controls">
+    <div class="as-control-field"><label for="mode-select">Match mode</label>
+    <select id="mode-select" onchange="setMode(this.value)">
+      <option value="hvai">Human vs AI</option>
+      <option value="hvh">Human vs Human</option>
+      <option value="aivai">AI vs AI</option>
+    </select></div>
+    <div class="as-control-field"><label for="model-select">AI opponent</label><select id="model-select" onchange="switchModel(this.value)"><option value="greedy">Greedy Striker</option></select></div>
+    <div class="sep"></div>
+    <button class="btn btn-primary" onclick="resetGame()">New Game</button>
+    <button class="btn btn-ghost" onclick="undoMove()">Undo</button>
+    <div class="sep"></div>
+    <div class="speed-wrap">
+      <label class="speed-label" for="speed-slider">Playback speed</label>
+      <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1" oninput="setAnimSpeed(+this.value)">
+    </div>
+    <button class="btn btn-ghost" id="aivai-btn" style="display:none" onclick="triggerAI()">Run AI</button>
+    <div class="sep"></div>
+    <div class="pass-types" style="display:flex;gap:4px;align-items:center">
+      <span style="font-size:.68rem;color:var(--muted);font-weight:600">Pass:</span>
+      <button class="btn btn-ghost btn-sm" id="pass-normal" aria-pressed="true" onclick="setPassType('normal')" style="background:var(--accent);color:#fff">Normal</button>
+      <button class="btn btn-ghost btn-sm" id="pass-short" aria-pressed="false" onclick="setPassType('short')">S Short</button>
+      <button class="btn btn-ghost btn-sm" id="pass-long" aria-pressed="false" onclick="setPassType('long')">A Long</button>
+      <button class="btn btn-ghost btn-sm" id="pass-through" aria-pressed="false" onclick="setPassType('through')">W Through</button>
+    </div>
+    <div class="sep"></div>
+    <button class="btn btn-ghost" id="online-btn" onclick="showOnlineLobby(true)">Online</button>
+    <button class="btn btn-ghost" id="online-leave-btn" style="display:none" onclick="leaveOnlineMatch()">Leave match</button>
+    <div class="sep"></div>
+    <button class="sound-btn" id="sound-btn" aria-label="Mute sound" aria-pressed="false" onclick="SoundManager.toggleMute()">Sound</button>
+    <div class="sep"></div>
+    <button class="btn btn-ghost" id="view-settings-btn" onclick="showViewSettings(true)" title="View settings — 120s to choose"> View</button>
+  </div></section>
+
+  <div class="glass log-panel" id="log-panel" role="log" aria-label="Match events" aria-live="polite"></div>
+
+  <!-- Online match lobby (chat-enabled 1v1) -->
+  <div class="online-modal" id="online-lobby">
+    <div class="online-modal-card" role="dialog" aria-modal="true" aria-labelledby="online-title">
+      <button class="as-dialog-close" type="button" data-dialog-close aria-label="Close online lobby" onclick="closeOnlineLobby()">&times;</button>
+      <h3 id="online-title">Play online</h3>
+      <p id="online-lobby-status">Create a match, share the link with a friend, and chat while you play.</p>
+      <div id="online-lobby-create">
+        <label for="online-invite-link">Your match invitation</label><input id="online-invite-link" readonly onclick="this.select()">
+        <div class="row">
+          <button class="btn btn-primary" id="online-copy-btn" onclick="copyInviteLink()">Copy Link</button>
+          <button class="btn btn-ghost" onclick="closeOnlineLobby()">Close</button>
+        </div>
+      </div>
+      <div id="online-lobby-join">
+        <label for="online-join-code">Match link or room code</label><input id="online-join-code" placeholder="Paste a match link or room code…">
+        <label for="online-room-password">Room password (optional)</label><input id="online-room-password" type="password" autocomplete="off">
+        <div class="row">
+          <button class="btn btn-primary" onclick="joinOnlineByCode()">Join Match</button>
+          <button class="btn btn-ghost" onclick="createOnlineMatch()">Create Match</button>
+        </div>
+      </div>
+      <div id="online-lobby-waiting">Waiting for your opponent to join&hellip;</div>
+      <div id="team-chooser" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
+        <p style="font-size:.82rem;font-weight:700;margin-bottom:6px"> Choose Team — 2 players cannot pick same team</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="team-a-select" aria-label="Team A" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team A — loading...</option></select>
+          <select id="team-b-select" aria-label="Team B" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team B — loading...</option></select>
+        </div>
+        <p id="team-error" style="font-size:.72rem;color:#ef4444;margin-top:6px;display:none"></p>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <div style="flex:1">
+            <label for="formation-a-select" style="font-size:.68rem;font-weight:600;color:#475569">Formation A</label>
+            <select id="formation-a-select" style="width:100%;padding:6px;border-radius:8px;border:1px solid rgba(148,163,184,.4);font-size:.78rem"></select>
+            <div id="manager-a" style="font-size:.68rem;color:#64748b;margin-top:2px"></div>
+          </div>
+          <div style="flex:1">
+            <label for="formation-b-select" style="font-size:.68rem;font-weight:600;color:#475569">Formation B</label>
+            <select id="formation-b-select" style="width:100%;padding:6px;border-radius:8px;border:1px solid rgba(148,163,184,.4);font-size:.78rem"></select>
+            <div id="manager-b" style="font-size:.68rem;color:#64748b;margin-top:2px"></div>
+          </div>
+        </div>
+        <p style="font-size:.68rem;color:#64748b;margin-top:4px">Player names will appear above kits — default 7 players (formation tied to manager, changeable before kickoff)</p>
+        <p id="referee-display" style="font-size:.75rem;color:#334155;margin-top:6px;font-weight:600"></p>
+      </div>
+      <div id="online-lobby-ranked" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
+        <p style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Ranked matches pair you with a player of similar skill &mdash; your ELO rating changes with every result.</p>
+        <p id="ranked-season-line" style="font-size:.72rem;color:var(--muted);margin-bottom:8px"></p>
+        <div class="row">
+          <button class="btn btn-primary" id="ranked-btn" onclick="rankedJoin()">Play Ranked</button>
+          <button class="btn btn-ghost" id="ranked-cancel-btn" style="display:none" onclick="rankedCancel()">Cancel Queue</button>
+        </div>
+        <p id="ranked-status" style="display:none;margin-top:8px"></p>
+      </div>
+      <div id="quick-match" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
+        <p style="font-size:.85rem;font-weight:800;margin-bottom:6px">Quick Match</p>
+        <p style="font-size:.72rem;color:var(--muted);margin-bottom:8px">Player vs Player searches for an active player — if none in 8s you play a random AI. Player vs AI is instant vs a random built-in.</p>
+        <div class="row" style="gap:8px">
+          <button class="btn btn-primary" id="quick-play-btn" onclick="quickPlayPVP()">Play</button>
+          <button class="btn btn-ghost" id="match-models-btn" onclick="openMatchModels()">Match Models</button>
+          <button class="btn btn-ghost" id="quick-pva-btn" onclick="quickPlayVsAI()">Player vs AI</button>
+          <button class="btn btn-ghost" id="quick-cancel-btn" style="display:none" onclick="quickCancel()">Cancel</button>
+        </div>
+        <div id="quick-loading" style="display:none;margin-top:10px;align-items:center;gap:10px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.6);border-radius:10px;padding:10px 12px">
+          <div class="quick-spinner" style="width:18px;height:18px;border:2px solid rgba(14,165,233,.2);border-top-color:#0ea5e9;border-radius:50%;animation:qm-spin .7s linear infinite"></div>
+          <span id="quick-loading-text" style="font-size:.82rem;color:#0f172a;font-weight:600">Searching for opponent…</span>
+          <span id="quick-loading-sub" style="font-size:.72rem;color:var(--muted);margin-left:auto">8s → vs AI</span>
+        </div>
+        <p id="quick-status" style="display:none;margin-top:8px;font-size:.8rem"></p>
+      </div>
+      <style>@keyframes qm-spin{to{transform:rotate(360deg)}}</style>
+    </div>
+  </div>
+    <!-- Match Models picker (choose any stored model to play vs) -->
+    <div class="online-modal" id="match-models-modal" style="display:none">
+      <div class="online-modal-card" style="max-width:520px;max-height:80vh;overflow:auto">
+        <h3>Match Models</h3>
+        <p style="font-size:.8rem;color:#475569">Pick a model from the coding editor (builtins + your code models) to play against. Tip: <a href="/learn" style="color:#0284c7">Learn</a> shows how to code your own, <a href="/my-models" style="color:#0284c7">My Models</a> to write it.</p>
+        <div id="match-models-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:48vh;overflow:auto"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn btn-ghost" onclick="closeMatchModels()">Close</button>
+          <a class="btn btn-primary" href="/my-models" style="margin-left:auto">Go to Code Models</a>
+        </div>
+      </div>
+    </div>
+    <!-- Post-game: Highlights (shot-only) -->
+    <div class="online-modal" id="highlights-modal" style="display:none">
+      <div class="online-modal-card" style="max-width:520px;max-height:80vh;overflow:auto">
+        <h3>Highlights — shots only</h3>
+        <p style="font-size:.78rem;color:#64748b">Revisit the goals, close chances, and fast plays from this match.</p>
+        <div id="highlights-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-ghost" onclick="closeHighlights()">Close</button><a href="/match-history" class="btn btn-ghost" style="margin-left:auto">History (last 5)</a></div>
+      </div>
+    </div>
+    <!-- Post-game: Player Ratings (WhoScored/FIFA: 6.0 baseline 0-10) -->
+    <div class="online-modal" id="ratings-modal" style="display:none">
+      <div class="online-modal-card" style="max-width:560px;max-height:80vh;overflow:auto">
+        <h3>Player Ratings</h3>
+        <p style="font-size:.78rem;color:#64748b">See how each player contributed, with a rating out of 10 and a breakdown of their performance.</p>
+        <div id="ratings-list" style="display:flex;flex-direction:column;gap:10px;margin-top:10px"></div>
+        <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-ghost" onclick="closeRatings()">Close</button></div>
+      </div>
+    </div>
+  <!-- View settings (multiplayer) — 120s timeout to choose -->
+  <div class="online-modal" id="view-settings-modal">
+    <div class="online-modal-card">
+      <h3> View Settings</h3>
+      <p style="font-size:.84rem;color:#475569">Choose camera view. <span id="view-timeout-text" style="font-weight:700;color:#0ea5e9">120s</span> to decide — auto-closes after timeout.</p>
+      <div style="display:flex;gap:10px;margin-top:10px">
+        <button class="btn btn-primary" id="view-top-btn" onclick="setViewMode('top')"> From Above (Top)</button>
+        <button class="btn btn-ghost" id="view-player-btn" onclick="setViewMode('player')"> Player View</button>
+      </div>
+      <p id="view-current" style="font-size:.78rem;color:#64748b;margin-top:10px">Current: Top View</p>
+      <label for="graphics-quality" style="display:flex;align-items:center;gap:10px;margin-top:12px;font-size:.84rem;color:#475569">Graphics
+        <select id="graphics-quality" class="input" style="width:auto" aria-label="Graphics resolution">
+          <option value="auto">Auto</option><option value="1080p">1080p</option><option value="1440p">1440p</option><option value="4k">4K</option>
+        </select>
+      </label>
+      <div class="row" style="margin-top:12px"><button class="btn btn-ghost" onclick="showViewSettings(false)">Close</button></div>
+    </div>
+  </div>
+  <!-- Offline Chatbot (no API) -->
+  <button id="bot-btn" onclick="toggleBot()" title="Ask the offline assistant" style="position:fixed;right:16px;bottom:90px;z-index:60;background:rgba(255,255,255,.92);border:1px solid rgba(255,255,255,.7);border-radius:999px;padding:8px 12px;font-size:.85rem;font-weight:700;cursor:pointer;box-shadow:0 4px 16px rgba(2,6,23,.15)"> Assistant</button>
+  <div id="bot-panel" style="display:none;flex-direction:column;position:fixed;right:16px;bottom:130px;width:340px;height:380px;z-index:60;background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.7);border-radius:16px;box-shadow:0 12px 32px rgba(2,6,23,.18);overflow:hidden">
+    <div style="padding:10px 12px;border-bottom:1px solid rgba(226,232,240,.8);display:flex;justify-content:space-between;align-items:center">
+      <strong style="font-size:.85rem">Assistant (offline)</strong><button type="button" onclick="toggleBot()" aria-label="Close assistant" style="border:none;background:transparent;cursor:pointer;font-size:1.1rem">&times;</button>
+    </div>
+    <div id="bot-log" style="flex:1;overflow:auto;padding:10px;font-size:.82rem;line-height:1.45"></div>
+    <div style="display:flex;gap:6px;padding:8px;border-top:1px solid rgba(226,232,240,.8)">
+      <input id="bot-in" aria-label="Ask the assistant" placeholder="Ask about rules, teams, formations..." style="flex:1;padding:8px 10px;border-radius:10px;border:1px solid #cbd5e1;font-size:.85rem" onkeydown="if(event.key==='Enter')sendBot()">
+      <button onclick="sendBot()" class="btn btn-primary btn-sm">Send</button>
+    </div>
+  </div>
+  <script>
+  function toggleBot(){ const p=document.getElementById('bot-panel'); p.style.display = (p.style.display==='none'||!p.style.display||p.style.display==='') ? 'flex' : 'none'; if(p.style.display==='flex') document.getElementById('bot-in').focus(); }
+  async function sendBot(){
+    const i=document.getElementById('bot-in'), m=i.value.trim(); if(!m) return; i.value='';
+    const log=document.getElementById('bot-log');
+    const esc=s=>{const d=document.createElement('div'); d.textContent=s; return d.innerHTML;};
+    log.innerHTML += '<div style="margin:6px 0"><span style="background:#0ea5e9;color:#fff;border-radius:8px;padding:4px 8px;font-size:.75rem">You</span> '+esc(m)+'</div>';
+    log.scrollTop=log.scrollHeight;
+    try{
+      const r=await fetch('/api/chatbot',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({message:m})});
+      const d=await r.json();
+      const ans=d.response||d.error||'No response';
+      log.innerHTML += '<div style="margin:6px 0;background:rgba(241,245,249,.9);border-radius:10px;padding:8px">'+esc(ans)+'</div>';
+    }catch(e){ log.innerHTML += '<div style="color:#ef4444">Network error</div>'; }
+    log.scrollTop=log.scrollHeight;
+  }
+  </script>
+
+  <!-- Penalty shootout UI -->
+  <div id="penalty-ui" style="display:none">
+    <div id="penalty-keeper-btns" style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+      <button class="btn btn-primary" onclick="chooseKeeperDir('left')">&larr; Left</button>
+      <button class="btn btn-primary" onclick="chooseKeeperDir('center')">Center</button>
+      <button class="btn btn-primary" onclick="chooseKeeperDir('right')">Right &rarr;</button>
+    </div>
+    <div id="penalty-keeper-timer" style="text-align:center;font-size:1.2rem;font-weight:700;color:var(--accent-a);margin-top:4px"></div>
+    <div id="penalty-score" style="text-align:center;font-size:.9rem;font-weight:600;color:var(--muted);margin-top:4px"></div>
+  </div>
+</main>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "/static/vendor/three/three.module.js",
+    "three/addons/": "/static/vendor/three/addons/"
+  }
+}
+</script>
+
+<script type="module">
+//  Imports 
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { createTrajectoryPlayback, createTrajectorySampler } from '/static/js/game/trajectory-playback.js?v=2';
+import { disposePlayerMeshes } from '/static/js/game/scene-resources.js';
+import { createRenderLoop, createRenderQuality } from '/static/js/game/render-on-demand.js?v=2';
+import { createStadiumAudience } from '/static/js/game/stadium-crowd.js';
+import { createPlayerAvatar } from '/static/js/game/player-avatar.js?v=2';
+import { createRefereeAvatar } from '/static/js/game/referee-avatar.js';
+import { playerRadius, controlAccess, onlineRevision, onlineReplayPlan } from '/static/js/game/player-controls.js';
+import { createPlayerInput } from '/static/js/game/player-input.js';
+
+//  Constants (server-space) 
+const W = 1400, H = 875;
+const PLAYER_R = 20, BALL_R = 12;
+const GOAL_Y1 = 356, GOAL_Y2 = 519, GOAL_DEPTH = 50;
+const MAX_DRAG = 110;
+const PLAYER_TRAVEL = 8.0;
+const PENALTY_SPOT_X_A = W * 0.79, PENALTY_SPOT_X_B = W * 0.21;
+const PENALTY_KEEPER_X_A = W * 0.95, PENALTY_KEEPER_X_B = W * 0.05;
+
+//  Coordinate mapping (the ONE place axis-swap lives) 
+// Server space: x 0-W (left-right), y 0-H (top-left origin, y-down), z 0+ (height)
+function serverToWorld(sx, sy, sz) {
+  if (sz === undefined) sz = 0;
+  return new THREE.Vector3(sx - W / 2, sz, -(sy - H / 2));
+}
+
+function worldToServer(v) {
+  return { x: v.x + W / 2, y: -v.z + H / 2, z: v.y };
+}
+
+const container = document.getElementById('three-container');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+let renderFrames = 0;
+let scoreboardUpdates = 0;
+let renderLoop = null;
+let graphicsQuality = null;
+function requestRender() { renderLoop?.invalidate(); }
+function sceneNow() { return renderLoop?.now() ?? performance.now(); }
+function updateParticleBounds(points) {
+  points.geometry.computeBoundingSphere();
+  points.geometry.boundingSphere.radius += points.material.size || 0;
+}
+renderer.domElement.tabIndex = 0;
+renderer.domElement.setAttribute('aria-label', 'Soccer pitch. Left and right arrows aim, up and down change power. Enter or Space kicks. Q switches players and Escape cancels aim.');
+renderer.domElement.setAttribute('aria-describedby', 'player-control-help');
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+const textureAnisotropy = Math.min(16, renderer.capabilities.getMaxAnisotropy());
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0f172a);
+scene.fog = new THREE.Fog(0x0f172a, 1500, 4500);
+
+const camera = new THREE.PerspectiveCamera(65, container.clientWidth / container.clientHeight, 1, 6000);
+camera.position.set(-1500, 790, 320);
+camera.lookAt(0, 0, 0);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minPolarAngle = 0.1;
+controls.maxPolarAngle = Math.PI / 2.05;
+controls.minDistance = 300;
+controls.maxDistance = 2600;
+controls.mouseButtons = { LEFT: null, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.ROTATE };
+controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
+controls.update();
+controls.addEventListener('change', requestRender);
+
+//  Audio: synthesized SoundManager (zero assets) + 3D positional sound 
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+SoundManager.attach(audioCtx);
+THREE.AudioContext.setContext(audioCtx);
+const listener = new THREE.AudioListener();
+listener.getInput().disconnect();
+listener.getInput().connect(SoundManager.getOutput());
+camera.add(listener);
+const _kickBuf = SoundManager.makeKickBuffer();
+const _bounceBuf = SoundManager.makeBounceBuffer();
+
+function playPositional(buf, worldPos, opts) {
+  if (SoundManager.isMuted()) return;
+  if (!buf) return;
+  SoundManager.resume();
+  const obj = new THREE.Object3D();
+  obj.position.copy(worldPos);
+  scene.add(obj);
+  const s = new THREE.PositionalAudio(listener);
+  s.setBuffer(buf);
+  s.setRefDistance(250);
+  s.setRolloffFactor(1.2);
+  if (opts && opts.volume) s.setVolume(opts.volume);
+  if (opts && opts.detune) s.setDetune(opts.detune);
+  obj.add(s);
+  s.onEnded = () => { s.isPlaying = false; s.disconnect(); s.gain.disconnect(); obj.remove(s); scene.remove(obj); };
+  s.play();
+}
+
+// Browsers suspend AudioContext until a user gesture — unlock on first one
+(function unlockAudio() {
+  let unlocked = false;
+  const events = ['pointerdown', 'mousedown', 'pointerup', 'click', 'keydown', 'touchstart', 'touchend'];
+  const unlock = () => {
+    if (unlocked) return;
+    SoundManager.resume().then(() => {
+      // Mouse pointerdown can arrive before trusted user activation. Retry on
+      // mousedown/click until the browser actually resumes this context.
+      if (unlocked || audioCtx.state !== 'running') return;
+      unlocked = true;
+      for (const event of events) window.removeEventListener(event, unlock);
+      SoundManager.crowdAmbient().catch(() => {});
+      if (!window._whistlePlayed) {
+        window._whistlePlayed = true;
+        playRefereeWhistle().catch(() => {});
+      }
+    }).catch(() => {});
+  };
+  for (const event of events) window.addEventListener(event, unlock);
+})();
+
+//  Lights 
+const ambientLight = new THREE.AmbientLight(0x8899bb, 0.6);
+scene.add(ambientLight);
+
+const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x362d1e, 0.8);
+scene.add(hemiLight);
+
+const sunLight = new THREE.DirectionalLight(0xffeedd, 2.2);
+sunLight.position.set(200, 600, 400);
+sunLight.castShadow = true;
+const shadowResolution = Math.min(2048, renderer.capabilities.maxTextureSize);
+sunLight.shadow.mapSize.width = shadowResolution;
+sunLight.shadow.mapSize.height = shadowResolution;
+sunLight.shadow.camera.near = 200;
+sunLight.shadow.camera.far = 1600;
+sunLight.shadow.camera.left = -900;
+sunLight.shadow.camera.right = 900;
+sunLight.shadow.camera.top = 900;
+sunLight.shadow.camera.bottom = -900;
+scene.add(sunLight);
+
+const fillLight = new THREE.DirectionalLight(0x8888ff, 0.5);
+fillLight.position.set(-200, 300, -300);
+scene.add(fillLight);
+
+//  Sky & environment (scene presets from customization bg_scene) 
+const FLOODLIGHT_COLORS = {
+  warm: 0xffd9a0, cool: 0xa8d8ff, red: 0xff7b7b, purple: 0xc084fc,
+};
+
+const SCENE_PRESETS = {
+  day: {
+    bg: 0xcfe8ff, fog: [0xcfe8ff, 1500, 4500],
+    sun: [0xfff2e0, 2.6], sunPos: [200, 600, 400],
+    ambient: 0.55, hemi: [0x87ceeb, 0x3a5f3a, 0.9],
+    stars: false, flood: 0, rain: false,
+    sky: [['#5aa7e8', 0], ['#87ceeb', 0.55], ['#cfe8ff', 1]],
+  },
+  sunset: {
+    bg: 0xf6c98a, fog: [0xf6c98a, 1100, 3800],
+    sun: [0xffa54f, 2.0], sunPos: [450, 320, 150],
+    ambient: 0.65, hemi: [0xfbbf24, 0x362d1e, 0.8],
+    stars: false, flood: 150, rain: false,
+    sky: [['#2b2350', 0], ['#f97316', 0.55], ['#fde68a', 1]],
+  },
+  night: {
+    bg: 0x0f172a, fog: [0x0f172a, 1500, 4500],
+    sun: [0x9db4ff, 0.55], sunPos: [300, 500, -300],
+    ambient: 0.95, hemi: [0x334166, 0x0b1220, 1.0],
+    stars: true, flood: 400, rain: false,
+    sky: [['#0b1020', 0], ['#0f172a', 0.6], ['#0f172a', 1]],
+  },
+  cloudy: {
+    bg: 0x8fa0b0, fog: [0x8fa0b0, 800, 3200],
+    sun: [0xcfd8e3, 0.8], sunPos: [0, 500, 200],
+    ambient: 0.95, hemi: [0x9aa5b5, 0x4a5560, 0.95],
+    stars: false, flood: 0, rain: true,
+    sky: [['#64748b', 0], ['#94a3b8', 0.55], ['#8fa0b0', 1]],
+  },
+  cyber: {
+    bg: 0x2e1065, fog: [0x2e1065, 1200, 4200],
+    sun: [0xb388ff, 0.7], sunPos: [350, 550, -150],
+    ambient: 0.9, hemi: [0x6d28d9, 0x111827, 0.95],
+    stars: true, flood: 380, rain: false,
+    sky: [['#1e0a3c', 0], ['#2e1065', 0.6], ['#2e1065', 1]],
+  },
+};
+
+function makeSkyTexture(stops) {
+  const cv = document.createElement('canvas');
+  cv.width = 128; cv.height = 512;
+  const ctx = cv.getContext('2d');
+  const g = ctx.createLinearGradient(0, 0, 0, cv.height);
+  for (const [color, off] of stops) g.addColorStop(off, color);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, cv.width, cv.height);
+  const tex = new THREE.CanvasTexture(cv);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+function makeGrassTexture() {
+  const c = document.createElement('canvas'); c.width = 1024; c.height = 1024;
+  const x = c.getContext('2d');
+  x.scale(2, 2);
+  // base dark
+  x.fillStyle = '#15803d'; x.fillRect(0, 0, 512, 512);
+  // light stripes 8 bands
+  x.fillStyle = '#16a34a';
+  for (let i = 0; i < 512; i += 64) x.fillRect(0, i, 512, 32);
+  // subtle noise
+  x.fillStyle = 'rgba(255,255,255,0.04)';
+  for (let i = 0; i < 600; i++) x.fillRect(Math.random()*512, Math.random()*512, 2, 1);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 2); t.anisotropy = textureAnisotropy; t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
+const skyDome = new THREE.Mesh(
+  new THREE.SphereGeometry(3000, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2),
+  new THREE.MeshBasicMaterial({ side: THREE.BackSide, fog: false })
+);
+skyDome.position.y = 0;
+scene.add(skyDome);
+
+const starField = new THREE.Points(
+  new THREE.BufferGeometry(),
+  new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: true, fog: false })
+);
+{
+  const n = 400;
+  const pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const theta = Math.acos(Math.random());
+    const phi = Math.random() * Math.PI * 2;
+    const r = 2900;
+    pos[i * 3] = r * Math.sin(theta) * Math.cos(phi);
+    pos[i * 3 + 1] = Math.max(60, r * Math.cos(theta));
+    pos[i * 3 + 2] = r * Math.sin(theta) * Math.sin(phi);
+  }
+  starField.geometry.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  updateParticleBounds(starField);
+}
+starField.visible = false;
+scene.add(starField);
+
+//  Sun (visible disc + soft halo) 
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(170, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xfff6d6, fog: false })
+);
+const sunHalo = new THREE.Mesh(
+  new THREE.SphereGeometry(300, 32, 32),
+  new THREE.MeshBasicMaterial({ color: 0xffd9a0, transparent: true, opacity: 0.16, fog: false, side: THREE.BackSide })
+);
+sunMesh.add(sunHalo);
+scene.add(sunMesh);
+
+//  Clouds (fluffy billboard clusters, slow drift) 
+const cloudGroup = new THREE.Group();
+function makeCloudCluster(cx, cy, cz, scale, opacity) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, transparent: true, opacity, fog: false });
+  const seeds = [[0,0,0,1],[0.9,0.2,0.3,0.8],[-0.8,0.1,-0.2,0.9],[0.3,0.1,0.7,0.7],[-0.4,0.15,0.6,0.6]];
+  for (const [ox, oy, oz, s] of seeds) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(55 * s, 12, 10), mat);
+    m.position.set(ox * 90, oy * 22, oz * 55);
+    m.scale.set(1, 0.62, 1);
+    g.add(m);
+  }
+  g.position.set(cx, cy, cz);
+  g.scale.setScalar(scale);
+  g.userData.backgroundRadius = 140 * scale;
+  return g;
+}
+for (let i = 0; i < 11; i++) {
+  const ang = (i / 11) * Math.PI * 2 + Math.random() * 0.4;
+  const rad = 900 + Math.random() * 1400;
+  const y = 520 + Math.random() * 380;
+  const cx = Math.cos(ang) * rad, cz = Math.sin(ang) * rad;
+  const sc = 1.0 + Math.random() * 1.6, op = 0.72 + Math.random() * 0.22;
+  cloudGroup.add(makeCloudCluster(cx, y, cz, sc, op));
+}
+scene.add(cloudGroup);
+const cloudViewDirection = new THREE.Vector3();
+const cloudWorldPosition = new THREE.Vector3();
+function updateBackgroundClouds() {
+  camera.getWorldDirection(cloudViewDirection);
+  // Keep each entire cluster behind the pitch, including its far touchline.
+  // Otherwise an orbit camera can look through translucent foreground clouds.
+  const pitchFarDepth = -camera.position.dot(cloudViewDirection) +
+    Math.abs(cloudViewDirection.x) * (W / 2 + 80) +
+    Math.abs(cloudViewDirection.z) * (H / 2 + 80) +
+    Math.abs(cloudViewDirection.y) * 70;
+  const targetDepth = cloudWorldPosition.copy(controls.target).sub(camera.position).dot(cloudViewDirection);
+  const backgroundDepth = Math.max(pitchFarDepth, targetDepth);
+  cloudGroup.updateMatrixWorld(true);
+  for (const cluster of cloudGroup.children) {
+    cloudWorldPosition.copy(cluster.position).applyMatrix4(cloudGroup.matrixWorld).sub(camera.position);
+    cluster.visible = cloudWorldPosition.dot(cloudViewDirection) - cluster.userData.backgroundRadius > backgroundDepth;
+  }
+}
+
+function buildFloodlight() {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(2, 2.6, 150, 8),
+    new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.6, metalness: 0.4 })
+  );
+  pole.position.y = 75;
+  g.add(pole);
+  const head = new THREE.Mesh(
+    new THREE.BoxGeometry(24, 10, 14),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.3 })
+  );
+  head.position.y = 152;
+  g.add(head);
+  const panel = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 8),
+    new THREE.MeshStandardMaterial({ color: 0x111827, emissive: 0xffd9a0, emissiveIntensity: 1.6, roughness: 0.4 })
+  );
+  panel.position.set(0, 152, 8);
+  panel.lookAt(0, 90, 0);
+  g.add(panel);
+  const light = new THREE.PointLight(0xffd9a0, 0, 1000, 1.8);
+  light.position.y = 152;
+  g.add(light);
+  return { group: g, panelMat: panel.material, light };
+}
+
+const FLOODLIGHT_SPOTS = [
+  [-W / 2 - 150, -H / 2 + 100],
+  [-W / 2 - 150, H / 2 - 100],
+  [W / 2 + 150, -H / 2 + 100],
+  [W / 2 + 150, H / 2 - 100],
+];
+const floodlights = FLOODLIGHT_SPOTS.map(([sx, sy]) => {
+  const fl = buildFloodlight();
+  const w = serverToWorld(sx, sy);
+  fl.group.position.set(w.x, 0, w.z);
+  fl.group.lookAt(0, 0, 0);
+  scene.add(fl.group);
+  return fl;
+});
+
+let rainActive = false;
+const rainPoints = (() => {
+  const count = 320;
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * (W + 400);
+    pos[i * 3 + 1] = Math.random() * 280 + 10;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * (H + 300);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({
+    color: 0xa8c3de, size: 2.6, transparent: true, opacity: 0.65,
+    depthWrite: false, fog: false,
+  });
+  const pts = new THREE.Points(geo, m);
+  updateParticleBounds(pts);
+  pts.visible = false;
+  scene.add(pts);
+  return pts;
+})();
+let snowActive = false;
+const snowPoints = (() => {
+  const count = 260;
+  const pos = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * (W + 500);
+    pos[i * 3 + 1] = Math.random() * 260 + 20;
+    pos[i * 3 + 2] = (Math.random() - 0.5) * (H + 400);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  const m = new THREE.PointsMaterial({
+    color: 0xffffff, size: 4.2, transparent: true, opacity: 0.85,
+    depthWrite: false, fog: false,
+  });
+  const pts = new THREE.Points(geo, m);
+  updateParticleBounds(pts);
+  pts.visible = false;
+  scene.add(pts);
+  return pts;
+})();
+let windActive = false;
+let fogActive = false;
+let CUST_WEATHER = 'clear';
+let CUST_BALL_DESIGN = 'classic';
+let CUST_BALL_PATTERN = 'solid';
+let CUST_BALL_COLOR = '#f8fafc';
+
+function applyScene(name, floodColor) {
+  const p = SCENE_PRESETS[name] || SCENE_PRESETS.day;
+  scene.background.setHex(p.bg);
+  scene.fog.color.setHex(p.fog[0]);
+  scene.fog.near = p.fog[1];
+  scene.fog.far = p.fog[2];
+  sunLight.color.setHex(p.sun[0]);
+  sunLight.intensity = p.sun[1];
+  sunLight.position.set(p.sunPos[0], p.sunPos[1], p.sunPos[2]);
+  // Sun disc follows directional light direction (normalized * 2200)
+  const sd = new THREE.Vector3(p.sunPos[0], p.sunPos[1], p.sunPos[2]).normalize().multiplyScalar(2250);
+  sunMesh.position.copy(sd);
+  sunMesh.material.color.setHex(p.sun[0]);
+  sunHalo.material.color.setHex(p.sun[0]);
+  // Sun visible by day/sunset, dim at night/cyber (still faint moon)
+  const isDayish = name === 'day' || name === 'sunset' || name === 'cloudy';
+  sunMesh.visible = true;
+  sunHalo.visible = true;
+  sunMesh.material.opacity = isDayish ? 1 : 0.22;
+  sunMesh.material.transparent = !isDayish;
+  sunHalo.material.opacity = isDayish ? 0.16 : 0.05;
+  ambientLight.intensity = p.ambient;
+  hemiLight.color.setHex(p.hemi[0]);
+  hemiLight.groundColor.setHex(p.hemi[1]);
+  hemiLight.intensity = p.hemi[2];
+  skyDome.material.map?.dispose();
+  skyDome.material.map = makeSkyTexture(p.sky);
+  skyDome.material.needsUpdate = true;
+  starField.visible = p.stars;
+  // Clouds: strong by day/cloudy/sunset, faint at night/cyber
+  cloudGroup.visible = true;
+  cloudGroup.traverse(o => { if (o.isMesh) { o.material.opacity = (name === 'cloudy' ? 0.92 : name === 'day' ? 0.78 : name === 'sunset' ? 0.62 : 0.28); }});
+  const fc = FLOODLIGHT_COLORS[floodColor] || FLOODLIGHT_COLORS.warm;
+  for (const fl of floodlights) {
+    fl.panelMat.emissive.setHex(fc);
+    fl.light.color.setHex(fc);
+    fl.light.intensity = p.flood;
+  }
+  rainActive = p.rain;
+  rainPoints.visible = p.rain;
+  requestRender();
+  // weather overlay overrides scene rain if weather is explicit
+  if (CUST_WEATHER && CUST_WEATHER !== 'clear') {
+    applyWeather(CUST_WEATHER);
+    // return scene without overwriting weather
+    return { scene: name, floodlightColor: floodColor, weather: CUST_WEATHER };
+  }
+  return { scene: name, floodlightColor: floodColor, weather: CUST_WEATHER };
+}
+
+function applyWeather(name) {
+  CUST_WEATHER = name || 'clear';
+  fogActive = name === 'fog';
+  windActive = name === 'wind';
+  rainActive = name === 'rain';
+  snowActive = name === 'snow';
+  rainPoints.visible = name === 'rain';
+  snowPoints.visible = name === 'snow';
+  // fog: dense low fog across pitch
+  if (name === 'fog') {
+    scene.fog.near = 600; scene.fog.far = 2200;
+  } else if (name === 'rain' || name === 'snow') {
+    scene.fog.near = 900; scene.fog.far = 3200;
+  } else if (name === 'wind') {
+    scene.fog.near = 1100; scene.fog.far = 3800;
+  }
+  window.__weatherInfo = () => ({ weather: CUST_WEATHER, rain: rainPoints.visible, snow: snowPoints.visible, fog: fogActive, wind: windActive });
+  requestRender();
+}
+window.__setWeather = applyWeather;
+window.__sceneInfo = () => ({
+  scene: Object.keys(SCENE_PRESETS).find(n => SCENE_PRESETS[n].bg === scene.background.getHex()),
+  bg: '#' + scene.background.getHex().toString(16).padStart(6, '0'),
+  fogColor: '#' + scene.fog.color.getHex().toString(16).padStart(6, '0'),
+  fogNear: scene.fog.near, fogFar: scene.fog.far,
+  sunColor: '#' + sunLight.color.getHex().toString(16).padStart(6, '0'),
+  sunIntensity: +sunLight.intensity.toFixed(2),
+  ambient: +ambientLight.intensity.toFixed(2),
+  hemiIntensity: +hemiLight.intensity.toFixed(2),
+  stars: starField.visible,
+  floodlightIntensity: +floodlights[0].light.intensity.toFixed(1),
+  floodlightColor: '#' + floodlights[0].light.color.getHex().toString(16).padStart(6, '0'),
+  rain: rainPoints.visible,
+});
+window.__setScene = applyScene;
+
+//  Field 
+const fieldGroup = new THREE.Group();
+scene.add(fieldGroup);
+
+// Grass plane — striped PBR (FIFA alternating bands)
+const grassTex = makeGrassTexture();
+const grassGeo = new THREE.PlaneGeometry(W, H);
+const grassMat = new THREE.MeshStandardMaterial({
+  map: grassTex,
+  color: 0xffffff,
+  roughness: 0.92,
+  metalness: 0.0,
+});
+const grass = new THREE.Mesh(grassGeo, grassMat);
+grass.rotation.x = -Math.PI / 2;
+grass.position.set(0, 0, 0);
+grass.receiveShadow = true;
+fieldGroup.add(grass);
+
+// Sub-surface (slightly darker, slightly below)
+const subMat = new THREE.MeshStandardMaterial({
+  color: 0x16a34a,
+  roughness: 1,
+});
+const sub = new THREE.Mesh(grassGeo.clone(), subMat);
+sub.rotation.x = -Math.PI / 2;
+sub.position.set(0, -0.5, 0);
+fieldGroup.add(sub);
+
+// Field lines helper
+function line2d(sx1, sy1, sx2, sy2, color = 0xffffff, width = 2) {
+  const a = serverToWorld(sx1, sy1);
+  const b = serverToWorld(sx2, sy2);
+  const geo = new THREE.BufferGeometry().setFromPoints([a, b]);
+  const mat = new THREE.LineBasicMaterial({ color, linewidth: width, transparent: true, opacity: 0.6 });
+  const line = new THREE.Line(geo, mat);
+  line.position.y = 0.3; // slightly above grass
+  return line;
+}
+
+function arc2d(sx, sy, radius, startAngle, endAngle, segments = 32, color = 0xffffff) {
+  const pts = [];
+  const center = serverToWorld(sx, sy);
+  for (let i = 0; i <= segments; i++) {
+    const t = startAngle + (endAngle - startAngle) * (i / segments);
+    // Arc in server space has radius on the y-up plane, map to z in 3D
+    const px = sx + Math.cos(t) * radius;
+    const py = sy + Math.sin(t) * radius;
+    pts.push(serverToWorld(px, py));
+  }
+  const geo = new THREE.BufferGeometry().setFromPoints(pts);
+  const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.6 });
+  const line = new THREE.Line(geo, mat);
+  line.position.y = 0.3;
+  return line;
+}
+
+// Touchlines
+fieldGroup.add(line2d(0, 0, W, 0));
+fieldGroup.add(line2d(W, 0, W, H));
+fieldGroup.add(line2d(W, H, 0, H));
+fieldGroup.add(line2d(0, H, 0, 0));
+
+//  FIFA Law 1 markings (105m × 68m → 1400×875 → 13.33/12.87 px/m) 
+// Reference: github.com/roboflow/sports SoccerPitchConfiguration + IFAB Law 1
+// PA 16.5m depth, 40.32m width; GA 5.5m depth, 18.32m width; spot 11m; center/arc 9.15m; corner 1m
+const FIFA_LEN = 105, FIFA_WID = 68;
+const pxPerMx = W / FIFA_LEN, pxPerMy = H / FIFA_WID, pxPerM = (pxPerMx + pxPerMy) / 2;
+const PA_DEPTH = 16.5 * pxPerMx;            // 220
+const PA_HALF_W = (40.32 / 2) * pxPerMy;    // 259.5
+const GA_DEPTH = 5.5 * pxPerMx;             // 73.3
+const GA_HALF_W = (18.32 / 2) * pxPerMy;    // 117.9
+const SPOT_DIST = 11 * pxPerMx;             // 146.7
+const CENTRE_R = 9.15 * pxPerM;             // ~120
+const ARC_R = 9.15 * pxPerM;                // 9.15m
+const CORNER_R = 1 * pxPerM;                // 1m
+
+// Halfway line
+fieldGroup.add(line2d(W / 2, 0, W / 2, H));
+
+// Center circle (FIFA 9.15m)
+fieldGroup.add(arc2d(W / 2, H / 2, CENTRE_R, 0, Math.PI * 2));
+
+// Center dot
+const dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const dotGeo = new THREE.CircleGeometry(3.5, 16);
+const dot = new THREE.Mesh(dotGeo, dotMat);
+dot.rotation.x = -Math.PI / 2;
+dot.position.copy(serverToWorld(W / 2, H / 2));
+dot.position.y = 0.32;
+fieldGroup.add(dot);
+
+// Penalty areas (left & right)
+for (const side of [-1, 1]) {
+  const x0 = side < 0 ? 0 : W, x1 = side < 0 ? PA_DEPTH : W - PA_DEPTH;
+  const y0 = H / 2 - PA_HALF_W, y1 = H / 2 + PA_HALF_W;
+  fieldGroup.add(line2d(x0, y0, x0, y1));
+  fieldGroup.add(line2d(x0, y0, x1, y0));
+  fieldGroup.add(line2d(x1, y0, x1, y1));
+  fieldGroup.add(line2d(x0, y1, x1, y1));
+}
+// Goal areas
+for (const side of [-1, 1]) {
+  const x0 = side < 0 ? 0 : W, x1 = side < 0 ? GA_DEPTH : W - GA_DEPTH;
+  const y0 = H / 2 - GA_HALF_W, y1 = H / 2 + GA_HALF_W;
+  fieldGroup.add(line2d(x0, y0, x0, y1));
+  fieldGroup.add(line2d(x0, y0, x1, y0));
+  fieldGroup.add(line2d(x1, y0, x1, y1));
+  fieldGroup.add(line2d(x0, y1, x1, y1));
+}
+
+// Penalty spots
+const spotMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+const spotGeo = new THREE.CircleGeometry(3.5, 14);
+for (const sx of [SPOT_DIST, W - SPOT_DIST]) {
+  const m = new THREE.Mesh(spotGeo, spotMat);
+  m.rotation.x = -Math.PI / 2;
+  m.position.copy(serverToWorld(sx, H / 2));
+  m.position.y = 0.32;
+  fieldGroup.add(m);
+  // Small 9.15m hash marks off field (outside) — FIFA optional marks
+  fieldGroup.add(line2d(sx, -5, sx, 5));
+  fieldGroup.add(line2d(sx, H - 5, sx, H + 5));
+}
+
+// Penalty arcs (9.15m radius outside PA, ~312° sweep, gap toward center)
+function arcForSpot(cx) {
+  return (start, end) => {
+    const pts = [];
+    for (let i = 0; i <= 24; i++) {
+      const t = start + (end - start) * (i / 24);
+      pts.push(serverToWorld(cx + Math.cos(t) * ARC_R, H / 2 + Math.sin(t) * ARC_R));
+    }
+    return pts;
+  };
+}
+const leftArcSeg = arcForSpot(SPOT_DIST), rightArcSeg = arcForSpot(W - SPOT_DIST);
+// Left arc: angle -~53° to +53° (outside PA, facing center) — computed via acos(6.5/9.15)
+const aDelta = Math.acos((PA_DEPTH - SPOT_DIST) / ARC_R);
+let aPts = leftArcSeg(-aDelta, aDelta);
+let geo = new THREE.BufferGeometry().setFromPoints(aPts);
+let mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.55 });
+let l = new THREE.Line(geo, mat);
+l.position.y = 0.3; fieldGroup.add(l);
+// Right arc mirrored (π ± aDelta)
+aPts = rightArcSeg(Math.PI - aDelta, Math.PI + aDelta);
+geo = new THREE.BufferGeometry().setFromPoints(aPts);
+l = new THREE.Line(geo, mat.clone());
+l.position.y = 0.3; fieldGroup.add(l);
+
+// Corner arcs (FIFA 1m radius)
+for (const [cx, cy] of [[0,0],[W,0],[0,H],[W,H]]) {
+  const segs = [];
+  for (let i = 0; i <= 12; i++) {
+    const t = (i / 12) * Math.PI / 2;
+    const aOff = (cx === 0 && cy === 0) ? 0 : (cx === W && cy === 0) ? Math.PI / 2 : (cx === 0 && cy === H) ? -Math.PI / 2 : Math.PI;
+    const px = cx + Math.cos(t + aOff) * CORNER_R;
+    const py = cy + Math.sin(t + aOff) * CORNER_R;
+    if (px >= 0 && px <= W && py >= 0 && py <= H) segs.push(serverToWorld(px, py));
+  }
+  if (segs.length > 1) {
+    const g = new THREE.BufferGeometry().setFromPoints(segs);
+    const m = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.4 });
+    const ll = new THREE.Line(g, m);
+    ll.position.y = 0.3;     fieldGroup.add(ll);
+  }
+}
+//  LED perimeter boards (stadium) 
+const animatedLEDTextures = [];
+(() => {
+  const ledH = 14, ledY = 7;
+  function makeLEDCanvas(text) {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 64;
+    const g = c.getContext('2d');
+    g.fillStyle = '#0b1220'; g.fillRect(0, 0, 512, 64);
+    g.fillStyle = '#0ea5e9'; g.font = 'bold 22px Inter, sans-serif'; g.textAlign = 'center';
+    g.fillText(text, 256, 38);
+    g.strokeStyle = 'rgba(14,165,233,0.35)'; g.strokeRect(0, 0, 512, 64);
+    const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.repeat.set(3, 1); return t;
+  }
+  const tex = makeLEDCanvas('AGENT SOCCER • LIVE • GOAL! • ');
+  const mat = new THREE.MeshStandardMaterial({ map: tex, emissive: 0x0ea5e9, emissiveIntensity: 0.55, roughness: 0.4 });
+  const ledGroup = new THREE.Group();
+  const north = new THREE.Mesh(new THREE.BoxGeometry(W + 40, ledH, 6), mat);
+  north.position.copy(serverToWorld(W/2, -14)); north.position.y = ledY; ledGroup.add(north);
+  const south = north.clone(); south.position.copy(serverToWorld(W/2, H + 14)); south.position.y = ledY; ledGroup.add(south);
+  const west = new THREE.Mesh(new THREE.BoxGeometry(6, ledH, H + 40), mat);
+  west.position.copy(serverToWorld(-14, H/2)); west.position.y = ledY; ledGroup.add(west);
+  const east = west.clone(); east.position.copy(serverToWorld(W + 14, H/2)); east.position.y = ledY; ledGroup.add(east);
+  scene.add(ledGroup);
+  // Scroll only while an animation or camera interaction needs a frame.
+  animatedLEDTextures.push(tex);
+})();
+
+//  Goals 
+const goalGroup = new THREE.Group();
+scene.add(goalGroup);
+const POST_R = 4;
+const CROSSBAR_R = 4;
+const goalColor = 0xf8fafc;
+
+function makePost(sx, sy) {
+  const p = serverToWorld(sx, sy);
+  const geo = new THREE.CylinderGeometry(POST_R, POST_R, GOAL_DEPTH * 1.2, 8);
+  const mat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+  const mesh = new THREE.Mesh(geo, mat);
+  const center = serverToWorld(sx, sy);
+  mesh.position.set(center.x, GOAL_DEPTH * 0.6, center.z);
+  mesh.castShadow = true;
+  return mesh;
+}
+
+function makeCrossbar(sx1, sy1, sx2, sy2) {
+  const a = serverToWorld(sx1, sy1);
+  const b = serverToWorld(sx2, sy2);
+  const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+  const len = a.distanceTo(b);
+  const geo = new THREE.CylinderGeometry(CROSSBAR_R, CROSSBAR_R, len, 8);
+  const mat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(mid.x, GOAL_DEPTH * 1.2, mid.z);
+  mesh.rotation.x = Math.PI / 2;
+  const dir = new THREE.Vector3().subVectors(b, a).normalize();
+  mesh.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), dir);
+  mesh.castShadow = true;
+  return mesh;
+}
+
+// Box-style goal: two posts + crossbar + 3-panel net with baked-in sag
+function buildGoal(side) {
+  const g = new THREE.Group();
+  const isLeft = side === 'left';
+  const frontX = isLeft ? 20 : W - 20;
+  const backX = isLeft ? 20 - GOAL_DEPTH : W - 20 + GOAL_DEPTH;
+  const d = GOAL_DEPTH * 1.2; // visual height of posts
+
+  const postMat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+
+  // Four corner posts
+  for (const sy of [GOAL_Y1, GOAL_Y2]) {
+    for (const x of [frontX, backX]) {
+      const p = new THREE.Mesh(new THREE.CylinderGeometry(POST_R, POST_R, d, 8), postMat);
+      const w = serverToWorld(x, sy);
+      p.position.set(w.x, d / 2, w.z);
+      p.castShadow = true;
+      g.add(p);
+    }
+  }
+
+  const cbMat = new THREE.MeshStandardMaterial({ color: goalColor, metalness: 0.6, roughness: 0.3 });
+
+  // Front and back crossbars (horizontal along goal width)
+  for (const x of [frontX, backX]) {
+    const a = serverToWorld(x, GOAL_Y1);
+    const b = serverToWorld(x, GOAL_Y2);
+    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+    const len = a.distanceTo(b);
+    const cb = new THREE.Mesh(new THREE.CylinderGeometry(CROSSBAR_R, CROSSBAR_R, len, 8), cbMat);
+    cb.position.set(mid.x, d, mid.z);
+    const dir = new THREE.Vector3().subVectors(b, a).normalize();
+    cb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+    g.add(cb);
+  }
+
+  // Top crossbars (front to back)
+  for (const sy of [GOAL_Y1, GOAL_Y2]) {
+    const a = serverToWorld(frontX, sy);
+    const b = serverToWorld(backX, sy);
+    const mid = new THREE.Vector3().addVectors(a, b).multiplyScalar(0.5);
+    const len = a.distanceTo(b);
+    const cb = new THREE.Mesh(new THREE.CylinderGeometry(CROSSBAR_R * 0.8, CROSSBAR_R * 0.8, len, 6), cbMat);
+    cb.position.set(mid.x, d, mid.z);
+    cb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3().subVectors(b, a).normalize());
+    g.add(cb);
+  }
+
+  //  Net: back + top + 2 side panels, static sag (baked once at build) 
+  // Real-net shape: back panel + sloped top panel (crossbar → lower back edge)
+  // + side panels. Vertices are displaced once to a fixed sag curve — zero
+  // per-frame cost, no physics involvement.
+  const backH  = d * 0.7;           // back top edge (top net slopes down)
+  const outDir = isLeft ? -1 : 1;   // outward = away from field center
+  const CELL   = 13;                // world px per netting square
+
+  // Procedural rope-grid texture (same no-asset convention as the crowd sheet)
+  function makeNetTexture(w, h) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d');
+    x.strokeStyle = '#fff'; x.lineWidth = 3.5; x.lineCap = 'round';
+    for (let i = 0; i <= 128; i += 16) {
+      x.beginPath(); x.moveTo(i + 0.5, 0); x.lineTo(i + 0.5, 128); x.stroke();
+      x.beginPath(); x.moveTo(0, i + 0.5); x.lineTo(128, i + 0.5); x.stroke();
+    }
+    x.fillStyle = '#fff';
+    for (let i = 0; i <= 128; i += 16) {
+      for (let j = 0; j <= 128; j += 16) {
+        x.beginPath(); x.arc(i, j, 2.2, 0, Math.PI * 2); x.fill();
+      }
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(Math.max(1, w / CELL), Math.max(1, h / CELL));
+    return t;
+  }
+
+  // Quad panel with bilinear corner interpolation + per-vertex sag offset.
+  // p00/p10 span u (0→1), p00/p01 span v (0→1); sagFn(u,v) → [dx,dy,dz].
+  function makeNetPanel(p00, p10, p01, p11, segU, segV, sagFn) {
+    const pos = [], uv = [], idx = [];
+    for (let v = 0; v <= segV; v++) {
+      for (let u = 0; u <= segU; u++) {
+        const tu = u / segU, tv = v / segV;
+        const bx = (1-tu)*(1-tv)*p00.x + tu*(1-tv)*p10.x + (1-tu)*tv*p01.x + tu*tv*p11.x;
+        const by = (1-tu)*(1-tv)*p00.y + tu*(1-tv)*p10.y + (1-tu)*tv*p01.y + tu*tv*p11.y;
+        const bz = (1-tu)*(1-tv)*p00.z + tu*(1-tv)*p10.z + (1-tu)*tv*p01.z + tu*tv*p11.z;
+        const s = sagFn(tu, tv);
+        pos.push(bx + s[0], by + s[1], bz + s[2]);
+        uv.push(tu, tv);
+        if (u < segU && v < segV) {
+          const a = v * (segU + 1) + u, b = a + 1, c = a + segU + 1, dd = c + 1;
+          idx.push(a, c, b, b, c, dd);
+        }
+      }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  function addNetPanel(name, p00, p10, p01, p11, segU, segV, w, h, sagFn) {
+    const mesh = new THREE.Mesh(makeNetPanel(p00, p10, p01, p11, segU, segV, sagFn), new THREE.MeshBasicMaterial({
+      color: 0xf8fafc, map: makeNetTexture(w, h),
+      transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false,
+    }));
+    mesh.userData = { net: true, panel: name };
+    g.add(mesh);
+  }
+
+  // Back panel — u along goal width, v along height. Bulges outward, taut at
+  // the anchored top/side edges, loosest at bottom-center.
+  const bwA = serverToWorld(backX, GOAL_Y2), bwB = serverToWorld(backX, GOAL_Y1);
+  addNetPanel('back',
+    new THREE.Vector3(bwA.x, 0, bwA.z), new THREE.Vector3(bwB.x, 0, bwB.z),
+    new THREE.Vector3(bwA.x, backH, bwA.z), new THREE.Vector3(bwB.x, backH, bwB.z),
+    14, 10, GOAL_Y2 - GOAL_Y1, backH,
+    (u, v) => [outDir * 14 * Math.sin(Math.PI * u) * (1 - v), 0, 0]);
+
+  // Top panel — u front→back, v along width. Slopes down from the crossbar to
+  // the lower back edge and droops in the middle (all 4 edges anchored).
+  const tfA = serverToWorld(frontX, GOAL_Y1), tbA = serverToWorld(backX, GOAL_Y1);
+  const tfB = serverToWorld(frontX, GOAL_Y2), tbB = serverToWorld(backX, GOAL_Y2);
+  addNetPanel('top',
+    new THREE.Vector3(tfB.x, d, tfB.z), new THREE.Vector3(tfA.x, d, tfA.z),
+    new THREE.Vector3(tbB.x, backH, tbB.z), new THREE.Vector3(tbA.x, backH, tbA.z),
+    8, 10, GOAL_DEPTH, GOAL_Y2 - GOAL_Y1,
+    (u, v) => [0, -5 * Math.sin(Math.PI * u) * Math.sin(Math.PI * v), 0]);
+
+  // Side panels — u front→back, v along height. Billow outward (z) between
+  // the side post and the back panel, slight droop toward the bottom.
+  for (const sy of [GOAL_Y1, GOAL_Y2]) {
+    const s = serverToWorld(frontX, sy), b = serverToWorld(backX, sy);
+    const zSign = s.z > 0 ? 1 : -1;
+    addNetPanel('side',
+      new THREE.Vector3(s.x, 0, s.z), new THREE.Vector3(b.x, 0, b.z),
+      new THREE.Vector3(s.x, d, s.z), new THREE.Vector3(b.x, backH, b.z),
+      8, 8, GOAL_DEPTH, d,
+      (u, v) => {
+        const f = Math.sin(Math.PI * u) * (1 - v);
+        return [0, -2 * f, zSign * 4 * f];
+      });
+  }
+
+  return g;
+}
+
+goalGroup.add(buildGoal('left'));
+goalGroup.add(buildGoal('right'));
+
+// Testability hook (headless CDP): net geometry stats — panels, vertex counts,
+// world-space extents. ?netinfo also echoes them into document.title.
+window.__netInfo = () => {
+  const stats = [];
+  goalGroup.traverse(o => {
+    if (o.isMesh && o.userData && o.userData.net) {
+      const arr = o.geometry.attributes.position.array;
+      let minX = 1e9, maxX = -1e9, minY = 1e9, maxY = -1e9, minZ = 1e9, maxZ = -1e9;
+      for (let i = 0; i < arr.length; i += 3) {
+        minX = Math.min(minX, arr[i]); maxX = Math.max(maxX, arr[i]);
+        minY = Math.min(minY, arr[i + 1]); maxY = Math.max(maxY, arr[i + 1]);
+        minZ = Math.min(minZ, arr[i + 2]); maxZ = Math.max(maxZ, arr[i + 2]);
+      }
+      stats.push({ panel: o.userData.panel, verts: arr.length / 3, minX, maxX, minY, maxY, minZ, maxZ });
+    }
+  });
+  return stats;
+};
+if (new URLSearchParams(location.search).has('netinfo')) {
+  document.title = JSON.stringify(window.__netInfo());
+}
+
+// Shared stadium audience: seated supporters, natural colors, finite goal reactions.
+let crowdData = null;
+let crowdCheerTimer = null;
+function createCrowd() {
+  return createStadiumAudience(W, H, {
+    paletteName: CUST_CROWD_PALETTE,
+    teamA: CUST_TEAM_A, teamB: CUST_TEAM_B,
+    seatColor: CUST_STADIUM_SEAT,
+    invalidate: requestRender,
+  });
+}
+function triggerCrowdCheer() {
+  if (!crowdData) return;
+  clearTimeout(crowdCheerTimer);
+  crowdData.uniforms.uCheerStart.value = sceneNow() / 1000;
+  crowdData.uniforms.uCheerPhase.value = 1;
+  requestRender();
+  SoundManager.crowdCheer();
+  crowdCheerTimer = setTimeout(() => {
+    if (crowdData) crowdData.uniforms.uCheerPhase.value = 0;
+    requestRender();
+  }, 4800);
+}
+
+//  Ball 
+// Procedural classic-ball texture (white + dark patches + seams) so spin reads
+function makeBallTexture(design, pattern, color) {
+  const c = document.createElement('canvas');
+  c.width = 1024;
+  c.height = 512;
+  const g = c.getContext('2d');
+  g.scale(4, 4);
+  const base = color || '#f8fafc';
+  g.fillStyle = base;
+  g.fillRect(0, 0, 256, 128);
+  // pattern overlay
+  if (pattern === 'stripes') {
+    g.fillStyle = 'rgba(0,0,0,0.08)';
+    for(let i=0;i<256;i+=18) g.fillRect(i,0,9,128);
+  } else if (pattern === 'checker') {
+    g.fillStyle = 'rgba(0,0,0,0.07)';
+    for(let y=0;y<128;y+=24) for(let x=0;x<256;x+=24) if(((x/24+y/24)%2)===0) g.fillRect(x,y,24,24);
+  } else if (pattern === 'dots') {
+    g.fillStyle = 'rgba(0,0,0,0.1)';
+    for(let y=16;y<128;y+=28) for(let x=16;x<256;x+=28){ g.beginPath(); g.arc(x,y,5,0,Math.PI*2); g.fill(); }
+  }
+  g.fillStyle = 'rgba(30, 41, 59, 0.9)';
+  const patch = (x, y, s) => {
+    g.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / 5;
+      const px = x + Math.cos(a) * s;
+      const py = y + Math.sin(a) * s;
+      i ? g.lineTo(px, py) : g.moveTo(px, py);
+    }
+    g.closePath();
+    g.fill();
+  };
+  const isGold = design==='gold';
+  const isNeon = design==='neon';
+  const isRainbow = design==='rainbow';
+  if(isGold) g.fillStyle='#fbbf24';
+  if(isNeon) g.fillStyle='rgba(6,182,212,0.9)';
+  if(isRainbow) g.fillStyle='rgba(236,72,153,0.9)';
+  if(design==='pixel'){ g.fillStyle='rgba(20,20,20,0.95)'; g.fillRect(0,0,256,128); g.fillStyle='#fff'; g.font='bold 44px monospace'; g.textAlign='center'; g.fillText('◼',128,78); }
+  else {
+    if(design==='galaxy'){ g.fillStyle='rgba(139,92,246,0.85)'; }
+    patch(52, 28, 12); patch(128, 20, 10); patch(204, 28, 12);
+    patch(24, 64, 10); patch(90, 64, 13); patch(166, 64, 13); patch(232, 64, 10);
+    patch(52, 100, 12); patch(128, 108, 10); patch(204, 100, 12);
+  }
+  g.strokeStyle = 'rgba(30, 41, 59, 0.5)';
+  g.lineWidth = 2;
+  g.beginPath(); g.moveTo(0, 64); g.lineTo(256, 64); g.stroke();
+  g.beginPath(); g.moveTo(128, 0); g.lineTo(128, 128); g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = textureAnisotropy;
+  return t;
+}
+
+const ballMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  map: makeBallTexture(),
+  roughness: 0.35,
+  metalness: 0.1,
+});
+const ballGeo = new THREE.SphereGeometry(BALL_R, 32, 24);
+const ballMesh = new THREE.Mesh(ballGeo, ballMat);
+ballMesh.castShadow = true;
+ballMesh.position.copy(serverToWorld(W / 2, H / 2));
+ballMesh.position.y = BALL_R;
+scene.add(ballMesh);
+
+// Ball geometry stays fixed; the match decides its physical/rendered radius.
+let ballSizeScale = 1;
+let ballRenderHeight = 0;
+function ballRadius() { return BALL_R * ballSizeScale; }
+function updateBallElevation() {
+  // A rotated, squashed sphere has an ellipsoid support radius along world up.
+  const { x, y, z, w } = ballMesh.quaternion;
+  const { x: sx, y: sy, z: sz } = ballMesh.scale;
+  const support = BALL_R * Math.hypot(2 * (x * y + z * w) * sx,
+    (1 - 2 * (x * x + z * z)) * sy, 2 * (y * z - x * w) * sz);
+  ballMesh.position.y = ballRenderHeight + support;
+}
+function setBallSquash(horizontal = 1, vertical = 1) {
+  ballMesh.scale.set(ballSizeScale * horizontal, ballSizeScale * vertical, ballSizeScale * horizontal);
+  updateBallElevation();
+}
+function syncBallSize(matchState) {
+  const size = matchState?.ball_size;
+  const scale = size === 'small' ? 0.82 : size === 'large' ? 1.18 : 1;
+  if (ballSizeScale === scale) return;
+  ballSizeScale = scale;
+  squashActive = false;
+  setBallSquash();
+  const shadowScale = ballSizeScale * (1 + ballRenderHeight / 350);
+  shadowMesh.scale.set(shadowScale, shadowScale, 1);
+  requestRender();
+}
+function updateBallMesh(sx, sy, sz = 0) {
+  const position = serverToWorld(sx, sy);
+  ballRenderHeight = Math.max(0, Number(sz) || 0);
+  const previous = ballMesh.position.clone();
+  ballMesh.position.copy(position);
+  updateBallElevation();
+  if (!ballMesh.position.equals(previous)) requestRender();
+}
+// Soft ball shadow (radial-gradient blob that fades and grows with height)
+function makeSoftShadowTexture() {
+  const c = document.createElement('canvas');
+  c.width = 128;
+  c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+  grad.addColorStop(0, 'rgba(0, 0, 0, 0.5)');
+  grad.addColorStop(0.6, 'rgba(0, 0, 0, 0.22)');
+  grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+const shadowMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  map: makeSoftShadowTexture(),
+  transparent: true,
+  opacity: 0.3,
+  depthWrite: false,
+});
+const shadowGeo = new THREE.CircleGeometry(BALL_R * 1.5, 16);
+const shadowMesh = new THREE.Mesh(shadowGeo, shadowMat);
+shadowMesh.rotation.x = -Math.PI / 2;
+shadowMesh.position.set(0, 0.1, 0);
+scene.add(shadowMesh);
+
+//  Bounce dust (small puff on ground impact) 
+const DUST_COUNT = 10;
+let dustMesh = null;
+let dust = null;
+function triggerDust(wx, wz) {
+  if (!dustMesh) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(DUST_COUNT * 3), 3));
+    const mat = new THREE.PointsMaterial({
+      color: 0xd8d6c4,
+      size: 5,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+    });
+    dustMesh = new THREE.Points(geo, mat);
+    dustMesh.visible = false;
+    scene.add(dustMesh);
+    dust = {
+      vel: new Float32Array(DUST_COUNT * 3),
+      life: new Float32Array(DUST_COUNT),
+      active: false,
+      age: 0,
+    };
+  }
+  const pos = dustMesh.geometry.attributes.position.array;
+  for (let i = 0; i < DUST_COUNT; i++) {
+    pos[i * 3] = wx + (Math.random() - 0.5) * 12;
+    pos[i * 3 + 1] = 0.4 + Math.random() * 1.2;
+    pos[i * 3 + 2] = wz + (Math.random() - 0.5) * 12;
+    const a = Math.random() * Math.PI * 2;
+    const sp = 1.2 + Math.random() * 2.6;
+    dust.vel[i * 3] = Math.cos(a) * sp;
+    dust.vel[i * 3 + 1] = 0.6 + Math.random() * 1.6;
+    dust.vel[i * 3 + 2] = Math.sin(a) * sp;
+    dust.life[i] = 1;
+  }
+  dust.active = true;
+  dustMesh.visible = true;
+  dust.age = 0;
+  dust.lastTs = sceneNow();
+  dustMesh.geometry.attributes.position.needsUpdate = true;
+  updateParticleBounds(dustMesh);
+  requestRender();
+}
+function tickDust() {
+  if (!dustMesh || !dust.active) return;
+  const now = sceneNow();
+  const dt = Math.min(0.1, (now - dust.lastTs) / 1000 || 0.016);
+  dust.lastTs = now;
+  dust.age += dt;
+  const pos = dustMesh.geometry.attributes.position.array;
+  let alive = false;
+  for (let i = 0; i < DUST_COUNT; i++) {
+    if (dust.life[i] <= 0) continue;
+    pos[i * 3] += dust.vel[i * 3];
+    pos[i * 3 + 1] += dust.vel[i * 3 + 1];
+    pos[i * 3 + 2] += dust.vel[i * 3 + 2];
+    dust.vel[i * 3 + 1] -= 8.4 * dt;
+    dust.life[i] -= 3.3 * dt;
+    if (dust.life[i] > 0) alive = true;
+  }
+  dustMesh.geometry.attributes.position.needsUpdate = true;
+  updateParticleBounds(dustMesh);
+  dustMesh.material.opacity = Math.max(0, 1 - dust.age / 0.25) * 0.85;
+  if (!alive || dust.age > 0.45) {
+    dust.active = false;
+    dustMesh.material.opacity = 0;
+    dustMesh.visible = false;
+  }
+}
+
+// Ball animation state (spin reference, bounce detection, squash spring)
+let prevBallWorld = new THREE.Vector3();
+let prevBz = 0;
+let squashActive = false;
+let squashT = 0;
+function tickBallSquash(now) {
+  if (!squashActive) return;
+  const k = (now - squashT) / 150;
+  if (k >= 1) {
+    squashActive = false;
+    setBallSquash();
+  } else {
+    const s = Math.sin(Math.max(0, k) * Math.PI);
+    setBallSquash(1 + 0.09 * s, 1 - 0.18 * s);
+  }
+}
+
+//  Players (improved — jersey texture, kit, limbs) 
+const playerMeshesA = [];
+const playerMeshesB = [];
+function createPlayerMesh(teamColor, isKeeper = false, stats, number, options = {}) {
+  return createPlayerAvatar(teamColor, isKeeper, stats, number, options);
+}
+
+function addBenchPlayers() {
+  const group = new THREE.Group();
+  const benchMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.8 });
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.7 });
+  // Both benches on the SAME touchline (south side), either side of halfway —
+  // per FIFA/UEFA: "either side of the halfway line, parallel to the
+  // touchline, 5–8 m from the field, nearest point ≥5 m from halfway".
+  // Bench is outside the pitch (server y = H + 60 ≈ 5 m beyond touchline).
+  const benchY = H + 60;
+  const benches = [
+    { x: W / 2 - 320, color: CUST_TEAM_A },
+    { x: W / 2 + 320, color: CUST_TEAM_B },
+  ];
+  for (const benchInfo of benches) {
+    const bench = new THREE.Mesh(new THREE.BoxGeometry(250, 10, 28), benchMat);
+    bench.position.copy(serverToWorld(benchInfo.x, benchY + 12));
+    bench.position.y = 5;
+    group.add(bench);
+    const seat = new THREE.Mesh(new THREE.BoxGeometry(230, 4, 22), seatMat);
+    seat.position.copy(serverToWorld(benchInfo.x, benchY - 2));
+    seat.position.y = 12;
+    group.add(seat);
+    for (let i = 0; i < 4; i++) {
+      const player = createPlayerMesh(hexToThree(benchInfo.color), false, null, 12 + i);
+      player.scale.setScalar(0.78);
+      player.position.copy(serverToWorld(benchInfo.x - 82 + i * 54, benchY + 12));
+      player.position.y = 14;
+      group.add(player);
+    }
+  }
+  scene.add(group);
+}
+function addStadiumDetails() {
+  const roofMat = new THREE.MeshStandardMaterial({color:0x0f172a, roughness:0.85, metalness:0.12});
+  const roofH = 92;
+  // 4 roof slabs over stands
+  const northRoof = new THREE.Mesh(new THREE.BoxGeometry(W+280, 6, 62), roofMat);
+  northRoof.position.copy(serverToWorld(W/2, -34)); northRoof.position.y = roofH; scene.add(northRoof);
+  const southRoof = northRoof.clone(); southRoof.position.copy(serverToWorld(W/2, H+34)); southRoof.position.y = roofH; scene.add(southRoof);
+  const westRoof = new THREE.Mesh(new THREE.BoxGeometry(62, 6, H+100), roofMat);
+  westRoof.position.copy(serverToWorld(-34, H/2)); westRoof.position.y = roofH; scene.add(westRoof);
+  const eastRoof = westRoof.clone(); eastRoof.position.copy(serverToWorld(W+34, H/2)); eastRoof.position.y = roofH; scene.add(eastRoof);
+  // support pillars
+  for (const [sx,sy] of [[W*0.25, -28],[W*0.75,-28],[W*0.25,H+28],[W*0.75,H+28],[-28,H*0.3],[-28,H*0.7],[W+28,H*0.3],[W+28,H*0.7]]) {
+    const pill = new THREE.Mesh(new THREE.CylinderGeometry(3.5,4.2, roofH, 8), new THREE.MeshStandardMaterial({color:0x334155}));
+    pill.position.copy(serverToWorld(sx,sy)); pill.position.y = roofH/2; scene.add(pill);
+  }
+  // scoreboard north stand
+  const boardCan = document.createElement('canvas'); boardCan.width=512; boardCan.height=128;
+  const bctx=boardCan.getContext('2d');
+  bctx.fillStyle='#020617'; bctx.fillRect(0,0,512,128);
+  bctx.fillStyle='#e2e8f0'; bctx.font='bold 44px Space Grotesk'; bctx.textAlign='center'; bctx.fillText('AGENT SOCCER',256,58);
+  bctx.fillStyle='#38bdf8'; bctx.font='600 22px Be Vietnam Pro'; bctx.fillText('LIVE • 0 - 0',256,96);
+  const boardTex=new THREE.CanvasTexture(boardCan); boardTex.colorSpace=THREE.SRGBColorSpace;
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(260, 66), new THREE.MeshBasicMaterial({map:boardTex, transparent:true}));
+  board.position.copy(serverToWorld(W/2, -42)); board.position.y=62; board.lookAt(0,62,0); scene.add(board);
+  window._scoreboardTex = boardTex; window._scoreboardCan = boardCan;
+}
+function updateScoreboard(a,b) {
+  if (!window._scoreboardCan) return;
+  const score = a + ':' + b;
+  if (window._scoreboardScore === score) return;
+  window._scoreboardScore = score;
+  scoreboardUpdates++;
+  const c=window._scoreboardCan.getContext('2d');
+  c.fillStyle='#020617'; c.fillRect(0,0,512,128);
+  c.fillStyle='#e2e8f0'; c.font='bold 44px Space Grotesk'; c.textAlign='center'; c.fillText('AGENT SOCCER',256,58);
+  c.fillStyle='#38bdf8'; c.font='600 26px Be Vietnam Pro'; c.fillText(a+' - '+b,256,96);
+  window._scoreboardTex.needsUpdate=true;
+  requestRender();
+}
+
+//  Game State 
+let gameState = null;
+let isAnimating = false;
+let animSpeed = 1.0;
+let _skipKickerIdx = -1;
+let _skipKickerTeam = '';
+const LOCAL_TURN = { generation: 0, controller: null, timer: null, pending: null };
+
+//  Online match (chat-enabled 1v1 room mode) 
+const ONLINE = {
+  active: false, roomId: null, side: null, ranked: false,
+  nameA: '', nameB: '', lastKick: -1,
+  pollTimer: null, chat: null,
+  polling: false, generation: 0, ready: false, status: null,
+  leaving: false, connectionError: '', pollController: null, moveController: null,
+  rosterStamp: '', resultTimer: null, resultController: null, resultAttempts: 0,
+};
+const ONLINE_LOBBY = { generation: 0, busy: false, waitRoom: null, resumeRoom: null, cancelWait: null };
+
+async function onlineJSON(url, options = {}) {
+  const response = await fetch(url, options);
+  let data;
+  try { data = await response.json(); }
+  catch (_) { throw new Error(response.redirected ? 'Please log in before creating a match.' : 'Could not read the match response. Try again.'); }
+  if (!response.ok || data.error) {
+    const error = new Error(data.error || 'Could not connect to this match. Try again.');
+    error.status = response.status; error.data = data; throw error;
+  }
+  return data;
+}
+
+function lobbyStatus(message) { document.getElementById('online-lobby-status').textContent = message; }
+function lobbyBusy(busy) {
+  ONLINE_LOBBY.busy = busy;
+  document.querySelectorAll('#online-lobby-join button').forEach(button => { button.disabled = busy; });
+}
+function resetLobbyView() {
+  document.getElementById('online-lobby-create').style.display = 'none';
+  document.getElementById('online-lobby-join').style.display = '';
+  document.getElementById('online-lobby-waiting').style.display = 'none';
+}
+function offerResumeRoom(roomId) {
+  ONLINE_LOBBY.resumeRoom = roomId;
+  document.getElementById('online-join-code').value = roomId;
+  if (!ONLINE.active) window.showOnlineLobby(true);
+  lobbyStatus('Your opponent joined. Join this room to continue your match.');
+}
+async function cancelWaitingRoom(roomId) {
+  try {
+    await onlineJSON('/online/' + encodeURIComponent(roomId) + '/leave', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ waiting_only: true }),
+    });
+  } catch (error) {
+    if (error.status === 409) {
+      offerResumeRoom(roomId);
+    }
+  }
+}
+function cancelLobbyWait() {
+  ONLINE_LOBBY.generation++;
+  ONLINE_LOBBY.cancelWait?.(); ONLINE_LOBBY.cancelWait = null;
+  const room = ONLINE_LOBBY.waitRoom; ONLINE_LOBBY.waitRoom = null;
+  lobbyBusy(false); resetLobbyView();
+  if (room) void cancelWaitingRoom(room);
+}
+function lobbyDelay(generation) {
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { if (ONLINE_LOBBY.generation === generation) ONLINE_LOBBY.cancelWait = null; resolve(); }, 1000);
+    ONLINE_LOBBY.cancelWait = () => { clearTimeout(timer); resolve(); };
+  });
+}
+
+function myTeamPlayers() {
+  if (ONLINE.active) return !['a', 'b'].includes(ONLINE.side) ? [] : gameState?.[ONLINE.side === 'a' ? 'players_a' : 'players_b'];
+  return gameState?.[controlAccess(gameState, ONLINE).team === 'b' ? 'players_b' : 'players_a'];
+}
+
+function onlineMyTurn() {
+  return ONLINE.active && controlAccess(gameState, ONLINE, isAnimating).canKick;
+}
+
+window.showOnlineLobby = function(show) {
+  if (show && isAnimating && !ONLINE.active) { playerInput.reportError('Finish the current move before joining an online match.'); return; }
+  const el = document.getElementById('online-lobby');
+  el.classList.toggle('visible', !!show);
+  if (show) {
+    if (!ONLINE_LOBBY.busy && !ONLINE_LOBBY.waitRoom) resetLobbyView();
+    window.AgentSoccerDialogs.open(el, document.getElementById('online-join-code'));
+  }
+  else window.AgentSoccerDialogs.close(el);
+};
+
+window.closeOnlineLobby = function() {
+  cancelLobbyWait();
+  if (RANKED.active || RANKED.joining) void rankedCancel();
+  if (QUICK.active) void quickCancel();
+  window.showOnlineLobby(false);
+};
+
+window.copyInviteLink = function() {
+  const input = document.getElementById('online-invite-link');
+  if (!input.value) return;
+  navigator.clipboard.writeText(input.value).then(() => {
+    const btn = document.getElementById('online-copy-btn');
+    if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy Link'; }, 1500); }
+  }).catch(() => { input.focus(); input.select(); lobbyStatus('Select and copy the invitation link to share it.'); });
+};
+
+window.createOnlineMatch = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
+  const generation = ++ONLINE_LOBBY.generation; lobbyBusy(true);
+  try {
+    const data = await onlineJSON('/online/create', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: document.getElementById('online-room-password').value }) });
+    if (!data.room_id) throw new Error('Could not create a match. Try again.');
+    const roomId = data.room_id;
+    if (generation !== ONLINE_LOBBY.generation) { void cancelWaitingRoom(roomId); return; }
+    ONLINE_LOBBY.waitRoom = roomId;
+    document.getElementById('online-invite-link').value = location.origin + '/play3d?room=' + encodeURIComponent(roomId);
+    document.getElementById('online-lobby-join').style.display = 'none';
+    document.getElementById('online-lobby-create').style.display = 'flex';
+    document.getElementById('online-lobby-waiting').style.display = 'block';
+    document.getElementById('online-invite-link').focus();
+    lobbyStatus('Share this link — the match starts when your friend joins.');
+    for (let i = 0; i < 300 && generation === ONLINE_LOBBY.generation; i++) {
+      await lobbyDelay(generation);
+      if (generation !== ONLINE_LOBBY.generation) return;
+      const state = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/state?since_kick=-1');
+      if (generation !== ONLINE_LOBBY.generation) return;
+      if (state.status === 'active' && state.my_side) {
+        ONLINE_LOBBY.waitRoom = null; lobbyBusy(false);
+        startOnline(state); return;
+      }
+      if (state.status !== 'waiting') throw new Error('This invitation is no longer available. Create another match.');
+      if (i % 10 === 9) lobbyStatus('Still waiting for your opponent to join…');
+    }
+    if (generation === ONLINE_LOBBY.generation) { cancelLobbyWait(); lobbyStatus('The invitation expired. Create a new match to try again.'); }
+  } catch (error) {
+    if (generation !== ONLINE_LOBBY.generation) return;
+    cancelLobbyWait(); lobbyStatus(error.message || 'Could not create a match. Try again.');
+  } finally { if (generation === ONLINE_LOBBY.generation) lobbyBusy(false); }
+};
+
+window.joinOnlineByCode = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
+  const raw = document.getElementById('online-join-code').value.trim();
+  if (!raw) return;
+  let roomId = raw;
+  try { const url = new URL(raw, location.origin); roomId = url.searchParams.get('room') || url.pathname.match(/^\/join\/([a-zA-Z0-9]+)$/)?.[1] || raw; } catch (_) {}
+  if (!/^[a-zA-Z0-9]{6,64}$/.test(roomId)) { lobbyStatus('Enter a valid room code or invitation link.'); return; }
+  const generation = ++ONLINE_LOBBY.generation; lobbyBusy(true);
+  try {
+    const data = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/join', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: document.getElementById('online-room-password').value }) });
+    if (generation !== ONLINE_LOBBY.generation) {
+      if (data.status === 'active' && ['a', 'b'].includes(data.my_side)) offerResumeRoom(roomId);
+      return;
+    }
+    if (!['a', 'b'].includes(data.my_side)) throw new Error('You are not a player in this room.');
+    startOnline(data);
+  } catch (error) { if (generation === ONLINE_LOBBY.generation) lobbyStatus(error.message || 'Could not join this match. Try again.'); }
+  finally { if (generation === ONLINE_LOBBY.generation) lobbyBusy(false); }
+};
+
+function setOnlineUI(active) {
+  document.getElementById('mode-select').disabled = active;
+  document.getElementById('model-select').disabled = active;
+  document.getElementById('aivai-btn').style.display = 'none';
+  document.getElementById('online-btn').style.display = active ? 'none' : '';
+  document.getElementById('online-leave-btn').style.display = active ? '' : 'none';
+  document.getElementById('online-leave-btn').disabled = ONLINE.leaving;
+  document.getElementById('online-leave-btn').textContent = gameState?.game_over ? 'Back to local game' : ONLINE.status === 'waiting' ? 'Cancel match' : 'Leave match';
+  document.querySelectorAll('[onclick="resetGame()"],[onclick="undoMove()"]').forEach(button => { button.disabled = active; });
+  for (const side of ['a', 'b']) {
+    const select = document.getElementById('team-' + side + '-select');
+    if (select) select.disabled = active && (ONLINE.side !== side || !ONLINE.ready || ONLINE.lastKick > 0 || ONLINE.leaving);
+    const formation = document.getElementById('formation-' + side + '-select');
+    if (formation) formation.disabled = active;
+  }
+  voiceBtn().style.display = active && ONLINE.status === 'active' && ['a', 'b'].includes(ONLINE.side) && !VOICE.enabled ? 'block' : 'none';
+  document.getElementById('voice-controls').style.display = active && onlineCanVoice() ? 'flex' : 'none';
+  if (!active) voiceDisconnect();
+}
+
+function updateOnlineBar() {
+  const bar = document.getElementById('online-bar');
+  if (!ONLINE.active) { bar.style.display = 'none'; return; }
+  const me = ONLINE.side === 'a' ? ONLINE.nameA : ONLINE.nameB;
+  const them = ONLINE.side === 'a' ? ONLINE.nameB : ONLINE.nameA;
+  const score = gameState ? (gameState.score_a + ' – ' + gameState.score_b) : '0 – 0';
+  bar.style.display = 'block';
+  bar.textContent = me + '  vs  ' + them + '   ·   ' + score + '   ·   Room ' + String(ONLINE.roomId || '').slice(0, 8)
+    + (ONLINE.ranked ? '   ·   \uD83C\uDFC6 Ranked' : '');
+}
+
+function startOnline(joinData) {
+  if (!joinData?.room_id || !['a', 'b'].includes(joinData.my_side)) {
+    lobbyStatus('You are not a player in this room.'); return;
+  }
+  cancelLocalTurn();
+  ONLINE.generation++;
+  stopOnlineResultRetries(); ONLINE.resultAttempts = 0;
+  ONLINE.pollController?.abort(); ONLINE.moveController?.abort();
+  if (ONLINE.pollTimer) clearInterval(ONLINE.pollTimer);
+  ONLINE.chat?.destroy(); voiceDisconnect();
+  ONLINE_LOBBY.waitRoom = null; ONLINE_LOBBY.resumeRoom = null;
+  ONLINE_LOBBY.generation++; ONLINE_LOBBY.cancelWait?.(); ONLINE_LOBBY.cancelWait = null;
+  lobbyBusy(false);
+  if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
+  RANKED.generation++; RANKED.active = false; RANKED.joining = false; RANKED.polling = false; resetRankedUI();
+  QUICK.generation++; resetQuickUI();
+  ONLINE.active = true;
+  ONLINE.roomId = joinData.room_id;
+  ONLINE.side = joinData.my_side;
+  ONLINE.ranked = !!joinData.ranked;
+  ONLINE.status = joinData.status || 'active';
+  ONLINE.leaving = false; ONLINE.connectionError = ''; ONLINE.polling = false;
+  ONLINE.ready = !!joinData.game; ONLINE.rosterStamp = '';
+  document.getElementById('mode-select').value = 'hvh';
+  RANKED.delta = null;
+  ONLINE.nameA = joinData.name_a || 'Player A';
+  ONLINE.nameB = joinData.name_b || 'Player B';
+  ONLINE.lastKick = joinData.game ? onlineRevision(joinData.game, joinData) : -1;
+  window.showOnlineLobby(false);
+  history.replaceState(null, '', '/play3d?room=' + encodeURIComponent(ONLINE.roomId));
+  setOnlineUI(true);
+  isAnimating = false; animBall = null; _skipKickerIdx = -1; _skipKickerTeam = '';
+  playerInput.cancel();
+  gameState = joinData.game || {
+      ball: { x: W / 2, y: H / 2, z: 0 },
+      players_a: [], players_b: [],
+      score_a: 0, score_b: 0, is_player_a: true, kick_count: 0,
+      game_over: false, game_mode: 'hvh', penalty_shootout: false, referee: null,
+    };
+  rebuildPlayers();
+  updateBallMesh(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
+  shadowMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.y = 0.1;
+  updateHUD(gameState);
+  updateOnlineBar();
+  ONLINE.chat = new ChatPanel({
+    mount: document.getElementById('match-chat-wrap'),
+    scope: 'match', scopeId: ONLINE.roomId,
+    name: 'Match Chat', quickReactions: true, pollMs: 2000, collapsed: true,
+  });
+  if (ONLINE.ready && (gameState.game_over || ['done', 'cancelled'].includes(ONLINE.status))) finishOnline();
+  else { void pollOnline(); ONLINE.pollTimer = setInterval(pollOnline, 1500); }
+}
+
+function commitOnlineGame(game) {
+  if (game.team_a_color) CUST_TEAM_A = game.team_a_color;
+  if (game.team_b_color) CUST_TEAM_B = game.team_b_color;
+  const rosterStamp = JSON.stringify([CUST_TEAM_A, CUST_TEAM_B, ...[game.players_a, game.players_b].map(players =>
+    (players || []).map(player => [player.stats?.size, player.color, player.name, player.number]))]);
+  const changed = rosterStamp !== ONLINE.rosterStamp;
+  gameState = game; ONLINE.ready = true; ONLINE.connectionError = '';
+  if (changed) { ONLINE.rosterStamp = rosterStamp; rebuildPlayers(); }
+  else updatePlayerPositions();
+  if (game.referee) updateRefereeMesh(game.referee.x, game.referee.y);
+  updateHUD(game); updateOnlineBar(); setOnlineUI(true);
+}
+
+function finishOnline() {
+  ONLINE.status = 'done';
+  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  ONLINE.chat?.stop(); voiceDisconnect(); setOnlineUI(true); playerInput.sync();
+  scheduleOnlineResultRetry();
+}
+
+function stopOnlineResultRetries() {
+  if (ONLINE.resultTimer) { clearTimeout(ONLINE.resultTimer); ONLINE.resultTimer = null; }
+  ONLINE.resultController?.abort(); ONLINE.resultController = null;
+}
+
+function scheduleOnlineResultRetry() {
+  if (!ONLINE.active || ONLINE.leaving || ONLINE.status !== 'done' || !ONLINE.ranked || RANKED.delta) { stopOnlineResultRetries(); return; }
+  if (ONLINE.resultTimer || ONLINE.resultController || ONLINE.resultAttempts >= 6) return;
+  const generation = ONLINE.generation, roomId = ONLINE.roomId;
+  ONLINE.resultTimer = setTimeout(() => {
+    ONLINE.resultTimer = null;
+    void retryOnlineResult(roomId, generation);
+  }, 5000);
+}
+
+async function retryOnlineResult(roomId, generation) {
+  const current = () => ONLINE.active && ONLINE.generation === generation && !ONLINE.leaving && ONLINE.status === 'done' && !RANKED.delta;
+  if (!current()) return;
+  ONLINE.resultAttempts++;
+  const controller = new AbortController(); ONLINE.resultController = controller;
+  try {
+    const data = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/state?since_kick=' + ONLINE.lastKick, { signal: controller.signal });
+    if (!current() || controller.signal.aborted) return;
+    if (data.ranked_result) { RANKED.delta = data.ranked_result; updateHUD(gameState); }
+  } catch (error) {
+    if (current() && [401, 403, 404].includes(error.status)) ONLINE.resultAttempts = 6;
+  } finally {
+    if (ONLINE.generation === generation && ONLINE.resultController === controller) {
+      ONLINE.resultController = null;
+      if (current()) { updateHUD(gameState); scheduleOnlineResultRetry(); }
+    }
+  }
+}
+
+async function pollOnline() {
+  if (!ONLINE.active || ONLINE.leaving || (ONLINE.status === 'done' && ONLINE.ready) || ONLINE.polling || isAnimating) return;
+  ONLINE.polling = true;
+  const roomId = ONLINE.roomId, generation = ONLINE.generation;
+  const controller = new AbortController(); ONLINE.pollController = controller;
+  try {
+    let url = '/online/' + ONLINE.roomId + '/state?since_kick=' + ONLINE.lastKick;
+    if (VOICE.enabled) url += '&voice_after=' + VOICE.after;
+    const data = await onlineJSON(url, { signal: controller.signal });
+    if (controller.signal.aborted || !ONLINE.active || ONLINE.generation !== generation || ONLINE.roomId !== roomId || isAnimating) return;
+    if (ONLINE.ready && onlineRevision(data.game, data) < ONLINE.lastKick) return;
+    AW.handle(data);
+    if (!data.game) throw new Error('The match response is missing its game state. Retrying…');
+    if (data.my_side !== ONLINE.side) { await endOnline('You are no longer a player in this room.'); return; }
+    ONLINE.status = data.status;
+    ONLINE.nameA = data.name_a || ONLINE.nameA;
+    ONLINE.nameB = data.name_b || ONLINE.nameB;
+    updateOnlineBar();
+    if (data.voice_signals) {
+      VOICE.after = parseInt(data.voice_after, 10);
+      if (!isNaN(VOICE.after)) {
+        const voiceGeneration = VOICE.generation, peer = VOICE.pc;
+        data.voice_signals.forEach(signal => {
+          VOICE.signalChain = VOICE.signalChain.then(() => {
+            if (VOICE.generation !== voiceGeneration || ONLINE.generation !== generation || VOICE.pc !== peer) return;
+            return handleVoiceSignal(signal);
+          }).catch(() => {});
+        });
+      }
+    }
+    if (data.ranked_result) RANKED.delta = data.ranked_result;
+    if (data.status === 'done' && !data.game.game_over) {
+      data.game.game_over = true;
+      data.game.winner = data.game.score_a > data.game.score_b ? 'A' : data.game.score_a < data.game.score_b ? 'B' : null;
+    }
+    const plan = onlineReplayPlan(data, ONLINE.lastKick);
+    for (const move of plan.moves) {
+      if (!ONLINE.active || ONLINE.generation !== generation) return;
+      await animateOnlineMove(move, data.game, generation);
+    }
+    if (!ONLINE.active || ONLINE.generation !== generation) return;
+    ONLINE.lastKick = plan.revision;
+    commitOnlineGame(data.game);
+    if (data.status === 'done' || data.game.game_over) finishOnline();
+  } catch (error) {
+    if (error.name === 'AbortError' || !ONLINE.active || ONLINE.generation !== generation) return;
+    if ([401, 403, 404].includes(error.status)) { await endOnline(error.message); return; }
+    ONLINE.connectionError = 'Connection lost. Retrying…'; playerInput.sync();
+  } finally {
+    if (ONLINE.generation === generation && ONLINE.pollController === controller) { ONLINE.polling = false; ONLINE.pollController = null; }
+  }
+}
+
+async function endOnline(msg) {
+  const generation = ++ONLINE.generation;
+  stopOnlineResultRetries();
+  ONLINE.pollController?.abort(); ONLINE.moveController?.abort();
+  ONLINE.pollController = null; ONLINE.moveController = null;
+  ONLINE.active = false;
+  ONLINE.polling = false; ONLINE.leaving = false; ONLINE.ready = false;
+  ONLINE.status = null; ONLINE.connectionError = ''; ONLINE.side = null; ONLINE.roomId = null; ONLINE.lastKick = -1;
+  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  if (ONLINE.chat) { ONLINE.chat.destroy(); ONLINE.chat = null; }
+  document.getElementById('match-chat-wrap').innerHTML = '';
+  document.getElementById('online-bar').style.display = 'none';
+  voiceDisconnect();
+  setOnlineUI(false);
+  document.getElementById('match-share-btn').style.display = 'none';
+  document.getElementById('match-share-msg').style.display = 'none';
+  isAnimating = false; animBall = null; _skipKickerIdx = -1; _skipKickerTeam = '';
+  [...playerMeshesA, ...playerMeshesB].forEach(mesh => mesh.userData.setPose?.());
+  gameState = null; playerInput.cancel();
+  const url = new URL(location.href); url.searchParams.delete('room');
+  history.replaceState(null, '', url.pathname + url.search + url.hash);
+  try {
+    const game = await onlineJSON('/state');
+    if (ONLINE.generation !== generation || ONLINE.active) return;
+    gameState = game; document.getElementById('mode-select').value = game.game_mode || 'hvai';
+    rebuildPlayers(); updateHUD(game);
+    if (msg) playerInput.reportError(msg);
+  } catch (error) { if (ONLINE.generation === generation) playerInput.reportError(msg || error.message); }
+}
+
+window.leaveOnlineMatch = async function() {
+  if (!ONLINE.active || ONLINE.leaving) return;
+  if (ONLINE.status === 'active' && !gameState?.game_over && !confirm('Leaving ends this match and awards the win to your opponent. Leave match?')) return;
+  const roomId = ONLINE.roomId, generation = ++ONLINE.generation;
+  stopOnlineResultRetries();
+  ONLINE.leaving = true; ONLINE.pollController?.abort(); ONLINE.moveController?.abort();
+  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  ONLINE.chat?.stop(); voiceDisconnect(); isAnimating = false; animBall = null;
+  _skipKickerIdx = -1; _skipKickerTeam = ''; playerInput.cancel(); setOnlineUI(true);
+  try {
+    await onlineJSON('/online/' + encodeURIComponent(roomId) + '/leave', { method: 'POST' });
+    if (ONLINE.generation === generation) await endOnline();
+  } catch (error) {
+    if (ONLINE.generation !== generation) return;
+    ONLINE.leaving = false; ONLINE.ready = false; ONLINE.lastKick = -1; ONLINE.polling = false;
+    ONLINE.status = 'active'; ONLINE.connectionError = error.message;
+    setOnlineUI(true); playerInput.reportError(error.message);
+    ONLINE.chat?.start(); void pollOnline(); ONLINE.pollTimer = setInterval(pollOnline, 1500);
+  }
+};
+
+async function shareMatchSummary() {
+  if (!ONLINE.roomId) return;
+  const url = location.origin + '/match/' + ONLINE.roomId + '/summary';
+  const msgEl = document.getElementById('match-share-msg');
+  try {
+    await navigator.clipboard.writeText(url);
+  } catch (e) {
+    const ta = document.createElement('textarea');
+    ta.value = url;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e2) {}
+    ta.remove();
+  }
+  msgEl.textContent = 'Link copied — ' + url;
+  msgEl.style.display = 'block';
+  setTimeout(function () { msgEl.style.display = 'none'; }, 5000);
+}
+window.shareMatchSummary = shareMatchSummary;
+
+//  Ranked queue (ELO matchmaking, human players) 
+const RANKED = { active: false, timer: null, delta: null, generation: 0, polling: false, joining: false, cancelling: false, request: null };
+
+function resetRankedUI() {
+  if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
+  document.getElementById('ranked-btn').style.display = '';
+  document.getElementById('ranked-btn').disabled = RANKED.cancelling;
+  document.getElementById('ranked-cancel-btn').style.display = 'none';
+  document.getElementById('ranked-status').style.display = 'none';
+}
+
+window.rankedJoin = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
+  const generation = ++RANKED.generation;
+  RANKED.active = true;
+  document.getElementById('ranked-btn').style.display = 'none';
+  document.getElementById('ranked-cancel-btn').style.display = '';
+  const st = document.getElementById('ranked-status');
+  st.style.display = 'block';
+  st.textContent = 'Joining the ranked queue…';
+  try {
+    RANKED.request = onlineJSON('/ranked/join', { method: 'POST' });
+    const data = await RANKED.request;
+    if (RANKED.generation !== generation || !RANKED.active) { if (data.room_id) offerResumeRoom(data.room_id); return; }
+    if (data.status === 'matched') { await enterRankedMatch(data, generation); return; }
+    updateRankedStatus(data); void pollRankedStatus();
+    RANKED.timer = setInterval(pollRankedStatus, 3000);
+  } catch (error) {
+    if (RANKED.generation !== generation) return;
+    RANKED.active = false; resetRankedUI(); st.style.display = 'block'; st.textContent = error.message;
+  } finally { if (RANKED.generation === generation) RANKED.request = null; }
+};
+
+function updateRankedStatus(data) {
+  const st = document.getElementById('ranked-status');
+  mergeRankedSeason(data);
+  if (data.status === 'waiting') {
+    st.textContent = 'Searching for an opponent\u2026 ' + (data.wait_s || 0) + 's   (rating ' + (data.rating || '') + ')';
+  } else if (data.status === 'idle') {
+    st.textContent = '';
+  }
+}
+
+function mergeRankedSeason(data) {
+  const line = document.getElementById('ranked-season-line');
+  if (!line || !data.season) return;
+  const s = data.season;
+  let text = 'Season ' + s.number;
+  if (s.ends_in_s > 0 && s.status !== 'completed') {
+    const d = Math.floor(s.ends_in_s / 86400);
+    const h = Math.floor((s.ends_in_s % 86400) / 3600);
+    text += d > 0 ? '  ·  ends in ' + d + 'd ' + h + 'h' : '  ·  ends in ' + Math.max(1, Math.floor(s.ends_in_s / 3600)) + 'h';
+  } else if (s.status === 'completed') {
+    text += '  ·  ended';
+  }
+  line.textContent = text;
+}
+
+async function pollRankedStatus() {
+  if (!RANKED.active || RANKED.polling || RANKED.joining) return;
+  const generation = RANKED.generation; RANKED.polling = true;
+  try {
+    const data = await onlineJSON('/ranked/status');
+    if (!RANKED.active || RANKED.generation !== generation) { if (data.room_id) offerResumeRoom(data.room_id); return; }
+    if (data.status === 'matched') { await enterRankedMatch(data, generation); return; }
+    updateRankedStatus(data);
+  } catch (error) { if (RANKED.active && RANKED.generation === generation) document.getElementById('ranked-status').textContent = 'Connection lost. Retrying the ranked search…'; }
+  finally { if (RANKED.generation === generation) RANKED.polling = false; }
+}
+
+async function enterRankedMatch(data, generation = RANKED.generation) {
+  if (RANKED.generation !== generation || RANKED.joining) return;
+  RANKED.joining = true;
+  RANKED.active = false;
+  if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
+  try {
+    const join = await onlineJSON('/online/' + encodeURIComponent(data.room_id) + '/join', { method: 'POST' });
+    if (RANKED.generation !== generation) { offerResumeRoom(data.room_id); return; }
+    resetRankedUI(); startOnline(join);
+  } catch (error) {
+    if (RANKED.generation !== generation) return;
+    resetRankedUI(); lobbyStatus(error.message);
+    document.getElementById('online-join-code').value = data.room_id;
+  } finally { if (RANKED.generation === generation) { RANKED.joining = false; RANKED.polling = false; } }
+}
+
+window.rankedCancel = async function() {
+  if (RANKED.cancelling) return;
+  const generation = ++RANKED.generation;
+  RANKED.active = false; RANKED.joining = false; RANKED.polling = false; RANKED.cancelling = true;
+  resetRankedUI();
+  try {
+    await RANKED.request?.catch(() => {});
+    const data = await onlineJSON('/ranked/cancel', { method: 'POST' });
+    if (data.room_id) offerResumeRoom(data.room_id);
+  } catch (error) { if (RANKED.generation === generation) lobbyStatus(error.message); }
+  finally { RANKED.cancelling = false; if (RANKED.generation === generation) { RANKED.request = null; resetRankedUI(); } }
+};
+
+//  Quick Match (Play — PvP with 8s AI fallback + Player vs AI random) 
+const QUICK = { active: false, timer: null, fallback: null, mode: null, generation: 0, polling: false, joining: false, cancelling: false, request: null };
+window.quickPlayPVP = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || QUICK.active || QUICK.cancelling || RANKED.active || RANKED.joining || RANKED.cancelling) return;
+  const generation = ++QUICK.generation;
+  QUICK.active = true; QUICK.mode = 'pvp';
+  document.getElementById('quick-play-btn').style.display = 'none';
+  document.getElementById('quick-pva-btn').style.display = 'none';
+  document.getElementById('quick-cancel-btn').style.display = '';
+  const box = document.getElementById('quick-loading');
+  const st = document.getElementById('quick-status');
+  box.style.display = 'flex';
+  st.style.display = 'block';
+  st.textContent = 'Searching for an active player…';
+  document.getElementById('quick-loading-text').textContent = 'Searching for opponent…';
+  try {
+    QUICK.request = onlineJSON('/api/quick/join', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:'pvp'}) });
+    const data = await QUICK.request;
+    if (QUICK.generation !== generation || !QUICK.active) { if (data.room_id) offerResumeRoom(data.room_id); return; }
+    if (data.status === 'matched' && data.room_id) { await enterQuickMatch(data.room_id, generation); return; }
+    let secs = 8;
+    const sub = document.getElementById('quick-loading-sub'); sub.textContent = '8s → vs AI';
+    QUICK.fallback = setInterval(() => {
+      if (!QUICK.active || QUICK.generation !== generation) return;
+      secs--; sub.textContent = secs > 0 ? secs+'s → vs AI' : 'no player → vs AI';
+      if (secs <= 0) { clearInterval(QUICK.fallback); QUICK.fallback = null; void handleQuickFallback(generation); }
+    }, 1000);
+    QUICK.timer = setInterval(pollQuickStatus, 1000);
+  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); st.style.display='block'; st.textContent=error.message; } }
+  finally { if (QUICK.generation === generation) QUICK.request = null; }
+};
+window.quickPlayVsAI = async function() {
+  if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || QUICK.active || QUICK.cancelling || RANKED.active || RANKED.joining || RANKED.cancelling) return;
+  const generation = ++QUICK.generation; QUICK.active = true; QUICK.mode = 'pva'; QUICK.joining = true;
+  document.getElementById('quick-play-btn').disabled = true; document.getElementById('quick-pva-btn').disabled = true;
+  try {
+    QUICK.request = onlineJSON('/api/quick/join', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:'pva'}) });
+    const data = await QUICK.request;
+    if (QUICK.generation !== generation || !QUICK.active) return;
+    QUICK.request = startQuickAI(data, generation); await QUICK.request;
+  } catch (error) { if (QUICK.generation === generation) { lobbyStatus(error.message); document.getElementById('quick-status').textContent=error.message; } }
+  finally { if (QUICK.generation === generation) { QUICK.request = null; resetQuickUI(); } }
+};
+async function startQuickAI(data, generation) {
+  const current = () => QUICK.generation === generation && !ONLINE.active;
+  if (!current()) return;
+  cancelLocalTurn();
+  const localGeneration = LOCAL_TURN.generation;
+  const pick = data.ai_model || data.ai_name || 'greedy';
+  isAnimating = true; playerInput.sync();
+  try {
+    await onlineJSON('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model:pick,target:'b'}) });
+    if (!current()) return;
+    await onlineJSON('/set_mode', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:'hvai'}) });
+    if (!current()) return;
+    const game = await onlineJSON('/state');
+    if (!current()) return;
+    gameState = game; document.getElementById('model-select').value = pick; document.getElementById('mode-select').value = 'hvai';
+    rebuildPlayers(); updateHUD(game); window.showOnlineLobby(false);
+  } finally { if (!ONLINE.active && LOCAL_TURN.generation === localGeneration) { isAnimating = false; playerInput.sync(); } }
+}
+async function handleQuickFallback(generation = QUICK.generation) {
+  if (!QUICK.active || QUICK.mode!=='pvp' || QUICK.joining || QUICK.generation !== generation) return;
+  QUICK.joining = true;
+  if (QUICK.timer) { clearInterval(QUICK.timer); QUICK.timer=null; }
+  const st=document.getElementById('quick-status');
+  st.textContent='No player found — matching vs random AI…';
+  try {
+    QUICK.request = onlineJSON('/api/quick/cancel', {method:'POST'});
+    const cancelled = await QUICK.request;
+    if (QUICK.generation !== generation || !QUICK.active) { if (cancelled.room_id) offerResumeRoom(cancelled.room_id); return; }
+    if (cancelled.room_id) { QUICK.joining = false; await enterQuickMatch(cancelled.room_id, generation); return; }
+    QUICK.request = onlineJSON('/api/quick/join', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:'pva'}) });
+    const data = await QUICK.request;
+    if (QUICK.generation !== generation || !QUICK.active) return;
+    QUICK.request = startQuickAI(data, generation); await QUICK.request;
+    if (QUICK.generation === generation) resetQuickUI();
+  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); st.style.display='block'; st.textContent=error.message; } }
+  finally { if (QUICK.generation === generation) { QUICK.joining = false; QUICK.request = null; } }
+}
+async function pollQuickStatus(){
+  if (!QUICK.active || QUICK.polling || QUICK.joining) return;
+  const generation = QUICK.generation; QUICK.polling = true;
+  try {
+    const data = await onlineJSON('/api/quick/status');
+    if (!QUICK.active || QUICK.generation !== generation) { if (data.room_id) offerResumeRoom(data.room_id); return; }
+    if (QUICK.joining) return;
+    if (data.status==='matched' && data.room_id) {
+      if (QUICK.fallback) clearInterval(QUICK.fallback);
+      if (QUICK.timer) { clearInterval(QUICK.timer); QUICK.timer=null; }
+      await enterQuickMatch(data.room_id, generation);
+    }
+  } catch (error) { if (QUICK.active && QUICK.generation === generation) document.getElementById('quick-status').textContent='Connection lost. Retrying the player search…'; }
+  finally { if (QUICK.generation === generation) QUICK.polling = false; }
+}
+async function enterQuickMatch(room_id, generation = QUICK.generation){
+  if (QUICK.generation !== generation || QUICK.joining) return;
+  QUICK.joining = true;
+  if (QUICK.timer) { clearInterval(QUICK.timer); QUICK.timer=null; }
+  if (QUICK.fallback) { clearInterval(QUICK.fallback); QUICK.fallback=null; }
+  try {
+    const join = await onlineJSON('/online/'+encodeURIComponent(room_id)+'/join', {method:'POST'});
+    if (QUICK.generation !== generation || !QUICK.active) { offerResumeRoom(room_id); return; }
+    resetQuickUI(); startOnline(join);
+  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); lobbyStatus(error.message); document.getElementById('online-join-code').value=room_id; } }
+  finally { if (QUICK.generation === generation) QUICK.joining = false; }
+}
+window.quickCancel = async function(){
+  if (QUICK.cancelling) return;
+  const generation = ++QUICK.generation; QUICK.cancelling = true;
+  resetQuickUI();
+  try {
+    await QUICK.request?.catch(() => {});
+    const data = await onlineJSON('/api/quick/cancel',{method:'POST'});
+    if (data.room_id) offerResumeRoom(data.room_id);
+  } catch (error) { if (QUICK.generation === generation) lobbyStatus(error.message); }
+  finally { QUICK.cancelling = false; if (QUICK.generation === generation) { QUICK.request = null; resetQuickUI(); } }
+};
+function resetQuickUI(){
+  QUICK.active=false;
+  QUICK.joining=false; QUICK.polling=false;
+  if (QUICK.timer){ clearInterval(QUICK.timer); QUICK.timer=null; }
+  if (QUICK.fallback){ clearInterval(QUICK.fallback); QUICK.fallback=null; }
+  document.getElementById('quick-play-btn').style.display='';
+  document.getElementById('quick-pva-btn').style.display='';
+  document.getElementById('quick-play-btn').disabled=QUICK.cancelling;
+  document.getElementById('quick-pva-btn').disabled=QUICK.cancelling;
+  document.getElementById('quick-cancel-btn').style.display='none';
+  document.getElementById('quick-loading').style.display='none';
+  const st=document.getElementById('quick-status');
+  const generation=QUICK.generation;
+  setTimeout(()=>{ if(!QUICK.active && QUICK.generation===generation) st.style.display='none'; }, 1800);
+}
+window.quickPlayPVP = window.quickPlayPVP; window.quickPlayVsAI = window.quickPlayVsAI; window.quickCancel = window.quickCancel;
+
+// Match Models picker — list from coding editor (builtins + my models)
+window.openMatchModels = async function(){
+  const modal=document.getElementById('match-models-modal');
+  const list=document.getElementById('match-models-list');
+  list.innerHTML='<div style="font-size:.82rem;color:var(--muted)">Loading models…</div>';
+  modal.style.display='flex';
+  window.AgentSoccerDialogs.open(modal);
+  try{
+    const r=await fetch('/api/quick/models');
+    const d=await r.json();
+    const models=d.models||[];
+    if(!models.length){ list.innerHTML='<div style="font-size:.82rem;color:#ef4444">No models found</div>'; return; }
+    list.innerHTML='';
+    models.forEach(m=>{
+      const row=document.createElement('div');
+      row.style='display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(148,163,184,.2);border-radius:10px;cursor:pointer;background:rgba(255,255,255,.6)';
+      row.innerHTML='<div style="flex:1"><div style="font-size:.85rem;font-weight:700">'+escM(m.name)+'<span style="font-size:.68rem;color:var(--muted);margin-left:6px">'+escM(m.type)+'</span></div><div style="font-size:.72rem;color:var(--muted)">'+escM(m.desc||'')+'</div></div><button class="btn btn-primary btn-sm">Play vs this</button>';
+      row.onclick=()=> playVsModel(m.id);
+      row.querySelector('button').onclick=(e)=>{ e.stopPropagation(); playVsModel(m.id); };
+      list.appendChild(row);
+    });
+  }catch(e){ list.innerHTML='<div style="font-size:.82rem;color:#ef4444">Failed to load</div>'; }
+};
+window.closeMatchModels = function(){ const modal=document.getElementById('match-models-modal');modal.style.display='none';window.AgentSoccerDialogs.close(modal); };
+async function playVsModel(modelId){
+  closeMatchModels();
+  const st=document.getElementById('quick-status');
+  st.style.display='block'; st.textContent='Starting vs '+modelId+'…';
+  try{
+    // close quick queue if active
+    try{ await fetch('/api/quick/cancel',{method:'POST'});}catch(e){}
+    resetQuickUI();
+    await fetch('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model: modelId.replace(/^user_model:/,''), target:'b'}) });
+    closeOnlineLobby();
+    const modeSel=document.getElementById('mode-select'); if(modeSel) modeSel.value='hvai';
+    if (window.setMode) await window.setMode('hvai');
+    st.textContent='Vs '+modelId+' ready';
+    setTimeout(()=> st.style.display='none', 1800);
+  }catch(e){ st.textContent='Failed to start vs '+modelId; }
+}
+function escM(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+
+//  Post-game: Highlights (shot-only) + Player Ratings (WhoScored 6.0 + FIFA)
+function detectHighlights(moves){
+  const SHOT_MIN=50, NEAR_SPEED=400, FAST_SPEED=700, MARGIN=100, MOUTH=100;
+  const GY1=356, GY2=519, TX_A=1380, TX_B=20;
+  function maxSpeed(traj){
+    if(!traj||traj.length<2) return 0;
+    const st=Math.max(1, Math.round((traj.length-1)/100));
+    let mx=0;
+    for(let i=1;i<traj.length;i++){ const d=Math.hypot(traj[i].x-traj[i-1].x, traj[i].y-traj[i-1].y); mx=Math.max(mx, d*60/st); }
+    return mx;
+  }
+  function mouthDist(traj, tx){
+    const sign= tx===20?1:-1;
+    let reached=false, best=Infinity;
+    for(const p of traj){ if((p.x-tx)*sign> MARGIN) continue; reached=true; const yc=Math.min(Math.max(p.y,GY1),GY2); best=Math.min(best, Math.hypot(p.x-tx, p.y-yc)); }
+    return [reached,best];
+  }
+  const hls=[];
+  moves.forEach((m,ki)=>{
+    if(!m.trajectory||m.trajectory.length<2) return;
+    const power = m.power!=null? m.power : 100;
+    if(!m.scored && power < SHOT_MIN) return;
+    if(m.scored){ hls.push({type:'goal', kick:ki+1, label:'Goal — kick '+(ki+1), idx:ki}); return; }
+    const sp=maxSpeed(m.trajectory);
+    if(sp < NEAR_SPEED) return;
+    const tx = m.mover==='b'? TX_B: TX_A;
+    const [reached,best]=mouthDist(m.trajectory, tx);
+    if(reached && best<=MOUTH){ hls.push({type:'near', kick:ki+1, label:'Near miss — kick '+(ki+1), idx:ki}); return; }
+    if(sp>=FAST_SPEED) hls.push({type:'fast', kick:ki+1, label:'Fast play — kick '+(ki+1), idx:ki});
+  });
+  return hls;
+}
+window.showHighlights = function(){
+  const st = gameState || {};
+  const moves = st.move_history || st.history || [];
+  const hls = detectHighlights(moves);
+  const list=document.getElementById('highlights-list');
+  list.innerHTML='';
+  if(!hls.length){ list.innerHTML='<div style="font-size:.82rem;color:#64748b">No shot highlights this match — try a stronger kick (power≥50) on target.</div>'; }
+  else hls.forEach(h=>{
+    const row=document.createElement('div');
+    row.style='padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;display:flex;gap:8px;align-items:center;background:#fff';
+    const badge = h.type==='goal' ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">GOAL</span>' : h.type==='near' ? '<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">NEAR</span>' : '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">FAST</span>';
+    row.innerHTML='<span style="font-size:.82rem;font-weight:600;flex:1;cursor:pointer">'+h.label+'</span>'+badge+'<button class="btn btn-ghost btn-sm" style="font-size:.68rem">Share</button>';
+    row.querySelector('span').onclick=()=>{ closeHighlights(); stepToHighlight(h.idx); };
+    row.querySelector('button').onclick=async(e)=>{
+      e.stopPropagation();
+      const cap=prompt('Caption for social share:', h.label+' — '+(gameState.score_a||0)+'-'+(gameState.score_b||0));
+      if(cap===null) return;
+      try{
+        // try to get last history replay_id for sharing
+        let rid=null;
+        try{ const rh=await fetch('/api/history/replay/'+(gameState.replay_id||'')); if(rh.ok) rid=gameState.replay_id; }catch(e){}
+        if(!rid){
+          const hr=await fetch('/history/watch/'+(document.getElementById('highlights-list')?.dataset?.replay||'')); // fallback
+        }
+        // fallback: share current game as history video (use latest history entry)
+        const hr2=await fetch('/api/social/share',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'highlight', replay_id: h.label, caption: cap})});
+        const d=await hr2.json();
+        if(hr2.ok) alert('Shared to Social!');
+        else alert(d.error||'Failed');
+      }catch(err){ alert('Failed'); }
+    };
+    list.appendChild(row);
+  });
+  document.getElementById('highlights-modal').style.display='flex';
+  window.AgentSoccerDialogs.open(document.getElementById('highlights-modal'));
+};
+function stepToHighlight(idx){
+  requestRender();
+  // simple: highlight that move in log and flash ball
+  const panel=document.getElementById('log-panel');
+  if(panel) panel.scrollTop=0;
+  const moves=(gameState.move_history||[])[idx];
+  if(moves && moves.trajectory) {
+    const end=moves.trajectory[moves.trajectory.length-1];
+    if(end) updateBallMesh(end.x, end.y, end.z || 0);
+  }
+}
+window.closeHighlights = function(){ const modal=document.getElementById('highlights-modal');modal.style.display='none';window.AgentSoccerDialogs.close(modal); };
+window.showPlayerRatings = function(){
+  const st = gameState||{};
+  const moves=st.move_history||[];
+  // WhoScored 6.0 baseline, FIFA 35-attr weighted (Pace/Shooting etc simplified to goals/shots/progress)
+  const players={a: {}, b:{}};
+  // init 3 each
+  for(let i=0;i<3;i++){ players.a[i]={goals:0,shots:0,onTarget:0,progress:0}; players.b[i]={goals:0,shots:0,onTarget:0,progress:0}; }
+  moves.forEach(m=>{
+    const isA = m.mover==='a' || m.player==='A';
+    const side = isA?'a':'b';
+    const pid = m.player_idx!=null? m.player_idx : 0;
+    if(players[side][pid]==null) players[side][pid]={goals:0,shots:0,onTarget:0,progress:0};
+    const traj=m.trajectory||[];
+    const end=traj.length?traj[traj.length-1]:null;
+    const start=traj.length?traj[0]:null;
+    if(m.scored && ((m.scored==='A'&&isA)||(m.scored==='B'&&!isA))) players[side][pid].goals++;
+    // shot = power>=50 and speed>200
+    const power=m.power||0;
+    const sp = (()=>{ if(!traj||traj.length<2) return 0; let mx=0; const stp=Math.max(1,Math.round((traj.length-1)/100)); for(let i=1;i<traj.length;i++) mx=Math.max(mx, Math.hypot(traj[i].x-traj[i-1].x,traj[i].y-traj[i-1].y)*60/stp); return mx; })();
+    if(power>=50 && sp>200) players[side][pid].shots++;
+    if(end && 356<=end.y && end.y<=519) players[side][pid].onTarget++;
+    if(start && end) players[side][pid].progress += (isA? end.x-start.x : start.x-end.x);
+  });
+  const list=document.getElementById('ratings-list');
+  list.innerHTML='';
+  ['a','b'].forEach(side=>{
+    const title=document.createElement('div');
+    title.style='font-size:.78rem;font-weight:800;margin-top:6px;color:#0f172a';
+    title.textContent= side==='a' ? 'Team A (You)' : 'Team B (AI)';
+    list.appendChild(title);
+    for(let i=0;i<3;i++){
+      const p=players[side][i];
+      // FIFA: Pace/Shooting... simplified to rating 6.0 + goal*1.8 + shot*0.4 + onTarget*0.5 + progress/800, capped 4-10, rare 10 needs 2+ goals
+      let r = 6.0 + p.goals*1.8 + p.shots*0.35 + p.onTarget*0.45 + Math.max(-0.8, Math.min(1.2, p.progress/900));
+      r = Math.max(4.0, Math.min(10.0, r));
+      // nudge for hat-trick style: if 0 goals and negative progress, drop a bit
+      const width = ((r-4)/6)*100;
+      const col = r>=8.5? '#16a34a' : r>=7?'#0ea5e9' : r>=6?'#64748b' : '#ef4444';
+      const row=document.createElement('div');
+      row.style='display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff';
+      row.innerHTML='<span style="width:28px;font-weight:700;text-align:center;background:'+col+';color:#fff;border-radius:6px;padding:3px 0">'+r.toFixed(1)+'</span><span style="flex:1;font-size:.82rem;font-weight:600">Player '+(i+1)+' — '+p.goals+'G '+p.shots+'S '+p.onTarget+'T</span><span style="width:90px;height:8px;background:#f1f5f9;border-radius:999px;overflow:hidden"><span style="display:block;height:100%;width:'+width+'%;background:'+col+'"></span></span>';
+      list.appendChild(row);
+    }
+  });
+  document.getElementById('ratings-modal').style.display='flex';
+  window.AgentSoccerDialogs.open(document.getElementById('ratings-modal'));
+};
+window.closeRatings = function(){ const modal=document.getElementById('ratings-modal');modal.style.display='none';window.AgentSoccerDialogs.close(modal); };
+
+//  Voice chat (1v1 P2P WebRTC, STUN-only) 
+const VOICE = {
+  pc: null, localStream: null, localTrack: null, audioEl: null,
+  enabled: false, connected: false, after: -1, oppMuted: false,
+  icePending: [], starting: false, generation: 0, signalChain: Promise.resolve(),
+};
+const VOICE_ICE = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+function voiceBtn()      { return document.getElementById('voice-btn'); }
+function voicePanel()    { return document.getElementById('voice-panel'); }
+function voiceStatusEl() { return document.getElementById('voice-status'); }
+function voiceMicBtn()   { return document.getElementById('voice-mic-btn'); }
+function voiceOppMuted() { return document.getElementById('voice-opp-muted'); }
+function onlineCanVoice() { return ONLINE.active && ONLINE.status === 'active' && !ONLINE.leaving && ['a', 'b'].includes(ONLINE.side); }
+
+function setVoiceStatus(text, cls) {
+  const el = voiceStatusEl();
+  el.className = cls || '';
+  el.innerHTML = '<span class="dot"></span>' + text;
+}
+
+function showVoiceUi(show) {
+  document.getElementById('voice-controls').style.display = onlineCanVoice() ? 'flex' : 'none';
+  voiceBtn().style.display = onlineCanVoice() && !show ? 'block' : 'none';
+  voicePanel().style.display = show ? 'flex' : 'none';
+}
+
+function sendVoice(sig, peer = VOICE.pc) {
+  if (!onlineCanVoice() || !VOICE.enabled || peer !== VOICE.pc) return;
+  fetch('/online/' + ONLINE.roomId + '/voice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(sig),
+  }).catch(function() {});
+}
+
+window.voiceEnable = async function() {
+  if (VOICE.enabled || VOICE.starting || !onlineCanVoice()) return;
+  if (!navigator.mediaDevices?.getUserMedia) {
+    showVoiceUi(true); setVoiceStatus('Voice requires HTTPS or localhost.', 'v-bad'); return;
+  }
+  const generation = ++VOICE.generation, roomGeneration = ONLINE.generation;
+  VOICE.starting = true; showVoiceUi(true); setVoiceStatus('Voice: requesting microphone…', 'v-busy');
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (err) {
+    if (VOICE.generation !== generation || ONLINE.generation !== roomGeneration) return;
+    VOICE.starting = false;
+    showVoiceUi(true);
+    setVoiceStatus('Voice: mic permission denied', 'v-bad');
+    return;
+  }
+  if (VOICE.generation !== generation || ONLINE.generation !== roomGeneration || !onlineCanVoice()) {
+    stream.getTracks().forEach(track => track.stop()); return;
+  }
+  VOICE.starting = false;
+  const pc = new RTCPeerConnection(VOICE_ICE);
+  VOICE.pc = pc;
+  VOICE.localStream = stream;
+  VOICE.localTrack = stream.getAudioTracks()[0] || null;
+  if (VOICE.localTrack) pc.addTrack(VOICE.localTrack, stream);
+  const remote = new MediaStream();
+  pc.ontrack = function(e) {
+    if (VOICE.pc !== pc || !VOICE.enabled || ONLINE.generation !== roomGeneration) return;
+    e.streams.forEach(function(s) { s.getAudioTracks().forEach(function(t) { remote.addTrack(t); }); });
+    if (!VOICE.audioEl) {
+      VOICE.audioEl = new Audio();
+      VOICE.audioEl.autoplay = true;
+      VOICE.audioEl.srcObject = remote;
+      VOICE.audioEl.play().catch(function() {});
+    }
+  };
+  pc.onicecandidate = function(e) {
+    if (e.candidate) sendVoice({ type: 'ice', data: { candidate: e.candidate } }, pc);
+  };
+  pc.onconnectionstatechange = updateVoiceState;
+  pc.oniceconnectionstatechange = updateVoiceState;
+  VOICE.enabled = true;
+  VOICE.after = -1;
+  VOICE.oppMuted = false;
+  VOICE.icePending = [];
+  voiceOppMuted().style.display = 'none';
+  showVoiceUi(true);
+  setVoiceStatus('Voice: connecting…', 'v-busy');
+  updateVoiceMicBtn();
+  if (ONLINE.side === 'a') {
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      sendVoice({ type: 'offer', data: { sdp: pc.localDescription.sdp } }, pc);
+    } catch (err) { /* state handler will surface failure */ }
+  }
+  pollOnline();
+};
+
+function updateVoiceState() {
+  if (!VOICE.pc || !VOICE.enabled) return;
+  const st = VOICE.pc.connectionState || VOICE.pc.iceConnectionState;
+  if (st === 'connected' || st === 'completed') {
+    VOICE.connected = true;
+    setVoiceStatus('Voice: connected', 'v-ok');
+  } else if (st === 'connecting' || st === 'checking' || st === 'new') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: connecting…', 'v-busy');
+  } else if (st === 'disconnected') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: connection lost', 'v-bad');
+  } else if (st === 'failed') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: failed (P2P blocked? no TURN)', 'v-bad');
+  } else if (st === 'closed') {
+    VOICE.connected = false;
+    setVoiceStatus('Voice: disconnected', '');
+  }
+}
+
+function updateVoiceMicBtn() {
+  const muted = !VOICE.localTrack || !VOICE.localTrack.enabled;
+  voiceMicBtn().textContent = muted ? 'Unmute' : 'Mute';
+  voiceMicBtn().classList.toggle('muted', muted);
+  voiceMicBtn().title = muted ? 'Unmute microphone' : 'Mute microphone';
+}
+
+window.voiceToggle = function() {
+  if (!onlineCanVoice()) return;
+  if (VOICE.enabled || VOICE.starting) { voiceDisconnect(); } else { voiceEnable(); }
+};
+
+window.voiceToggleMic = function() {
+  if (!VOICE.enabled || !VOICE.localTrack) return;
+  VOICE.localTrack.enabled = !VOICE.localTrack.enabled;
+  updateVoiceMicBtn();
+  sendVoice({ type: 'mute', data: { muted: !VOICE.localTrack.enabled } });
+};
+
+window.voiceDisconnect = function() {
+  VOICE.generation++; VOICE.starting = false; VOICE.signalChain = Promise.resolve();
+  if (VOICE.pc) {
+    VOICE.pc.onicecandidate = null;
+    VOICE.pc.ontrack = null;
+    VOICE.pc.onconnectionstatechange = null;
+    VOICE.pc.oniceconnectionstatechange = null;
+    VOICE.pc.close();
+    VOICE.pc = null;
+  }
+  if (VOICE.localStream) {
+    VOICE.localStream.getTracks().forEach(function(t) { t.stop(); });
+    VOICE.localStream = null;
+  }
+  if (VOICE.audioEl) {
+    VOICE.audioEl.srcObject = null;
+    VOICE.audioEl.pause();
+    VOICE.audioEl = null;
+  }
+  VOICE.localTrack = null;
+  VOICE.enabled = false;
+  VOICE.connected = false;
+  VOICE.after = -1;
+  VOICE.oppMuted = false;
+  VOICE.icePending = [];
+  voiceOppMuted().style.display = 'none';
+  showVoiceUi(false);
+  setVoiceStatus('Voice: off', '');
+};
+
+function flushVoiceIce(pc = VOICE.pc) {
+  if (!pc || pc !== VOICE.pc || !VOICE.enabled) return;
+  VOICE.icePending.forEach(function(c) {
+    if (pc.remoteDescription && pc.remoteDescription.type) {
+      pc.addIceCandidate(new RTCIceCandidate(c)).catch(function() {});
+    }
+  });
+  VOICE.icePending = [];
+}
+
+async function handleVoiceSignal(sig) {
+  if (!VOICE.pc || !VOICE.enabled) return;
+  const pc = VOICE.pc;
+  if (sig.type === 'offer') {
+    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: sig.data.sdp }));
+    if (pc !== VOICE.pc || !VOICE.enabled) return;
+    flushVoiceIce(pc);
+    const answer = await pc.createAnswer();
+    if (pc !== VOICE.pc || !VOICE.enabled) return;
+    await pc.setLocalDescription(answer);
+    sendVoice({ type: 'answer', data: { sdp: pc.localDescription.sdp } }, pc);
+  } else if (sig.type === 'answer') {
+    await pc.setRemoteDescription(new RTCSessionDescription({ type: 'answer', sdp: sig.data.sdp }));
+    flushVoiceIce(pc);
+  } else if (sig.type === 'ice') {
+    if (sig.data && sig.data.candidate) {
+      if (pc.remoteDescription && pc.remoteDescription.type) {
+        pc.addIceCandidate(new RTCIceCandidate(sig.data.candidate)).catch(function() {});
+      } else {
+        VOICE.icePending.push(sig.data.candidate);
+      }
+    }
+  } else if (sig.type === 'mute') {
+    VOICE.oppMuted = !!(sig.data && sig.data.muted);
+    voiceOppMuted().style.display = VOICE.oppMuted ? 'inline-block' : 'none';
+  }
+}
+
+window.__voiceState = function() {
+  const pc = VOICE.pc;
+  return {
+    active: ONLINE.active, enabled: VOICE.enabled, starting: VOICE.starting, connected: VOICE.connected,
+    after: VOICE.after, oppMuted: VOICE.oppMuted, hasPc: !!pc,
+    micMuted: !!VOICE.localTrack && !VOICE.localTrack.enabled,
+    statusText: voiceStatusEl().textContent,
+    panelShown: voicePanel().style.display !== 'none',
+    pcState: pc ? (pc.connectionState || 'null') : null,
+    iceState: pc ? (pc.iceConnectionState || 'null') : null,
+    gatherState: pc ? (pc.iceGatheringState || 'null') : null,
+    remoteDesc: pc && pc.remoteDescription ? pc.remoteDescription.type : null,
+    pendingIce: VOICE.icePending.length,
+  };
+};
+
+async function animateOnlineMove(move, game, generation = ONLINE.generation) {
+  const current = () => ONLINE.active && ONLINE.generation === generation && !ONLINE.leaving;
+  if (!current()) return;
+  isAnimating = true;
+  playerInput.sync();
+  try {
+    const team = move.mover === 'a' ? 'a' : 'b';
+    const players = team === 'a' ? game.players_a : game.players_b;
+    const kickerPos = players && players[move.player_idx];
+    if (kickerPos) playPositional(_kickBuf, serverToWorld(kickerPos.x, kickerPos.y), { volume: 0.7 });
+    const isPenalty = move.is_penalty ?? !!gameState.penalty_shootout;
+    if (isPenalty) {
+      await new Promise(r => animateTrajectory3D(move.trajectory, r, current));
+    } else {
+      const t0 = move.trajectory && move.trajectory[0];
+      const from = t0 && t0[team] && t0[team][move.player_idx]
+        ? { x: t0[team][move.player_idx].x, y: t0[team][move.player_idx].y }
+        : players?.[move.player_idx];
+      if (!from) return;
+      await animateKickTrajectory(move, team, from, current, animSpeed);
+    }
+    if (!current()) return;
+    syncBall(move.trajectory, move.scored);
+    logMove(move.desc, !!move.scored);
+    if (move.scored) {
+      SoundManager.goal();
+      triggerGoalEffect3D(typeof move.scored === 'string' ? move.scored.toLowerCase() : team);
+      triggerCrowdCheer();
+    }
+  } finally {
+    if (current()) { isAnimating = false; _skipKickerIdx = -1; _skipKickerTeam = ''; playerInput.sync(); }
+  }
+}
+
+async function submitOnlineKick(playerIdx, angleDeg, power) {
+  const legal = controlAccess(gameState, ONLINE, isAnimating);
+  if (!legal.canKick || !legal.indices.includes(playerIdx)) return;
+  isAnimating = true; playerInput.sync();
+  const roomId = ONLINE.roomId, generation = ONLINE.generation;
+  ONLINE.pollController?.abort(); ONLINE.pollController = null; ONLINE.polling = false;
+  const controller = new AbortController(); ONLINE.moveController = controller;
+  try {
+    const data = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/move', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ player_idx: playerIdx, angle: angleDeg, power, expected_move_count: ONLINE.lastKick }), signal: controller.signal,
+    });
+    if (!ONLINE.active || ONLINE.generation !== generation) return;
+    if (!data.move_result || !data.game) throw new Error('Could not read your move. Refreshing the match…');
+    AW.handle(data);
+    ONLINE.lastKick = onlineRevision(data.game, data);
+    if (data.ranked_result) RANKED.delta = data.ranked_result;
+    await animateOnlineMove(data.move_result, data.game, generation);
+    if (!ONLINE.active || ONLINE.generation !== generation) return;
+    commitOnlineGame(data.game);
+    if (data.game.game_over || data.status === 'done') finishOnline();
+  } catch (error) {
+    if (error.name === 'AbortError' || !ONLINE.active || ONLINE.generation !== generation) return;
+    if ([400, 409].includes(error.status) || !error.status) { ONLINE.ready = false; ONLINE.lastKick = -1; }
+    throw error;
+  } finally {
+    if (ONLINE.generation === generation) {
+      isAnimating = false; _skipKickerIdx = -1; _skipKickerTeam = ''; ONLINE.moveController = null;
+      playerInput.sync(); if (!ONLINE.ready) void pollOnline();
+    }
+  }
+}
+
+let CUST_TEAM_A = '#3b82f6';
+let CUST_TEAM_B = '#ef4444';
+let CUST_CROWD_PALETTE = 'classic';
+let CUST_STADIUM_SEAT = '#475569';
+
+// Penalty timer refs
+let keepTimer = null;
+let penaltyShootTimer = null;
+
+// One reusable aim guide; no geometry allocation on pointer movement.
+let aimVisuals = null;
+
+// Animated ball position
+let animBall = null;
+
+// Goal celebration particles (Three.js Points)
+let goalParticles = null;
+let goalParticlesMesh = null;
+
+function triggerGoalEffect3D(team) {
+  if (goalParticlesMesh) {
+    scene.remove(goalParticlesMesh);
+    goalParticlesMesh.geometry.dispose();
+    goalParticlesMesh.material.dispose();
+    goalParticlesMesh = null;
+  }
+  const color = team === 'a' ? hexToThree(CUST_TEAM_A) : hexToThree(CUST_TEAM_B);
+  const count = 80;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const vel = [];
+  const life = [];
+  const decay = [];
+  const goalWorld = serverToWorld(team === 'a' ? W - 20 : 20, H / 2);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = goalWorld.x + (Math.random() - 0.5) * 160;
+    positions[i * 3 + 1] = Math.random() * 100 + 30;
+    positions[i * 3 + 2] = goalWorld.z + (Math.random() - 0.5) * 160;
+    const c = color.clone().lerp(new THREE.Color(0xffffff), Math.random() * 0.5);
+    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+    vel.push({ x: (Math.random() - 0.5) * 8, y: Math.random() * 6 + 2, z: (Math.random() - 0.5) * 8 });
+    life.push(1);
+    decay.push(0.006 + Math.random() * 0.012);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  const mat = new THREE.PointsMaterial({
+    size: 5, vertexColors: true, transparent: true, opacity: 1,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  goalParticlesMesh = new THREE.Points(geo, mat);
+  updateParticleBounds(goalParticlesMesh);
+  scene.add(goalParticlesMesh);
+  goalParticles = { positions, colors, vel, life, decay, count, age: 0, active: true };
+  requestRender();
+}
+
+function tickGoalParticles(now, dtMs) {
+  if (!goalParticles || !goalParticles.active || !goalParticlesMesh) return;
+  const p = goalParticles;
+  const step = Math.min(100, dtMs) / (1000 / 60);
+  let alive = false;
+  const pos = p.positions;
+  for (let i = 0; i < p.count; i++) {
+    if (p.life[i] <= 0) continue;
+    pos[i * 3] += p.vel[i].x * step;
+    p.vel[i].y -= 0.15 * step;
+    pos[i * 3 + 1] += p.vel[i].y * step;
+    pos[i * 3 + 2] += p.vel[i].z * step;
+    p.vel[i].x *= Math.pow(0.99, step);
+    p.vel[i].z *= Math.pow(0.99, step);
+    p.life[i] -= p.decay[i] * step;
+    if (p.life[i] > 0) alive = true;
+  }
+  p.age = (p.age || 0) + dtMs;
+  goalParticlesMesh.material.opacity = Math.max(0, Math.min(1, 1 - (p.age - 200) / 2000));
+  goalParticlesMesh.geometry.attributes.position.needsUpdate = true;
+  updateParticleBounds(goalParticlesMesh);
+  if (!alive || goalParticlesMesh.material.opacity <= 0) {
+    scene.remove(goalParticlesMesh);
+    goalParticlesMesh.geometry.dispose();
+    goalParticlesMesh.material.dispose();
+    goalParticlesMesh = null;
+    goalParticles = null;
+  }
+}
+
+function hexToThree(c) {
+  return new THREE.Color(c);
+}
+
+function getTeamColor(team) {
+  return team === 'a' ? hexToThree(CUST_TEAM_A) : hexToThree(CUST_TEAM_B);
+}
+
+function rebuildPlayers() {
+  requestRender();
+  disposePlayerMeshes([...playerMeshesA, ...playerMeshesB]);
+  playerMeshesA.length = 0;
+  playerMeshesB.length = 0;
+
+  if (!gameState) return;
+  syncBallSize(gameState);
+  const count = Math.max(gameState.players_a.length, gameState.players_b.length);
+
+  for (let i = 0; i < gameState.players_a.length; i++) {
+    const p = gameState.players_a[i];
+    const num = i + 1;
+    const col = p.color || CUST_TEAM_A;
+    const mesh = createPlayerMesh(hexToThree(col), i === 0, p.stats, num, { side: 'a', seed: i });
+    mesh.position.copy(serverToWorld(p.x, p.y));
+    playerMeshesA.push(mesh);
+    scene.add(mesh);
+  }
+  for (let i = 0; i < gameState.players_b.length; i++) {
+    const p = gameState.players_b[i];
+    const num = i + 1;
+    const col = p.color || CUST_TEAM_B;
+    const mesh = createPlayerMesh(hexToThree(col), i === 0, p.stats, num, { side: 'b', seed: i });
+    mesh.position.copy(serverToWorld(p.x, p.y));
+    playerMeshesB.push(mesh);
+    scene.add(mesh);
+  }
+  updatePlayerPositions();
+  if (gameState.referee) updateRefereeMesh(gameState.referee.x, gameState.referee.y);
+}
+
+function updatePlayerPositions(syncControls = true) {
+  if (!gameState || !gameState.players_a || !gameState.players_b) return;
+  let changed = false;
+  for (let i = 0; i < playerMeshesA.length && i < gameState.players_a.length; i++) {
+    const p = gameState.players_a[i];
+    if (_skipKickerTeam === 'a' && _skipKickerIdx === i) continue;
+    const position = serverToWorld(p.x, p.y);
+    if (!playerMeshesA[i].position.equals(position)) {
+      playerMeshesA[i].position.copy(position);
+      changed = true;
+    }
+  }
+  for (let i = 0; i < playerMeshesB.length && i < gameState.players_b.length; i++) {
+    const p = gameState.players_b[i];
+    if (_skipKickerTeam === 'b' && _skipKickerIdx === i) continue;
+    const position = serverToWorld(p.x, p.y);
+    if (!playerMeshesB[i].position.equals(position)) {
+      playerMeshesB[i].position.copy(position);
+      changed = true;
+    }
+  }
+  if (gameState.ball) {
+    const activeBall = animBall || gameState.ball;
+    const ball = serverToWorld(activeBall.x, activeBall.y);
+    for (const mesh of playerMeshesA) {
+      const rotation = mesh.quaternion.clone();
+      const target = new THREE.Vector3(ball.x, mesh.position.y, ball.z);
+      if (target.distanceToSquared(mesh.position) > 1) mesh.lookAt(target);
+      if (!rotation.equals(mesh.quaternion)) changed = true;
+    }
+    for (const mesh of playerMeshesB) {
+      const rotation = mesh.quaternion.clone();
+      const target = new THREE.Vector3(ball.x, mesh.position.y, ball.z);
+      if (target.distanceToSquared(mesh.position) > 1) mesh.lookAt(target);
+      if (!rotation.equals(mesh.quaternion)) changed = true;
+    }
+  }
+  if (syncControls) playerInput.sync();
+  if (changed) requestRender();
+}
+
+// Mouse, touch, HUD and keyboard share the same command and turn rules.
+const playerInput = createPlayerInput({
+  canvas: renderer.domElement,
+  getState: () => gameState, getOnline: () => ONLINE, isBusy: () => isAnimating || !!LOCAL_TURN.pending,
+  getGround: (x, y) => { const point = getGroundPoint(x, y); return point ? worldToServer(point) : null; },
+  hitTest: pickControllablePlayer,
+  onAim: updateDragVisuals, onClear: clearDragVisuals,
+  onSelect: (team, index, active) => {
+    for (const [side, meshes] of [['a', playerMeshesA], ['b', playerMeshesB]]) {
+      meshes.forEach((mesh, i) => {
+        const selected = active && side === team && i === index;
+        if (mesh.userData.ring?.visible !== selected) { mesh.userData.setSelected?.(selected); requestRender(); }
+      });
+    }
+  },
+  onKick: submitKick, onDirty: requestRender,
+  onHover: showCaptainHint,
+  getOrbitEnabled: () => controls.enabled, setOrbitEnabled: value => { controls.enabled = value; },
+});
+window.setPassType = value => playerInput.setPassType(value);
+window.__playerControlState = () => playerInput.snapshot();
+
+// Teams and formations
+let TEAMS_CACHE = [];
+async function loadTeams() {
+  try {
+    const r = await fetch('/api/teams');
+    const teams = await r.json();
+    TEAMS_CACHE = teams;
+    const aSel = document.getElementById('team-a-select');
+    const bSel = document.getElementById('team-b-select');
+    if (!aSel || !bSel) return;
+    aSel.innerHTML = '<option value="">— Team A —</option>';
+    bSel.innerHTML = '<option value="">— Team B —</option>';
+    for (const tm of teams) {
+      const o1 = document.createElement('option'); o1.value = tm.id; o1.textContent = tm.crest + ' ' + tm.name;
+      const o2 = o1.cloneNode(true);
+      aSel.appendChild(o1); bSel.appendChild(o2);
+    }
+    // set defaults from current gameState or room
+    if (typeof gameState !== 'undefined' && gameState) {
+      if (gameState.team_a) aSel.value = gameState.team_a;
+      if (gameState.team_b) bSel.value = gameState.team_b;
+    }
+  } catch(e) {}
+}
+loadTeams();
+async function loadFormations() {
+  try {
+    const r = await fetch('/api/formations');
+    const data = await r.json();
+    const aSel = document.getElementById('formation-a-select');
+    const bSel = document.getElementById('formation-b-select');
+    if (!aSel || !bSel) return;
+    aSel.innerHTML = ''; bSel.innerHTML = '';
+    for (const f of data.formations) {
+      const o1 = document.createElement('option'); o1.value=f; o1.textContent=f;
+      const o2 = o1.cloneNode(true);
+      aSel.appendChild(o1); bSel.appendChild(o2);
+    }
+    // set to manager defaults
+    const updateManager = (teamId, side) => {
+      const mgr = data.managers[teamId];
+      const el = document.getElementById(side==='a' ? 'manager-a' : 'manager-b');
+      const sel = document.getElementById(side==='a' ? 'formation-a-select' : 'formation-b-select');
+      if (mgr && el) el.textContent = 'Manager: ' + mgr.name + ' (' + mgr.style + ')';
+      if (mgr && sel) sel.value = mgr.formation;
+    };
+    // hook team change to update manager/formation
+    document.getElementById('team-a-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'a'); });
+    document.getElementById('team-b-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'b'); });
+    // also listen formation change to trigger reset
+    aSel.addEventListener('change', async e => {
+      if (ONLINE.active || isAnimating) return;
+      const generation = ONLINE.generation;
+      const a = document.getElementById('team-a-select').value;
+      const b = document.getElementById('team-b-select').value;
+      if (a && b && a!==b) {
+        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: e.target.value, formation_b: bSel.value})});
+        const st = await fetch('/state').then(r=>r.json());
+        if (ONLINE.active || ONLINE.generation !== generation) return;
+        gameState=st; rebuildPlayers(); updateHUD(st);
+      }
+    });
+    bSel.addEventListener('change', async e => {
+      if (ONLINE.active || isAnimating) return;
+      const generation = ONLINE.generation;
+      const a = document.getElementById('team-a-select').value;
+      const b = document.getElementById('team-b-select').value;
+      if (a && b && a!==b) {
+        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: aSel.value, formation_b: e.target.value})});
+        const st = await fetch('/state').then(r=>r.json());
+        if (ONLINE.active || ONLINE.generation !== generation) return;
+        gameState=st; rebuildPlayers(); updateHUD(st);
+      }
+    });
+    // referee
+    const refR = await fetch('/api/referees').then(r=>r.json());
+    const ref = refR[Math.floor(Math.random()*refR.length)];
+    const refEl = document.getElementById('referee-display');
+    if (refEl) refEl.textContent = 'Referee: ' + ref.name + ' (' + ref.country + ')';
+  } catch(e) {}
+}
+loadFormations();
+
+async function chooseTeam(side, teamId) {
+  const errEl = document.getElementById('team-error');
+  if (errEl) errEl.style.display='none';
+  if (isAnimating || ONLINE.leaving || (ONLINE.active && (side !== ONLINE.side || !ONLINE.ready || ONLINE.lastKick > 0))) {
+    if (errEl) { errEl.textContent = ONLINE.lastKick > 0 ? 'Choose your team before the first kick.' : 'Only your own team can be selected before kickoff.'; errEl.style.display='block'; }
+    return;
+  }
+  const generation = ONLINE.generation;
+  // offline: just save to local and reset game with team
+  if (!ONLINE.active) {
+    // store in localStorage and trigger reset with team
+    localStorage.setItem('team_' + side, teamId);
+    // disable same team on other select
+    const other = side === 'a' ? document.getElementById('team-b-select') : document.getElementById('team-a-select');
+    if (other) {
+      for (const opt of other.options) { opt.disabled = (opt.value && opt.value === teamId); }
+    }
+    // also update formation to manager default
+    try {
+      const r = await fetch('/api/formations').then(x=>x.json());
+      const mgr = r.managers[teamId];
+      const fSel = document.getElementById(side==='a' ? 'formation-a-select' : 'formation-b-select');
+      if (mgr && fSel) { fSel.value = mgr.formation; document.getElementById(side==='a' ? 'manager-a' : 'manager-b').textContent = 'Manager: ' + mgr.name; }
+    } catch(e) {}
+    if (ONLINE.active || ONLINE.generation !== generation) return;
+    // if both chosen, auto reset with teams + formations
+    const a = document.getElementById('team-a-select').value;
+    const b = document.getElementById('team-b-select').value;
+    const fa = document.getElementById('formation-a-select').value;
+    const fb = document.getElementById('formation-b-select').value;
+    if (a && b) {
+      if (a === b) {
+        if (errEl) { errEl.textContent = 'Teams must be different — 2 players cannot choose same team'; errEl.style.display='block'; }
+        return;
+      }
+      const teamA = TEAMS_CACHE.find(t=>t.id===a);
+      const teamB = TEAMS_CACHE.find(t=>t.id===b);
+      if (teamA) CUST_TEAM_A = teamA.primary;
+      if (teamB) CUST_TEAM_B = teamB.primary;
+      await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: fa, formation_b: fb})});
+      const st = await fetch('/state').then(r=>r.json());
+      if (ONLINE.active || ONLINE.generation !== generation) return;
+      gameState = st; rebuildPlayers(); updateHUD(st);
+    }
+    return;
+  }
+  // online: POST to room
+  if (!ONLINE.roomId) return;
+  try {
+    await onlineJSON('/online/' + encodeURIComponent(ONLINE.roomId) + '/team', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_id: teamId})});
+    if (!ONLINE.active || ONLINE.generation !== generation) return;
+    await pollOnline();
+  } catch (error) {
+    if (ONLINE.generation !== generation) return;
+    if (errEl) { errEl.textContent = error.message; errEl.style.display='block'; }
+    await loadTeams(); return;
+  }
+  // success: update UI, disable same team on other side
+  const otherSel = side === 'a' ? document.getElementById('team-b-select') : document.getElementById('team-a-select');
+  if (otherSel) {
+    for (const opt of otherSel.options) { opt.disabled = (opt.value && opt.value === teamId); }
+  }
+}
+document.getElementById('team-a-select')?.addEventListener('change', e=> chooseTeam('a', e.target.value));
+document.getElementById('team-b-select')?.addEventListener('change', e=> chooseTeam('b', e.target.value));
+
+//  Referee (cosmetic, driven by server state / trajectory "ref" frames) 
+const refereeMesh = (() => {
+  const group = createRefereeAvatar();
+  scene.add(group);
+  return group;
+})();
+
+function updateRefereeMesh(sx, sy, dtMs = 0) {
+  const hidden = sx === undefined || sx === null || sx < -50; // off-field (penalty shootout)
+  const changed = refereeMesh.userData.moveTo(hidden ? null : serverToWorld(sx, sy), dtMs);
+  if (changed) requestRender();
+}
+function playRefereeWhistle() {
+  refereeMesh.userData.signalWhistle(renderLoop.now()); requestRender();
+  return SoundManager.whistle();
+}
+//  Penalty camera: two views (web: FIFA broadcast kicker vs keeper) 
+const _defaultCamPos = new THREE.Vector3(-1500, 790, 320);
+const _defaultCamTarget = new THREE.Vector3(0, 0, 0);
+let _penaltyCamActive = false;
+function approachCamera(position, target, positionRate, targetRate) {
+  const moving = camera.position.distanceToSquared(position) > 0.0025 || controls.target.distanceToSquared(target) > 0.0025;
+  if (camera.position.distanceToSquared(position) <= 0.0025) camera.position.copy(position);
+  else camera.position.lerp(position, positionRate);
+  if (controls.target.distanceToSquared(target) <= 0.0025) controls.target.copy(target);
+  else controls.target.lerp(target, targetRate);
+  return moving;
+}
+function updatePenaltyCamera(st, dtMs = 1000 / 60) {
+  if (!st || !st.penalty_shootout) {
+    if (_penaltyCamActive) {
+      _penaltyCamActive = false;
+      camera.position.copy(_defaultCamPos);
+      controls.target.copy(_defaultCamTarget);
+      controls.update();
+    }
+    return false;
+  }
+  _penaltyCamActive = true;
+  const isKicker = st.game_mode === 'hvh' || !!st.is_player_a; // hvai: human=A kicker→right, keeper→left
+  let camW, tgtW;
+  if (isKicker) {
+    // Kicker view: behind A spot looking toward right goal (wide broadcast)
+    const sideA = !!st.is_player_a;
+    camW = serverToWorld(sideA ? PENALTY_SPOT_X_A - 320 : PENALTY_SPOT_X_B + 320, H / 2 + 110); camW.y = 520;
+    tgtW = serverToWorld(sideA ? W - 20 : 20, H / 2); tgtW.y = 12;
+  } else {
+    // Keeper view: behind left goal looking toward B spot (keeper's eyes)
+    camW = serverToWorld(PENALTY_KEEPER_X_B - 110, H / 2); camW.y = 420;
+    tgtW = serverToWorld(PENALTY_SPOT_X_B, H / 2); tgtW.y = 12;
+  }
+  const rate = 1 - Math.pow(0.92, Math.max(0, dtMs) / (1000 / 60));
+  const moving = approachCamera(camW, tgtW, rate, rate);
+  controls.update();
+  if (moving) requestRender();
+  return moving;
+}
+//  Multiplayer view (top vs player) + 120s settings timeout 
+let currentView = localStorage.getItem('viewMode') || 'player';
+let viewTimeout = null, viewCountdown = null;
+function applyViewMode(mode) {
+  currentView = mode;
+  // The close captain camera is inside the broadcast view's zoom limit.
+  controls.minDistance = mode === 'player' ? 1 : 300;
+  localStorage.setItem('viewMode', mode);
+  const cur = document.getElementById('view-current');
+  if (cur) cur.textContent = 'Current: ' + (mode === 'player' ? 'Player View' : 'Top View');
+  const topBtn = document.getElementById('view-top-btn'), plBtn = document.getElementById('view-player-btn');
+  if (topBtn) topBtn.className = mode === 'top' ? 'btn btn-primary' : 'btn btn-ghost';
+  if (plBtn) plBtn.className = mode === 'player' ? 'btn btn-primary' : 'btn btn-ghost';
+  if (mode === 'top' && (!gameState || !gameState.penalty_shootout)) {
+    camera.position.copy(_defaultCamPos); controls.target.copy(_defaultCamTarget); controls.enabled = true; controls.update();
+  } else if (mode === 'player') {
+    controls.enabled = false;
+  }
+  requestRender();
+}
+window.setViewMode = function(mode) { applyViewMode(mode); showViewSettings(false); };
+window.showViewSettings = function(show) {
+  const el = document.getElementById('view-settings-modal');
+  el.classList.toggle('visible', !!show);
+  if (show) {
+    applyViewMode(currentView);
+    window.AgentSoccerDialogs.open(el, document.getElementById(currentView === 'top' ? 'view-top-btn' : 'view-player-btn'));
+    let sec = 120;
+    const txt = document.getElementById('view-timeout-text');
+    if (viewTimeout) clearTimeout(viewTimeout);
+    if (viewCountdown) clearInterval(viewCountdown);
+    if (txt) txt.textContent = '120s';
+    viewCountdown = setInterval(() => { sec--; if (txt) txt.textContent = sec + 's'; if (sec <= 0) clearInterval(viewCountdown); }, 1000);
+    viewTimeout = setTimeout(() => showViewSettings(false), 120000);
+  } else {
+    if (viewTimeout) clearTimeout(viewTimeout);
+    if (viewCountdown) clearInterval(viewCountdown);
+    window.AgentSoccerDialogs.close(el);
+  }
+};
+
+// Render only after a visible change, or while a finite animation is moving.
+let environmentTime = 0;
+function renderScene(now, dtMs) {
+  const step = Math.min(100, dtMs) / (1000 / 60);
+  environmentTime += dtMs / 1000;
+  let cameraMoving = false;
+  if (gameState?.penalty_shootout) cameraMoving = updatePenaltyCamera(gameState, dtMs);
+  // Player view follows the controlled captain from behind, like a close third-person game camera.
+  if (currentView === 'player' && !playerInput.dragging && !_penaltyCamActive && typeof gameState !== 'undefined' && gameState && gameState.ball) {
+    const mySide = playerInput.team;
+    const players = mySide === 'a' ? gameState.players_a : gameState.players_b;
+    const captain = players && players[playerInput.selectedIndex];
+    const captainW = captain ? serverToWorld(captain.x, captain.y) : null;
+    const activeBall = animBall || gameState.ball;
+    const ballW = serverToWorld(activeBall.x, activeBall.y, activeBall.z || 0);
+    if (captainW) {
+      const playDir = new THREE.Vector3(ballW.x - captainW.x, 0, ballW.z - captainW.z);
+      if (playDir.lengthSq() < 1) playDir.set(mySide === 'a' ? 1 : -1, 0, 0);
+      playDir.normalize();
+      const camP = captainW.clone().addScaledVector(playDir, -78);
+      // Keep the behind-player offset even when the captain is near a sideline.
+      camP.x = THREE.MathUtils.clamp(camP.x, -W / 2 - 80, W / 2 + 80);
+      camP.z = THREE.MathUtils.clamp(camP.z, -H / 2 - 80, H / 2 + 80);
+      camP.y = 48;
+      const camTarget = captainW.clone().addScaledVector(playDir, 150);
+      camTarget.y = 22;
+      cameraMoving = approachCamera(camP, camTarget, 1 - Math.pow(0.9, step), 1 - Math.pow(0.86, step));
+    } else {
+      cameraMoving = approachCamera(_defaultCamPos, ballW, 1 - Math.pow(0.93, step), 1 - Math.pow(0.91, step));
+    }
+    controls.update();
+  } else {
+    controls.update();
+  }
+  camera.updateMatrixWorld();
+  if (crowdData) {
+    crowdData.uniforms.uTime.value = environmentTime;
+    crowdData.uniforms.uWavePhase.value = environmentTime * 1.85;
+    const ce = camera.matrixWorld.elements;
+    crowdData.uniforms.uCamRight.value.set(ce[0], ce[1], ce[2]);
+    crowdData.uniforms.uCamUp.value.set(ce[4], ce[5], ce[6]);
+  }
+  // Gentle cloud drift
+  cloudGroup.rotation.y += 0.00016 * step;
+  updateBackgroundClouds();
+  sunHalo.rotation.y -= 0.0002 * step;
+  for (const texture of animatedLEDTextures) texture.offset.x = (texture.offset.x + 0.003 * step) % 1;
+  if (rainActive && rainPoints.visible) {
+    const pos = rainPoints.geometry.attributes.position.array;
+    for (let i = 0; i < pos.length; i += 3) {
+      pos[i + 1] -= 5.2 * step;
+      pos[i] -= 0.7 * step;
+      if (pos[i + 1] < 6) pos[i + 1] = 288;
+      if (pos[i] < -W / 2 - 200) pos[i] = W / 2 + 200;
+    }
+    rainPoints.geometry.attributes.position.needsUpdate = true;
+  }
+  if (snowActive && snowPoints.visible) {
+    const pos = snowPoints.geometry.attributes.position.array;
+    for (let i = 0; i < pos.length; i += 3) {
+      pos[i + 1] -= (1.1 + (i % 3) * 0.3) * step;
+      pos[i] += Math.sin(environmentTime * 0.4 + i) * 0.25 * step;
+      pos[i + 2] += Math.cos(environmentTime * 0.4 + i * 0.7) * 0.15 * step;
+      if (pos[i + 1] < 6) { pos[i + 1] = 280; pos[i] = (Math.random() - 0.5) * (W + 500); pos[i + 2] = (Math.random() - 0.5) * (H + 400); }
+    }
+    snowPoints.geometry.attributes.position.needsUpdate = true;
+    updateParticleBounds(snowPoints);
+  }
+  if (windActive) {
+    // subtle wind streak: drift rain/snow faster + dust-like haze is fog already; here just add lateral push to loose particles
+    const rp = rainActive ? rainPoints.geometry.attributes.position.array : null;
+    if (rp) { for (let i = 0; i < 2; i++) rp[i * 3] -= 1.2 * step; }
+  }
+  if (rainActive && rainPoints.visible) updateParticleBounds(rainPoints);
+  tickDust();
+  tickBallSquash(now);
+  tickGoalParticles(now, dtMs);
+  const refereeSignaling = refereeMesh.userData.tick(now);
+  crowdData?.update(camera);
+  renderer.render(scene, camera);
+  renderFrames++;
+  if (refereeSignaling || cameraMoving || squashActive || dust?.active || goalParticles?.active || crowdData?.uniforms.uCheerPhase.value > 0) requestRender();
+}
+renderLoop = createRenderLoop({ element: container, render: renderScene });
+graphicsQuality = createRenderQuality(renderer, camera, container, { onChange: requestRender });
+const qualitySelect = document.getElementById('graphics-quality');
+qualitySelect.value = graphicsQuality.stats().mode;
+window.setGraphicsQuality = function(mode) {
+  graphicsQuality.setQuality(mode);
+  qualitySelect.value = graphicsQuality.stats().mode;
+};
+qualitySelect.addEventListener('change', () => window.setGraphicsQuality(qualitySelect.value));
+requestRender();
+
+// The match clock updates without waking the WebGL renderer.
+let hudClockTimer = null;
+function updateClockTimer() {
+  if (hudClockTimer) { clearInterval(hudClockTimer); hudClockTimer = null; }
+  if (document.hidden) return;
+  if (gameState) updateMatchClock(gameState);
+  hudClockTimer = setInterval(() => { if (gameState) updateMatchClock(gameState); }, 100);
+}
+document.addEventListener('visibilitychange', updateClockTimer);
+window.addEventListener('pagehide', () => { clearInterval(hudClockTimer); hudClockTimer = null; cancelLocalTurn(); });
+window.addEventListener('pageshow', updateClockTimer);
+updateClockTimer();
+
+//  HUD helpers 
+function showThinking() {
+  const tb = document.getElementById('turn-badge');
+  if (!tb) return;
+  tb.textContent = 'AI thinking…';
+  tb.className = 'turn-badge turn-b turn-thinking';
+}
+
+function updateMatchClock(st, nowMs = performance.timeOrigin + performance.now()) {
+  // Display regulation time as a conventional 0:00–90:00 match clock.
+  const gc = document.getElementById('game-clock');
+  if (gc && st.start_time) {
+    const hl = st.half_length || 45;
+    const regulationGameSeconds = hl * 2 * 60;
+    const elapsed = Math.max(0, nowMs / 1000 - st.start_time);
+    const gameSeconds = Math.min(regulationGameSeconds, elapsed * 20);
+    const mins = Math.floor(gameSeconds / 60);
+    const secs = Math.floor(gameSeconds % 60);
+    const tenths = Math.floor((gameSeconds % 1) * 10);
+    const text = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + '.' + tenths;
+    if (gc.textContent !== text) gc.textContent = text;
+    const title = st.period + (st.game_over ? ' — FT' : '');
+    if (gc.title !== title) gc.title = title;
+  }
+}
+
+function updateHUD(st) {
+  playerInput.sync();
+  document.querySelector('.team-a .team-name').textContent = ONLINE.active ? ONLINE.nameA || 'Team A' : st.game_mode === 'hvai' ? 'You' : 'Team A';
+  document.querySelector('.team-b .team-name').textContent = ONLINE.active ? ONLINE.nameB || 'Team B' : st.game_mode === 'hvai' ? 'AI' : 'Team B';
+  syncBallSize(st);
+  updateMatchClock(st);
+  if (!isAnimating && !animBall && st.ball) {
+    updateBallMesh(st.ball.x, st.ball.y, st.ball.z || 0);
+    shadowMesh.position.set(ballMesh.position.x, 0.1, ballMesh.position.z);
+  }
+  document.getElementById('score-a').textContent = st.score_a;
+  document.getElementById('score-b').textContent = st.score_b;
+  try { updateScoreboard(st.score_a, st.score_b); } catch(_){}
+  const tb = document.getElementById('turn-badge');
+  const wb = document.getElementById('winner-banner');
+  const over = st.game_over;
+
+  const pUI = document.getElementById('penalty-ui');
+  const keeperBtns = document.getElementById('penalty-keeper-btns');
+  const keeperTimer = document.getElementById('penalty-keeper-timer');
+  const pScore = document.getElementById('penalty-score');
+
+  if (st.penalty_shootout && !over && !ONLINE.active) {
+    pUI.style.display = 'block';
+    const isA = st.is_player_a;
+    const m = st.game_mode;
+    pScore.textContent = 'Penalty ' + (st.penalty_kick_num + 1) + '/' + (st.penalty_kicks.length || 5) +
+      ' — A: ' + st.penalty_a_score + ' / B: ' + st.penalty_b_score;
+    if (m === 'hvai' && !isA) {
+      keeperBtns.style.display = 'flex';
+      startKeeperTimer();
+    } else if (m === 'hvai' && isA) {
+      keeperBtns.style.display = 'none';
+      if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+      startPenaltyShootTimer();
+    } else {
+      keeperBtns.style.display = 'none';
+      keeperTimer.textContent = '';
+      if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+      if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
+    }
+  } else {
+    pUI.style.display = 'none';
+    if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+    if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
+  }
+
+  if (over) {
+    wb.style.display = 'block';
+    if (ONLINE.active) {
+      let msg = st.termination === 'cancelled' ? 'Match cancelled' : String(st.winner || '').toLowerCase() === ONLINE.side ? 'You win!' : st.winner ? 'Opponent wins!' : "It's a draw!";
+      if (ONLINE.ranked && RANKED.delta) {
+        const d = ONLINE.side === 'a' ? RANKED.delta.player_a.delta : RANKED.delta.player_b.delta;
+        const after = ONLINE.side === 'a' ? RANKED.delta.player_a.rating_after : RANKED.delta.player_b.rating_after;
+        msg += '  ' + (d >= 0 ? '+' + d : d) + ' rating (' + after + ')';
+      } else if (ONLINE.ranked) {
+        msg += ONLINE.resultAttempts >= 6 ? '  Rating update pending. Reopen this match to check.' : '  Updating rating…';
+      }
+      wb.textContent = msg;
+      const shareBtn = document.getElementById('match-share-btn');
+      const shareMsg = document.getElementById('match-share-msg');
+      if (ONLINE.roomId) { shareBtn.style.display = ''; shareMsg.style.display = 'none'; }
+      document.getElementById('post-game-options').style.display = 'flex';
+    } else {
+      wb.textContent = st.game_mode !== 'hvai' ? (st.winner ? 'Team ' + String(st.winner).toUpperCase() + ' wins!' : "It's a draw!") : st.winner === 'A' ? 'You win!' : st.winner === 'B' ? 'AI wins!' : "It's a draw!";
+      document.getElementById('post-game-options').style.display = 'flex';
+    }
+    wb.style.color = st.winner === 'A' ? '#059669' : st.winner === 'B' ? '#ef4444' : '#6b7fa3';
+    tb.style.display = 'none';
+  } else {
+    wb.style.display = 'none';
+    document.getElementById('post-game-options').style.display = 'none';
+    document.getElementById('match-share-btn').style.display = 'none';
+    document.getElementById('match-share-msg').style.display = 'none';
+    tb.style.display = '';
+    const isA = st.is_player_a;
+    if (ONLINE.active) {
+      if (!ONLINE.ready || ONLINE.status === 'waiting' || ONLINE.connectionError || ONLINE.leaving) {
+        tb.textContent = controlAccess(st, ONLINE, isAnimating).reason;
+        tb.className = 'turn-badge turn-b';
+      } else {
+        const myTurn = !!isA === (ONLINE.side === 'a');
+        tb.textContent = myTurn ? (st.penalty_shootout ? 'Your penalty kick' : 'Your turn') : 'Opponent\u2019s turn\u2026';
+        tb.className = 'turn-badge ' + (myTurn ? 'turn-a' : 'turn-b');
+      }
+    } else if (LOCAL_TURN.pending && !st.penalty_shootout) {
+      tb.textContent = isAnimating ? 'AI turn in progress\u2026' : 'AI turn paused \u2014 retry';
+      tb.className = 'turn-badge turn-b';
+    } else if (st.penalty_shootout) {
+      tb.textContent = st.game_mode === 'hvh' ? 'Team ' + (isA ? 'A' : 'B') + ' penalty kick' : isA ? 'Your penalty kick!' : 'Choose goalkeeper direction\u2026';
+      tb.className = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+    } else {
+      tb.textContent = st.game_mode === 'hvh' ? 'Team ' + (isA ? 'A' : 'B') + ' to play' : isA ? 'Your turn' : 'AI thinking\u2026';
+      tb.className = 'turn-badge ' + (isA ? 'turn-a' : 'turn-b');
+    }
+  }
+  const aiBtn = document.getElementById('aivai-btn');
+  aiBtn.style.display = !ONLINE.active && (st.game_mode === 'aivai' || (st.game_mode === 'hvai' && !st.penalty_shootout && (!st.is_player_a || LOCAL_TURN.pending))) ? '' : 'none';
+  aiBtn.disabled = isAnimating || st.game_over;
+  aiBtn.textContent = st.game_mode === 'aivai' ? 'Run AI' : 'Retry AI move';
+  updatePenaltyCamera(st);
+}
+// A separate DOM timer keeps the match clock moving between server updates.
+
+function logMove(text, isGoal) {
+  const panel = document.getElementById('log-panel');
+  const p = document.createElement('p');
+  if (isGoal) p.className = 'log-goal';
+  p.textContent = text;
+  panel.prepend(p);
+  while (panel.children.length > 20) panel.lastChild.remove();
+}
+
+//  Penalty Shootout 
+async function chooseKeeperDir(dir) {
+  if (isAnimating || !gameState?.penalty_shootout || gameState.game_over) return;
+  if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+  document.getElementById('penalty-keeper-btns').style.display = 'none';
+  document.getElementById('penalty-keeper-timer').textContent = '';
+  await triggerAI({ keeperDirection: dir });
+}
+window.chooseKeeperDir = chooseKeeperDir;
+
+function startKeeperTimer() {
+  if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+  let sec = 5;
+  document.getElementById('penalty-keeper-timer').textContent = 'Goalkeeper: ' + sec + 's';
+  keepTimer = setInterval(() => {
+    sec--;
+    document.getElementById('penalty-keeper-timer').textContent = 'Goalkeeper: ' + sec + 's';
+    if (sec <= 0) {
+      clearInterval(keepTimer); keepTimer = null;
+      document.getElementById('penalty-keeper-btns').style.display = 'none';
+      document.getElementById('penalty-keeper-timer').textContent = '';
+      autoPenaltyKick();
+    }
+  }, 1000);
+}
+
+function startPenaltyShootTimer() {
+  if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
+  let sec = 10;
+  document.getElementById('penalty-keeper-timer').textContent = 'Shoot! ' + sec + 's';
+  penaltyShootTimer = setInterval(() => {
+    sec--;
+    document.getElementById('penalty-keeper-timer').textContent = 'Shoot! ' + sec + 's';
+    if (sec <= 0) {
+      clearInterval(penaltyShootTimer); penaltyShootTimer = null;
+      document.getElementById('penalty-keeper-timer').textContent = '';
+      autoPenaltyKick();
+    }
+  }, 1000);
+}
+
+async function autoPenaltyKick() {
+  if (isAnimating || !gameState || gameState.game_over) return;
+  await triggerAI({ keeperDirection: gameState.game_mode === 'hvai' && !gameState.is_player_a && !gameState.penalty_goalkeeper_move ? 'center' : null });
+}
+
+//  Drag / Slingshot (3D raycast to y=0 ground plane) 
+const raycaster = new THREE.Raycaster();
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const mouse = new THREE.Vector2();
+
+function getGroundPoint(clientX, clientY) {
+  const r = renderer.domElement.getBoundingClientRect();
+  mouse.x = ((clientX - r.left) / r.width) * 2 - 1;
+  mouse.y = -((clientY - r.top) / r.height) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const target = new THREE.Vector3();
+  const ray = raycaster.ray;
+  const denom = ray.direction.dot(groundPlane.normal);
+  if (Math.abs(denom) < 0.0001) return null;
+  const t = -(ray.origin.dot(groundPlane.normal) + groundPlane.constant) / denom;
+  if (t < 0) return null;
+  target.copy(ray.origin).addScaledVector(ray.direction, t);
+  return target;
+}
+
+function clearDragVisuals() {
+  if (aimVisuals?.group.visible) { aimVisuals.group.visible = false; requestRender(); }
+}
+
+function updateDragVisuals(homeServer, pull) {
+  if (!aimVisuals) {
+    const group = new THREE.Group(); group.name = 'player-aim-guide';
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3));
+    const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0xfbbf24, depthTest: false }));
+    const arrow = new THREE.ArrowHelper(new THREE.Vector3(1,0,0), new THREE.Vector3(), 100, 0xffffff, 12, 7);
+    arrow.line.material.depthTest = false; arrow.cone.material.depthTest = false;
+    group.renderOrder = 8; group.add(line, arrow); scene.add(group); aimVisuals = { group, line, arrow };
+  }
+  const home = serverToWorld(homeServer.x, homeServer.y); home.y = 1;
+  const pullPoint = serverToWorld(pull.pullX, pull.pullY); pullPoint.y = 1;
+  const array = aimVisuals.line.geometry.attributes.position.array;
+  home.toArray(array, 0); pullPoint.toArray(array, 3);
+  aimVisuals.line.geometry.attributes.position.needsUpdate = true;
+  aimVisuals.line.geometry.computeBoundingSphere();
+  // Server y points down; world z points in the opposite direction.
+  const direction = new THREE.Vector3(Math.cos(pull.kickAngle), 0, -Math.sin(pull.kickAngle));
+  aimVisuals.arrow.position.copy(home); aimVisuals.arrow.setDirection(direction);
+  aimVisuals.arrow.setLength(46 + pull.power * .72, 12, 7);
+  aimVisuals.group.visible = true; requestRender();
+}
+
+function pickControllablePlayer(clientX, clientY, legal) {
+  if (!legal.canKick) return null;
+  const rect = renderer.domElement.getBoundingClientRect();
+  mouse.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(mouse, camera);
+  if (legal.useBall) {
+    if (raycaster.intersectObject(ballMesh, true).length) return 0;
+    const point = getGroundPoint(clientX, clientY), ball = gameState.ball;
+    if (point && ball) { const server = worldToServer(point); if (Math.hypot(server.x-ball.x, server.y-ball.y) <= ballRadius()+12) return 0; }
+    return null;
+  }
+  const all = legal.team === 'a' ? playerMeshesA : playerMeshesB;
+  const meshes = legal.indices.map(index => all[index]).filter(Boolean);
+  const hit = raycaster.intersectObjects(meshes, true)[0];
+  if (hit) {
+    let owner = hit.object;
+    while (owner.parent && !meshes.includes(owner)) owner = owner.parent;
+    const index = all.indexOf(owner); if (legal.indices.includes(index)) return index;
+  }
+  const point = getGroundPoint(clientX, clientY); if (!point) return null;
+  const server = worldToServer(point), players = gameState[legal.team === 'a' ? 'players_a' : 'players_b'];
+  let closest = null, best = Infinity;
+  for (const index of legal.indices) {
+    const player = players[index], distance = Math.hypot(player.x-server.x, player.y-server.y), radius = playerRadius(player)+8;
+    if (distance < radius && distance/radius < best) { closest = index; best = distance/radius; }
+  }
+  return closest;
+}
+
+function showCaptainHint(show) {
+  const hint = document.getElementById('captain-hint');
+  if (hint) hint.style.display = show ? 'block' : 'none';
+}
+
+//  Trajectory animation (3D) 
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function animateTrajectory3D(trajectory, onDone, current = () => true, playbackSpeed = animSpeed, kicker = null) {
+  if (!current()) { onDone(); return; }
+  requestRender();
+  syncBallSize(trajectory?.[0]?.ball_size ? trajectory[0] : gameState);
+  squashActive = false;
+  squashT = 0;
+  setBallSquash();
+  if (!trajectory || trajectory.length === 0) { animBall = null; onDone(); return; }
+  if (trajectory.length === 1) {
+    const pt = trajectory[0];
+    animBall = { x: pt.x, y: pt.y, z: pt.z || 0 };
+    updateBallMesh(pt.x, pt.y, pt.z || 0);
+    if (pt.ref) {
+      gameState.referee = { x: pt.ref.x, y: pt.ref.y };
+      updateRefereeMesh(pt.ref.x, pt.ref.y);
+    }
+    if (pt.a && pt.b && gameState) {
+      // Update player positions from trajectory data
+      for (let k = 0; k < gameState.players_a.length; k++) {
+        if (_skipKickerTeam === 'a' && _skipKickerIdx === k) continue;
+        if (pt.a[k]) { gameState.players_a[k].x = pt.a[k].x; gameState.players_a[k].y = pt.a[k].y; }
+      }
+      for (let k = 0; k < gameState.players_b.length; k++) {
+        if (_skipKickerTeam === 'b' && _skipKickerIdx === k) continue;
+        if (pt.b[k]) { gameState.players_b[k].x = pt.b[k].x; gameState.players_b[k].y = pt.b[k].y; }
+      }
+    }
+    updatePlayerPositions();
+    animBall = null;
+    onDone();
+    return;
+  }
+
+  const playback = createTrajectoryPlayback(trajectory, playbackSpeed);
+  const motion = createTrajectorySampler(trajectory);
+  const ballPoint = {}, playerPoint = {};
+  const kickerMesh = kicker ? (kicker.team === 'a' ? playerMeshesA : playerMeshesB)[kicker.index] : null;
+  let startTime = null;
+  let previousRefTime = null;
+  prevBallWorld.copy(ballMesh.position);
+  prevBz = trajectory[0].z || 0;
+
+  function frame(timestamp) {
+    if (!current()) { kickerMesh?.userData.setPose?.(); onDone(); return; }
+    if (startTime === null) startTime = timestamp;
+    const elapsed = timestamp - startTime;
+    const sample = playback.sample(elapsed);
+    const { progress, segIdx, segFrac, done } = sample;
+
+    const ptA = trajectory[segIdx];
+    const ptB = trajectory[segIdx + 1];
+
+    // Play each crossed wall impact once, including impacts skipped at low FPS.
+    for (const bounce of playback.takeBounces(progress)) {
+      const bw = serverToWorld(bounce.x, bounce.y);
+      playPositional(_bounceBuf, bw, { volume: 0.45 });
+    }
+
+    const { x: bx, y: by, z: bz } = motion.ball(sample, ballPoint);
+    animBall = { x: bx, y: by, z: bz };
+    updateBallMesh(bx, by, bz);
+    const ballWorld = ballMesh.position;
+
+    // Ball spin — rotate around the axis perpendicular to horizontal travel
+    // (angle = distance / radius, so roll and flight both read naturally)
+    const bdx = ballWorld.x - prevBallWorld.x;
+    const bdz = ballWorld.z - prevBallWorld.z;
+    const bdist = Math.hypot(bdx, bdz);
+    if (bdist > 0.05) {
+      ballMesh.rotateOnWorldAxis(new THREE.Vector3(-bdz, 0, bdx).normalize(), bdist / ballRadius());
+      updateBallElevation();
+    }
+    prevBallWorld.copy(ballWorld);
+
+    // Squash + dust on ground bounce. Ground bounces carry no flag (bounce is
+    // wall bounces only), so detect the z→0 crossing client-side.
+    if (!squashActive && prevBz > 0.5 && bz <= 0.5) {
+      squashActive = true;
+      squashT = timestamp;
+      triggerDust(ballWorld.x, ballWorld.z);
+    }
+    prevBz = bz;
+    tickBallSquash(timestamp);
+
+    // Shadow follows ball on ground — soft blob that fades and grows with height
+    const shadowPos = serverToWorld(bx, by);
+    shadowMesh.position.set(shadowPos.x, 0.1, shadowPos.z);
+    const heightRatio = THREE.MathUtils.clamp(1 - bz / 250, 0.35, 1);
+    shadowMesh.scale.set(ballSizeScale * (1 + bz / 350), ballSizeScale * (1 + bz / 350), 1);
+    shadowMat.opacity = 0.3 * heightRatio;
+
+    // Every pawn, including the kicker, follows the ball's simulation clock.
+    const easedSeg = segFrac;
+    if (Array.isArray(ptA.a) && Array.isArray(ptB.a) && gameState) {
+      for (let k = 0; k < gameState.players_a.length; k++) {
+        if (_skipKickerTeam === 'a' && _skipKickerIdx === k) continue;
+        if (ptA.a[k] && ptB.a[k]) {
+          const point = motion.player('a', k, sample, playerPoint);
+          gameState.players_a[k].x = point?.x ?? lerp(ptA.a[k].x, ptB.a[k].x, easedSeg);
+          gameState.players_a[k].y = point?.y ?? lerp(ptA.a[k].y, ptB.a[k].y, easedSeg);
+        }
+      }
+    }
+    if (Array.isArray(ptA.b) && Array.isArray(ptB.b) && gameState) {
+      for (let k = 0; k < gameState.players_b.length; k++) {
+        if (_skipKickerTeam === 'b' && _skipKickerIdx === k) continue;
+        if (ptA.b[k] && ptB.b[k]) {
+          const point = motion.player('b', k, sample, playerPoint);
+          gameState.players_b[k].x = point?.x ?? lerp(ptA.b[k].x, ptB.b[k].x, easedSeg);
+          gameState.players_b[k].y = point?.y ?? lerp(ptA.b[k].y, ptB.b[k].y, easedSeg);
+        }
+      }
+    }
+    updatePlayerPositions(false);
+    if (kickerMesh) {
+      const phase = Math.min(1, elapsed / Math.min(playback.duration, 310 / playbackSpeed));
+      const envelope = Math.sin(Math.PI * phase);
+      kickerMesh.userData.setPose?.(done || phase >= 1 ? {} : {
+        stride: Math.sin(phase * Math.PI * 4) * envelope * .65,
+        kick: envelope * .65, lean: envelope * .08,
+      });
+    }
+
+    // Interpolate referee position (trajectory frames carry ref)
+    if (ptA.ref && ptB.ref) {
+      const refX = lerp(ptA.ref.x, ptB.ref.x, easedSeg);
+      const refY = lerp(ptA.ref.y, ptB.ref.y, easedSeg);
+      gameState.referee = { x: refX, y: refY };
+      updateRefereeMesh(refX, refY, previousRefTime === null ? 0 : timestamp - previousRefTime);
+      previousRefTime = timestamp;
+    }
+
+    if (!done) {
+      renderLoop.requestAnimationFrame(frame);
+    } else {
+      const last = trajectory[trajectory.length - 1];
+      if (last.a && last.b && gameState) {
+        for (let k = 0; k < gameState.players_a.length; k++) {
+          if (_skipKickerTeam === 'a' && _skipKickerIdx === k) continue;
+          if (last.a[k]) { gameState.players_a[k].x = last.a[k].x; gameState.players_a[k].y = last.a[k].y; }
+        }
+        for (let k = 0; k < gameState.players_b.length; k++) {
+          if (_skipKickerTeam === 'b' && _skipKickerIdx === k) continue;
+          if (last.b[k]) { gameState.players_b[k].x = last.b[k].x; gameState.players_b[k].y = last.b[k].y; }
+        }
+      }
+      animBall = null;
+      updatePlayerPositions();
+      if (last.ref) {
+        gameState.referee = { x: last.ref.x, y: last.ref.y };
+        updateRefereeMesh(last.ref.x, last.ref.y);
+      }
+      onDone();
+    }
+  }
+  renderLoop.requestAnimationFrame(frame);
+}
+
+//  Kicker launch animation 
+function animatePlayerMove3D(playerIdx, team, fromPos, toPos, onDone, current = () => true, playbackSpeed = animSpeed) {
+  const meshes = team === 'a' ? playerMeshesA : playerMeshesB;
+  const mesh = meshes[playerIdx];
+  if (!mesh) { onDone(); return; }
+  const fromW = serverToWorld(fromPos.x, fromPos.y), toW = serverToWorld(toPos.x, toPos.y);
+  const duration = Math.max(150, 310 / playbackSpeed);
+  let startTime = null;
+  function tick(timestamp) {
+    if (!current()) { mesh.userData.setPose?.(); onDone(); return; }
+    if (startTime === null) startTime = timestamp;
+    const t = Math.min((timestamp - startTime) / duration, 1);
+    const envelope = Math.sin(Math.PI * t);
+    mesh.position.lerpVectors(fromW, toW, 1 - Math.pow(1 - t, 3));
+    mesh.userData.setPose?.({ stride: Math.sin(t * Math.PI * 4) * envelope * .65, kick: envelope * .65, lean: envelope * .08 });
+    if (t < 1) renderLoop.requestAnimationFrame(tick);
+    else { mesh.position.copy(toW); mesh.userData.setPose?.(); onDone(); }
+  }
+  renderLoop.requestAnimationFrame(tick);
+}
+
+//  Move submission 
+function kickEndpoint(from, angleDeg, power) {
+  const rad = angleDeg * Math.PI / 180;
+  const travel = power * PLAYER_TRAVEL;
+  return {
+    x: Math.max(PLAYER_R, Math.min(W - PLAYER_R, from.x + Math.cos(rad) * travel)),
+    y: Math.max(PLAYER_R, Math.min(H - PLAYER_R, from.y + Math.sin(rad) * travel)),
+  };
+}
+
+function syncBall(trajectory, scored) {
+  if (!trajectory || trajectory.length === 0) return;
+  const last = trajectory[trajectory.length - 1];
+  gameState.ball = scored ? { x: W / 2, y: H / 2, z: 0 } : { x: last.x, y: last.y, z: last.z || 0 };
+}
+
+async function animateKickTrajectory(result, team, from, current, playbackSpeed) {
+  const tracked = result.trajectory?.length && result.trajectory.every(point => {
+    const pawn = point[team]?.[result.player_idx];
+    return Number.isFinite(pawn?.x) && Number.isFinite(pawn?.y);
+  });
+  if (tracked) {
+    await new Promise(resolve => animateTrajectory3D(result.trajectory, resolve, current,
+      playbackSpeed, { team, index: result.player_idx }));
+    return;
+  }
+  // Compatibility for older recordings that omit the selected pawn's track.
+  const kickEnd = result.kick_endpoint || kickEndpoint(from, result.angle, result.power);
+  _skipKickerIdx = result.player_idx;
+  _skipKickerTeam = team;
+  await Promise.all([
+    new Promise(r => animateTrajectory3D(result.trajectory, r, current, playbackSpeed)),
+    new Promise(r => animatePlayerMove3D(result.player_idx, team, from, kickEnd, r, current, playbackSpeed)),
+  ]);
+  if (current()) { _skipKickerIdx = -1; _skipKickerTeam = ''; }
+}
+
+async function animateComputerResult(data, resultKey, team, current = () => true, playbackSpeed = animSpeed) {
+  if (!current()) return;
+  const result = data[resultKey];
+  if (!result || !result.trajectory) return;
+  const players = team === 'a' ? data.players_a : data.players_b;
+  const first = result.trajectory[0];
+  const firstTeam = first && first[team];
+  const from = firstTeam && firstTeam[result.player_idx]
+    ? firstTeam[result.player_idx]
+    : players[result.player_idx];
+  if (!from) return;
+  playPositional(_kickBuf, serverToWorld(from.x, from.y), { volume: 0.7 });
+  await animateKickTrajectory(result, team, from, current, playbackSpeed);
+  if (!current()) return;
+  _skipKickerIdx = -1;
+  _skipKickerTeam = '';
+  syncBall(result.trajectory, result.scored);
+  logMove(result.desc, !!result.scored);
+  if (result.scored) {
+    SoundManager.goal();
+    triggerGoalEffect3D(team);
+    triggerCrowdCheer();
+  }
+}
+
+async function displayMove(data, resultKey, team, options = {}) {
+  const current = options.current || (() => true);
+  const playbackSpeed = options.speed || animSpeed;
+  if (!current()) return;
+  const result = data[resultKey];
+  if (result?.trajectory?.length) {
+    if (gameState.penalty_shootout) {
+      const from = gameState.ball;
+      playPositional(_kickBuf, serverToWorld(from.x, from.y), { volume: 0.7 });
+      await new Promise(resolve => animateTrajectory3D(result.trajectory, resolve, current, playbackSpeed));
+      if (!current()) return;
+      syncBall(result.trajectory, result.scored); logMove(result.desc, !!result.scored);
+      if (result.scored) { SoundManager.goal(); triggerGoalEffect3D(team); triggerCrowdCheer(); }
+    } else await animateComputerResult(data, resultKey, team, current, playbackSpeed);
+  }
+  if (!current()) return;
+  gameState = data;
+  updatePlayerPositions();
+  if (gameState.referee) updateRefereeMesh(gameState.referee.x, gameState.referee.y);
+  updateHUD(gameState);
+}
+
+function cancelLocalTurn() {
+  LOCAL_TURN.generation++;
+  LOCAL_TURN.controller?.abort(); LOCAL_TURN.controller = null;
+  if (LOCAL_TURN.timer !== null) clearTimeout(LOCAL_TURN.timer);
+  LOCAL_TURN.timer = null; LOCAL_TURN.pending = null;
+  isAnimating = false; animBall = null; _skipKickerIdx = -1; _skipKickerTeam = '';
+  for (const mesh of [...playerMeshesA, ...playerMeshesB]) mesh.userData.setPose?.();
+  refereeMesh.userData.rest();
+}
+
+function beginLocalTurn() {
+  const generation = LOCAL_TURN.generation, onlineGeneration = ONLINE.generation;
+  const controller = new AbortController();
+  LOCAL_TURN.controller = controller;
+  return {
+    signal: controller.signal,
+    current: () => !controller.signal.aborted && LOCAL_TURN.controller === controller &&
+      LOCAL_TURN.generation === generation && ONLINE.generation === onlineGeneration && !ONLINE.active,
+  };
+}
+
+function finishLocalTurn(run) {
+  if (!run.current()) return;
+  LOCAL_TURN.controller = null;
+  isAnimating = false; _skipKickerIdx = -1; _skipKickerTeam = '';
+  setOverlay(false); playerInput.sync(); updateHUD(gameState);
+}
+
+async function requestMoveState(url, command, run) {
+  if (run && !run.current()) throw new DOMException('Match changed', 'AbortError');
+  const response = await fetch(url, { method: 'POST', ...(run ? { signal: run.signal } : {}), ...(command ? {
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(command),
+  } : {}) });
+  const data = await response.json();
+  if (run && !run.current()) throw new DOMException('Match changed', 'AbortError');
+  if (!response.ok || data.error) throw new Error(data.error || 'Could not submit your move. Try again.');
+  AW.handle(data); return data;
+}
+
+// A complete human cycle ends on the captain's turn: A, B, teammate A, B.
+// Keep the next leg for Retry if a request fails after an earlier leg succeeded.
+async function completeHumanTurn(run) {
+  while (run.current() && LOCAL_TURN.pending) {
+    if (gameState.game_over || gameState.penalty_shootout || gameState.game_mode !== 'hvai') {
+      LOCAL_TURN.pending = null; return;
+    }
+    const phase = LOCAL_TURN.pending.phase;
+    const teammate = phase === 1;
+    if (teammate && gameState.players_a.length <= 1) { LOCAL_TURN.pending = null; return; }
+    if (gameState.is_player_a !== teammate) { LOCAL_TURN.pending = null; return; }
+    showThinking();
+    const url = teammate ? '/random_move' : '/ai_move';
+    const key = teammate ? 'random_result' : 'ai_result';
+    const data = await requestMoveState(url, undefined, run);
+    await displayMove(data, key, teammate ? 'a' : 'b', { current: run.current, speed: animSpeed * 2 });
+    if (!run.current()) return;
+    if (phase === 2) LOCAL_TURN.pending = null;
+    else LOCAL_TURN.pending.phase++;
+  }
+}
+
+async function submitKick(playerIdx, angleDeg, power) {
+  const legal = controlAccess(gameState, ONLINE, isAnimating || !!LOCAL_TURN.pending);
+  if (!legal.canKick || !legal.indices.includes(playerIdx) || !Number.isFinite(angleDeg) || !Number.isFinite(power)) return;
+  if (ONLINE.active) return submitOnlineKick(playerIdx, angleDeg, power);
+  const run = beginLocalTurn();
+  LOCAL_TURN.pending = null;
+  isAnimating = true; setOverlay(false); playerInput.sync();
+  try {
+    const data = await requestMoveState('/move', { player_idx: playerIdx, angle: angleDeg, power }, run);
+    await displayMove(data, 'move_result', legal.team, { current: run.current });
+    if (!run.current()) return;
+    // In a shootout the human must choose their keeper direction before the AI.
+    if (!gameState.game_over && gameState.game_mode === 'hvai' && !gameState.is_player_a && !gameState.penalty_shootout) {
+      LOCAL_TURN.pending = { phase: 0 };
+      await completeHumanTurn(run);
+    }
+  } catch (error) { if (run.current()) playerInput.reportError(error.message); }
+  finally { finishLocalTurn(run); }
+}
+
+async function triggerAI({ keeperDirection = null } = {}) {
+  if (isAnimating || ONLINE.active || !gameState || gameState.game_over) return;
+  if (gameState.game_mode === 'hvai' && gameState.is_player_a && !gameState.penalty_shootout && !LOCAL_TURN.pending) return;
+  if (LOCAL_TURN.timer !== null) { clearTimeout(LOCAL_TURN.timer); LOCAL_TURN.timer = null; }
+  const run = beginLocalTurn();
+  const team = gameState.is_player_a ? 'a' : 'b';
+  isAnimating = true; playerInput.sync(); showThinking();
+  let continueAI = false;
+  try {
+    if (keeperDirection) await requestMoveState('/goalkeeper_move', { direction: keeperDirection }, run);
+    if (LOCAL_TURN.pending && !gameState.penalty_shootout) await completeHumanTurn(run);
+    else await displayMove(await requestMoveState('/ai_move', undefined, run), 'ai_result', team, { current: run.current, speed: animSpeed * 2 });
+    continueAI = run.current() && gameState.game_mode === 'aivai' && !gameState.game_over;
+  } catch (error) { if (run.current()) playerInput.reportError(error.message); }
+  finally { finishLocalTurn(run); }
+  if (continueAI) {
+    const generation = LOCAL_TURN.generation, onlineGeneration = ONLINE.generation;
+    LOCAL_TURN.timer = setTimeout(() => {
+      LOCAL_TURN.timer = null;
+      if (LOCAL_TURN.generation === generation && ONLINE.generation === onlineGeneration && !ONLINE.active) void triggerAI();
+    }, 0);
+  }
+}
+
+//  Controls 
+window.resetGame = async function() {
+  if (isAnimating || ONLINE.active) return;
+  cancelLocalTurn();
+  const generation = ONLINE.generation;
+  const body = { player_count: 3 };
+  const data = await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
+  if (ONLINE.active || ONLINE.generation !== generation) return;
+  AW.handle(data);
+  gameState = data;
+  rebuildPlayers();
+  updateBallMesh(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
+  shadowMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.y = 0.1;
+  document.getElementById('log-panel').innerHTML = '';
+  updateHUD(data);
+};
+
+window.undoMove = async function() {
+  if (isAnimating || ONLINE.active) return;
+  cancelLocalTurn();
+  const generation = ONLINE.generation;
+  const data = await fetch('/undo', { method: 'POST' }).then(r => r.json());
+  if (ONLINE.active || ONLINE.generation !== generation) return;
+  AW.handle(data);
+  gameState = data;
+  rebuildPlayers();
+  updateBallMesh(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
+  shadowMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.y = 0.1;
+  updateHUD(data);
+};
+
+window.setMode = async function(mode) {
+  if (isAnimating || ONLINE.active) return;
+  cancelLocalTurn();
+  const generation = ONLINE.generation;
+  await fetch('/set_mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
+  const data = await fetch('/state').then(r => r.json());
+  if (ONLINE.active || ONLINE.generation !== generation) return;
+  AW.handle(data);
+  gameState = data;
+  rebuildPlayers();
+  updateBallMesh(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
+  shadowMesh.position.copy(serverToWorld(gameState.ball.x, gameState.ball.y));
+  shadowMesh.position.y = 0.1;
+  updateHUD(data);
+};
+
+window.switchModel = async function(name) {
+  if (ONLINE.active || isAnimating) return;
+  await fetch('/switch_model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name, target: 'b' }) });
+};
+
+window.setAnimSpeed = function(v) { animSpeed = v; };
+
+window.triggerAI = async function() { await triggerAI(); };
+
+window.__refereePos = () => refereeMesh.visible ? { x: refereeMesh.position.x, y: refereeMesh.position.z, vis: true } : { vis: false };
+
+window.__ballFX = () => ({
+  radius: ballRadius(),
+  baseScale: ballSizeScale,
+  height: ballRenderHeight,
+  quat: Array.from(ballMesh.quaternion.toArray()),
+  scale: [ballMesh.scale.x, ballMesh.scale.y, ballMesh.scale.z],
+  shadowOpacity: shadowMat.opacity,
+  shadowScale: [shadowMesh.scale.x, shadowMesh.scale.z],
+  dustActive: !!(dust && dust.active),
+  pos: [ballMesh.position.x, ballMesh.position.y, ballMesh.position.z],
+});
+
+window.__camInfo = () => {
+  const corners = [[0, 0], [W, 0], [0, H], [W, H]].map(([sx, sy]) => {
+    const v = serverToWorld(sx, sy).project(camera);
+    return [v.x, v.y];
+  });
+  return {
+    fov: camera.fov, aspect: camera.aspect,
+    pos: [camera.position.x, camera.position.y, camera.position.z],
+    tgt: [controls.target.x, controls.target.y, controls.target.z],
+    ndc: corners, viewport: [container.clientWidth, container.clientHeight],
+  };
+};
+
+window.__crowdInfo = () => crowdData ? {
+  ...crowdData.stats(),
+  count: crowdData.culler.stats().total,
+  culling: crowdData.culler.stats(),
+  fallbackCount: 0,
+  uniformCam: !!crowdData.uniforms.uCamRight,
+} : null;
+window.__renderStats = () => ({
+  frames: renderFrames,
+  drawCalls: renderer.info.render.calls,
+  triangles: renderer.info.render.triangles,
+  geometries: renderer.info.memory.geometries,
+  textures: renderer.info.memory.textures,
+  scoreboardUpdates,
+  scoreboardVersion: window._scoreboardTex?.version || 0,
+  polling: ONLINE.polling,
+  isAnimating,
+  loop: renderLoop.stats(),
+  quality: graphicsQuality.stats(),
+  culling: {
+    crowd: crowdData?.culler.stats() || null,
+    seating: crowdData?.seating.map(mesh => mesh.userData.frustumCuller.stats()) || [],
+    fallback: [],
+  },
+});
+
+function setOverlay(show, text) {
+  const el = document.getElementById('canvas-overlay');
+  el.classList.toggle('visible', show);
+  if (show) document.getElementById('overlay-text').textContent = text || 'AI thinking…';
+}
+
+//  Init 
+(async () => {
+  // Load customization
+  try {
+    const cust = await fetch('/api/customization').then(r => r.json());
+    if (refereeMesh.userData.setShirtColor(cust.ref_color)) requestRender();
+    if (cust.team_a_color) CUST_TEAM_A = cust.team_a_color;
+    if (cust.team_b_color) CUST_TEAM_B = cust.team_b_color;
+    if (cust.crowd_palette) {
+      CUST_CROWD_PALETTE = cust.crowd_palette;
+    }
+    if (cust.stadium_seat_color) CUST_STADIUM_SEAT = cust.stadium_seat_color;
+    if (cust.ball_design) CUST_BALL_DESIGN = cust.ball_design;
+    if (cust.ball_pattern) CUST_BALL_PATTERN = cust.ball_pattern;
+    if (cust.ball_color) CUST_BALL_COLOR = cust.ball_color;
+    if (cust.bg_scene) applyScene(cust.bg_scene, cust.floodlight_color || 'warm');
+    if (cust.weather) { CUST_WEATHER = cust.weather; applyWeather(cust.weather); }
+    // apply ball customization
+    try{
+      const newTex = makeBallTexture(CUST_BALL_DESIGN, CUST_BALL_PATTERN, CUST_BALL_COLOR);
+      ballMat.map?.dispose();
+      ballMat.map = newTex; ballMat.needsUpdate = true;
+    }catch(e){}
+    // camera customization (FIFA 8 groups: Camera Settings)
+    try{
+      if(cust.camera_type){
+        const camPresets={broadcast:{pos:[-1500,790,320], fov:65}, top:{pos:[0,1800,0], fov:55}, classic:{pos:[-1200,900,400], fov:60}, dynamic:{pos:[-1300,850,360], fov:68}, player:{pos:[-260,92,135], fov:70}};
+        const p=camPresets[cust.camera_type]||camPresets.broadcast;
+        const h=(cust.camera_height!=null? cust.camera_height : 10)/10;
+        const z=(cust.camera_zoom!=null? cust.camera_zoom : 10)/10;
+        camera.position.set(p.pos[0], p.pos[1]* (0.7+ h*0.3), p.pos[2]* (0.8+ z*0.2));
+        camera.fov = p.fov * (0.9 + z*0.1);
+        camera.updateProjectionMatrix();
+      }
+      if(cust.net_color){
+        // net color tint for goals (simple: tint goal meshes if present)
+        const nc = new THREE.Color(cust.net_color);
+        scene.traverse(o=>{ if(o.isMesh && o.name && o.name.includes('net')) o.material.color.copy(nc); });
+      }
+    }catch(e){}
+  } catch (e) {}
+
+  addBenchPlayers();
+  addStadiumDetails();
+
+  // Ambient crowd noise starts on first user gesture (unlockAudio above)
+
+  crowdData = createCrowd();
+  scene.add(crowdData.group);
+  requestRender();
+
+  const urlRoom = new URLSearchParams(location.search).get('room');
+  if (urlRoom) {
+    // Online room mode (chat-enabled 1v1) — game state comes from the room
+    document.getElementById('mode-select').value = 'hvh';
+    document.getElementById('online-btn').style.display = 'none';
+    try {
+      const joinData = await onlineJSON('/online/' + encodeURIComponent(urlRoom) + '/join', { method: 'POST' });
+      startOnline(joinData);
+    } catch (error) {
+      await endOnline();
+      document.getElementById('online-join-code').value = urlRoom;
+      showOnlineLobby(true);
+      lobbyStatus(error.message || 'Could not join this match. Try again.');
+    }
+    return;
+  }
+
+  if (new URLSearchParams(location.search).get('new') === '1') {
+    await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_count: 3 }) });
+    history.replaceState(null, '', '/play3d');
+  }
+  const data = await fetch('/state').then(r => r.json());
+  AW.handle(data);
+  document.getElementById('mode-select').value = data.game_mode || 'hvai';
+  gameState = data;
+  rebuildPlayers();
+  updateBallMesh(data.ball.x, data.ball.y, data.ball.z || 0);
+  shadowMesh.position.copy(serverToWorld(data.ball.x, data.ball.y));
+  shadowMesh.position.y = 0.1;
+  applyViewMode(currentView);
+  updateHUD(data);
+
+  // Fill model selector
+  try {
+    const models = await fetch('/models').then(r => r.json());
+    const sel = document.getElementById('model-select');
+    sel.innerHTML = '';
+    models.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m.id; opt.textContent = m.name;
+      if (m.id === data.ai_model) opt.selected = true;
+      sel.appendChild(opt);
+    });
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>

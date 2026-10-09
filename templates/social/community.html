@@ -1,0 +1,109 @@
+{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Community — Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/design-system.css">
+<style>
+.hero{padding:22px;border-radius:20px;background:linear-gradient(135deg,rgba(14,165,233,.13),rgba(139,92,246,.12));border:1px solid rgba(255,255,255,.65);backdrop-filter:blur(18px);margin-bottom:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
+.card{padding:16px;border-radius:14px}
+.card h3{font-family:'Space Grotesk',sans-serif;font-size:1rem;margin:0 0 6px}
+.meta{font-size:.78rem;color:#64748b}
+.badge{font-size:.68rem;padding:2px 8px;border-radius:999px;font-weight:700;background:rgba(14,165,233,.12);color:#0284c7;border:1px solid rgba(14,165,233,.25)}
+</style>
+<link rel="stylesheet" href="/static/css/frontend-workshop.css">
+{% include 'shared/_ui_assets.html' %}
+</head>
+<body class="as-app as-workshop as-community">
+{{ app_nav('workshop') }}
+
+<main class="as-main" id="as-content">
+{{ page_header('Workshop / Community', 'Good ideas play together.', 'Discover strategies from the club. Explore their code, compare benchmarks, and talk tactics with other builders.', '/my-models', 'Share a model') }}
+<div class="workshop-links" aria-label="Workshop pages"><a href="/hub/workshop">Overview</a><a href="/my-models">My models</a><a href="/playground">Playground</a><a href="/arena">AI Arena</a><a href="/community" aria-current="page">Community</a><a href="/customize">Customize</a></div>
+<section aria-labelledby="models-heading">
+  <div class="workshop-section-heading"><div><h2 id="models-heading">Community models</h2><p>Publish a saved model from My models to add your strategy.</p></div></div>
+  <div class="workshop-panel community-search"><div class="search-field"><label for="q">Find a strategy</label><input id="q" class="input" type="search" placeholder="Search by name or description" onkeydown="if(event.key==='Enter') load()"></div><button class="btn btn-primary" onclick="load()">Search</button><button class="btn btn-secondary" onclick="document.getElementById('q').value='';load()">Clear</button></div>
+  <p id="model-results-status" class="workshop-status" role="status" aria-live="polite">Loading community models...</p>
+  <div id="list" class="grid" aria-label="Community model results"></div>
+  <div id="more" style="text-align:center;margin-top:20px;display:none"><button class="btn btn-secondary" onclick="loadMore()">Load more models</button></div>
+</section>
+<section class="workshop-section" aria-labelledby="shares-heading">
+  <div class="workshop-section-heading"><div><h2 id="shares-heading">From the pitch</h2><p>Match replays and highlights shared by the club.</p></div><a class="btn btn-ghost" href="/match-history">Your match history</a></div>
+  <div id="social-list" class="grid" aria-live="polite"><div class="workshop-loading">Loading shared matches...</div></div>
+  <div id="social-more" style="text-align:center;margin-top:20px;display:none"><button class="btn btn-secondary" onclick="loadSocial()">Load more shares</button></div>
+</section>
+<section class="workshop-section" aria-labelledby="resources-heading">
+  <div class="workshop-section-heading"><div><h2 id="resources-heading">A starting point for your next idea</h2><p>Learn the game contract, try a strategy, or explore related football AI projects.</p></div><a href="/learn" class="btn btn-ghost">Guided lessons</a></div>
+  <div class="resource-grid">
+    <a class="resource-card" href="https://www.youtube.com/watch?v=aBVGKoNZQUw" target="_blank" rel="noopener"><div class="workshop-kicker">Video resource</div><h3>Football AI tutorial</h3><p>Explore football detection and tracking with Roboflow.</p><span class="card-destination">Watch on YouTube &rarr;</span></a>
+    <a class="resource-card" href="https://www.youtube.com/watch?v=uKw0YcAF71A" target="_blank" rel="noopener"><div class="workshop-kicker">Video resource</div><h3>AI soccer expert</h3><p>A look at learning soccer behavior through self-play.</p><span class="card-destination">Watch on YouTube &rarr;</span></a>
+    <a class="resource-card" href="https://www.youtube.com/watch?v=neBZ6huolkg" target="_blank" rel="noopener"><div class="workshop-kicker">Video resource</div><h3>Football analysis with AI</h3><p>Explore a computer vision workflow for match analysis.</p><span class="card-destination">Watch on YouTube &rarr;</span></a>
+  </div>
+  <p class="workshop-muted" style="margin-top:16px"><a href="/playground">Open the Playground</a> &middot; <a href="https://github.com/roboflow/sports" target="_blank" rel="noopener">Roboflow sports project</a> &middot; <a href="/play3d">Play a match</a></p>
+</section>
+</main>
+<script>
+let offsetSocial=0;
+let socialLoading=false;
+async function loadSocial(){
+  if(socialLoading)return;
+  socialLoading=true;
+  const box=document.getElementById('social-list');
+  try{
+    const r=await fetch('/api/social/shares?limit=12&offset='+offsetSocial);
+    const j=await r.json();
+    if(!r.ok || j.error)throw new Error(j.error || 'Could not load shared matches.');
+    if(offsetSocial===0)box.innerHTML='';
+    (j.shares||[]).forEach(s=>{
+      const card=document.createElement('article');card.className='glass-card card';
+      const avatar=s.avatar_url?'<img src="'+esc(s.avatar_url)+'" width="32" height="32" style="border-radius:50%" alt="">':'';
+      card.innerHTML='<div class="model-card-top"><div style="display:flex;gap:10px;align-items:center">'+avatar+'<strong>'+esc(s.username||'Club member')+'</strong></div><span class="meta">'+esc(s.kind||'Match')+' &middot; '+esc((s.created_at||'').slice(0,10))+'</span></div><p class="meta">'+esc(s.caption||'Shared a match from the pitch.')+'</p><div class="card-action"><a class="btn btn-primary" href="/history/watch/'+encodeURIComponent(s.replay_id)+'">Watch replay</a> <a class="btn btn-ghost" href="/api/history/replay/'+encodeURIComponent(s.replay_id)+'" target="_blank" rel="noopener">Replay data</a></div>';
+      box.appendChild(card);
+    });
+    offsetSocial+=(j.shares||[]).length;
+    document.getElementById('social-more').style.display=offsetSocial<(j.total||0)?'block':'none';
+    if(!offsetSocial)box.innerHTML='<div class="workshop-empty"><strong>The pitch is quiet for now.</strong><p>Share a replay or highlight from your match history.</p><a class="btn btn-ghost" href="/match-history">Open match history</a></div>';
+  }catch(e){
+    if(!offsetSocial)box.innerHTML='<div class="workshop-empty"><strong>Shared matches could not load.</strong><p>'+esc(e.message)+'</p><button class="btn btn-ghost" onclick="loadSocial()">Try again</button></div>';
+  }finally{socialLoading=false;}
+}
+let offset=0,limit=12,total=0,query='',loadGeneration=0;
+async function load(reset=true){
+  const generation=reset?++loadGeneration:loadGeneration;
+  const box=document.getElementById('list');
+  const status=document.getElementById('model-results-status');
+  if(reset){offset=0;box.innerHTML='';document.getElementById('more').style.display='none';}
+  query=document.getElementById('q').value.trim();
+  status.textContent='Loading models...';
+  try{
+    const r=await fetch(`/api/community?limit=${limit}&offset=${offset}&q=${encodeURIComponent(query)}`);
+    const j=await r.json();
+    if(generation!==loadGeneration)return;
+    if(!r.ok || j.error)throw new Error(j.error || 'Could not load community models.');
+    total=j.total||0;
+    (j.models||[]).forEach(m=>{
+      const card=document.createElement('article');card.className='glass-card card';
+      const links=(m.links||[]).map(l=>'<a href="'+esc(l.url)+'" target="_blank" rel="noopener">'+esc(l.title)+'</a>').join(' &middot; ');
+      card.innerHTML='<div class="model-card-top"><h3>'+esc(m.name)+'</h3>'+(m.score!=null?'<span class="badge">'+Number(m.score).toFixed(1)+'% vs built-ins</span>':'<span class="meta">Not benchmarked yet</span>')+'</div><p class="meta">By '+esc(m.owner_name||'Club member')+' &middot; '+esc((m.created_at||'').slice(0,10))+'</p><p class="meta">'+esc(m.description||'No description added.')+'</p>'+(links?'<div class="meta">'+links+'</div>':'')+'<p class="meta">'+Number(m.likes||0)+' likes &middot; '+Number(m.comments||0)+' comments</p><div class="card-action"><a class="btn btn-primary" href="/community/'+encodeURIComponent(m.id)+'">Explore model</a></div>';
+      box.appendChild(card);
+    });
+    offset+=(j.models||[]).length;
+    document.getElementById('more').style.display=offset<total?'block':'none';
+    status.textContent=total+' model'+(total===1?'':'s')+(query?' matching "'+query+'"':' from the community');
+    if(!offset)box.innerHTML='<div class="workshop-empty"><strong>'+(query?'No strategies match your search.':'Be the first to share a strategy.')+'</strong><p>'+(query?'Try another name or description.':'Make a saved model public in My models to share it with the club.')+'</p><a class="btn btn-ghost" href="/my-models">Your model library</a></div>';
+  }catch(e){
+    if(generation!==loadGeneration)return;
+    status.textContent=e.message;
+    if(!offset)box.innerHTML='<div class="workshop-empty"><strong>Models could not load.</strong><p>Try loading the library again.</p><button class="btn btn-ghost" onclick="load()">Try again</button></div>';
+  }
+}
+function loadMore(){load(false);}
+function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML;}
+load();loadSocial();
+</script>
+<script src="/static/js/ui/feedback.js"></script>
+</body>
+</html>

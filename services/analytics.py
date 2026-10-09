@@ -336,8 +336,8 @@ def custom_models_vs_builtins(entries: list[dict],
                               matrix_analysis: dict) -> list[dict]:
     """Q: how do user-submitted models compare against the built-in
     baseline? Each entry's `details` holds per-opponent win rates against
-    the same 7 built-ins; the matrix provides the built-in-vs-built-in
-    distribution for each opponent (what the 6 other built-ins achieve vs
+    the same built-in catalog; the matrix provides the built-in-vs-built-in
+    distribution for each opponent (what the other built-ins achieve vs
     that opponent) as the comparison axis."""
     per_opponent = matrix_analysis.get("per_opponent") or {}
     out = []

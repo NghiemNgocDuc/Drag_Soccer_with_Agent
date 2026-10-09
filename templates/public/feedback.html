@@ -1,0 +1,86 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Feedback — Agent Soccer</title>
+<link href="/static/vendor/fonts/be-vietnam.css" rel="stylesheet">
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-social as-page-feedback">
+
+
+{{ app_nav('social') }}
+
+
+<main class="as-main" id="as-content">
+{{ page_header('CONTACT', 'Help shape the game', 'Report a problem or share an idea for Agent Soccer.') }}
+<div class="feedback-layout">
+  <form class="glass-card card" id="feedback-form">
+    <h2>Send a note</h2>
+    <div id="msg" class="msg" role="status" aria-live="polite"></div>
+    <div class="field"><label for="title">Title <span class="meta">(required)</span></label><input id="title" type="text" required placeholder="A short summary"></div>
+    <div class="field"><label for="desc">Details</label><textarea id="desc" rows="7" placeholder="What happened, or what would you like to see?"></textarea></div>
+    <button id="submit" type="submit" class="btn-submit">Send feedback</button>
+  </form>
+  <aside class="feedback-guide"><h2>A useful report starts here</h2><p><strong>Found a bug?</strong><br>Tell us which page you were on, what you tried, and what happened. Include your browser and device if they matter.</p><p><strong>Have an idea?</strong><br>Describe the change and how it would help you play, build, or connect.</p><a href="/about">Explore the game guide →</a></aside>
+</div></main>
+
+<script>
+var title = document.getElementById('title');
+var desc = document.getElementById('desc');
+var submit = document.getElementById('submit');
+var msg = document.getElementById('msg');
+
+document.getElementById('feedback-form').addEventListener('submit', function (event) {
+  event.preventDefault();
+  var t = title.value.trim();
+  if (!t) {
+    showMsg('Please enter a title.', 'error');
+    return;
+  }
+  submit.disabled = true;
+  submit.textContent = 'Sending...';
+
+  fetch('/api/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title: t, description: desc.value.trim() }),
+  })
+  .then(function (r) { return r.json(); })
+  .then(function (data) {
+    if (data.ok) {
+      showMsg('Thanks for your feedback! We read every submission.', 'success');
+      title.value = '';
+      desc.value = '';
+      submit.textContent = 'Sent!';
+      setTimeout(function () {
+        submit.disabled = false;
+        submit.textContent = 'Send Feedback';
+      }, 2000);
+    } else {
+      showMsg(data.error || 'Failed to send feedback.', 'error');
+      submit.disabled = false;
+      submit.textContent = 'Send Feedback';
+    }
+  })
+  .catch(function () {
+    showMsg('Network error. Try again.', 'error');
+    submit.disabled = false;
+    submit.textContent = 'Send Feedback';
+  });
+});
+
+function showMsg(text, type) {
+  msg.className = 'msg ' + type;
+  msg.textContent = text;
+}
+</script>
+</body>
+</html>

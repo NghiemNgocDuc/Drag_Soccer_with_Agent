@@ -20,23 +20,28 @@ def goal_targets(is_player_a: bool) -> list[tuple[float, float]]:
     return [(gx, GOAL_TOP), (gx, GOAL_BOTTOM), (gx, GOAL_CENTER)]
 
 
-def aim_through(px: float, py: float, bx: float, by: float, tx: float, ty: float) -> float:
-    dx1 = bx - px
-    dy1 = by - py
-    len1 = math.hypot(dx1, dy1)
-    if len1 < 1:
-        return 0.0
-    dx2 = tx - bx
-    dy2 = ty - by
-    len2 = math.hypot(dx2, dy2)
-    if len2 < 1:
-        return math.degrees(math.atan2(dy1, dx1))
-    dot = dx1 * dx2 + dy1 * dy2
-    cos_a = dot / (len1 * len2)
-    cos_a = max(-1.0, min(1.0, cos_a))
-    cross = dx1 * dy2 - dy1 * dx2
-    sign = 1.0 if cross >= 0 else -1.0
-    return math.degrees(math.acos(cos_a) * sign)
+def aim_through(px: float, py: float, bx: float, by: float, tx: float, ty: float,
+                contact_radius: float = PLAYER_R + BALL_R) -> float:
+    """Return an absolute launch angle toward the ball's desired impact side.
+
+    A pawn has to contact the ball before it can send it toward a target. Aim
+    slightly inside that contact circle so oblique targets cannot produce a
+    grazing miss. Close or overlapping pawns aim at the centre instead.
+    """
+    dx, dy = bx - px, by - py
+    distance = math.hypot(dx, dy)
+    tx, ty = tx - bx, ty - by
+    target_distance = math.hypot(tx, ty)
+    if distance < 1e-9:
+        return math.degrees(math.atan2(ty, tx)) % 360.0
+    if target_distance > 1e-9 and distance > contact_radius:
+        # Use the requested collision normal when that face is reachable from
+        # this pawn. An occluded face still gets a safe central-contact angle.
+        visible = (dx * tx + dy * ty) / target_distance > contact_radius
+        offset = max(0.0, contact_radius) * (0.995 if visible else 0.85) / target_distance
+        dx -= tx * offset
+        dy -= ty * offset
+    return math.degrees(math.atan2(dy, dx)) % 360.0
 
 
 def progress_score(end_x: float, is_player_a: bool, defensive: bool) -> float:
@@ -50,7 +55,7 @@ def progress_score(end_x: float, is_player_a: bool, defensive: bool) -> float:
                 return 600.0
             return (FIELD_W - end_x) * 0.8
     else:
-        return (FIELD_W - end_x) if is_player_a else end_x
+        return end_x if is_player_a else (FIELD_W - end_x)
 
 
 def dist_to_goal(px: float, py: float, is_player_a: bool) -> float:

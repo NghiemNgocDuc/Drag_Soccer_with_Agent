@@ -1,0 +1,16 @@
+{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join the club. | Agent Soccer</title><link rel="stylesheet" href="/static/css/frontend-public.css">{% include 'shared/_ui_assets.html' %}</head>
+<body class="as-app as-public as-auth">{{ app_nav('') }}
+<main class="as-auth-shell" id="as-content">{% include 'shared/_auth_visual.html' %}<section class="as-auth-card" aria-labelledby="auth-title">
+<p class="as-eyebrow">Your club. Your next move.</p><h1 id="auth-title">Join the club.</h1><p class="as-description">One account for matches, custom AI, tournaments, and your team.</p>{% with messages = get_flashed_messages() %}{% for msg in messages %}<div class="flash" role="alert">{{ msg }}</div>{% endfor %}{% endwith %}
+<form method="POST" action="/auth/register">
+<div class="field"><label for="username">Player name</label><input type="text" id="username" name="username" autocomplete="username" placeholder="Your name on the pitch" required autofocus></div>
+<div class="field"><label for="email">Email address</label><input type="email" id="email" name="email" autocomplete="email" placeholder="you@example.com" required></div>
+<div class="field"><label for="password">Password</label><input type="password" id="password" name="password" autocomplete="new-password" minlength="6" aria-describedby="password-hint" required><p class="hint" id="password-hint">Use at least 6 characters.</p></div>
+<div class="field"><label for="confirm">Confirm password</label><input type="password" id="confirm" name="confirm" autocomplete="new-password" minlength="6" required></div>
+<button type="submit" class="btn btn-primary btn-block">Create account {{ icon('arrow-right',18) }}</button></form>
+<div class="auth-footer">Already a member? <a href="/login">Sign in</a></div>
+</section></main>
+
+</body></html>

@@ -1,0 +1,102 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Watch Live Matches — Agent Soccer</title>
+<meta name="description" content="Watch any live online match in real time, right in your browser. No video — game-state 3D rendering.">
+
+
+
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-social as-page-spectate">
+
+{{ app_nav('social') }}
+
+
+<main class="as-main" id="as-content">
+{{ page_header('MATCH DAY', 'Live from the pitch', 'Watch online matches as they happen. Pick a game and take your seat.') }}
+<div class="panel-heading"><h2>On now</h2><span class="live-count" id="live-count" role="status">0 live</span></div>
+  <div>
+    <div id="list-spinner" class="spinner-row"><span>Finding live matches…</span></div>
+    <div class="match-list" id="match-list"></div>
+    <div class="empty" id="match-empty" style="display:none">
+      <div class="empty-ico"></div>
+      <div><b>No live matches right now.</b></div>
+      <div style="margin-top:var(--space-1)">Start an online match, or return here to catch the next kickoff.</div>
+      <a class="btn btn-primary btn-sm" href="/play3d" style="margin-top:var(--space-4)">Go to Game</a>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  const list = document.getElementById('match-list');
+  const empty = document.getElementById('match-empty');
+  const countEl = document.getElementById('live-count');
+  let inFlight = false;
+
+  function fmtElapsed(ts) {
+    if (!ts) return 'in progress';
+    const sec = Math.max(0, Math.floor((Date.now() / 1000) - ts));
+    const m = String(Math.floor(sec / 60)).padStart(2, '0');
+    const s = String(sec % 60).padStart(2, '0');
+    return m + ':' + s;
+  }
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s == null ? '' : String(s);
+    return d.innerHTML;
+  }
+
+  async function refresh() {
+    if (inFlight) return;
+    inFlight = true;
+    try {
+      const res = await fetch('/api/spectate/active');
+      const data = await res.json();
+      const matches = data.matches || [];
+      countEl.textContent = matches.length + ' live';
+      document.getElementById('list-spinner').style.display = 'none';
+      list.innerHTML = '';
+      empty.style.display = matches.length ? 'none' : 'block';
+      matches.forEach(function (m) {
+        const row = document.createElement('div');
+        row.className = 'glass-card match-row';
+        const teams = document.createElement('div');
+        teams.className = 'match-teams';
+        teams.innerHTML =
+          '<span>' + esc(m.name_a || 'Player A') + '</span>' +
+          '<span class="match-score">' + (m.score_a || 0) + ' − ' + (m.score_b || 0) + '</span>' +
+          '<span>' + esc(m.name_b || 'Player B') + '</span>';
+        const meta = document.createElement('div');
+        meta.className = 'match-meta';
+        meta.innerHTML =
+          '<span class="live-dot">LIVE</span>' +
+          '<span>' + (m.kick_count || 0) + ' kicks</span>' +
+          '<span>' + fmtElapsed(m.started_at) + '</span>' +
+          '<a class="btn btn-primary btn-sm" href="/spectate/' + encodeURIComponent(m.room_id) + '">Watch</a>';
+        row.appendChild(teams);
+        row.appendChild(meta);
+        list.appendChild(row);
+      });
+    } catch (e) {
+      /* transient — retry next tick */
+    } finally {
+      inFlight = false;
+    }
+  }
+
+  refresh();
+  setInterval(refresh, 5000);
+
+
+})();
+</script>
+</body>
+</html>

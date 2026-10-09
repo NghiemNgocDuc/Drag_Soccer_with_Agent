@@ -1,0 +1,55 @@
+{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+
+
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Achievements — Agent Soccer</title>
+<link href="/static/vendor/fonts/be-vietnam.css" rel="stylesheet">
+
+<link rel="stylesheet" href="/static/css/frontend-social.css">
+{% include "shared/_ui_assets.html" %}
+</head>
+<body class="as-app as-social as-page-achievements">
+
+
+{{ app_nav('social') }}
+
+
+<main class="as-main" id="as-content">
+{{ page_header('CAREER', 'Achievements', 'Track your milestones. Badges celebrate progress and never change gameplay.') }}
+  <div class="progress-card">
+    <div class="progress-lbl">
+      <span>Progress</span><span>{{ earned }}/{{ total }} badges</span>
+    </div>
+    {% set pct = (earned / total * 100) if total else 0 %}
+    <div class="progress-bar" role="progressbar" aria-label="Achievement progress" aria-valuemin="0" aria-valuemax="{{ total }}" aria-valuenow="{{ earned }}"><div class="progress-fill" style="width:{{ pct }}%"></div></div>
+  </div>
+
+  {% for cat, label in categories.items() %}
+    {% set group = achievements | selectattr("category", "equalto", cat) | list %}
+    {% if group %}
+      <h2 class="section-title">{{ label }}</h2>
+      <div class="badge-grid">
+        {% for a in group %}
+          <div class="badge-card {{ 'earned' if a.earned else '' }}">
+            <div class="b-emoji" aria-hidden="true">{{ icon("trophy") }}</div>
+            <div>
+              <div class="b-name">{{ a.name }}</div>
+              <div class="b-desc">{{ a.description }}</div>
+              {% if a.earned %}
+                <div class="b-date">Earned {{ a.awarded_at[:10] }}</div>
+              {% else %}
+                <div class="b-locked">Locked</div>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endfor %}
+</main>
+</body>
+</html>

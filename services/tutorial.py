@@ -2,12 +2,12 @@
 
 The Learn page guides new AI builders from "never written a game AI" to
 beating the built-in agents. Every lesson ends in a *machine-checked*
-milestone: the user's code is run headlessly for a few full matches
+milestone: the user's code is run headlessly for a few bounded matches
 against a fixed opponent and the win rate decides pass/fail — nothing is
 self-reported.
 
 Design rules (the codebase contract):
-  * The 7 built-in agents are never modified. A lesson can also target
+  * The registered built-in agents are never modified. A lesson can also target
     two small *inline* baselines defined here — a do-nothing bot and a
     random bot — that are NOT registered in `app.MODELS` (so they never
     appear in the arena / playground / leaderboard).
@@ -23,6 +23,7 @@ import random
 import time
 
 from models.soccer_logic import new_soccer_state, apply_kick, inject_player_stats
+from services.game_analytics import MODEL_CATALOG, bounded_match_winner
 from user_models.runner import validate_code, execute_user_model
 
 MAX_KICKS = 30  # cap per milestone match (mirrors run_model_battle)
@@ -34,8 +35,7 @@ GOAL_Y1 = 356
 GOAL_Y2 = 519
 PLAYER_COUNT = 3
 
-BUILTIN_OPPONENTS = ("greedy", "monte_carlo", "bayesian", "q_learning",
-                     "value_iteration", "policy_iteration", "minimax")
+BUILTIN_OPPONENTS = tuple(model["id"] for model in MODEL_CATALOG)
 
 # Optional-stats lesson: player index 2 (the striker) gets Power 85 so
 # "who kicks" genuinely matters; the built-in opponent gets the same build
@@ -47,7 +47,7 @@ _L6_STATS = [
 ]
 
 
-#  Inline baseline bots (NOT part of the 7 built-ins) 
+#  Inline baseline bots (NOT part of the registered built-ins)
 
 class DoNothingBot:
     """Optimally cautious: never kicks the ball anywhere."""
@@ -75,7 +75,10 @@ def resolve_opponent(target: str | None):
         return DoNothingBot()
     if target in BUILTIN_OPPONENTS:
         from services.game_analytics import _load_model
-        return _load_model(target)
+        opponent = _load_model(target)
+        if opponent is not None and callable(getattr(opponent, "get_ai_move", None)):
+            return opponent
+        raise ValueError(f"Tutorial opponent unavailable: {target}")
     raise ValueError(f"Unknown tutorial opponent: {target}")
 
 
@@ -118,11 +121,11 @@ LESSONS: list[dict] = [
              "and a power from 0 to 100."),
             ("How to check yourself",
              "The editor already has a working model. Press **Check milestone** "
-             "and the server will run one full match against a do-nothing "
+             "and the server will run a match of up to 30 kicks against a do-nothing "
              "opponent. If your code runs every turn without erroring, the "
              "lesson is complete."),
         ],
-        "milestone": "Your model runs a full match against a do-nothing opponent "
+        "milestone": "Your model runs a match against a do-nothing opponent "
                      "without erroring (any result).",
         "hint": "The starter code already passes. Try reading it until it makes sense.",
         "starter": _starter('''
@@ -265,39 +268,40 @@ def get_ai_move(state, is_player_a):
     {
         "id": 4,
         "slug": "beat-stochastic",
-        "title": "Beat Monte Carlo (or Bayesian)",
+        "title": "Beat Potential Field (or Voronoi)",
         "icon": "",
-        "tagline": "Randomised opponents are sloppy. A steady, robust plan wins.",
+        "tagline": "Space-aware opponents avoid traffic. Build a robust attack and clear danger.",
         "kind": "win_rate",
         "games": 5,
         "threshold": 3,
         "opponent": None,
-        "opponent_label": "Monte Carlo / Bayesian",
-        "target_choice": ["monte_carlo", "bayesian"],
+        "opponent_label": "Potential Field / Voronoi",
+        "target_choice": ["potential_field", "voronoi"],
+        "target_labels": {"potential_field": "Potential Field", "voronoi": "Voronoi"},
         "requires": [1, 2, 3],
         "sections": [
             ("Choose your target",
-             "Monte Carlo samples angles randomly around the corners; Bayesian "
-             "weights a fine sweep with a bell-curve prior. Both are probabilistic "
-             "— occasionally they pass up a sure thing."),
+             "Potential Field rewards positions near the goal and away from "
+             "defenders. Voronoi rewards positions your teammates can reach "
+             "before the opposition. Both test kicks with the physics engine."),
             ("Play the percentages",
-             "Their randomness means they sometimes kick too softly or into "
-             "traffic. If *your* model makes the same high-quality kick every "
-             "turn — near the corners, firm power — you win the law-of-large-"
-             "numbers war."),
+             "A safe landing spot is not always a scoring chance. Compare "
+             "progress toward goal with who can reach the next ball position. "
+             "Look for clear corner shots instead of always chasing open space."),
             ("Defend the danger zone",
              "When the ball is inside your own 250px, clear it: kick it hard "
              "toward the opponent half. Letting the ball sit near your goal hands "
              "the opponent free chances."),
-            ("Deterministic beats random over 5 games",
-             "A repeatable plan converts the opponent's bad rolls into your "
-             "goals. After this lesson you can take on either target."),
+            ("Test a repeatable plan over 5 games",
+             "Keep your decisions repeatable so you can compare results after "
+             "changing a rule. Try each target: their different scoring rules "
+             "reward different landing positions."),
         ],
-        "milestone": "Win at least 3 of 5 matches against Monte Carlo OR Bayesian.",
+        "milestone": "Win at least 3 of 5 matches against Potential Field OR Voronoi.",
         "hint": "Add a danger-zone clear: if `is_player_a` and the ball is left of "
                 "x=250 (or mirrored), kick hard toward midfield instead of attacking.",
         "starter": _starter('''
-# Lesson 4 — Beat Monte Carlo (or Bayesian)
+# Lesson 4 — Beat Potential Field (or Voronoi)
 # A robust attacker that also clears its own danger zone.
 
 DANGER = 250  # within this many px of your own goal line, clear it
@@ -327,40 +331,38 @@ def get_ai_move(state, is_player_a):
     {
         "id": 5,
         "slug": "beat-minimax",
-        "title": "Beat Minimax",
+        "title": "Beat Expectimax",
         "icon": "",
-        "tagline": "Minimax searches hard and punishes deflections. Out-plan it.",
+        "tagline": "Expectimax weighs likely replies. Plan beyond the next kick.",
         "kind": "win_rate",
         "games": 5,
         "threshold": 3,
-        "opponent": "minimax",
-        "opponent_label": "Minimax",
+        "opponent": "expectimax",
+        "opponent_label": "Expectimax",
         "target_choice": None,
         "requires": [1, 2, 3, 4],
         "sections": [
-            ("What Minimax does",
-             "Minimax tries the densest grid of angles and powers against full "
-             "physics, rewarding goals hugely (1500) and penalising own-goals "
-             "(-500). It is almost the best pure attacker in the game."),
-            ("Two weaknesses to exploit",
-             "1) It *penalises* shots that deflect off players (direction "
-             "reversals cost 20), so in traffic it will pass up angles you can "
-             "take. 2) It picks the single best simulated kick — a model that "
-             "steadily feeds the ball into the box is more consistent than one "
-             "that occasionally finds a perfect simulation result."),
+            ("What Expectimax does",
+             "Expectimax simulates candidate kicks, rewards goals and penalises "
+             "own-goals. It then estimates danger from three weighted replies "
+             "by the nearest opponent instead of judging only its own kick."),
+            ("Look beyond its reply samples",
+             "Three replies cannot cover every teammate, angle and power. "
+             "Compare several reachable landing spots and consider whether "
+             "another player could finish or clear the ball next turn."),
             ("Feed the box, finish hard",
              "Keep the ball moving forward every turn and finish with max power "
-             "once you're inside the mouth range. Minimax's penalty for bouncing "
-             "off bodies makes it shun the very shots you can squeeze through."),
+             "once you're inside the mouth range. Prefer a clear path through "
+             "the ball, and avoid handing the opponent an easy counterattack."),
             ("Expect a fight",
              "Back-to-back corners, big power at range, and never kicking "
              "backwards. Five matches is a long series — every goal counts."),
         ],
-        "milestone": "Win at least 3 of 5 matches against Minimax.",
+        "milestone": "Win at least 3 of 5 matches against Expectimax.",
         "hint": "Aim slightly through the ball (line from player through ball to "
                 "corner) and prefer the player with the clearest path to goal.",
         "starter": _starter('''
-# Lesson 5 — Beat Minimax
+# Lesson 5 — Beat Expectimax
 # Deterministic corners + line-of-sight player pick + maximum finish.
 
 def get_ai_move(state, is_player_a):
@@ -395,8 +397,8 @@ def get_ai_move(state, is_player_a):
         "kind": "win_rate",
         "games": 5,
         "threshold": 3,
-        "opponent": "value_iteration",
-        "opponent_label": "Value Iteration",
+        "opponent": "a2c_lite",
+        "opponent_label": "A2C Lite",
         "target_choice": None,
         "requires": [5],
         "optional": True,
@@ -406,7 +408,8 @@ def get_ai_move(state, is_player_a):
              "Each player dict has a `stats` key: "
              "`{size, power, weight, agility}` (0–100). In this lesson the "
              "striker (index 2) has Power 85 — it strikes harder and covers more "
-             "ground per kick. The built-ins already weigh stats; now you will."),
+             "ground per kick. Both teams get this same build so the test is "
+             "fair; your model can use the stats to choose its kicker."),
             ("Power = reach",
              "Higher Power means a farther, harder kick. When the ball sits far "
              "from goal but your Power player can still reach it, let that player "
@@ -420,7 +423,7 @@ def get_ai_move(state, is_player_a):
              "does not require it). But models that use stats genuinely play "
              "differently from ones that ignore them."),
         ],
-        "milestone": "Win at least 3 of 5 matches against Value Iteration with "
+        "milestone": "Win at least 3 of 5 matches against A2C Lite with "
                      "the stats build injected.",
         "hint": "`state[\"players_a\"][i].get(\"stats\", {})` gives Size/Power/"
                 "Weight/Agility. Weight raises mass (harder to shove), Agility "
@@ -465,7 +468,8 @@ def get_ai_move(state, is_player_a):
             ("The final challenge",
              "Save your best model to **My Models** (the Save button is in the "
              "playground and My Models), then open its card and press **Submit to "
-             "Leaderboard**. That runs a fair 7-opponent benchmark in the "
+             "Leaderboard**. That runs a benchmark against the current built-in "
+             "opponents in the "
              "background."),
             ("What you have learned",
              "You can now: read the match state, pick a kicker, aim at goal "
@@ -534,7 +538,8 @@ def _run_one_match(code: str, opponent, lesson: dict) -> tuple[str | None, dict]
             if is_a:
                 player_idx, angle, power = execute_user_model(code, st, True)
             else:
-                player_idx, angle, power = opponent.get_ai_move(st, False)
+                from models.search_budget import get_model_move
+                player_idx, angle, power = get_model_move(opponent, st, False)
         except Exception as exc:  # noqa: BLE001 — user code errors must fail the check
             return f"Your model errored: {exc}", {}
         try:
@@ -542,7 +547,7 @@ def _run_one_match(code: str, opponent, lesson: dict) -> tuple[str | None, dict]
         except Exception:  # noqa: BLE001
             return "The match hit a physics error — please try again.", {}
 
-    winner = st.get("winner", "Draw")
+    winner = bounded_match_winner(st)
     return None, {
         "winner": winner,
         "score_a": st.get("score_a", 0),

@@ -1,0 +1,21 @@
+{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Make your next move | Agent Soccer</title><link rel="stylesheet" href="/static/css/frontend-public.css">{% include 'shared/_ui_assets.html' %}</head>
+<body class="as-app as-public">{{ app_nav('') }}
+<main class="as-landing" id="as-content">
+<section class="as-landing-hero"><div><p class="as-eyebrow">Football. Strategy. A little code.</p><h1>Small moves.<br><em>Big game.</em></h1><p class="as-intro">Read the pitch, line up your shot, and make every turn count. Play a 3D soccer match, build your own AI, or take your team into a tournament.</p>
+<div class="as-hero-actions"><a class="btn btn-primary" href="{{ '/play3d' if session.get('user_id') else '/register' }}">{{ 'Play a match' if session.get('user_id') else 'Start playing' }} {{ icon('arrow-right',18) }}</a><a class="btn btn-secondary" href="/spectate">{{ icon('eye',18) }} Watch live</a></div><p class="as-hero-note">In your browser. At your pace. With room to experiment.</p></div>
+<div class="as-hero-art">{% include 'shared/_pitch_art.html' %}<div class="as-art-note"><div><b>The next move is yours.</b><span>Aim, choose your power, release.</span></div><span class="as-tag">3D MATCHES</span></div></div></section>
+<div class="as-value-strip"><div>{{ icon('ball',22) }} Turn-based soccer in 3D</div><div>{{ icon('code',22) }} Build and test your own AI</div><div>{{ icon('users',22) }} Play friends and join a club</div></div>
+<section aria-labelledby="ways-title"><div class="as-section-top"><div><p class="as-eyebrow">More than one way to play</p><h2 id="ways-title">Find your place on the pitch.</h2></div><p>From your first kick to your next tournament, everything starts with a move.</p></div>
+<div class="as-grid">
+<a href="/hub/play" class="as-destination">{{ icon('ball') }}<h2>Play your way</h2><p>Face an AI, challenge a friend, or watch a live match from the stands.</p><span>Find a match {{ icon('arrow-right',16) }}</span></a>
+<a href="/hub/workshop" class="as-destination">{{ icon('code') }}<h2>Build a smarter team</h2><p>Write an AI, test its decisions, and learn from the community.</p><span>Open the workshop {{ icon('arrow-right',16) }}</span></a>
+<a href="/hub/compete" class="as-destination">{{ icon('trophy') }}<h2>Chase the next win</h2><p>Enter tournaments, climb the rankings, and review your matches.</p><span>Explore competition {{ icon('arrow-right',16) }}</span></a>
+<a href="/customize" class="as-destination">{{ icon('settings') }}<h2>Make it your team</h2><p>Balance player stats, choose your colors, and set the stadium scene.</p><span>Build your team {{ icon('arrow-right',16) }}</span></a>
+</div></section>
+<section class="as-join-banner"><div><h2>A good game starts with you.</h2><p>Pick a side. Find your angle. Take your shot.</p></div><a href="{{ '/lobby' if session.get('user_id') else '/register' }}" class="btn btn-primary">{{ 'Enter the locker room' if session.get('user_id') else 'Join the club' }} {{ icon('arrow-right',18) }}</a></section>
+<footer class="as-public-footer"><span>Agent Soccer / Every move matters.</span><div><a href="/about">About</a><a href="/learn">Learn</a><a href="/workflow">How it works</a></div></footer>
+</main>
+
+</body></html>

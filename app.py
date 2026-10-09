@@ -7,6 +7,9 @@ import random
 import threading
 import time
 import logging
+import copy
+from collections import OrderedDict
+from contextlib import contextmanager
 from functools import wraps
 
 from flask import (
@@ -19,7 +22,8 @@ from game.session import (
     get_game, save_game, new_game_state, push_snapshot, pop_snapshot,
     new_pg_state, get_pg, save_pg,
 )
-from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions
+from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions, normalize_kick
+from models.search_budget import get_model_move, is_builtin, DEFAULT_BUDGET_S
 
 #  Mem0-style memory (short/long) 
 try:
@@ -95,14 +99,35 @@ def ready():
     return jsonify({"ok": ok, "checks": checks}), (200 if ok else 503)
 
 
+_PRESENCE_HEARTBEAT_INTERVAL = 20.0  # Redis presence TTL is 90 seconds.
+_PRESENCE_HEARTBEAT_MAX_USERS = 4096
+_presence_heartbeats: OrderedDict[str, float] = OrderedDict()
+_presence_heartbeat_lock = threading.Lock()
+
+
 @app.before_request
 def _presence_heartbeat():
-    if "user_id" in session and request.path not in ("/static/workflow.png",):
-        try:
-            from db.friends import heartbeat as _hb_presence
-            _hb_presence(session["user_id"])
-        except Exception:
-            pass
+    if "user_id" not in session or request.path.startswith("/static/"):
+        return
+    user_id = session["user_id"]
+    now = time.monotonic()
+    with _presence_heartbeat_lock:
+        previous = _presence_heartbeats.get(user_id)
+        if previous is not None and now - previous < _PRESENCE_HEARTBEAT_INTERVAL:
+            return
+        _presence_heartbeats[user_id] = now
+        _presence_heartbeats.move_to_end(user_id)
+        while len(_presence_heartbeats) > _PRESENCE_HEARTBEAT_MAX_USERS:
+            _presence_heartbeats.popitem(last=False)
+    try:
+        from db.friends import heartbeat as _hb_presence
+        # Explicit match/online status changes call set_presence directly;
+        # only these repeated request heartbeats are throttled.
+        _hb_presence(user_id)
+    except Exception:
+        with _presence_heartbeat_lock:
+            if _presence_heartbeats.get(user_id) == now:
+                _presence_heartbeats.pop(user_id, None)
 
 MODELS: dict[str, str] = {
     "greedy":           "models.greedy_model",
@@ -119,9 +144,11 @@ MODELS: dict[str, str] = {
     "langchain":        "models.langchain_model",
 }
 
-# AI off-thread pool so slow simulate_kick (2-3s) does not block gunicorn worker
+# Bound both executing and waiting AI work. A timed-out thread keeps its slot
+# until it finishes, so repeated requests cannot build an unbounded backlog.
 from concurrent.futures import ThreadPoolExecutor as _AIPool
 _ai_pool = _AIPool(max_workers=4, thread_name_prefix="ai")
+_ai_slots = threading.BoundedSemaphore(4)
 
 _builtin_cache: dict = {}
 USER_MODEL_PREFIX = "user_model:"
@@ -231,6 +258,10 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "winner":       state.get("winner"),
         "game_mode":    state.get("game_mode", "hvai"),
         "player_count": state.get("player_count", 3),
+        "power_cap": state.get("power_cap", 100),
+        "ball_type": state.get("ball_type", "normal"),
+        "ball_bounciness": state.get("ball_bounciness", "normal"),
+        "ball_size": state.get("ball_size", "normal"),
         "period":       state.get("period", "regular_first"),
         "penalty_shootout": state.get("penalty_shootout", False),
         "penalty_kick_num": state.get("penalty_kick_num", 0),
@@ -551,6 +582,7 @@ def _model_rank(model_id: str) -> int | None:
 
 
 def _apply_move(state: dict, player_idx: int, angle: float, power: float, is_player_a: bool) -> dict:
+    player_idx, angle, power = normalize_kick(state, player_idx, angle, power, is_player_a)
     push_snapshot(state)
     trajectory, scored, desc, kick_endpoint, push_result = apply_kick(state, player_idx, angle, power, is_player_a)
     return {
@@ -572,9 +604,9 @@ def _do_penalty_ai(state: dict, model_name: str, is_player_a: bool) -> dict:
         state["penalty_goalkeeper_move"] = random.choice(["left", "center", "right"])
         return {"goalkeeper_move": state["penalty_goalkeeper_move"]}
     model = _load_model(model_name)
-    player_idx, angle, power = model.get_ai_move(state, is_player_a)
-    result = _apply_move(state, player_idx, angle, power, is_player_a)
-    # Redo as penalty
+    player_idx, angle, power = _get_ai_move_with_timeout(model, state, is_player_a)
+    player_idx, angle, power = normalize_kick(state, player_idx, angle, power, is_player_a)
+    push_snapshot(state)
     traj, scored, desc = apply_penalty_kick(state, player_idx, angle, power, is_player_a)
     return {
         "trajectory": traj,
@@ -588,44 +620,97 @@ def _do_penalty_ai(state: dict, model_name: str, is_player_a: bool) -> dict:
     }
 
 
-def _get_ai_move_with_timeout(model, state, is_player_a, timeout=2.0):
-    """Run get_ai_move with 2s hard limit, fallback to greedy on timeout."""
+def _allowed_ai_players(state, is_player_a, excluded_player_idx=None):
+    players = state["players_a"] if is_player_a else state["players_b"]
+    if state.get("game_mode") == "hvai" and not is_player_a:
+        return (0,)
+    return tuple(i for i in range(len(players))
+                 if len(players) == 1 or i != excluded_player_idx)
+
+
+def _quick_ai_move(state: dict, is_player_a: bool, allowed_players=None) -> tuple[int, float, float]:
+    """Choose a legal team action immediately without speculative physics."""
+    from models.tactics import quick_move
+    allowed = _allowed_ai_players(state, is_player_a) if allowed_players is None else allowed_players
+    return quick_move(state, is_player_a, allowed)
+
+
+def _get_ai_move_with_timeout(model, state, is_player_a, timeout=None, fallback_info=None,
+                             allowed_players=None, search_info=None):
+    """Bound admission and cooperatively stop built-in search on its own snapshot."""
+    allowed = _allowed_ai_players(state, is_player_a) if allowed_players is None else tuple(allowed_players)
+    cancelled = threading.Event()
+    if timeout is None:
+        timeout = DEFAULT_BUDGET_S + 0.10 if is_builtin(model) else 2.0
+
+    def fallback(reason):
+        if fallback_info is not None:
+            fallback_info["reason"] = reason
+        return _quick_ai_move(state, is_player_a, allowed)
+
+    if not _ai_slots.acquire(blocking=False):
+        return fallback("busy")
     try:
-        fut = _ai_pool.submit(model.get_ai_move, state, is_player_a)
-        return fut.result(timeout=timeout)
-    except Exception as e:
-        # Timeout or error -> fallback to greedy (fast, <150ms)
-        try:
-            fallback = _load_model("greedy")
-            return fallback.get_ai_move(state, is_player_a)
-        except Exception:
-            raise e
+        # Known built-ins search current positions, stats and match settings;
+        # their simulations do not use accumulated replay histories. Uploaded
+        # or unknown strategies retain the complete documented state contract.
+        if getattr(model, "__name__", None) in MODELS.values():
+            model_state = copy.deepcopy({
+                key: value for key, value in state.items()
+                if key not in ("move_history", "snapshots", "history")
+            })
+            for key in ("move_history", "snapshots", "history"):
+                if key in state:
+                    model_state[key] = []
+        else:
+            model_state = copy.deepcopy(state)
+        fut = _ai_pool.submit(get_model_move, model, model_state, is_player_a,
+                              allowed_players=allowed, diagnostics=search_info,
+                              cancelled=cancelled)
+    except Exception:
+        _ai_slots.release()
+        return fallback("error")
+    fut.add_done_callback(lambda _future: _ai_slots.release())
+    try:
+        move = normalize_kick(state, *fut.result(timeout=timeout), is_player_a)
+        if move[0] not in allowed:
+            return fallback("player_constraint")
+        return move
+    except Exception as exc:
+        # Built-in predictions observe this signal at their next checkpoint.
+        # Arbitrary uploaded Python still retains its slot until it finishes.
+        cancelled.set()
+        fut.cancel()
+        from concurrent.futures import TimeoutError
+        return fallback("timeout" if isinstance(exc, TimeoutError) else "error")
 
 def _do_ai_move(state: dict, model_name: str, is_player_a: bool, excluded_player_idx: int | None = None) -> dict:
     model = _load_model(model_name)
-    t0    = time.time()
+    t0 = time.monotonic()
+    fallback_info = {}
+    search_info = {}
+    allowed = _allowed_ai_players(state, is_player_a, excluded_player_idx)
     try:
-        player_idx, angle, power = _get_ai_move_with_timeout(model, state, is_player_a, timeout=2.0)
-        timed_out = False
+        player_idx, angle, power = _get_ai_move_with_timeout(
+            model, state, is_player_a, fallback_info=fallback_info,
+            allowed_players=allowed, search_info=search_info,
+        )
     except Exception:
-        # final fallback
-        m2 = _load_model("greedy")
-        player_idx, angle, power = m2.get_ai_move(state, is_player_a)
-        timed_out = True
-    if excluded_player_idx is not None:
-        players_key = "players_a" if is_player_a else "players_b"
-        players = state.get(players_key, [])
-        if len(players) > 1 and int(player_idx) == excluded_player_idx:
-            player_idx = (excluded_player_idx + 1) % len(players)
-    if state.get("game_mode") == "hvai" and not is_player_a:
-        player_idx = 0
-    elapsed = round((time.time() - t0) * 1000)
-    # enforce 2s cap on reported think time
-    elapsed = min(elapsed, 2000)
+        player_idx, angle, power = _quick_ai_move(state, is_player_a, allowed)
+        fallback_info["reason"] = "error"
+    player_idx, angle, power = normalize_kick(state, player_idx, angle, power, is_player_a)
+    if player_idx not in allowed:
+        # Replan for a legal pawn; never reuse another pawn's angle/power.
+        player_idx, angle, power = _quick_ai_move(state, is_player_a, allowed)
+        fallback_info["reason"] = "player_constraint"
+    elapsed = round((time.monotonic() - t0) * 1000)
     result  = _apply_move(state, player_idx, angle, power, is_player_a)
     result["think_ms"] = elapsed
-    if timed_out or elapsed >= 1950:
+    if search_info:
+        result["search"] = dict(search_info)
+    if fallback_info:
         result["timeout_fallback"] = True
+        result["fallback_reason"] = fallback_info["reason"]
     return result
 
 
@@ -634,7 +719,7 @@ def login_page():
     if "user_id" in session:
         return redirect(url_for("index"))
     from config import CLERK_PUBLISHABLE_KEY, DEV_MODE
-    return render_template("login.html", clerk_publishable_key=CLERK_PUBLISHABLE_KEY, dev_mode=DEV_MODE)
+    return render_template("auth/login.html", clerk_publishable_key=CLERK_PUBLISHABLE_KEY, dev_mode=DEV_MODE)
 
 
 @app.route("/register")
@@ -642,7 +727,7 @@ def register_page():
     if "user_id" in session:
         return redirect(url_for("index"))
     from config import CLERK_PUBLISHABLE_KEY
-    return render_template("register.html", clerk_publishable_key=CLERK_PUBLISHABLE_KEY)
+    return render_template("auth/register.html", clerk_publishable_key=CLERK_PUBLISHABLE_KEY)
 
 
 @app.route("/auth/register", methods=["POST"])
@@ -780,12 +865,12 @@ _EMAIL_RE = r"^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$"
 def forgot_password_page():
     if "user_id" in session:
         return redirect(url_for("index"))
-    return render_template("forgot_password.html")
+    return render_template("auth/forgot_password.html")
 
 
 @app.route("/reset-password")
 def reset_password_page():
-    return render_template("reset_password.html")
+    return render_template("auth/reset_password.html")
 
 
 @app.route("/api/auth/forgot-password", methods=["POST"])
@@ -843,7 +928,7 @@ def api_reset_password():
 def index():
     if "user_id" in session:
         return redirect(url_for("lobby_page"))
-    return render_template("landing.html", username=session.get("username", "Player"))
+    return render_template("public/landing.html", username=session.get("username", "Player"))
 
 
 @app.route("/lobby")
@@ -855,7 +940,7 @@ def lobby_page():
     if isinstance(player_stats, list):
         player_stats = player_stats[0] if player_stats else {}
     return render_template(
-        "lobby.html",
+        "hubs/lobby.html",
         username=session.get("username", "Player"),
         player_stats=player_stats,
     )
@@ -864,7 +949,7 @@ def lobby_page():
 @app.route("/play3d")
 @login_required
 def index_3d():
-    return render_template("index_3d.html", username=session.get("username", "Player"))
+    return render_template("game/index_3d.html", username=session.get("username", "Player"))
 
 
 
@@ -909,16 +994,24 @@ def human_move():
         return jsonify(_full_state(state, {"error": "Game is over"}))
     if state["game_mode"] == "hvai" and not state["is_player_a"]:
         return jsonify(_full_state(state, {"error": "Not your turn"}))
+    if state["game_mode"] == "aivai":
+        return jsonify(_full_state(state, {"error": "AI controls both teams"})), 403
+    side_a = bool(state["is_player_a"]) if state["game_mode"] == "hvh" else True
 
-    data       = request.get_json(silent=True) or {}
-    player_idx = max(0, min(2, int(data.get("player_idx", 0))))
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify(_full_state(state, {"error": "Kick command must be a JSON object"})), 400
+    try:
+        player_idx, angle, power = normalize_kick(
+            state, data.get("player_idx", 0), data.get("angle", 0.0), data.get("power", 80.0), side_a,
+        )
+    except ValueError as exc:
+        return jsonify(_full_state(state, {"error": str(exc)})), 400
     if state["game_mode"] == "hvai" and player_idx != 0:
         return jsonify(_full_state(state, {"error": "Only the captain is manually controlled"})), 400
-    angle      = float(data.get("angle", 0.0))
-    power      = max(0.0, min(100.0, float(data.get("power", 80.0))))
 
     if state.get("penalty_shootout"):
-        traj, scored, desc = apply_penalty_kick(state, player_idx, angle, power, True)
+        traj, scored, desc = apply_penalty_kick(state, player_idx, angle, power, side_a)
         result = {
             "trajectory": traj,
             "scored": scored,
@@ -933,7 +1026,7 @@ def human_move():
             _goal_moment_achievements(traj)
         extra = {"move_result": result}
     else:
-        result = _apply_move(state, player_idx, angle, power, True)
+        result = _apply_move(state, player_idx, angle, power, side_a)
         if result.get("scored"):
             _goal_moment_achievements(result["trajectory"])
         extra = {"move_result": result}
@@ -964,7 +1057,8 @@ def trigger_ai_move():
             import random
             state["penalty_goalkeeper_move"] = random.choice(["left", "center", "right"])
         model = _load_model(model_name)
-        pidx, ang, pwr = model.get_ai_move(state, is_player_a)
+        pidx, ang, pwr = _get_ai_move_with_timeout(model, state, is_player_a)
+        pidx, ang, pwr = normalize_kick(state, pidx, ang, pwr, is_player_a)
         traj, scored, desc = apply_penalty_kick(state, pidx, ang, pwr, is_player_a)
         result = {
             "trajectory": traj, "scored": scored, "desc": desc,
@@ -999,11 +1093,9 @@ def random_teammate_move():
     players = state.get("players_a", [])
     if len(players) < 2:
         return jsonify(_full_state(state, {"error": "No teammate available"})), 400
-    player_idx = random.randrange(1, len(players))
-    player = players[player_idx]
-    ball = state.get("ball", {})
-    angle = math.degrees(math.atan2(ball.get("y", player["y"]) - player["y"], ball.get("x", player["x"]) - player["x"]))
-    result = _apply_move(state, player_idx, angle, 92.0, True)
+    # Keep the existing endpoint/response contract while replacing the random
+    # rush with a coordinated shot, pass, clearance or support approach.
+    result = _do_ai_move(state, "team_coordinated", True, excluded_player_idx=0)
     save_game(user_id, state)
     return jsonify(_full_state(state, {"random_result": result}))
 
@@ -1063,6 +1155,12 @@ def reset_game():
     old_state = get_game(user_id)
     data = request.get_json(silent=True) or {}
     _track_scene_usage(user_id)
+    from db.customization import get_customization
+    from models.soccer_logic import inject_player_stats
+    cust = get_customization(user_id)
+    hl = int(cust.get("half_length", 45))
+    wl = int(cust.get("win_goal_limit", 5))
+    pcap = int(cust.get("power_cap", 100))
     penalty_mode = data.get("penalty_mode", False)
     if penalty_mode:
         pc = 5
@@ -1071,6 +1169,9 @@ def reset_game():
             model_b = old_state.get("model_name_b", "greedy"),
             model_a = old_state.get("model_name_a", "greedy"),
             player_count = pc,
+            half_length = hl,
+            win_goal_limit = wl,
+            power_cap = pcap,
         )
         state["penalty_shootout"] = True
         state["period"] = "penalties"
@@ -1081,19 +1182,14 @@ def reset_game():
         state["penalty_goalkeeper_move"] = None
         state["score_a"] = 0
         state["score_b"] = 0
-        from db.customization import get_customization as _gc
-        _cust = _gc(user_id)
-        state["keeper_style_a"] = _cust.get("keeper_style_a", "default")
-        state["keeper_style_b"] = _cust.get("keeper_style_b", "default")
+        state["keeper_style_a"] = cust.get("keeper_style_a", "default")
+        state["keeper_style_b"] = cust.get("keeper_style_b", "default")
         _setup_penalty_positions(state, True)
+        pstats = cust.get("player_stats") or {}
+        inject_player_stats(state, pstats.get("a"), pstats.get("b"))
     else:
         pc = int(data.get("player_count", old_state.get("player_count", 7)))
         pc = max(1, min(11, pc))
-        from db.customization import get_customization
-        cust = get_customization(user_id)
-        hl = int(cust.get("half_length", 45))
-        wl = int(cust.get("win_goal_limit", 5))
-        pcap = int(cust.get("power_cap", 100))
         state = new_game_state(
             mode    = old_state.get("game_mode", "hvai"),
             model_b = old_state.get("model_name_b", "greedy"),
@@ -1103,7 +1199,6 @@ def reset_game():
             win_goal_limit = wl,
             power_cap = pcap,
         )
-        from models.soccer_logic import inject_player_stats
         pstats = cust.get("player_stats", {})
         inject_player_stats(state, pstats.get("a"), pstats.get("b"))
         # Teams (choose team) — inject names and colors + formation tied to manager
@@ -1201,6 +1296,8 @@ def reset_game():
                             pl["color"] = str(colors[i]).lower()
         except Exception:
             pass
+    for field in ("ball_type", "ball_bounciness", "ball_size"):
+        state[field] = cust.get(field, "normal")
     _auto_clear_state(user_id)
     save_game(user_id, state)
     _ph.track_game_start(uid(), state.get("game_mode", "hvai"), state.get("model_name_b", ""))
@@ -1285,9 +1382,10 @@ def get_state_route():
 @login_required
 def benchmark():
     from models.soccer_logic import new_soccer_state, apply_kick as _kick
+    from services.game_analytics import bounded_match_winner
     data    = request.get_json(silent=True) or {}
     name_a  = data.get("model_a", "greedy")
-    name_b  = data.get("model_b", "minimax")
+    name_b  = data.get("model_b", "expectimax")
     n_games = min(int(data.get("games", 5)), 20)
     if name_a not in MODELS or name_b not in MODELS:
         return jsonify({"error": "Unknown model(s)"}), 400
@@ -1301,10 +1399,10 @@ def benchmark():
                 break
             is_a  = st["is_player_a"]
             model = mod_a if is_a else mod_b
-            pidx, ang, pwr = model.get_ai_move(st, is_a)
+            pidx, ang, pwr = get_model_move(model, st, is_a)
             _kick(st, pidx, ang, pwr, is_a)
         total_kicks += st.get("kick_count", 0)
-        w = st.get("winner")
+        w = bounded_match_winner(st)
         if w == "A":   wins_a += 1
         elif w == "B": wins_b += 1
         else:          draws  += 1
@@ -1319,14 +1417,14 @@ def benchmark():
 
 @app.route("/about")
 def about_page():
-    return render_template("about.html", username=session.get("username", "Player"))
+    return render_template("public/about.html", username=session.get("username", "Player"))
 
 
 @app.route("/workflow")
 @app.route("/about/workflow")
 def workflow_page():
-    """Workflow overview — displays static/workflow.png. Under About."""
-    return render_template("workflow.html", username=session.get("username", "Player"))
+    """Workflow overview — displays static/images/workflow.png. Under About."""
+    return render_template("public/workflow.html", username=session.get("username", "Player"))
 
 
 #  Clans — create, open/request joins, leader transfer
@@ -1336,7 +1434,7 @@ def workflow_page():
 def clans_page():
     from db.clans import my_clan
     mine = my_clan(uid())
-    return render_template("clans.html", username=session.get("username", "Player"), my_clan=mine)
+    return render_template("social/clans.html", username=session.get("username", "Player"), my_clan=mine)
 
 
 @app.route("/clans/<clan_id>")
@@ -1348,34 +1446,34 @@ def clan_detail(clan_id):
         flash("Clan not found")
         return redirect(url_for("clans_page"))
     reqs = list_requests(clan_id) if c.get("leader_id") == uid() else []
-    return render_template("clan.html", username=session.get("username", "Player"), clan=c, pending=reqs)
+    return render_template("social/clan.html", username=session.get("username", "Player"), clan=c, pending=reqs)
 
 
 #  Hubs — combined pages (Play/Workshop/Compete/Social/Learn) — logical IA
 @app.route("/hub/play")
 @login_required
 def hub_play():
-    return render_template("hub_play.html", username=session.get("username", "Player"))
+    return render_template("hubs/hub_play.html", username=session.get("username", "Player"))
 
 @app.route("/hub/workshop")
 @login_required
 def hub_workshop():
-    return render_template("hub_workshop.html", username=session.get("username", "Player"))
+    return render_template("hubs/hub_workshop.html", username=session.get("username", "Player"))
 
 @app.route("/hub/compete")
 @login_required
 def hub_compete():
-    return render_template("hub_compete.html", username=session.get("username", "Player"))
+    return render_template("hubs/hub_compete.html", username=session.get("username", "Player"))
 
 @app.route("/hub/social")
 @login_required
 def hub_social():
-    return render_template("hub_social.html", username=session.get("username", "Player"))
+    return render_template("hubs/hub_social.html", username=session.get("username", "Player"))
 
 @app.route("/hub/learn")
 @login_required
 def hub_learn():
-    return render_template("hub_learn.html", username=session.get("username", "Player"))
+    return render_template("hubs/hub_learn.html", username=session.get("username", "Player"))
 
 @app.route("/api/clans", methods=["GET"])
 @login_required
@@ -1489,7 +1587,7 @@ def history_page():
         pass
     if not recent:
         recent = get_user_stats(uid()).get("recent", [])[:5]
-    return render_template("history.html", username=session.get("username", "Player"), recent=recent)
+    return render_template("account/history.html", username=session.get("username", "Player"), recent=recent)
 
 
 @app.route("/history/watch/<replay_id>")
@@ -1516,7 +1614,7 @@ def history_watch(replay_id):
         pass
     if not meta:
         meta = {"mode": "hvai", "ai_model": "greedy", "winner": "", "score_a": 0, "score_b": 0, "ended_at": "", "total_moves": len(replay)}
-    return render_template("history_watch.html", replay_id=replay_id, replay=replay, meta=meta)
+    return render_template("account/history_watch.html", replay_id=replay_id, replay=replay, meta=meta)
 
 
 @app.route("/api/history/replay/<replay_id>")
@@ -1630,7 +1728,7 @@ def profile():
     season_career = career_summary(uid())
     current_season = int(get_current_season()["number"])
     achievements = list_for_user(uid())
-    return render_template("profile.html", username=username, stats=stats,
+    return render_template("account/profile.html", username=username, stats=stats,
                            joined_days=joined_days, avatar_url=avatar_url,
                            rating=rating, placement_games=PLACEMENT_GAMES,
                            achievement_count=achievement_count,
@@ -1653,7 +1751,7 @@ def achievements_page():
     user_list = list_for_user(uid())
     earned = count_earned(uid())
     total = len(definitions())
-    return render_template("achievements.html",
+    return render_template("account/achievements.html",
                            username=session.get("username", "Player"),
                            achievements=user_list, earned=earned, total=total,
                            categories=CATEGORY_LABELS)
@@ -1800,7 +1898,7 @@ def api_resend_email_change():
 def leaderboard():
     from db.games import get_leaderboard
     entries = get_leaderboard()
-    return render_template("leaderboard.html", entries=entries, username=session.get("username", ""))
+    return render_template("competition/leaderboard.html", entries=entries, username=session.get("username", ""))
 
 
 @app.route("/customize")
@@ -1818,7 +1916,7 @@ def customize_page():
             "description": defn.get("description", ""),
         }
     locked = [f"{f}:{v}" for f, v in sorted(locked_values(uid()))]
-    return render_template("customize.html", username=session.get("username", "Player"),
+    return render_template("game/customize.html", username=session.get("username", "Player"),
                            cust=cust, lock_map=lock_map, locked=locked)
 
 
@@ -1935,12 +2033,12 @@ def my_models_page():
             builtins.append({"id": bid, "name": getattr(mod, "MODEL_NAME", bid), "desc": getattr(mod, "DESCRIPTION", ""), "bench": bench, "code_preview": p[:800]})
         except Exception:
             pass
-    return render_template("my_models.html", username=session.get("username", "Player"), models=models, template_code=TEMPLATE, builtin_models=builtins)
+    return render_template("workshop/my_models.html", username=session.get("username", "Player"), models=models, template_code=TEMPLATE, builtin_models=builtins)
 
 
 @app.route("/community")
 def community_page():
-    return render_template("community.html", username=session.get("username", "Player"))
+    return render_template("social/community.html", username=session.get("username", "Player"))
 
 
 @app.route("/community/<model_id>")
@@ -1950,7 +2048,7 @@ def community_detail(model_id):
     if not m:
         flash("Model not found or not shared")
         return redirect(url_for("community_page"))
-    return render_template("community_detail.html", username=session.get("username", "Player"), model=m)
+    return render_template("social/community_detail.html", username=session.get("username", "Player"), model=m)
 
 
 @app.route("/api/community", methods=["GET"])
@@ -2240,7 +2338,7 @@ def _builtin_model_list() -> list[dict]:
 @login_required
 def playground_page():
     from user_models.runner import TEMPLATE
-    return render_template("playground.html", username=session.get("username", "Player"), template_code=TEMPLATE, builtin_models=_builtin_model_list())
+    return render_template("workshop/playground.html", username=session.get("username", "Player"), template_code=TEMPLATE, builtin_models=_builtin_model_list())
 
 
 @app.route("/playground/start", methods=["POST"])
@@ -2367,7 +2465,7 @@ def _run_pg_benchmark(user_id: str, code: str, opponent: str, games: int):
                     pidx, ang, pwr = execute_user_model(code, st, is_a, timeout_s=5.0)
                     lats.append((time.time() - t0) * 1000)
                 else:
-                    pidx, ang, pwr = opp_mod.get_ai_move(st, is_a)
+                    pidx, ang, pwr = get_model_move(opp_mod, st, is_a)
                 apply_kick(st, pidx, ang, pwr, is_a)
             winner = st.get("winner")
             # code wins if winner matches code side
@@ -2445,7 +2543,7 @@ def learn_page():
         "opponent_label", "requires", "starter",
     )} for l in LESSONS]
     return render_template(
-        "learn.html",
+        "workshop/learn.html",
         username=session.get("username", "Player"),
         lessons=LESSONS,
         completed=progress,
@@ -2579,11 +2677,167 @@ def _save_room(room_id, room):
     r.setex(f"room:{room_id}", ROOM_TTL, _json.dumps(room))
 
 
+_ROOM_WRITE_LOCKS = tuple(threading.RLock() for _ in range(64))
+
+
+class _OnlineWriteBusy(RuntimeError):
+    pass
+
+
+@contextmanager
+def _online_write_lock(key):
+    """Serialize a room/queue across workers, with bounded local locks in dev."""
+    from db.redis_client import r as redis
+    if hasattr(redis, "lock"):
+        lock = redis.lock(f"online_write:{key}", timeout=120, blocking_timeout=1)
+        if not lock.acquire(blocking=True):
+            raise _OnlineWriteBusy("Match update in progress. Try again.")
+        try:
+            yield
+        finally:
+            try:
+                lock.release()
+            except Exception:
+                app.logger.warning("Online write lock expired for %s", key)
+    else:
+        lock = _ROOM_WRITE_LOCKS[hash(key) % len(_ROOM_WRITE_LOCKS)]
+        if not lock.acquire(timeout=1):
+            raise _OnlineWriteBusy("Match update in progress. Try again.")
+        try:
+            yield
+        finally:
+            lock.release()
+
+
+def _online_room_write(function):
+    @wraps(function)
+    def locked(room_id, *args, **kwargs):
+        try:
+            with _online_write_lock(f"room:{room_id}"):
+                return function(room_id, *args, **kwargs)
+        except _OnlineWriteBusy as exc:
+            return jsonify({"error": str(exc)}), 409
+    return locked
+
+
+def _online_queue_write(queue):
+    def decorate(function):
+        @wraps(function)
+        def locked(*args, **kwargs):
+            try:
+                with _online_write_lock(f"queue:{queue}"):
+                    return function(*args, **kwargs)
+            except _OnlineWriteBusy as exc:
+                return jsonify({"error": str(exc)}), 409
+        return locked
+    return decorate
+
+
+def _online_payload():
+    data = request.get_json(silent=True)
+    if data is None and not request.get_data():
+        return {}
+    if not isinstance(data, dict):
+        raise ValueError("Request must be a JSON object")
+    return data
+
+
+def _online_guest_session():
+    if "user_id" not in session:
+        session["user_id"] = f"guest:{_uuid.uuid4().hex[:12]}"
+        session["username"] = "Guest"
+
+
+def _online_move_count(room):
+    game = room["game"]
+    return max(int(room.get("move_count", 0)), int(game.get("online_move_count", 0)), int(game.get("kick_count", 0)))
+
+
+def _online_revision(value):
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        raise ValueError("Invalid move count")
+    try:
+        revision = int(value)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Invalid move count") from exc
+    if revision < 0 or (isinstance(value, float) and value != revision):
+        raise ValueError("Invalid move count")
+    return revision
+
+
+def _new_online_game(data):
+    count = data.get("player_count", 7)
+    if isinstance(count, bool):
+        raise ValueError("Player count must be between 1 and 11")
+    try:
+        count = _online_revision(count)
+    except ValueError as exc:
+        raise ValueError("Player count must be between 1 and 11") from exc
+    if not 1 <= count <= 11:
+        raise ValueError("Player count must be between 1 and 11")
+    return new_game_state(mode="hvh", player_count=count)
+
+
+def _clear_online_match_pointer(key, room_id):
+    from db.redis_client import r as redis
+    if hasattr(redis, "eval"):
+        redis.eval("if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end", 1, key, room_id)
+    elif redis.get(key) == room_id:
+        redis.delete(key)
+
+
+def _online_presence_finished(room):
+    try:
+        from db.friends import set_presence
+        for player in (room.get("player_a"), room.get("player_b")):
+            if player:
+                set_presence(player, "online")
+    except Exception:
+        pass
+
+
+def _finish_online_room(room_id, room):
+    """The same authoritative completion path serves kicks and explicit forfeits."""
+    game = room["game"]
+    room["status"] = "done"
+    _save_room(room_id, room)  # Persist the outcome before optional account hooks.
+    _mark_room_inactive(room_id)
+    if room.get("ranked"):
+        _process_ranked_result(room_id, room)
+    if not room.get("completion_processed"):
+        try:
+            _check_online_achievements(room, game)
+        except Exception:
+            app.logger.warning("Online achievements failed for %s", room_id)
+        _save_match_summary(room_id, room)
+        try:
+            _push_recent_pair(room.get("player_a") or "", room.get("name_a") or "Player A",
+                              room.get("player_b") or "", room.get("name_b") or "Player B")
+            for player in (room.get("player_a"), room.get("player_b")):
+                if player:
+                    _mem_summ(player, game)
+        except Exception:
+            pass
+        room["completion_processed"] = True
+    _online_presence_finished(room)
+    from db.redis_client import r as redis
+    redis.srem(RANKED_ROOMS_KEY, room_id)
+    for player in (room.get("player_a"), room.get("player_b")):
+        if player:
+            _clear_online_match_pointer(f"{RANKED_MATCH_KEY}:{player}", room_id)
+            _clear_online_match_pointer(f"{QUICK_MATCH_KEY}:{player}", room_id)
+    _save_room(room_id, room)
+
+
 def _hash_room_pw(pw: str | None) -> str | None:
-    if not pw:
+    if pw is None or pw == "":
         return None
-    pw = str(pw).strip()
-    if not pw or len(pw) > 32:
+    if not isinstance(pw, str):
+        raise ValueError("Room password must be text")
+    pw = pw.strip()
+    if len(pw) > 32:
+        raise ValueError("Room password must be 32 characters or fewer")
+    if not pw:
         return None
     import hashlib
     return hashlib.sha256(pw.encode()).hexdigest()[:16]
@@ -2593,10 +2847,10 @@ def _check_room_pw(room: dict, pw: str | None) -> bool:
     need = room.get("password_hash")
     if not need:
         return True
-    if not pw:
+    try:
+        return _hash_room_pw(pw) == need
+    except ValueError:
         return False
-    import hashlib
-    return hashlib.sha256(str(pw).encode()).hexdigest()[:16] == need
 
 
 #  Live-match index (spectator mode) 
@@ -2669,8 +2923,16 @@ def _ranked_allowed_gap(wait_s: float) -> int:
 
 def _ranked_members() -> set:
     from db.redis_client import r as redis
-    members = redis.smembers(RANKED_QUEUE_KEY)
-    return {m.decode() if isinstance(m, bytes) else m for m in members}
+    members = {m.decode() if isinstance(m, bytes) else m for m in redis.smembers(RANKED_QUEUE_KEY)}
+    fresh = set()
+    for member in members:
+        timestamp = _ranked_join_ts(member)
+        if timestamp is None or _time.time() - timestamp >= RANKED_QUEUE_TTL:
+            redis.srem(RANKED_QUEUE_KEY, member)
+            redis.delete(f"ranked:join:{member}")
+        else:
+            fresh.add(member)
+    return fresh
 
 
 def _ranked_join_ts(uid_: str) -> float | None:
@@ -2790,26 +3052,28 @@ def _in_ranked_room(uid_: str) -> bool:
 
 
 def _reclaim_stale_ranked() -> None:
-    """Give up on ranked rooms where neither player started after the grace
-    period and return both players to the queue."""
+    """Recheck under the room lease so a first kick cannot be deleted."""
     from db.redis_client import r as redis
-    ids = {i.decode() if isinstance(i, bytes) else i
-           for i in redis.smembers(RANKED_ROOMS_KEY)}
+    ids = {i.decode() if isinstance(i, bytes) else i for i in redis.smembers(RANKED_ROOMS_KEY)}
     for rid in ids:
-        room = _get_room(rid)
-        if not room or not room.get("ranked") or room["status"] == "done":
-            redis.srem(RANKED_ROOMS_KEY, rid)
+        try:
+            with _online_write_lock(f"room:{rid}"):
+                room = _get_room(rid)
+                if not room or not room.get("ranked") or room["status"] != "active":
+                    redis.srem(RANKED_ROOMS_KEY, rid)
+                    continue
+                started = room.get("started_at") or _time.time()
+                if _online_move_count(room) == 0 and _time.time() - started > RANKED_MATCH_GRACE:
+                    for player in (room["player_a"], room["player_b"]):
+                        if player:
+                            redis.sadd(RANKED_QUEUE_KEY, player)
+                            redis.setex(f"ranked:join:{player}", RANKED_QUEUE_TTL, _time.time())
+                            _clear_online_match_pointer(f"{RANKED_MATCH_KEY}:{player}", rid)
+                    redis.srem(RANKED_ROOMS_KEY, rid)
+                    redis.delete(f"room:{rid}")
+                    _mark_room_inactive(rid)
+        except _OnlineWriteBusy:
             continue
-        started = room.get("started_at") or _time.time()
-        if room["game"].get("kick_count", 0) == 0 and _time.time() - started > RANKED_MATCH_GRACE:
-            for p in (room["player_a"], room["player_b"]):
-                if p:
-                    redis.sadd(RANKED_QUEUE_KEY, p)
-                    redis.setex(f"ranked:join:{p}", RANKED_QUEUE_TTL, _time.time())
-                    redis.delete(f"{RANKED_MATCH_KEY}:{p}")
-            redis.srem(RANKED_ROOMS_KEY, rid)
-            redis.delete(f"room:{rid}")
-            _mark_room_inactive(rid)
 
 
 def _ranked_payload(uid_: str) -> dict:
@@ -2820,7 +3084,7 @@ def _ranked_payload(uid_: str) -> dict:
     if raw:
         rid = raw.decode() if isinstance(raw, bytes) else raw
         room = _get_room(rid)
-        if room and room.get("ranked"):
+        if room and room.get("ranked") and room.get("status") == "active":
             other = room["name_b"] if uid_ == room["player_a"] else room["name_a"]
             other_id = room["player_b"] if uid_ == room["player_a"] else room["player_a"]
             return {
@@ -2976,6 +3240,7 @@ def _save_match_summary(room_id: str, room: dict) -> None:
 
 @app.route("/ranked/join", methods=["POST"])
 @login_required
+@_online_queue_write("ranked")
 def ranked_join():
     if uid().startswith("guest:"):
         return jsonify({"error": "Ranked play requires a registered account"}), 403
@@ -2995,16 +3260,24 @@ def ranked_join():
 
 @app.route("/ranked/cancel", methods=["POST"])
 @login_required
+@_online_queue_write("ranked")
 def ranked_cancel():
     from db.redis_client import r as redis
     redis.srem(RANKED_QUEUE_KEY, uid())
     redis.delete(f"ranked:join:{uid()}")
-    redis.delete(f"{RANKED_MATCH_KEY}:{uid()}")
-    return jsonify({"ok": True})
+    raw = redis.get(f"{RANKED_MATCH_KEY}:{uid()}")
+    if raw:
+        rid = raw.decode() if isinstance(raw, bytes) else raw
+        room = _get_room(rid)
+        if room and room.get("status") == "active" and uid() in (room.get("player_a"), room.get("player_b")):
+            return jsonify({"ok": True, **_ranked_payload(uid())})
+        redis.delete(f"{RANKED_MATCH_KEY}:{uid()}")
+    return jsonify({"ok": True, "status": "idle"})
 
 
 @app.route("/ranked/status")
 @login_required
+@_online_queue_write("ranked")
 def ranked_status():
     if uid().startswith("guest:"):
         return jsonify({"error": "Ranked play requires a registered account"}), 403
@@ -3021,8 +3294,21 @@ QUICK_GRACE = 30
 
 def _quick_members() -> set:
     from db.redis_client import r as redis
-    m = redis.smembers(QUICK_QUEUE_KEY)
-    return {x.decode() if isinstance(x, bytes) else x for x in m}
+    members = {x.decode() if isinstance(x, bytes) else x for x in redis.smembers(QUICK_QUEUE_KEY)}
+    fresh = set()
+    for member in members:
+        raw = redis.get(f"quick:join:{member}")
+        try:
+            timestamp = float(raw)
+        except (TypeError, ValueError):
+            timestamp = 0
+        if not timestamp or _time.time() - timestamp >= QUICK_TTL:
+            redis.srem(QUICK_QUEUE_KEY, member)
+            redis.delete(f"quick:join:{member}")
+        else:
+            fresh.add(member)
+    return fresh
+
 
 def _create_quick_room(a_uid: str, b_uid: str) -> str:
     from db.redis_client import r as redis
@@ -3069,7 +3355,7 @@ def _try_quick_match() -> list:
         if a in used or b in used:
             continue
         # skip if either already matched
-        if redis.exists(f"{QUICK_MATCH_KEY}:{a}") or redis.exists(f"{QUICK_MATCH_KEY}:{b}"):
+        if redis.get(f"{QUICK_MATCH_KEY}:{a}") or redis.get(f"{QUICK_MATCH_KEY}:{b}"):
             continue
         room_id = _create_quick_room(a, b)
         redis.srem(QUICK_QUEUE_KEY, a)
@@ -3082,10 +3368,18 @@ def _try_quick_match() -> list:
 
 
 @app.route("/api/quick/join", methods=["POST"])
+@_online_queue_write("quick")
 def quick_join():
     from db.redis_client import r as redis
-    data = request.get_json(silent=True) or {}
-    mode = (data.get("mode") or "pvp").lower()
+    _online_guest_session()
+    try:
+        data = _online_payload()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    mode = data.get("mode", "pvp")
+    if not isinstance(mode, str) or mode.lower() not in ("pvp", "pva"):
+        return jsonify({"error": "Invalid quick-match mode"}), 400
+    mode = mode.lower()
     me = uid()
     if mode == "pva":
         import random as _rnd
@@ -3097,7 +3391,10 @@ def quick_join():
     mid = redis.get(f"{QUICK_MATCH_KEY}:{me}")
     if mid:
         mid_s = mid.decode() if isinstance(mid, bytes) else mid
-        return jsonify({"status": "matched", "mode": "pvp", "room_id": mid_s})
+        room = _get_room(mid_s)
+        if room and room.get("status") == "active" and me in (room.get("player_a"), room.get("player_b")):
+            return jsonify({"status": "matched", "mode": "pvp", "room_id": mid_s})
+        redis.delete(f"{QUICK_MATCH_KEY}:{me}")
     if not redis.sismember(QUICK_QUEUE_KEY, me):
         redis.sadd(QUICK_QUEUE_KEY, me)
         redis.setex(f"quick:join:{me}", QUICK_TTL, _time.time())
@@ -3105,22 +3402,35 @@ def quick_join():
     mid = redis.get(f"{QUICK_MATCH_KEY}:{me}")
     if mid:
         mid_s = mid.decode() if isinstance(mid, bytes) else mid
-        return jsonify({"status": "matched", "mode": "pvp", "room_id": mid_s})
+        room = _get_room(mid_s)
+        if room and room.get("status") == "active" and me in (room.get("player_a"), room.get("player_b")):
+            return jsonify({"status": "matched", "mode": "pvp", "room_id": mid_s})
+        redis.delete(f"{QUICK_MATCH_KEY}:{me}")
     return jsonify({"status": "waiting", "mode": "pvp"})
 
 
 @app.route("/api/quick/cancel", methods=["POST"])
+@_online_queue_write("quick")
 def quick_cancel():
+    _online_guest_session()
     from db.redis_client import r as redis
     me = uid()
     redis.srem(QUICK_QUEUE_KEY, me)
     redis.delete(f"quick:join:{me}")
-    # keep match key if already matched so client can still join
-    return jsonify({"ok": True})
+    raw = redis.get(f"{QUICK_MATCH_KEY}:{me}")
+    if raw:
+        rid = raw.decode() if isinstance(raw, bytes) else raw
+        room = _get_room(rid)
+        if room and room.get("status") == "active" and me in (room.get("player_a"), room.get("player_b")):
+            return jsonify({"ok": True, "status": "matched", "mode": "pvp", "room_id": rid})
+        redis.delete(f"{QUICK_MATCH_KEY}:{me}")
+    return jsonify({"ok": True, "status": "idle"})
 
 
 @app.route("/api/quick/status")
+@_online_queue_write("quick")
 def quick_status():
+    _online_guest_session()
     from db.redis_client import r as redis
     _try_quick_match()
     me = uid()
@@ -3128,8 +3438,8 @@ def quick_status():
     if mid:
         mid_s = mid.decode() if isinstance(mid, bytes) else mid
         # verify room still active
-        room = _load_room(mid_s)
-        if room and room.get("status") == "active":
+        room = _get_room(mid_s)
+        if room and room.get("status") == "active" and me in (room.get("player_a"), room.get("player_b")):
             return jsonify({"status": "matched", "mode": "pvp", "room_id": mid_s})
         # stale
         redis.delete(f"{QUICK_MATCH_KEY}:{me}")
@@ -3281,7 +3591,7 @@ def ranked_leaderboard_page():
     from db.seasons import get_current_season, list_seasons, run_transition_if_due
     run_transition_if_due()
     current = get_current_season()
-    return render_template("ranked_leaderboard.html",
+    return render_template("competition/ranked_leaderboard.html",
                            username=session.get("username", ""),
                            placement_games=PLACEMENT_GAMES,
                            current_season={"number": int(current["number"]),
@@ -3322,118 +3632,100 @@ def online_page():
 
 @app.route("/join/<room_id>")
 def join_room_page(room_id):
-    return redirect(url_for("index_3d"))
+    return redirect(url_for("index_3d", room=room_id))
 
 
 @app.route("/online/create", methods=["POST"])
 @login_required
 def online_create():
-    data = request.get_json(silent=True) or {}
+    try:
+        data = _online_payload()
+        game = _new_online_game(data)
+        pw_hash = _hash_room_pw(data.get("password"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     room_id = _uuid.uuid4().hex[:10]
-    pw_hash = _hash_room_pw(data.get("password"))
-    room = {
-        "game":      new_game_state(mode="hvh"),
-        "player_a":  uid(),
-        "player_b":  None,
-        "name_a":    session.get("username", "Player A"),
-        "name_b":    None,
-        "status":    "waiting",
-        "last_move": None,
-        "move_log":  [],
-        "started_at": _time.time(),
-    }
+    room = {"game": game, "player_a": uid(), "player_b": None,
+            "name_a": session.get("username", "Player A"), "name_b": None,
+            "status": "waiting", "last_move": None, "move_log": [],
+            "move_count": 0, "started_at": _time.time()}
     if pw_hash:
-        room["password_hash"] = pw_hash
-        room["has_password"] = True
+        room.update(password_hash=pw_hash, has_password=True)
     _save_room(room_id, room)
     return jsonify({"room_id": room_id, "has_password": bool(pw_hash)})
 
 
 @app.route("/online/<room_id>/join", methods=["POST"])
+@_online_room_write
 def online_join(room_id):
-    if "user_id" not in session:
-        import uuid
-        session["user_id"]  = f"guest:{uuid.uuid4().hex[:12]}"
-        session["username"] = "Guest"
+    _online_guest_session()
     room = _get_room(room_id)
     if not room:
         return jsonify({"error": "Room not found"}), 404
     my_uid = uid()
-    if room["player_a"] == my_uid:
-        return jsonify({"my_side": "a", "status": room["status"],
-                        "room_id": room_id,
-                        "name_a": room["name_a"], "name_b": room["name_b"],
-                        "ranked": room.get("ranked", False)})
-    if room["player_b"] == my_uid:
-        return jsonify({"my_side": "b", "status": room["status"],
-                        "room_id": room_id,
-                        "name_a": room["name_a"], "name_b": room["name_b"],
-                        "ranked": room.get("ranked", False)})
-    # Ranked rooms are pre-filled by the matchmaker — a listed participant
-    # may claim their side without the generic "join as player B" path.
-    if room.get("ranked") and my_uid in (room["player_a"], room["player_b"]):
-        return jsonify({"my_side": "a" if my_uid == room["player_a"] else "b",
-                        "status": room["status"],
-                        "room_id": room_id,
-                        "name_a": room["name_a"], "name_b": room["name_b"],
-                        "ranked": True})
-    if room["player_b"] is not None:
-        return jsonify({"error": "Room is full"}), 400
-    # password rooms
-    pw = (request.get_json(silent=True) or {}).get("password") if request.is_json else request.form.get("password")
-    if not _check_room_pw(room, pw):
-        return jsonify({"error": "Incorrect room password", "has_password": True}), 403
-    room["player_b"] = my_uid
-    room["name_b"]   = session.get("username", "Guest")
-    room["status"]   = "active"
-    _save_room(room_id, room)
-    _mark_room_active(room_id)
-    _set_presence_in_match(room["player_a"], room_id)
-    _set_presence_in_match(room["player_b"], room_id)
-    return jsonify({"my_side": "b", "status": "active",
-                    "room_id": room_id,
+    side = "a" if room["player_a"] == my_uid else "b" if room["player_b"] == my_uid else None
+    if not side:
+        if room["player_b"] is not None:
+            return jsonify({"error": "Room is full"}), 400
+        if room["status"] != "waiting" or room["game"].get("game_over"):
+            return jsonify({"error": "Room is no longer waiting for a player"}), 409
+        try:
+            pw = _online_payload().get("password") if request.is_json else request.form.get("password")
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        if not _check_room_pw(room, pw):
+            return jsonify({"error": "Incorrect room password", "has_password": True}), 403
+        room["player_b"] = my_uid
+        room["name_b"] = session.get("username", "Guest")
+        room["status"] = "active"
+        _save_room(room_id, room)
+        _mark_room_active(room_id)
+        _set_presence_in_match(room["player_a"], room_id)
+        _set_presence_in_match(room["player_b"], room_id)
+        side = "b"
+    return jsonify({"my_side": side, "status": room["status"], "room_id": room_id,
                     "name_a": room["name_a"], "name_b": room["name_b"],
-                    "ranked": room.get("ranked", False)})
+                    "ranked": room.get("ranked", False), "move_count": _online_move_count(room)})
 
 
 @app.route("/online/<room_id>/state")
 def online_room_state(room_id):
-    if "user_id" not in session:
-        import uuid
-        session["user_id"]  = f"guest:{uuid.uuid4().hex[:12]}"
-        session["username"] = "Guest"
+    _online_guest_session()
     room = _get_room(room_id)
     if not room:
         return jsonify({"error": "Room not found"}), 404
-    since_kick = int(request.args.get("since_kick", -1))
-    # A finished ranked match whose rating update failed previously is
-    # retried lazily here (players poll every 1.5s; room TTL is 6h).
+    try:
+        since_kick = int(request.args.get("since_kick", -1))
+        if since_kick < -1:
+            raise ValueError
+    except (TypeError, ValueError):
+        return jsonify({"error": "Invalid move cursor"}), 400
     if (room.get("ranked") and room.get("status") == "done"
             and room.get("ranked_pending") and not room.get("ranked_processed")):
-        _process_ranked_result(room_id, room)
+        try:
+            with _online_write_lock(f"room:{room_id}"):
+                room = _get_room(room_id) or room
+                if room.get("ranked_pending") and not room.get("ranked_processed"):
+                    _process_ranked_result(room_id, room)
+                    if room.get("ranked_processed"):
+                        _save_match_summary(room_id, room)
+        except _OnlineWriteBusy:
+            pass  # Return the current result; the next poll can retry.
         room = _get_room(room_id) or room
-    resp = {
-        "game":    room["game"],
-        "name_a":  room["name_a"],
-        "name_b":  room["name_b"],
-        "status":  room["status"],
-        "room_id": room_id,
-        "ranked":  room.get("ranked", False),
-    }
+    revision = _online_move_count(room)
+    room["game"]["online_move_count"] = revision
+    resp = {"game": room["game"], "name_a": room["name_a"], "name_b": room["name_b"],
+            "status": room["status"], "room_id": room_id, "move_count": revision,
+            "ranked": room.get("ranked", False)}
     if room.get("ranked_result"):
         resp["ranked_result"] = room["ranked_result"]
     my_uid = uid()
-    resp["my_side"] = ("a" if my_uid == room["player_a"]
-                       else "b" if my_uid == room["player_b"] else None)
-    if room["last_move"] and room["game"].get("kick_count", 0) > since_kick:
-        resp["last_move"] = room["last_move"]
+    resp["my_side"] = "a" if my_uid == room["player_a"] else "b" if my_uid == room["player_b"] else None
+    if room.get("last_move") and revision > since_kick:
+        resp["last_move"] = {**room["last_move"], "kick_count": revision}
     move_log = room.get("move_log") or []
     if move_log:
-        resp["moves"] = [
-            item for item in move_log
-            if item.get("kick_count", 0) > since_kick
-        ]
-    # Voice-chat signaling rides the same poll — only for the two participants.
+        resp["moves"] = [item for item in move_log if item.get("kick_count", 0) > since_kick]
     if request.args.get("voice_after") is not None and resp["my_side"]:
         from db.voice import get_voice_signals
         from db.chat import get_blocked
@@ -3442,15 +3734,12 @@ def online_room_state(room_id):
         except ValueError:
             after = -1
         blocked = get_blocked(my_uid)
-        # A participant who blocked the other also stops receiving from them.
-        other = (room["player_b"] if my_uid == room["player_a"] else room["player_a"])
+        other = room["player_b"] if my_uid == room["player_a"] else room["player_a"]
         if other in blocked:
             blocked = {other}
         sigs, next_after = get_voice_signals(room_id, after, blocked)
-        # skip messages we sent ourselves — only the peer's matter
-        sigs = [s for s in sigs if s["from"] != my_uid]
-        resp["voice_signals"] = sigs
-        resp["voice_after"]   = next_after
+        resp["voice_signals"] = [sig for sig in sigs if sig["from"] != my_uid]
+        resp["voice_after"] = next_after
     resp["achievements"] = _ach_toasts()
     return jsonify(resp)
 
@@ -3462,22 +3751,24 @@ def online_voice_signal(room_id):
     room = _get_room(room_id)
     if not room:
         return jsonify({"error": "Room not found"}), 404
-    my_uid  = uid()
-    my_side = ("a" if my_uid == room["player_a"]
-               else "b" if my_uid == room["player_b"] else None)
+    my_uid = uid()
+    my_side = "a" if my_uid == room["player_a"] else "b" if my_uid == room["player_b"] else None
     if not my_side:
         return jsonify({"error": "Not a player in this room"}), 403
-    data  = request.get_json(silent=True) or {}
-    s_type = (data.get("type") or "").strip()
-    if s_type not in ("offer", "answer", "ice", "mute"):
-        return jsonify({"error": "Invalid signal type"}), 400
-    # Mutual block check: a blocked user can't signal, and signals to a
-    # blocker would never be delivered anyway — reject at the source.
-    from db.chat import get_blocked
-    other = (room["player_b"] if my_side == "a" else room["player_a"])
     try:
-        blocked_me  = get_blocked(my_uid)
-        blocked_them = get_blocked(other)
+        data = _online_payload()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    s_type = data.get("type")
+    if not isinstance(s_type, str) or s_type.strip() not in ("offer", "answer", "ice", "mute"):
+        return jsonify({"error": "Invalid signal type"}), 400
+    signal_data = data.get("data", {})
+    if not isinstance(signal_data, dict):
+        return jsonify({"error": "Signal data must be a JSON object"}), 400
+    from db.chat import get_blocked
+    other = room["player_b"] if my_side == "a" else room["player_a"]
+    try:
+        blocked_me, blocked_them = get_blocked(my_uid), get_blocked(other)
     except Exception:
         blocked_me = blocked_them = set()
     if other in blocked_me:
@@ -3486,75 +3777,118 @@ def online_voice_signal(room_id):
         return jsonify({"error": "This user has blocked you"}), 403
     from db.voice import send_voice_signal
     try:
-        sig = send_voice_signal(room_id, my_uid, s_type, data.get("data") or {})
-    except ValueError:
-        return jsonify({"error": "Invalid signal type"}), 400
+        sig = send_voice_signal(room_id, my_uid, s_type.strip(), signal_data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 409
     return jsonify({"ok": True, "signal": sig})
 
 
 @app.route("/online/<room_id>/move", methods=["POST"])
+@_online_room_write
 def online_move(room_id):
     if "user_id" not in session:
         return jsonify({"error": "Not in session"}), 401
     room = _get_room(room_id)
     if not room or room["status"] != "active":
         return jsonify({"error": "Game not active"}), 400
-    my_uid  = uid()
-    my_side = ("a" if my_uid == room["player_a"]
-               else "b" if my_uid == room["player_b"] else None)
+    my_uid = uid()
+    my_side = "a" if my_uid == room["player_a"] else "b" if my_uid == room["player_b"] else None
     if not my_side:
         return jsonify({"error": "Not a player in this room"}), 403
     game = room["game"]
-    expected = "a" if game["is_player_a"] else "b"
-    if my_side != expected:
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Kick command must be a JSON object"}), 400
+    revision = _online_move_count(room)
+    if "expected_move_count" in data:
+        try:
+            expected = _online_revision(data["expected_move_count"])
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        if expected != revision:
+            return jsonify({"error": "The match changed. Refresh and try again.", "move_count": revision}), 409
+    if my_side != ("a" if game["is_player_a"] else "b"):
         return jsonify({"error": "Not your turn"}), 400
-    data       = request.get_json(silent=True) or {}
-    player_idx = max(0, min(2, int(data.get("player_idx", 0))))
-    angle      = float(data.get("angle", 0.0))
-    pc         = int(game.get("power_cap", 100))
-    power      = max(0.0, min(pc, float(data.get("power", 80.0))))
+    try:
+        player_idx, angle, power = normalize_kick(game, data.get("player_idx", 0), data.get("angle", 0.0), data.get("power", 80.0), game["is_player_a"])
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
     push_snapshot(game)
-    traj, scored, desc, kick_ep, push_res = apply_kick(game, player_idx, angle, power, game["is_player_a"])
+    is_penalty = bool(game.get("penalty_shootout"))
+    if is_penalty:
+        traj, goal, desc = apply_penalty_kick(game, player_idx, angle, power, game["is_player_a"])
+        scored = my_side.upper() if goal else None
+        kick_ep, push_res = None, None
+    else:
+        traj, scored, desc, kick_ep, push_res = apply_kick(game, player_idx, angle, power, game["is_player_a"])
     if scored:
         _goal_moment_achievements(traj)
-    move_res = {
-        "trajectory":    traj, "scored": scored, "desc": desc,
-        "player_idx":    player_idx, "angle": round(angle, 1), "power": round(power, 1),
-        "kick_endpoint": kick_ep, "push_result": push_res, "mover": my_side,
-    }
+    revision += 1
+    room["move_count"] = revision
+    game["online_move_count"] = revision
+    move_res = {"trajectory": traj, "scored": scored, "desc": desc,
+                "player_idx": player_idx, "angle": round(angle, 1), "power": round(power, 1),
+                "kick_endpoint": kick_ep, "push_result": push_res, "mover": my_side,
+                "kick_count": revision, "is_penalty": is_penalty}
     room["last_move"] = move_res
-    room.setdefault("move_log", []).append({
-        **move_res,
-        "kick_count": game.get("kick_count", 0),
-    })
+    room.setdefault("move_log", []).append(move_res)
     room["move_log"] = room["move_log"][-20:]
-    try: _mem_short(my_uid, game, move_res)
-    except: pass
+    try:
+        _mem_short(my_uid, game, move_res)
+    except Exception:
+        pass
     if game.get("game_over"):
-        room["status"] = "done"
-        _mark_room_inactive(room_id)
-        _check_online_achievements(room, game)
-        if room.get("ranked"):
-            _process_ranked_result(room_id, room)
-        _save_match_summary(room_id, room)
-        _push_recent_pair(room.get("player_a") or "", room.get("name_a") or "Player A", room.get("player_b") or "", room.get("name_b") or "Player B")
-        try:
-            from db.friends import set_presence as _sp2
-            if room.get("player_a"):
-                _sp2(room["player_a"], "online")
-            if room.get("player_b"):
-                _sp2(room["player_b"], "online")
-        except Exception:
-            pass
-        try:
-            _mem_summ(my_uid, game)
-            other = room["player_b"] if my_side=="a" else room["player_a"]
-            if other: _mem_summ(other, game)
-        except: pass
-        _save_room(room_id, room)
+        _finish_online_room(room_id, room)
     else:
         _save_room(room_id, room)
-    return jsonify({"move_result": move_res, "game": game, "achievements": _ach_toasts()})
+    response = {"move_result": move_res, "game": game, "move_count": revision,
+                "status": room["status"], "achievements": _ach_toasts()}
+    if room.get("ranked_result"):
+        response["ranked_result"] = room["ranked_result"]
+    return jsonify(response)
+
+
+@app.route("/online/<room_id>/leave", methods=["POST"])
+@_online_room_write
+def online_leave(room_id):
+    if "user_id" not in session:
+        return jsonify({"error": "Not in session"}), 401
+    room = _get_room(room_id)
+    if not room:
+        return jsonify({"error": "Room not found"}), 404
+    my_uid = uid()
+    side = "a" if room["player_a"] == my_uid else "b" if room["player_b"] == my_uid else None
+    if not side:
+        return jsonify({"error": "Not a player in this room"}), 403
+    try:
+        data = _online_payload()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    waiting_only = data.get("waiting_only", False)
+    if not isinstance(waiting_only, bool):
+        return jsonify({"error": "waiting_only must be true or false"}), 400
+    status = room["status"]
+    if waiting_only and status == "active":
+        return jsonify({"error": "An opponent already joined. Leave the match explicitly to forfeit.", "status": status}), 409
+    if status == "waiting":
+        if side != "a":
+            return jsonify({"error": "Only the room creator can cancel it"}), 403
+        room["status"] = "cancelled"
+        room["game"].update(game_over=True, winner=None, termination="cancelled")
+        _save_room(room_id, room)
+        _mark_room_inactive(room_id)
+        _online_presence_finished(room)
+    elif status == "active":
+        room["game"].update(game_over=True, winner="B" if side == "a" else "A", termination="forfeit", forfeited_by=side)
+        _finish_online_room(room_id, room)
+    else:
+        _online_presence_finished(room)
+    response = {"ok": True, "status": room["status"], "game": room["game"], "move_count": _online_move_count(room)}
+    if room.get("ranked_result"):
+        response["ranked_result"] = room["ranked_result"]
+    return jsonify(response)
 
 
 @app.route("/online/invite/search")
@@ -3591,26 +3925,27 @@ def online_invite_search():
 @login_required
 def online_invite_send():
     from db.redis_client import r as redis
-    data   = request.get_json(silent=True) or {}
-    to_uid = data.get("to_uid", "")
-    if not to_uid or to_uid == uid():
+    try:
+        data = _online_payload()
+        game = _new_online_game(data)
+        pw_hash = _hash_room_pw(data.get("password"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    to_uid = data.get("to_uid")
+    if not isinstance(to_uid, str) or not to_uid.strip() or len(to_uid) > 200 or to_uid.strip() == uid():
         return jsonify({"error": "Invalid target"}), 400
+    to_uid = to_uid.strip()
     room_id = _uuid.uuid4().hex[:10]
-    pw_hash = _hash_room_pw(data.get("password"))
-    room = {
-        "game": new_game_state(mode="hvh"), "player_a": uid(), "player_b": None,
-        "name_a": session.get("username", "Player A"), "name_b": None,
-        "status": "waiting", "last_move": None, "started_at": _time.time(),
-    }
+    room = {"game": game, "player_a": uid(), "player_b": None,
+            "name_a": session.get("username", "Player A"), "name_b": None,
+            "status": "waiting", "last_move": None, "move_log": [],
+            "move_count": 0, "started_at": _time.time()}
     if pw_hash:
-        room["password_hash"] = pw_hash
-        room["has_password"] = True
+        room.update(password_hash=pw_hash, has_password=True)
     _save_room(room_id, room)
     invite_id = _uuid.uuid4().hex[:12]
-    invite = {
-        "from_uid": uid(), "from_name": session.get("username", "Player"),
-        "to_uid": to_uid, "room_id": room_id, "status": "pending",
-    }
+    invite = {"from_uid": uid(), "from_name": session.get("username", "Player"),
+              "to_uid": to_uid, "room_id": room_id, "status": "pending"}
     if pw_hash:
         invite["has_password"] = True
     redis.setex(f"invite:{invite_id}", INVITE_TTL, _json.dumps(invite))
@@ -3623,15 +3958,21 @@ def online_invite_send():
 @login_required
 def online_get_invites():
     from db.redis_client import r as redis
-    raw_ids = redis.lrange(f"user_invites:{uid()}", 0, 19)
-    result  = []
-    for raw_id in raw_ids:
+    result = []
+    for raw_id in redis.lrange(f"user_invites:{uid()}", 0, 19):
         iid = raw_id.decode() if isinstance(raw_id, bytes) else raw_id
         raw = redis.get(f"invite:{iid}")
-        if raw:
-            inv = _json.loads(raw)
-            if inv.get("status") == "pending":
-                result.append({**inv, "invite_id": iid})
+        if not raw:
+            redis.lrem(f"user_invites:{uid()}", 0, iid)
+            continue
+        inv = _json.loads(raw)
+        if inv.get("status") != "pending" or inv.get("to_uid") != uid():
+            continue
+        room = _get_room(inv["room_id"])
+        if not room or room.get("status") not in ("waiting", "active") or room.get("player_b") not in (None, uid()):
+            redis.lrem(f"user_invites:{uid()}", 0, iid)
+            continue
+        result.append({**inv, "invite_id": iid})
     return jsonify(result)
 
 
@@ -3642,26 +3983,40 @@ def online_accept_invite(invite_id):
     raw = redis.get(f"invite:{invite_id}")
     if not raw:
         return jsonify({"error": "Invite not found"}), 404
-    inv = _json.loads(raw)
-    if inv["to_uid"] != uid():
+    initial = _json.loads(raw)
+    if initial["to_uid"] != uid():
         return jsonify({"error": "Not your invite"}), 403
-    if inv["status"] != "pending":
-        return jsonify({"error": "Already used"}), 400
-    room = _get_room(inv["room_id"])
-    if not room:
-        return jsonify({"error": "Room expired"}), 404
-    room["player_b"] = uid()
-    room["name_b"]   = session.get("username", "Guest")
-    room["status"]   = "active"
-    room.setdefault("started_at", _time.time())
-    _save_room(inv["room_id"], room)
-    _mark_room_active(inv["room_id"])
-    _set_presence_in_match(room["player_a"], inv["room_id"])
-    _set_presence_in_match(room["player_b"], inv["room_id"])
-    inv["status"] = "accepted"
-    redis.setex(f"invite:{invite_id}", INVITE_TTL, _json.dumps(inv))
-    redis.lrem(f"user_invites:{uid()}", 0, invite_id)
-    return jsonify({"ok": True, "room_id": inv["room_id"]})
+    try:
+        with _online_write_lock(f"room:{initial['room_id']}"):
+            raw = redis.get(f"invite:{invite_id}")
+            if not raw:
+                return jsonify({"error": "Invite not found"}), 404
+            inv = _json.loads(raw)
+            if inv["status"] != "pending":
+                return jsonify({"error": "Already used"}), 400
+            room = _get_room(inv["room_id"])
+            if not room:
+                return jsonify({"error": "Room expired"}), 404
+            if room.get("status") not in ("waiting", "active") or room["game"].get("game_over"):
+                return jsonify({"error": "Match is no longer available"}), 409
+            if room.get("player_b") not in (None, uid()):
+                return jsonify({"error": "Room is full"}), 409
+            if room.get("player_b") is None:
+                if room["status"] != "waiting":
+                    return jsonify({"error": "Room is not waiting for a player"}), 409
+                room["player_b"] = uid()
+                room["name_b"] = session.get("username", "Guest")
+                room["status"] = "active"
+                _save_room(inv["room_id"], room)
+                _mark_room_active(inv["room_id"])
+                _set_presence_in_match(room["player_a"], inv["room_id"])
+                _set_presence_in_match(room["player_b"], inv["room_id"])
+            inv["status"] = "accepted"
+            redis.setex(f"invite:{invite_id}", INVITE_TTL, _json.dumps(inv))
+            redis.lrem(f"user_invites:{uid()}", 0, invite_id)
+            return jsonify({"ok": True, "room_id": inv["room_id"]})
+    except _OnlineWriteBusy as exc:
+        return jsonify({"error": str(exc)}), 409
 
 
 @app.route("/online/invite/<invite_id>/decline", methods=["POST"])
@@ -3671,13 +4026,23 @@ def online_decline_invite(invite_id):
     raw = redis.get(f"invite:{invite_id}")
     if not raw:
         return jsonify({"error": "Not found"}), 404
-    inv = _json.loads(raw)
-    if inv["to_uid"] != uid():
+    initial = _json.loads(raw)
+    if initial["to_uid"] != uid():
         return jsonify({"error": "Not your invite"}), 403
-    inv["status"] = "declined"
-    redis.setex(f"invite:{invite_id}", INVITE_TTL, _json.dumps(inv))
-    redis.lrem(f"user_invites:{uid()}", 0, invite_id)
-    return jsonify({"ok": True})
+    try:
+        with _online_write_lock(f"room:{initial['room_id']}"):
+            raw = redis.get(f"invite:{invite_id}")
+            if not raw:
+                return jsonify({"error": "Not found"}), 404
+            inv = _json.loads(raw)
+            if inv.get("status") != "pending":
+                return jsonify({"error": "Already used"}), 400
+            inv["status"] = "declined"
+            redis.setex(f"invite:{invite_id}", INVITE_TTL, _json.dumps(inv))
+            redis.lrem(f"user_invites:{uid()}", 0, invite_id)
+            return jsonify({"ok": True})
+    except _OnlineWriteBusy as exc:
+        return jsonify({"error": str(exc)}), 409
 
 
 #  Live Spectator Mode (open: any user or logged-out visitor) 
@@ -3693,7 +4058,7 @@ def spectate_active():
 
 @app.route("/spectate")
 def spectate_page():
-    return render_template("spectate.html", username=session.get("username"))
+    return render_template("game/spectate.html", username=session.get("username"))
 
 
 @app.route("/spectate/<room_id>")
@@ -3702,7 +4067,7 @@ def spectate_room(room_id):
     if not room:
         flash("That match is no longer available.", "error")
         return redirect(url_for("spectate_page"))
-    return render_template("replay_3d.html",
+    return render_template("game/replay_3d.html",
                            username=session.get("username"),
                            t=None, match={"replay_data": [], "replay_data_len": 0},
                            highlights=[], highlight=None, live_room=room_id,
@@ -3727,6 +4092,7 @@ def api_referees():
     return jsonify(REFEREES)
 
 @app.route("/online/<room_id>/team", methods=["POST"])
+@_online_room_write
 def online_choose_team(room_id):
     room = _get_room(room_id)
     if not room:
@@ -3737,8 +4103,16 @@ def online_choose_team(room_id):
     my_side = ("a" if my_uid == room["player_a"] else "b" if my_uid == room["player_b"] else None)
     if not my_side:
         return jsonify({"error": "Not a player in this room"}), 403
-    data = request.get_json(silent=True) or {}
-    team_id = (data.get("team_id") or "").strip()
+    if room["status"] not in ("waiting", "active") or _online_move_count(room) > 0:
+        return jsonify({"error": "Choose your team before the first kick"}), 409
+    try:
+        data = _online_payload()
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    team_id = data.get("team_id")
+    if not isinstance(team_id, str):
+        return jsonify({"error": "Unknown team"}), 400
+    team_id = team_id.strip()
     from db.teams import TEAMS_BY_ID, team_for_players
     if team_id not in TEAMS_BY_ID:
         return jsonify({"error": "Unknown team"}), 400
@@ -3759,6 +4133,8 @@ def online_choose_team(room_id):
             p["name"] = names[i]
     # also update room and game team fields
     team = TEAMS_BY_ID[team_id]
+    room["game"][f"team_{my_side}_color"] = team["primary"]
+    room["game"][f"team_{my_side}_crest"] = team["crest"]
     from db.managers import get_manager
     mgr = get_manager(team_id)
     if my_side == "a":
@@ -4080,8 +4456,16 @@ def api_friend_stats(friend_uid):
 @login_required
 def api_friends_invite_match():
     """One-click invite a friend to a match lobby (EA FC style)."""
-    data = request.get_json(silent=True) or {}
-    friend_uid = (data.get("friend_uid") or data.get("to_uid") or "").strip()
+    try:
+        data = _online_payload()
+        pw_hash = _hash_room_pw(data.get("password"))
+        game = _new_online_game(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    friend_uid = data.get("friend_uid") or data.get("to_uid") or ""
+    if not isinstance(friend_uid, str):
+        return jsonify({"error": "friend_uid required"}), 400
+    friend_uid = friend_uid.strip()
     if not friend_uid:
         return jsonify({"error": "friend_uid required"}), 400
     try:
@@ -4093,9 +4477,8 @@ def api_friends_invite_match():
             return jsonify({"error": "Not friends"}), 403
     # reuse invite logic: create room + push invite
     from db.redis_client import r as redis
-    pw_hash = _hash_room_pw(data.get("password"))
     room_id = _uuid.uuid4().hex[:10]
-    room = {"game": new_game_state(mode="hvh"), "player_a": uid(), "player_b": None, "name_a": session.get("username", "Player A"), "name_b": None, "status": "waiting", "last_move": None, "started_at": _time.time()}
+    room = {"game": game, "player_a": uid(), "player_b": None, "name_a": session.get("username", "Player A"), "name_b": None, "status": "waiting", "last_move": None, "started_at": _time.time()}
     if pw_hash:
         room["password_hash"] = pw_hash
         room["has_password"] = True
@@ -4173,7 +4556,7 @@ def _set_presence_in_match(uid_: str, room_id: str) -> None:
 @app.route("/messages")
 @login_required
 def messages_page():
-    return render_template("messages.html", username=session.get("username", "Player"))
+    return render_template("social/messages.html", username=session.get("username", "Player"))
 
 
 @app.route("/chat/send", methods=["POST"])
@@ -4400,7 +4783,7 @@ def chat_blocked():
 def tournaments_page():
     from db.tournaments import get_tournaments
     t_list = get_tournaments()
-    return render_template("tournaments.html", username=session.get("username", "Player"), tournaments=t_list)
+    return render_template("competition/tournaments.html", username=session.get("username", "Player"), tournaments=t_list)
 
 @app.route("/tournaments/create", methods=["POST"])
 @login_required
@@ -4430,7 +4813,7 @@ def tournament_view(tid):
     
     # also add friends
     friends = _get_friends(uid())
-    return render_template("tournament_view.html", username=session.get("username", "Player"), t=t, models=avail, friends=friends)
+    return render_template("competition/tournament_view.html", username=session.get("username", "Player"), t=t, models=avail, friends=friends)
 
 @app.route("/tournaments/<tid>/add", methods=["POST"])
 @login_required
@@ -4497,10 +4880,10 @@ def tournament_simulate(tid, match_id):
         # If it's a friend (not a model), we fallback to greedy for now since we don't have async human-play built in for tournaments
         if pid.startswith("friend:"):
             mod = _load_model("greedy")
-            return mod.get_ai_move(state, is_player_a)
+            return get_model_move(mod, state, is_player_a)
         else:
             mod = _load_model(pid)
-            return mod.get_ai_move(state, is_player_a)
+            return get_model_move(mod, state, is_player_a)
             
     st = new_soccer_state()
     st["move_history"] = []
@@ -4574,7 +4957,7 @@ def tournament_watch_3d(tid, match_id):
         flash("Match not available for replay")
         return redirect(url_for("tournament_view", tid=tid))
     hls = get_highlights(tid, match_id) or []
-    return render_template("replay_3d.html", username=session.get("username", "Player"),
+    return render_template("game/replay_3d.html", username=session.get("username", "Player"),
                            t=t, match=m, highlights=hls, highlight=None, live_room=None,
                            loss_model=None, loss_model_name=None)
 
@@ -4606,7 +4989,7 @@ def highlight_page(hid):
         flash("Match not available for replay")
         return redirect(url_for("tournament_view", tid=h["tid"]))
     hls = get_highlights(h["tid"], h["match_id"]) or []
-    return render_template("replay_3d.html", username=session.get("username", "Player"),
+    return render_template("game/replay_3d.html", username=session.get("username", "Player"),
                            t=t, match=m, highlights=hls, highlight=h, live_room=None,
                            loss_model=None, loss_model_name=None)
 
@@ -4753,7 +5136,7 @@ def match_summary_page(room_id):
     for side in ("a", "b"):
         uid_ = summary.get(f"player_{side}")
         summary[f"avatar_{side}"] = get_avatar_url(uid_) if uid_ else None
-    return render_template("match_summary.html",
+    return render_template("account/match_summary.html",
                            username=session.get("username", ""),
                            s=summary)
 
@@ -4780,7 +5163,7 @@ def clerk_verify():
 @app.route("/feedback")
 @login_required
 def feedback_page():
-    return render_template("feedback.html", username=session.get("username", "Player"))
+    return render_template("public/feedback.html", username=session.get("username", "Player"))
 
 
 #  About page feedback — server-side recipient, never leaks to client
@@ -4892,7 +5275,7 @@ def api_embed_stats():
 @login_required
 def research_page():
     from services.paper_search import SUGGESTED_QUERIES
-    return render_template("research.html",
+    return render_template("workshop/research.html",
                            username=session.get("username", "Player"),
                            suggested_queries=SUGGESTED_QUERIES)
 
@@ -5058,14 +5441,14 @@ def _builtin_label(model_key: str) -> str:
 
 def _run_leaderboard_bench(model_id: str, user_id: str, model_name: str,
                            code: str, n_games: int) -> None:
-    """Background benchmark for the model leaderboard (runs ~7 × n games)."""
+    """Background benchmark against the current built-in catalog."""
     import datetime
-    from services.game_analytics import benchmark_model_vs_builtins
+    from services.game_analytics import MODEL_CATALOG, benchmark_model_vs_builtins
     from db.leaderboard import (set_status, save_submission, get_submission)
     from db.user_models import update_model
     try:
         wrapper = _UserModelWrapper(model_id, model_name, code)
-        total = 7 * n_games
+        total = len(MODEL_CATALOG) * n_games
         set_status(model_id, "running", done=0, total=total)
 
         def _progress(d, n):
@@ -5080,7 +5463,7 @@ def _run_leaderboard_bench(model_id: str, user_id: str, model_name: str,
         update_model(model_id, user_id,
                      submitted_to_leaderboard=True, last_benchmarked_at=bench_ts)
         sub = get_submission(model_id)
-        set_status(model_id, "done", done=result["n_games"] * 7, total=result["n_games"] * 7,
+        set_status(model_id, "done", done=total, total=total,
                    score=result["score"], details=result["details"],
                    avg_stats=result["avg_stats"], model_name=model_name,
                    benchmarked_at=(sub or {}).get("benchmarked_at", bench_ts))
@@ -5121,6 +5504,7 @@ def _run_leaderboard_bench(model_id: str, user_id: str, model_name: str,
 def api_submit_leaderboard(model_id: str):
     from db.user_models import get_model_by_id
     from db.leaderboard import get_status
+    from services.game_analytics import MODEL_CATALOG
     import threading as _th
     data = request.get_json(silent=True) or {}
     n_games = min(max(int(data.get("games", _LB_DEFAULT_GAMES)), 1), 50)
@@ -5134,7 +5518,7 @@ def api_submit_leaderboard(model_id: str):
         args=(model_id, uid(), m["name"], m["code"], n_games),
         daemon=True,
     ).start()
-    return jsonify({"ok": True, "total_games": 7 * n_games, "games": n_games})
+    return jsonify({"ok": True, "total_games": len(MODEL_CATALOG) * n_games, "games": n_games})
 
 
 @app.route("/api/models/user/<model_id>/leaderboard-status")
@@ -5186,7 +5570,7 @@ def api_model_leaderboard_detail(model_id: str):
 @login_required
 def arena_page():
     from services.game_analytics import MODEL_CATALOG
-    return render_template("arena.html", username=session.get("username", "Player"), models=MODEL_CATALOG)
+    return render_template("competition/arena.html", username=session.get("username", "Player"), models=MODEL_CATALOG)
 
 
 @app.route("/api/arena/models")
@@ -5201,7 +5585,7 @@ def arena_models():
 def arena_battle():
     from services.game_analytics import run_model_battle
     data = request.get_json(silent=True) or {}
-    model_a = data.get("model_a", "minimax")
+    model_a = data.get("model_a", "expectimax")
     model_b = data.get("model_b", "greedy")
     games = min(int(data.get("games", 10)), 50)
 
@@ -5280,6 +5664,8 @@ def _loss_display_state(snapshot: dict) -> dict:
 @login_required
 def loss_analysis_page():
     from db.user_models import get_model_by_id
+    from services.game_analytics import MODEL_CATALOG
+    from services.loss_analysis import TAG_META, default_comparison_model
     model_id = (request.args.get("model") or "").strip()
     if model_id.startswith(USER_MODEL_PREFIX):
         model_id = model_id[len(USER_MODEL_PREFIX):]
@@ -5288,9 +5674,12 @@ def loss_analysis_page():
         flash("Model not found or access denied")
         return redirect(url_for("my_models_page"))
     return render_template(
-        "replay_3d.html", username=session.get("username", "Player"),
+        "game/replay_3d.html", username=session.get("username", "Player"),
         t=None, match=None, highlights=[], highlight=None, live_room=None,
         loss_model=USER_MODEL_PREFIX + model_id, loss_model_name=m["name"],
+        loss_builtin_models=MODEL_CATALOG,
+        loss_default_model=default_comparison_model(),
+        loss_tag_meta=TAG_META,
     )
 
 
@@ -5528,7 +5917,7 @@ def _run_matrix_job(n_games: int = _MATRIX_DEFAULT_GAMES) -> None:
 def analytics_page():
     """Public analytics dashboard (aggregate data only; usernames shown
     are already public via the leaderboards)."""
-    return render_template("analytics.html", dev_mode=_dev_mode)
+    return render_template("workshop/analytics.html", dev_mode=_dev_mode)
 
 
 @app.route("/api/analytics")
