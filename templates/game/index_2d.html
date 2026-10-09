@@ -1512,6 +1512,8 @@ function rebuildPlayers(){
 }
 function updatePlayerPositions(syncControls=true){
   if(!gameState)return;pitch.setRoster(gameState.players_a,gameState.players_b);
+  const human=!ONLINE.active&&gameState.game_mode==='hvai';
+  pitch.setHumanPlayer(human?'a':null,gameState.penalty_shootout?0:(gameState.human_player_idx??gameState.players_a.length-1));
   if(syncControls)playerInput.sync();
 }
 const playerInput=createPlayerInput({
@@ -1881,8 +1883,8 @@ function showCaptainHint(show){
 }
 function animateTrajectory(trajectory,onDone,current=()=>true,playbackSpeed=animSpeed) {
   syncBallSize(trajectory?.[0]?.ball_size?trajectory[0]:gameState);
-  playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,
-    onBounce:point=>playPositional(_bounceBuf,point,{volume:.45}),
+  playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,pitch,
+    onBounce:point=>playPositional(point.contact ? _kickBuf : _bounceBuf,point,{volume: point.contact ? .6 : .45}),
     onFrame:point=>{
       gameState.ball={x:point.x,y:point.y,z:point.z||0};
       updateBall(point.x,point.y,point.z||0);
@@ -2028,7 +2030,7 @@ async function requestMoveState(url, command, run) {
   AW.handle(data); return data;
 }
 
-// A complete human cycle ends on the captain's turn: A, B, teammate A, B.
+// A complete human cycle returns to your striker: A, B, teammate A, B.
 // Keep the next leg for Retry if a request fails after an earlier leg succeeded.
 async function completeHumanTurn(run) {
   while (run.current() && LOCAL_TURN.pending) {
@@ -2043,7 +2045,7 @@ async function completeHumanTurn(run) {
     const url = teammate ? '/random_move' : '/ai_move';
     const key = teammate ? 'random_result' : 'ai_result';
     const data = await requestMoveState(url, undefined, run);
-    await displayMove(data, key, teammate ? 'a' : 'b', { current: run.current, speed: animSpeed * 2 });
+    await displayMove(data, key, teammate ? 'a' : 'b', { current: run.current, speed: animSpeed });
     if (!run.current()) return;
     if (phase === 2) LOCAL_TURN.pending = null;
     else LOCAL_TURN.pending.phase++;
@@ -2081,7 +2083,7 @@ async function triggerAI({ keeperDirection = null } = {}) {
   try {
     if (keeperDirection) await requestMoveState('/goalkeeper_move', { direction: keeperDirection }, run);
     if (LOCAL_TURN.pending && !gameState.penalty_shootout) await completeHumanTurn(run);
-    else await displayMove(await requestMoveState('/ai_move', undefined, run), 'ai_result', team, { current: run.current, speed: animSpeed * 2 });
+    else await displayMove(await requestMoveState('/ai_move', undefined, run), 'ai_result', team, { current: run.current, speed: animSpeed });
     continueAI = run.current() && gameState.game_mode === 'aivai' && !gameState.game_over;
   } catch (error) { if (run.current()) playerInput.reportError(error.message); }
   finally { finishLocalTurn(run); }
@@ -2099,7 +2101,7 @@ window.resetGame = async function() {
   if (isAnimating || ONLINE.active) return;
   cancelLocalTurn();
   const generation = ONLINE.generation;
-  const body = { player_count: 3 };
+  const body = { player_count: 5 };
   const data = await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
   if (ONLINE.active || ONLINE.generation !== generation) return;
   AW.handle(data);
@@ -2180,10 +2182,13 @@ function setOverlay(show, text) {
   }
 
   if (new URLSearchParams(location.search).get('new') === '1') {
-    await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_count: 3 }) });
+    await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_count: 5 }) });
     history.replaceState(null, '', '/play3d');
   }
-  const data = await fetch('/state').then(r => r.json());
+  let data = await fetch('/state').then(r => r.json());
+  if (data.player_count !== 5) {
+    data = await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ player_count: 5 }) }).then(r => r.json());
+  }
   AW.handle(data);
   document.getElementById('mode-select').value = data.game_mode || 'hvai';
   gameState = data;

@@ -5,7 +5,7 @@ export function createPlayerInput(options) {
   const { canvas, getState, getOnline, isBusy, getGround, hitTest, onAim, onClear, onSelect, onKick, setOrbitEnabled, getOrbitEnabled } = options;
   const ids = ['player-select','player-prev','player-next','aim-angle','kick-power','kick-power-value','kick-btn','aim-cancel','player-control-status'];
   const ui = Object.fromEntries(ids.map(id => [id, document.getElementById(id)]));
-  let selectedIndex = 0, angle = 0, basePower = 72, preview = false;
+  let selectedIndex = 0, angle = 0, basePower = 80, preview = false;
   let passType = 'normal', gesture = null, stamp = '', optionStamp = '', team = 'a', notice = '';
   const access = () => controlAccess(getState(), getOnline(), isBusy());
   const rule = () => controlAccess(getState(), getOnline());
@@ -23,7 +23,7 @@ export function createPlayerInput(options) {
     const home = origin(), ball = getState()?.ball;
     angle = home && ball && Math.hypot(ball.x-home.x, ball.y-home.y) > 1
       ? normalizeAngle(Math.atan2(ball.y-home.y, ball.x-home.x)*180/Math.PI) : team === 'b' ? 180 : 0;
-    basePower = 72; preview = false; onClear();
+    basePower = 80; preview = false; onClear();
   }
   function drawAim() {
     const home = origin();
@@ -53,7 +53,9 @@ export function createPlayerInput(options) {
     if (optionStamp !== nextOptions) {
       ui['player-select'].replaceChildren(...legal.indices.map(index => {
         const option = document.createElement('option'); option.value = String(index);
-        option.textContent = index === 0 ? '#1 · Keeper / captain' : `#${index+1} · Outfield`;
+        const players=getState()?.['players_'+legal.team] || [];
+        option.textContent = index === 0 ? '#1 · Goalkeeper' : index === players.length-1
+          ? `#${index+1} · Striker` : `#${index+1} · Teammate`;
         return option;
       })); optionStamp = nextOptions;
     }

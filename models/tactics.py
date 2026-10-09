@@ -14,7 +14,7 @@ from models.soccer_logic import (
     FIELD_W, FIELD_H, GOAL_Y1, GOAL_Y2, _MARGIN, _PM_ELASTICITY_P,
     _ball_physics, _get_player_stats, _get_player_radius, _get_player_mass,
     _get_player_kick_vel, _get_player_friction, _keeper_radius_bonus,
-    _keeper_rush_mult,
+    _keeper_rush_mult, _RALLY_SPEED_BOOST, _RALLY_SPEED_CAP,
 )
 
 
@@ -101,7 +101,7 @@ def _estimate(state, side, move, material, profiles):
         if impact2 > 0:
             transfer = ((1.0 + _PM_ELASTICITY_P * material["restitution"])
                         * mass / (mass + material["mass"]))
-            ball_speed = math.sqrt(impact2) * alignment * transfer
+            ball_speed = min(_RALLY_SPEED_CAP, math.sqrt(impact2) * alignment * transfer * _RALLY_SPEED_BOOST)
             ball_distance = ball_speed * ball_speed / (2.0 * material["rolling_deceleration"])
             intercepted = False
             # An open lane is worth more than a long estimate through another
@@ -267,7 +267,7 @@ def tactical_candidates(state, side, allowed_players=None, max_candidates=8):
                 geometry = _impact_geometry(player, ball, angle, contact)
                 if not geometry or geometry[-1] < 0.15:
                     continue
-                impact_speed = math.sqrt(2.0 * material["rolling_deceleration"] * travel) / (transfer * geometry[-1])
+                impact_speed = math.sqrt(2.0 * material["rolling_deceleration"] * travel) / (transfer * geometry[-1] * _RALLY_SPEED_BOOST)
                 power = math.sqrt(impact_speed * impact_speed + 2.0 * resistance * geometry[0]) / velocity
                 add(i, angle, power, 25.0)
             if defensive:

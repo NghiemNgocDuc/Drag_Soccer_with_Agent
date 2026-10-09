@@ -559,8 +559,8 @@ select option:disabled{color:#94a3b8}
     <div class="setting-row">
       <label class="setting-label" for="player_count">Player Count</label>
       <div class="setting-control">
-        <input type="range" id="player_count" min="1" max="11" value="3">
-        <span class="range-val" id="player_count_val">3</span>
+        <input type="hidden" id="player_count" value="5">
+        <span id="player_count_val">5</span><span> per team · you play striker against AI</span>
       </div>
     </div>
   </div>
@@ -621,11 +621,12 @@ select option:disabled{color:#94a3b8}
 
 <script>
 const CUST = {{ cust | tojson }};
+CUST.player_count = 5;
 const LOCK_MAP = {{ lock_map | tojson }};
 const LOCKED = {{ locked | tojson }};
 const DEFAULTS = {
   team_a_color:'#3b82f6',team_b_color:'#ef4444',ref_color:'#fde68a',ball_color:'#f8fafc',bg_color:'#2a2518',
-  player_count:3,grass_shade:'dark',pitch_pattern:'stripes',field_line_color:'#ffffff',corner_flag_style:'normal',
+  player_count:5,grass_shade:'dark',pitch_pattern:'stripes',field_line_color:'#ffffff',corner_flag_style:'normal',
   crowd_palette:'classic',stadium_seat_color:'#475569',stadium_vignette:0.6,floodlight_color:'warm',bg_scene:'night',weather:'clear',
   ball_design:'classic',ball_pattern:'solid',ball_size:'normal',ball_type:'normal',ball_bounciness:'normal',boost_amount:'default',gravity:'normal',demolition:'off',extra_mode:'soccar',camera_type:'broadcast',camera_height:10,camera_zoom:10,stadium_style:'modern',net_color:'#ffffff',car_body:'octane',decal:'none',wheels:'default',goal_explosion:'classic',keeper_color_a:'#22c55e',keeper_color_b:'#f97316',keeper_style_a:'default',keeper_style_b:'default',highlight_style:'glow',shirt_font:'default',
   goal_effect:'confetti',trail_color:'#ffffff',power_bar_style:'classic',
@@ -650,7 +651,7 @@ function syncFromInputs(){
   // Read player stats from sliders
   var ps = {a:[],b:[]};
   ['a','b'].forEach(function(t){
-    for(var i=0;i<3;i++){
+    for(var i=0;i<5;i++){
       var o = {};
       STAT_NAMES.forEach(function(s){
         var el = document.getElementById('stat-'+t+i+'_'+s);
@@ -662,7 +663,7 @@ function syncFromInputs(){
   current.player_stats = ps;
   // Read custom names/colors
   var names={a:[],b:[]}, cols={a:[],b:[]};
-  var pc=parseInt(current.player_count||7,10);
+  var pc=parseInt(current.player_count||5,10);
   ['a','b'].forEach(function(t){
     for(var i=0;i<pc;i++){
       var ne=document.getElementById('pname-'+t+i);
@@ -701,15 +702,15 @@ var STAT_LABELS = {size:'Size',power:'Power',weight:'Weight',agility:'Agility'};
 function buildStatSliders(team, containerId) {
   var container = document.getElementById(containerId);
   if (!container) return;
-  var pc = parseInt(current.player_count || CUST.player_count || 7, 10);
+  var pc = parseInt(current.player_count || CUST.player_count || 5, 10);
   pc = Math.max(1, Math.min(11, pc));
-  var count = Math.min(3, pc); // stats UI shows 3 for brevity, backend handles up to 11
+  var count = pc;
   var html = '';
   for (var i = 0; i < count; i++) {
     var stats = (CUST.player_stats && CUST.player_stats[team] && CUST.player_stats[team][i])
       || {size:50, power:50, weight:50, agility:50};
     html += '<div class="stat-player-card" style="background:rgba(255,255,255,.04);border-radius:10px;padding:10px;margin-bottom:10px">';
-    html += '<div style="font-weight:600;font-size:.85rem;margin-bottom:6px">Player ' + (i + 1) + (i === 0 ? ' · Goalkeeper' : '') + ' <span id="total-' + team + i + '" style="font-weight:400;color:var(--muted)">200/200</span></div>';
+    html += '<div style="font-weight:600;font-size:.85rem;margin-bottom:6px">Player ' + (i + 1) + (i === 0 ? ' · Goalkeeper' : i === count - 1 ? ' · Striker' : '') + ' <span id="total-' + team + i + '" style="font-weight:400;color:var(--muted)">200/200</span></div>';
     STAT_NAMES.forEach(function(s) {
       var val = stats[s] !== undefined ? stats[s] : 50;
       html += '<div style="display:flex;align-items:center;gap:6px;margin:3px 0">';
@@ -726,7 +727,7 @@ function buildStatSliders(team, containerId) {
 function buildNameColor(team, containerId){
   var container=document.getElementById(containerId);
   if(!container) return;
-  var pc=parseInt(current.player_count || CUST.player_count || 7,10);
+  var pc=parseInt(current.player_count || CUST.player_count || 5,10);
   pc=Math.max(1, Math.min(11, pc));
   var names=(CUST.player_names && CUST.player_names[team])||[];
   var colors=(CUST.player_colors && CUST.player_colors[team])||[];
@@ -768,7 +769,7 @@ buildStatSliders('a', 'team-a-stats');
 buildStatSliders('b', 'team-b-stats');
 buildNameColor('a','names-a');
 buildNameColor('b','names-b');
-window._lastPC = parseInt(CUST.player_count||7,10);
+window._lastPC = parseInt(CUST.player_count||5,10);
 
 function resetDefaults(){
   Object.keys(DEFAULTS).forEach(function(key){
@@ -782,7 +783,7 @@ function resetDefaults(){
   });
   // Reset stats to default (50)
   ['a','b'].forEach(function(t){
-    for(var i=0;i<3;i++){
+    for(var i=0;i<5;i++){
       STAT_NAMES.forEach(function(s){
         var el=document.getElementById('stat-'+t+i+'_'+s);
         if(el) el.value=50;

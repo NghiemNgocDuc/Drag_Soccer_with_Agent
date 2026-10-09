@@ -8,15 +8,15 @@
 
 [Quick start](#quick-start) · [Build an agent](#build-an-agent) · [AI catalog](#ai-catalog) · [Documentation](#documentation) · [Demo](https://drag-soccer-with-agent.onrender.com/)
 
-![A seven-a-side online match between Orion FC and Harbor United, with the stadium, scoreboard, and player controls visible.](docs/assets/readme/gameplay.png)
+![A five-a-side online match between Orion FC and Harbor United, with the stadium, scoreboard, and player controls visible.](docs/assets/readme/gameplay.png)
 
-*An actual local 7v7 match. The browser draws the 2D pitch; the server resolves each kick.*
+*An actual local 5v5 match. The browser draws the 2D pitch; the server resolves each kick.*
 
 ## What you can do
 
 | | Experience |
 | --- | --- |
-| **Play** | Pull a player back, aim, and release. Play against an AI, take turns locally, or watch AI vs AI. Teams support 1–11 players. |
+| **Play** | Five players per team. Control your striker against AI, take turns locally, or watch AI vs AI. Pull back, aim, and release. |
 | **Build** | Write Python in the AI Playground, validate your strategy, save custom models, and work through seven guided lessons. |
 | **Customize** | Allocate player stats, choose formations and kits, and change pitch, ball, keeper, and referee colors. |
 | **Compete** | Compare agents in the Arena, run tournaments, submit models to the model leaderboard, or play ranked human matches. |
@@ -38,7 +38,7 @@ The Canvas 2D views show the entire pitch and draw only when something changes. 
 
 ### Team builder
 
-![Six player cards allocate a 200-point budget across Size, Power, Weight, and Agility, with team customization and save controls.](docs/assets/readme/team-builder.png)
+![Five player cards per team allocate a 200-point budget across Size, Power, Weight, and Agility, with team customization and save controls.](docs/assets/readme/team-builder.png)
 
 These screenshots come from the running application. [Capture them again](tools/browser/capture_readme.py) after installing the browser verification dependencies below.
 
@@ -78,7 +78,7 @@ Open **[localhost:5000](http://localhost:5000)**. Choose **Log in → Try the de
 ### Play your first match
 
 1. Open **Play** and choose Human vs AI, Human vs Human, or AI vs AI.
-2. Choose a squad and match settings. The default team size is seven.
+2. Choose your match settings. Each team has five players.
 3. Pull a legal player backward and release to kick, or use the direction and power controls.
 
 | Action | Keyboard |
@@ -90,7 +90,9 @@ Open **[localhost:5000](http://localhost:5000)**. Choose **Log in → Try the de
 | Kick | Enter / Space while using the pitch |
 | Cancel aiming | Escape |
 
-Human vs AI gives you captain control. Local Human vs Human and online play allow selection from the active player's roster. Matches end at the selected goal limit or match time; tied timed matches progress through extra time and a shootout.
+Human vs AI gives you striker #5, marked **YOU** on the pitch. Teammates act automatically, then control returns to you. Local Human vs Human and online play allow selection from the active player's roster. Matches end at the selected goal limit or match time; tied timed matches progress through extra time and a shootout.
+
+The ball stays on the ground with crisp, ping-pong-style rebounds and a speed limit. Players stay inside the pitch, and every player follows the same playback clock as the ball.
 
 ### Give each player a role
 

@@ -22,7 +22,7 @@ from game.session import (
     get_game, save_game, new_game_state, push_snapshot, pop_snapshot,
     new_pg_state, get_pg, save_pg,
 )
-from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions, normalize_kick
+from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions, normalize_kick, human_player_index
 from models.search_budget import get_model_move, is_builtin, DEFAULT_BUDGET_S
 
 #  Mem0-style memory (short/long) 
@@ -257,7 +257,8 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "game_over":    state.get("game_over", False),
         "winner":       state.get("winner"),
         "game_mode":    state.get("game_mode", "hvai"),
-        "player_count": state.get("player_count", 3),
+        "player_count": state.get("player_count", 5),
+        "human_player_idx": human_player_index(state),
         "power_cap": state.get("power_cap", 100),
         "ball_type": state.get("ball_type", "normal"),
         "ball_bounciness": state.get("ball_bounciness", "normal"),
@@ -1004,12 +1005,12 @@ def human_move():
         return jsonify(_full_state(state, {"error": "Kick command must be a JSON object"})), 400
     try:
         player_idx, angle, power = normalize_kick(
-            state, data.get("player_idx", 0), data.get("angle", 0.0), data.get("power", 80.0), side_a,
+            state, data.get("player_idx", human_player_index(state, side_a)), data.get("angle", 0.0), data.get("power", 80.0), side_a,
         )
     except ValueError as exc:
         return jsonify(_full_state(state, {"error": str(exc)})), 400
-    if state["game_mode"] == "hvai" and player_idx != 0:
-        return jsonify(_full_state(state, {"error": "Only the captain is manually controlled"})), 400
+    if state["game_mode"] == "hvai" and player_idx != human_player_index(state):
+        return jsonify(_full_state(state, {"error": "You control the striker; teammates are controlled by AI"})), 400
 
     if state.get("penalty_shootout"):
         traj, scored, desc = apply_penalty_kick(state, player_idx, angle, power, side_a)
@@ -1068,7 +1069,7 @@ def trigger_ai_move():
             "push_result": None,
         }
     else:
-        excluded = 0 if is_player_a and state.get("game_mode") == "hvai" else None
+        excluded = human_player_index(state) if is_player_a and state.get("game_mode") == "hvai" else None
         result = _do_ai_move(state, model_name, is_player_a, excluded_player_idx=excluded)
     if result.get("scored"):
         _goal_moment_achievements(result.get("trajectory"))
@@ -1096,7 +1097,7 @@ def random_teammate_move():
         return jsonify(_full_state(state, {"error": "No teammate available"})), 400
     # Keep the existing endpoint/response contract while replacing the random
     # rush with a coordinated shot, pass, clearance or support approach.
-    result = _do_ai_move(state, "team_coordinated", True, excluded_player_idx=0)
+    result = _do_ai_move(state, "team_coordinated", True, excluded_player_idx=human_player_index(state))
     save_game(user_id, state)
     return jsonify(_full_state(state, {"random_result": result}))
 
@@ -1189,8 +1190,7 @@ def reset_game():
         pstats = cust.get("player_stats") or {}
         inject_player_stats(state, pstats.get("a"), pstats.get("b"))
     else:
-        pc = int(data.get("player_count", old_state.get("player_count", 7)))
-        pc = max(1, min(11, pc))
+        pc = 5
         state = new_game_state(
             mode    = old_state.get("game_mode", "hvai"),
             model_b = old_state.get("model_name_b", "greedy"),
@@ -2767,7 +2767,7 @@ def _online_revision(value):
 
 
 def _new_online_game(data):
-    count = data.get("player_count", 7)
+    count = data.get("player_count", 5)
     if isinstance(count, bool):
         raise ValueError("Player count must be between 1 and 11")
     try:
@@ -2776,7 +2776,7 @@ def _new_online_game(data):
         raise ValueError("Player count must be between 1 and 11") from exc
     if not 1 <= count <= 11:
         raise ValueError("Player count must be between 1 and 11")
-    return new_game_state(mode="hvh", player_count=count)
+    return new_game_state(mode="hvh", player_count=5)
 
 
 def _clear_online_match_pointer(key, room_id):

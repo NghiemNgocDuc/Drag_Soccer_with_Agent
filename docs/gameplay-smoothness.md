@@ -1,5 +1,9 @@
 # Smoother gameplay playback
 
+Current five-a-side 2D playback uses a four-second cap per timed move at normal
+speed, including AI moves. Player contacts retain their collision samples and
+use linear interpolation beside impacts. The human controls striker #5.
+
 This pass improves motion and transitions in the live game, online matches,
 spectator playback, and saved replays. It addresses visible timing discontinuities
 while keeping server physics authoritative.
@@ -69,7 +73,7 @@ timing correctness, not the FPS a particular GPU can sustain.
 
 The AI turn-cycle verifier passes 13 checks, and the pointer/keyboard/touch/player
 controls verifier passes 55 checks. All three browser suites report zero
-JavaScript exceptions. Real AI cycles return captain control, limb poses reset,
+JavaScript exceptions. Real AI cycles return striker control, limb poses reset,
 and idle scenes stop scheduling frames.
 
 The online fixtures include membership and revision data. Poll-fixture waits are

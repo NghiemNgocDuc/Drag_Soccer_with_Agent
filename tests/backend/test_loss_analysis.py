@@ -133,14 +133,14 @@ def test_snapshot_roundtrip():
 def test_playback_deterministic_and_advances_ball():
     st = new_soccer_state()
     snap = build_snapshot(st)
-    dec = {"player_idx": 2, "angle": 0.0, "power": 90.0}
+    dec = {"player_idx": len(st['players_a'])-1, "angle": 0.0, "power": 90.0}
     r1 = playback_turn(snap, dec)
     r2 = playback_turn(snap, dec)
     assert r1["trajectory"] == r2["trajectory"]
     assert len(r1["trajectory"]) >= 2
     start_x = r1["trajectory"][0]["x"]
     end_x = r1["trajectory"][-1]["x"]
-    assert end_x > start_x + 50  # team A attacks +x
+    assert end_x > start_x + 20  # team A attacks +x (lighter ball → shorter contact carry)
 
 
 def test_playback_miss_reflects_engine_truth():

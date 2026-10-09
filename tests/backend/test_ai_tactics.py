@@ -87,7 +87,7 @@ def test_candidates_are_legal_mirrored_and_do_not_mutate_match(count):
 def test_reach_uses_actual_power_agility_and_match_cap():
     state = new_soccer_state(player_count=3, power_cap=60)
     state["ball"].update(x=700, y=437.5)
-    _place(state["players_a"], [(70, 437.5), (580, 437.5), (500, 437.5)])
+    _place(state["players_a"], [(70, 437.5), (580, 350), (600, 437.5)])
     state["players_a"][1]["stats"] = {"size": 50, "power": 20, "weight": 50, "agility": 80}
     state["players_a"][2]["stats"] = {"size": 50, "power": 80, "weight": 50, "agility": 20}
     candidates = tactical_candidates(state, True)

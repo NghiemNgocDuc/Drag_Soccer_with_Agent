@@ -28,6 +28,7 @@ window.__qa2D={
  seek:target=>seekToEntry(target),
  online:()=>typeof ONLINE!=='undefined'?ONLINE:null,
  invalidate:()=>pitch.loop.invalidate(),
+ impact:()=>pitch.onContact(700,437.5),
 };
 """
 
@@ -48,18 +49,18 @@ def main():
         templates[name] = re.sub(r'(<script type="module">)(.*?)(</script>)',
                                 lambda m: m[1] + m[2] + DIAGNOSTICS + m[3], source, flags=re.S)
     application.app.jinja_loader = ChoiceLoader([DictLoader(templates), application.app.jinja_loader])
-    seed = new_soccer_state(mode='hvh', player_count=7, half_length=9999)
+    seed = new_soccer_state(mode='hvh', player_count=5, half_length=9999)
     replay_seed = copy.deepcopy(seed)
-    trajectory, scored, description, endpoint, _ = apply_kick(replay_seed, 6, 0, 100, True)
+    trajectory, scored, description, endpoint, _ = apply_kick(replay_seed, 4, 0, 100, True)
     move = {'trajectory': trajectory, 'scored': scored, 'desc': description,
-            'kick_endpoint': endpoint, 'mover': 'a', 'player_idx': 6, 'angle': 0, 'power': 100}
+            'kick_endpoint': endpoint, 'mover': 'a', 'player_idx': 4, 'angle': 0, 'power': 100}
     clip = {'id': 'qa', 'type': 'fast', 'label': 'Opening move', 'start': 0, 'end': 1}
 
     @application.app.route('/__2d/login/<name>')
     def login(name):
         session['user_id'] = 'dev:canvas-' + name
         session['username'] = name
-        game = new_soccer_state(mode='hvh', player_count=int(request.args.get('count', 7)), half_length=9999)
+        game = new_soccer_state(mode='hvh', player_count=int(request.args.get('count', 5)), half_length=9999)
         game['game_mode'] = request.args.get('mode', 'hvh')
         if request.args.get('penalty'):
             game['penalty_shootout'] = True
@@ -121,7 +122,7 @@ def main():
             page = page_for(context)
             page.goto(base + '/__2d/login/desktop')
             ready(page)
-            check('Canvas renders 7v7', page.evaluate('window.__pitch2D().players_a.length===7 && window.__pitch2D().width>0'))
+            check('Canvas renders 5v5', page.evaluate('window.__pitch2D().players_a.length===5 && window.__pitch2D().width>0'))
             check('no horizontal overflow', page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
             idle(page)
 
@@ -132,10 +133,14 @@ def main():
             page.evaluate("delete document.hidden;document.dispatchEvent(new Event('visibilitychange'))")
             page.wait_for_function('(n)=>window.__pitch2D().frames>n', arg=before_frames)
             check('visible canvas resumes drawing', True)
+            page.evaluate('window.__qa2D.impact()')
+            page.wait_for_timeout(600)
+            check('impact effects expire after hidden tab resumes', page.evaluate('Object.values(window.__pitch2D().effects).every(v=>!v)'))
+            idle(page)
             page.screenshot(path=str(out / 'desktop.png'), full_page=True)
-            point = page.evaluate("window.__qa2D.point('a',6)")
+            point = page.evaluate("window.__qa2D.point('a',4)")
             page.mouse.click(point['x'], point['y'])
-            check('click selects player', page.evaluate('window.__playerControlState().selectedIndex===6'))
+            check('click selects player', page.evaluate('window.__playerControlState().selectedIndex===4'))
             before = page.evaluate('window.__qa2D.active().kick_count')
             page.mouse.move(point['x'], point['y'])
             page.mouse.down()
@@ -158,17 +163,26 @@ def main():
 
             page.goto(base + '/__2d/login/ai?mode=hvai')
             ready(page)
+            check('human controls only striker number five', page.evaluate('window.__playerControlState().selectedIndex===4 && JSON.stringify(window.__playerControlState().allowedIndices)==="[4]" && window.__pitch2D().humanPlayer.index===4'))
+            page.screenshot(path=str(out / 'striker.png'), full_page=True)
+            page.evaluate('''window.__rosterQA={frames:0,invalid:0,watch:true};
+              function sample(){if(!window.__rosterQA.watch)return;const s=window.__pitch2D();
+              if(window.__qa2D.busy()){window.__rosterQA.frames++;if(s.players_a.length!==5||s.players_b.length!==5||[...s.players_a,...s.players_b].some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||p.x<20||p.x>1380||p.y<20||p.y>855))window.__rosterQA.invalid++;}
+              requestAnimationFrame(sample);}requestAnimationFrame(sample);''')
             before = page.evaluate('window.__qa2D.active().kick_count')
             page.locator('#pitch-container canvas').focus()
             page.keyboard.press('Enter')
             page.wait_for_function('(n)=>!window.__qa2D.busy() && window.__qa2D.active().kick_count>=n+4', arg=before, timeout=40000)
             check('human and three AI legs finish', page.evaluate('window.__qa2D.active().is_player_a'))
+            page.evaluate('window.__rosterQA.watch=false')
+            check('all ten players remain visible throughout AI cycle', page.evaluate('window.__rosterQA.frames>0 && window.__rosterQA.invalid===0'))
+            check('control returns to striker', page.evaluate('window.__playerControlState().selectedIndex===4 && window.__pitch2D().humanPlayer.index===4'))
 
             replay_page = page_for(context)
             replay_page.goto(base + '/__2d/replay')
             ready(replay_page)
             replay_page.evaluate('window.__qa2D.seek(0)')
-            check('seeking start retains roster', replay_page.evaluate('window.__pitch2D().players_a.length===7'))
+            check('seeking start retains roster', replay_page.evaluate('window.__pitch2D().players_a.length===5'))
             replay_page.evaluate('window.toggleAutoPlay()')
             replay_page.wait_for_function('window.__hlState().current===2 && !window.__qa2D.busy()')
             last = move['trajectory'][-1]
@@ -190,14 +204,14 @@ def main():
                     data = {'matches': [fixture_match]}
                 elif path == '/matches/match':
                     data = {'match': fixture_match, 'traces': [{'turn': 0, 'mover': 'a', 'outcome_tag': 'neutral', 'state': seed,
-                            'decision': {'player_idx': 6, 'angle': 0, 'power': 100}}]}
+                            'decision': {'player_idx': 4, 'angle': 0, 'power': 100}}]}
                 elif path.endswith('/playback'):
                     data = move
                 route.fulfill(json=data)
             loss_page.route('**/api/loss/models/qa/**', loss_data)
             loss_page.goto(base + '/__2d/loss')
             ready(loss_page)
-            check('loss review renders traced squad', loss_page.evaluate('window.__lossState().tracedTurns===1 && window.__pitch2D().players_a.length===7'))
+            check('loss review renders traced squad', loss_page.evaluate('window.__lossState().tracedTurns===1 && window.__pitch2D().players_a.length===5'))
             loss_page.evaluate('window.playLossTurn()')
             loss_page.wait_for_function('window.__qa2D.busy()')
             loss_page.wait_for_function('!window.__qa2D.busy()')
@@ -219,7 +233,7 @@ def main():
             spectator_page = page_for(spectator)
             spectator_page.goto(base + '/spectate/' + room)
             ready(spectator_page)
-            check('guest spectator gets full roster', spectator_page.evaluate('window.__pitch2D().players_a.length===7'))
+            check('guest spectator gets full roster', spectator_page.evaluate('window.__pitch2D().players_a.length===5'))
             check('spectator has no kick control', spectator_page.locator('#kick-btn').count() == 0)
             page.locator('#pitch-container canvas').focus()
             page.keyboard.press('Enter')
@@ -239,14 +253,14 @@ def main():
             mobile_page = page_for(mobile)
             mobile_page.goto(base + '/__2d/login/mobile')
             ready(mobile_page)
-            point = mobile_page.evaluate("window.__qa2D.point('a',6)")
+            point = mobile_page.evaluate("window.__qa2D.point('a',4)")
             mobile_page.touchscreen.tap(point['x'], point['y'])
-            check('touch selects player', mobile_page.evaluate('window.__playerControlState().selectedIndex===6'))
+            check('touch selects player', mobile_page.evaluate('window.__playerControlState().selectedIndex===4'))
             check('mobile fits viewport', mobile_page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
             mobile_page.screenshot(path=str(out / 'mobile.png'), full_page=True)
             mobile_page.goto(base + '/__2d/login/mobile?count=11')
             ready(mobile_page)
-            check('11v11 roster renders', mobile_page.evaluate('window.__pitch2D().players_a.length===11 && window.__pitch2D().players_b.length===11'))
+            check('legacy local roster starts a five-a-side match', mobile_page.evaluate('window.__pitch2D().players_a.length===5 && window.__pitch2D().players_b.length===5'))
             page.goto(base + '/__2d/login/penalty?penalty=1')
             ready(page)
             check('penalty referee stays hidden', page.evaluate('window.__pitch2D().referee===null'))

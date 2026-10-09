@@ -24,27 +24,41 @@ speed before any contact occurred.
 
 | Material | Shape restitution | Ground deceleration |
 | --- | ---: | ---: |
-| Player | 0.60 | 1,000–2,000 units/s², from Agility |
-| Normal ball | 0.80 | 300 units/s² |
-| Field wall/post | 0.80 | — |
+| Player | 0.90 | 1,000–2,000 units/s², from Agility |
+| Normal ball | 0.96 | 175 units/s² |
+| Field wall/post | 0.96 | — |
 | Goal net | 0.20 | — |
 
 Pymunk multiplies the restitution of the two contacting shapes, making the
-normal ball/wall response 0.64 and ball/player response 0.48. This loses impact
-energy while transferring momentum. Rolling resistance uses a pivot constraint
+normal ball/wall response 0.9216 and ball/player response 0.864. A first player
+contact adds a small 1.025 speed multiplier, capped at 850 units/s even when the
+incoming contact impulse exceeds that cap. Rolling resistance uses a pivot constraint
 with `max_force = mass * deceleration`; its bounded impulse brings the ball to
 rest without reversing it. Global exponential damping is disabled. See the
 [Pymunk reference](https://www.pymunk.org/en/latest/pymunk.html#pymunk.Space.step)
 for fixed steps, impulses, material restitution and post-solve collision data.
 
 Saved ball presets control mass, resistance, restitution and physical radius.
-Even high-bounce presets cap ball restitution at 0.95 to avoid contact energy
-creation. Small/normal/large radii are 9.84/12/14.16. Gameplay, replay and live
+Even high-bounce presets cap ball restitution at 0.96. Small/normal/large radii
+are 9.84/12/14.16. Gameplay, replay and live
 spectator rendering use the authoritative size, including squash and spin.
 The first trajectory frame stores size for future replays; older replays default
 to normal. Cube/puck presets still use the existing circular contact geometry.
 
 ## Goals and penalties
+
+New matches use five players per team. In Human vs AI the human controls the
+last formation slot, striker #5; the teammate policy excludes that slot.
+Power maps to 4.2–7.8 units/s per command point, further bounded so a free
+maximum-strength approach travels at most 220 units (plus fixed-step tolerance).
+Players have solid pitch boundaries, including the goal mouths. A substep guard
+repairs any residual penetration while reflecting outward velocity. Only actual
+contact moves the ball: missed kicks cannot remotely loft or displace it.
+
+Live and replay 2D playback use the same roster and ball timestamps, capped at
+four seconds per move at normal speed. AI moves use the selected playback speed.
+Wall and player contact samples and their predecessors survive trajectory
+thinning. Penalties also carry both full rosters, with active kicker/keeper tracks.
 
 A goal requires the entire ball beyond the goal line, inside both posts and
 below the 60-unit crossbar. This follows the whole-ball requirement in
@@ -74,7 +88,7 @@ and prediction/execution parity. `tests/backend/test_physics_api.py` checks malf
 saved caps and reset settings through HTTP. Existing physics/playback and penalty
 tests also run; the legacy penalty checker now raises on failures.
 
-The local miss/contact/wall benchmark across 3/7/11-player teams averaged
+Before the five-a-side tuning, the local miss/contact/wall benchmark across 3/7/11-player teams averaged
 4.33 ms per executed kick before this redesign and 3.10 ms afterward (20 and
 50 repetitions per case respectively). Predictions averaged 4.01 ms versus
 3.08 ms. These are local timings, with different physical trajectories after
@@ -88,3 +102,8 @@ python tools/benchmarks/profile_physics.py --repeats 50
 Run app tests using the isolated environment described in `tools/README.md` to
 avoid live service credentials. Stored replay trajectories stay unchanged;
 future simulations and AI evaluations use the new coefficients.
+
+`tests/backend/test_five_a_side.py` additionally checks grounded misses, kickoff
+contact at the default strength, contact speed limits, wall reflection, complete
+penalty tracks, prediction parity, identity persistence and 64 repeated extreme
+kicks with all ten players inside the pitch throughout every recorded frame.

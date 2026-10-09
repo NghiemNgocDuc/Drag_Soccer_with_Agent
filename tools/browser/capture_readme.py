@@ -60,12 +60,12 @@ def capture() -> list[dict]:
     settings = {
         "bg_scene": "day", "weather": "clear", "camera_type": "classic",
         "team_a_color": "#0f8b76", "team_b_color": "#f2a633",
-        "crowd_palette": "classic", "player_count": 7,
+        "crowd_palette": "classic", "player_count": 5,
         "player_names": {
-            "a": ["Keeper", "Vale", "Reed", "Park", "Blake", "River", "Lane"],
-            "b": ["Keeper", "West", "Avery", "Quinn", "Ellis", "Rowan", "Finch"],
+            "a": ["Keeper", "Vale", "Reed", "Park", "Blake"],
+            "b": ["Keeper", "West", "Avery", "Quinn", "Ellis"],
         },
-        "player_colors": {"a": ["#0f8b76"] * 7, "b": ["#f2a633"] * 7},
+        "player_colors": {"a": ["#0f8b76"] * 5, "b": ["#f2a633"] * 5},
         "player_stats": {
             "a": [
                 {"size": 65, "power": 40, "weight": 60, "agility": 35},
@@ -80,7 +80,7 @@ def capture() -> list[dict]:
         },
     }
     save_customization(user_id, settings)
-    seed = new_game_state(mode="hvh", player_count=7)
+    seed = new_game_state(mode="hvh", player_count=5)
     inject_player_stats(seed, settings["player_stats"]["a"], settings["player_stats"]["b"])
     save_game(user_id, copy.deepcopy(seed))
 
@@ -95,7 +95,7 @@ def capture() -> list[dict]:
     with creator.session_transaction() as auth:
         auth["user_id"] = user_id
         auth["username"] = "Orion FC"
-    room_response = creator.post("/online/create", json={"player_count": 7})
+    room_response = creator.post("/online/create", json={"player_count": 5})
     assert room_response.status_code == 200
     room_id = room_response.get_json()["room_id"]
     opponent = application.app.test_client()
@@ -139,16 +139,16 @@ def capture() -> list[dict]:
             page.goto(base + "/__readme/sign-in", wait_until="networkidle")
 
             page.goto(base + f"/play3d?room={room_id}", wait_until="networkidle")
-            page.wait_for_function("window.__pitch2D?.().players_a.length === 7")
+            page.wait_for_function("window.__pitch2D?.().players_a.length === 5")
             page.wait_for_function("document.querySelector('.team-a .team-name').textContent === 'Orion FC'")
             canvas = page.locator("#pitch-container canvas")
             bounds = canvas.bounding_box()
             assert bounds
             page.wait_for_timeout(300)
             page.evaluate("window.scrollTo(0,0)")
-            save_preview(page, "gameplay.png", "A 7v7 online match on the 2D pitch with shared turn controls.", full_page=True)
+            save_preview(page, "gameplay.png", "A 5v5 online match on the 2D pitch with shared turn controls.", full_page=True)
 
-            page.locator("#player-select").select_option("6")
+            page.locator("#player-select").select_option("4")
             page.wait_for_timeout(300)
             page.evaluate("window.scrollTo(0,0)")
             save_preview(page, "player-view.png", "The selected player is highlighted on the 2D pitch.", full_page=True)
@@ -166,7 +166,10 @@ def capture() -> list[dict]:
             page.evaluate("window.scrollTo(0,0)")
             save_preview(page, "playground.png", "The Python strategy editor beside an initialized Code vs AI test match.", full_page=True)
 
+            page.set_viewport_size({"width": 1600, "height": 1440})
             page.goto(base + "/customize", wait_until="networkidle")
+            assert page.locator('#team-a-stats input[type=range]').count() == 20
+            assert page.locator('#team-b-stats input[type=range]').count() == 20
             page.locator(".settings-rail a[href='#player-stats']").click()
             page.wait_for_timeout(400)
             save_preview(page, "team-builder.png", "Point-buy player attributes: Size, Power, Weight, and Agility within a 200-point budget.")

@@ -90,14 +90,38 @@ def test_online_b_uses_its_actual_team_length(api):
     assert api.calls == [(6, 180.0, 50.0, False)]
 
 
-def test_captain_only_hvai_rule_is_preserved(api):
+def test_hvai_rejects_manual_keeper_move(api):
     api.state["game_mode"] = "hvai"
     before = copy.deepcopy(api.state)
-    response = api.client.post("/move", json={"player_idx": 6, "angle": 0, "power": 80})
+    response = api.client.post("/move", json={"player_idx": 0, "angle": 0, "power": 80})
     assert response.status_code == 400
-    assert "captain" in response.get_json()["error"]
+    assert "striker" in response.get_json()["error"]
     assert api.state == before
     assert not api.calls and not api.saved
+
+
+def test_hvai_accepts_striker_and_defaults_to_striker(api):
+    api.state['game_mode'] = 'hvai'
+    response = api.client.post('/move', json={'angle': 0, 'power': 80})
+    assert response.status_code == 200
+    assert api.calls == [(6, 0.0, 80.0, True)]
+    assert response.get_json()['human_player_idx'] == 6
+
+
+@pytest.mark.parametrize('requested', [1, 3, 7, 11])
+def test_new_online_matches_are_five_a_side(requested):
+    state = appmod._new_online_game({'player_count': requested})
+    assert state['player_count'] == 5
+    assert len(state['players_a']) == len(state['players_b']) == 5
+
+
+def test_reset_replaces_legacy_roster_with_five_players(api):
+    response = api.client.post('/reset', json={'player_count': 11})
+    assert response.status_code == 200
+    state = response.get_json()
+    assert state['player_count'] == 5
+    assert len(state['players_a']) == len(state['players_b']) == 5
+    assert state['human_player_idx'] == 4
 
 
 def test_hotseat_b_controls_its_actual_team(api):

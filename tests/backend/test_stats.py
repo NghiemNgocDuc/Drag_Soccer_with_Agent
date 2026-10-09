@@ -11,7 +11,7 @@ from models.soccer_logic import (
 def test_stat_mappings_at_default():
     """Stat=50 maps to default physics values."""
     assert abs(_stat_map_size(50) - 20.0) < 0.1  # radius
-    assert abs(_stat_map_power(50) - 10.0) < 0.1  # kick vel
+    assert abs(_stat_map_power(50) - 6.0) < 0.1  # bounded approach speed
     assert abs(_stat_map_weight(50) - 5.0) < 0.1  # mass
     assert abs(_stat_map_agility(50) - 1500.0) < 0.1  # friction
 
@@ -20,8 +20,8 @@ def test_stat_mappings_extremes():
     """Stat=0 and Stat=100 produce min/max physics values."""
     assert abs(_stat_map_size(0) - 12.0) < 0.1
     assert abs(_stat_map_size(100) - 28.0) < 0.1
-    assert abs(_stat_map_power(0) - 5.0) < 0.1
-    assert abs(_stat_map_power(100) - 15.0) < 0.1
+    assert abs(_stat_map_power(0) - 4.2) < 0.1
+    assert abs(_stat_map_power(100) - 7.8) < 0.1
     assert abs(_stat_map_weight(0) - 3.0) < 0.1
     assert abs(_stat_map_weight(100) - 7.0) < 0.1
     assert abs(_stat_map_agility(0) - 1000.0) < 0.1

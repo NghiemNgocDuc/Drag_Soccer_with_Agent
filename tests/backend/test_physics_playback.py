@@ -48,7 +48,7 @@ def test_predicted_goal_matches_play_and_kickoff_reset(side_a):
     state["ball"].update(x=bx, y=FIELD_H / 2 - 50)
     players = state["players_a"] if side_a else state["players_b"]
     players[-1].update(x=bx + (-60 if side_a else 60), y=state["ball"]["y"])
-    args = (2, 0 if side_a else 180, 100, side_a)
+    args = (len(players)-1, 0 if side_a else 180, 100, side_a)
     predicted, predicted_goal = simulate_kick(state, *args)
     played, actual_goal, *_ = apply_kick(state, *args)
     assert predicted_goal == actual_goal == ("A" if side_a else "B")

@@ -1,7 +1,7 @@
 # Agent Soccer — Project State
 
 ## One-line
-Browser-based 1v1–11v11 2D soccer game where human/AI players take turns kicking, powered by pymunk physics. Players have 4 point-buy stats (Size/Power/Weight/Agility) that meaningfully differentiate gameplay.
+Browser-based five-a-side 2D soccer game where human/AI players take turns kicking, powered by pymunk physics. Players have 4 point-buy stats (Size/Power/Weight/Agility) that meaningfully differentiate gameplay.
 
 ## Architecture
 
@@ -14,7 +14,7 @@ Browser-based 1v1–11v11 2D soccer game where human/AI players take turns kicki
 ## What's in place
 
 ### Current 2D presentation
-- Full-pitch Canvas rendering uses a cached background, numbered stat-sized players, distinct keepers, a ball with a height indicator, a referee marker, aim arrows and finite goal/whistle effects. Server physics and controls are unchanged.
+- Full-pitch Canvas rendering uses a cached background, numbered stat-sized players, distinct keepers, a ball with a height indicator, a referee marker, aim arrows and finite goal/whistle effects. Current physics and striker controls are described below.
 - Auto resolution is the default; optional 4K uses a 3840-pixel long edge, bounded by 4096 pixels per edge and 10 million pixels total. Idle, hidden and offscreen views stop drawing.
 - Verification: `python tools/browser/verify_2d.py` and `node --test tests/frontend/test_pitch_2d.mjs`. README images are captured by the updated `tools/browser/capture_readme.py`. See `docs/2d-rendering.md`.
 - The 3D camera, mesh, crowd and environment descriptions below are historical. They do not describe the current served renderer.
@@ -34,7 +34,7 @@ Browser-based 1v1–11v11 2D soccer game where human/AI players take turns kicki
 - `models/search_budget.py` owns request-local limits, cancellation, completed-move selection, and physics prediction caching. Nested expert simulations share the active budget. Known built-in snapshots omit accumulated replay data.
 - `models/tactics.py` ranks reachable players using actual stats and ball materials, then plans shots, open passes, defensive clearances, or support. Goalkeepers stay home when an outfielder can reach in attacking positions. All actions move only the selected pawn.
 - `models/common.py` uses absolute world launch angles and the correct attacking direction for both teams. Predictions retain exact final physical outcomes while skipping cosmetic referee motion and some intermediate snapshots.
-- `/random_move` now uses the coordinated policy with the captain excluded. Human vs AI completes A/B/A/B, then returns control to the captain; one-player squads use A/B. Failed automatic legs can retry, session changes cancel stale frontend work, and local AI playback uses 2x speed.
+- `/random_move` now uses the coordinated policy with the human striker excluded. Human vs AI completes A/B/A/B, then returns control to the striker; one-player squads use A/B. Failed automatic legs can retry, session changes cancel stale frontend work, and local AI playback uses the selected speed with a four-second cap.
 - Default fast LLM decisions use the local fallback. `AI_DECISION_BUDGET_MS` and `AI_MAX_SIMULATIONS` tune the speed/accuracy tradeoff. Benchmark, browser commands, and measurements are documented in `docs/ai-responsiveness.md`.
 
 ### Folder organization
@@ -57,10 +57,21 @@ Browser-based 1v1–11v11 2D soccer game where human/AI players take turns kicki
 - Per-player stats system: Size→radius, Power→kick_vel, Weight→mass, Agility→player_friction (pivot joint max_force)
 - `inject_player_stats(state, team_a, team_b)` called at match start
 - Stats persist through `_reset_players` and `_reset_outfield` (goal/half resets)
-- Recoil formula: `recoil_vx = -cos(angle) * power * 1.2 * (power_stat/50)`
-- Loft/vertical: `_loft_angle(power)` → 0 deg below power=40, (power-40)*0.5 capped at 30 deg above
+- Historical recoil formula (replaced by contact impulses): `recoil_vx = -cos(angle) * power * 1.2 * (power_stat/50)`
+- Historical loft/vertical (ordinary kicks now remain grounded): `_loft_angle(power)` → 0 deg below power=40, (power-40)*0.5 capped at 30 deg above
 - **Airborne friction fix (Path B)**: `ball_pivot.max_force` reduced to 10% (1000→100) while `ball_z > 0`, restores on touchdown. This lets lofted passes cover full field distance.
-- **Formation push (Path B→C→resize)**: Team A FWD at x=605, Team B FWD at x=795 — **absolute 95px from center** (`FIELD_W/2 ∓ 95`), NOT a width ratio, so the tuned kicker-to-ball gap survives the 1400-wide field. GK/DEF/MID remain width ratios (0.062/0.162/0.281 etc.) and auto-widened with the field — the gap between lines grew (more open space) while the kicker gap stayed 95px (Power=20 floor preserved). Power=20 can still reach the ball (max travel ~95px).
+- **Ping-Pong / Fast Arcade 2D Physics Redesign**:
+  - **Ball physics**: Lightweight mass (0.75), high bounciness restitution (0.90 player / 0.96 ball / 0.96 wall cushion), smooth rolling deceleration (175 px/s²) and air friction (22) so the ball glides smoothly across the field with controlled, readable strength instead of infinite ricochets.
+  - **Rally boost & speed cap**: Each player contact applies a gentle `_RALLY_SPEED_BOOST = 1.025` acceleration (capped at 850 px/s) creating rising excitement and volley tempo while preventing overwhelming rocket speeds.
+  - **Ground contact integrity**: Removed artificial remote lofting on missed kicks; momentum transfers purely through physical pymunk contact.
+  - **2D Juicing & Feedback**: `static/js/game/pitch-2d.js` renders dynamic screen shake on wall bounces, player touches and goals, particle bursts on contact/celebration, and active striker highlight indicator.
+
+
+### Current five-a-side controls
+- New local and online matches use five players per team. Human vs AI controls index 4, the central striker marked YOU; shootouts use the placed kicker at index 0.
+- Power maps to 4.2–7.8 px/s per command point, bounded to 220px free approach distance. Players remain inside solid pitch boundaries, including goal mouths.
+- Missed kicks never lift the ball. Replay sampling preserves player impacts and full penalty roster tracks. Impact effects share the paused render clock and expire before idle drawing sleeps.
+- Regression coverage: `tests/backend/test_five_a_side.py`, `test_physics_api.py`, `tests/frontend/test_pitch_2d.mjs`, and `tools/browser/verify_2d.py`.
 
 ### Formation system
 - `_home_positions(count, side)` generates realistic soccer formations with GK, DEF, MID, FWD rows

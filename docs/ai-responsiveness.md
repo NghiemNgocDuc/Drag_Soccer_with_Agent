@@ -25,7 +25,7 @@ Team B. Progress rewards the correct attacking direction. These fixes prevent
 many misses and backward choices in the older strategies.
 
 The Q learner keeps its zero-prediction lookup and existing 36-action table. It
-selects only existing pawns for small squads; if a captain/teammate constraint
+selects only existing pawns for small squads; if a striker/teammate constraint
 requires a fallback, the unused learning action is discarded. The `langchain`
 agent uses its local strategy with budgets below 1000 ms, avoiding remote
 inference during ordinary play. A 1000 ms budget permits its original optional
@@ -53,12 +53,12 @@ retains its worker slot until it finishes. Uploaded execution retains its
 separate five-second limit. This follows Python's
 [Future cancellation behavior](https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Future.cancel).
 
-Human vs AI completes captain A, opponent B, teammate A, opponent B, then returns
-control to the captain. The teammate uses the coordinated policy instead of a
+Human vs AI completes striker A, opponent B, teammate A, opponent B, then returns
+control to the striker. The teammate uses the coordinated policy instead of a
 random rush. One-player squads omit the teammate pair. Retry continues the
 pending automatic leg; duplicate clicks are blocked, and joining another session
-invalidates old responses and animations. Local AI moves play at twice the
-selected animation speed, with a nominal maximum of 1.2 seconds at normal speed.
+invalidates old responses and animations. Local AI moves use the
+selected animation speed, with a four-second cap at normal speed in Canvas 2D.
 Slow rendering or a hidden canvas can extend elapsed wall time.
 
 ## Configuration
@@ -120,7 +120,7 @@ with Chromium.
 
 Regression coverage includes simulation caps, mid-prediction cancellation,
 worker recovery, concurrent cache isolation, material invalidation, both-side
-physical parity, roster legality, open passes, defensive clearances, and captain
+physical parity, roster legality, open passes, defensive clearances, and striker
 constraints. The full Python suite passes 686 tests with 4 skips; the JavaScript
 suites pass 59 tests. The focused browser verifier passed 13 checks; the existing player
 controls verifier passed 55, both without JavaScript exceptions.

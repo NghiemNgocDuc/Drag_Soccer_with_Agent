@@ -502,8 +502,8 @@ let _skipKickerTeam = '';
 
 function animateTrajectory(trajectory,onDone,current=()=>true,playbackSpeed=1) {
   syncBallSize(trajectory?.[0]?.ball_size?trajectory[0]:state);
-  playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,
-    onBounce:point=>playPositional(_bounceBuf,point,{volume:.45}),
+  playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,pitch,
+    onBounce:point=>playPositional(point.contact ? _kickBuf : _bounceBuf,point,{volume: point.contact ? .6 : .45}),
     onFrame:point=>{
       state.ball={x:point.x,y:point.y,z:point.z||0};
       updateBall(point.x,point.y,point.z||0);

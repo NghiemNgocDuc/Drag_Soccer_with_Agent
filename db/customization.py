@@ -5,6 +5,8 @@ _DEFAULT_PLAYER_STATS = [
     {"size": 50, "power": 50, "weight": 50, "agility": 50},
     {"size": 50, "power": 50, "weight": 50, "agility": 50},
     {"size": 50, "power": 50, "weight": 50, "agility": 50},
+    {"size": 50, "power": 50, "weight": 50, "agility": 50},
+    {"size": 50, "power": 50, "weight": 50, "agility": 50},
 ]
 
 KEEPER_STYLES = [
@@ -42,7 +44,7 @@ DEFAULT_CUSTOMIZATION = {
     "ref_color": "#fde68a",
     "ball_color": "#f8fafc",
     "bg_color": "#2a2518",
-    "player_count": 7,
+    "player_count": 5,
     "formation_a": "3-2-1",
     "formation_b": "3-2-1",
     "team_a": "brazil",
@@ -94,12 +96,12 @@ DEFAULT_CUSTOMIZATION = {
         "b": _DEFAULT_PLAYER_STATS,
     },
     "player_names": {
-        "a": ["GK", "DEF 1", "DEF 2", "MID 1", "MID 2", "FWD 1", "FWD 2"],
-        "b": ["GK", "DEF 1", "DEF 2", "MID 1", "MID 2", "FWD 1", "FWD 2"],
+        "a": ["GK", "DEF 1", "DEF 2", "MID", "Striker"],
+        "b": ["GK", "DEF 1", "DEF 2", "MID", "Striker"],
     },
     "player_colors": {
-        "a": ["#3b82f6", "#3b82f6", "#3b82f6", "#3b82f6", "#3b82f6", "#3b82f6", "#3b82f6"],
-        "b": ["#ef4444", "#ef4444", "#ef4444", "#ef4444", "#ef4444", "#ef4444", "#ef4444"],
+        "a": ["#3b82f6"] * 5,
+        "b": ["#ef4444"] * 5,
     },
 }
 

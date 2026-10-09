@@ -1,7 +1,7 @@
 // Keep playback tied to simulation time even when the server samples a path
 // unevenly. Older saved replays retain their original 24 ms/sample cadence.
 export function isBouncePoint(point) {
-  return point?.bounce === true || point?.b === true;
+  return point?.bounce === true || point?.b === true || point?.contact === true;
 }
 
 function hasSimulationTimes(trajectory) {
@@ -10,14 +10,14 @@ function hasSimulationTimes(trajectory) {
       (index === 0 || point.t >= trajectory[index - 1].t));
 }
 
-export function createTrajectoryPlayback(trajectory, speed = 1) {
+export function createTrajectoryPlayback(trajectory, speed = 1, maxDuration = 2400) {
   const lastIndex = trajectory.length - 1;
   const rate = Number.isFinite(speed) && speed > 0 ? speed : 1;
   const firstTime = trajectory[0]?.t;
   const lastTime = trajectory[lastIndex]?.t;
   const timed = hasSimulationTimes(trajectory);
   const duration = timed
-    ? Math.min(2400, Math.max(180, (lastTime - firstTime) * 1000)) / rate
+    ? Math.min(maxDuration, Math.max(180, (lastTime - firstTime) * 1000)) / rate
     : Math.max(8, 24 / rate) * Math.max(0, lastIndex);
   let nextBounce = 0;
 
@@ -76,7 +76,7 @@ export function createTrajectorySampler(trajectory) {
       const w1 = 2 * right + left, w2 = right + 2 * left;
       return (w1 + w2) / (w1 / a + w2 / b);
     }));
-    const contact = points.map((p, i) => ball && (isBouncePoint(p) ||
+    const contact = points.map((p, i) => ball && (isBouncePoint(p) || p.contact === true ||
       ((p.z ?? 0) === 0 && ((points[i - 1]?.z ?? 0) > 0 || (points[i + 1]?.z ?? 0) > 0))));
     return { axes, values, slopes, contact };
   }

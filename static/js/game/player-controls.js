@@ -21,10 +21,11 @@ export function controlAccess(state, online = {}, busy = false) {
   }
   const players = state[side === 'a' ? 'players_a' : 'players_b'] || [];
   if (!players.length) return blocked('No player available');
-  const captainOnly = !online.active && state.game_mode !== 'hvh';
-  const indices = captainOnly || state.penalty_shootout ? [0] : players.map((_, index) => index);
+  const strikerOnly = !online.active && state.game_mode !== 'hvh';
+  const striker = Number.isInteger(state.human_player_idx) ? clamp(state.human_player_idx,0,players.length-1) : players.length-1;
+  const indices = state.penalty_shootout ? [0] : strikerOnly ? [striker] : players.map((_, index) => index);
   return { team: side, indices, canKick: true, useBall: !!state.penalty_shootout,
-    reason: state.penalty_shootout ? `Team ${side.toUpperCase()} · Penalty kick` : captainOnly ? 'Team A · Captain control' : `Team ${side.toUpperCase()} · Select a player` };
+    reason: state.penalty_shootout ? `Team ${side.toUpperCase()} · Penalty kick` : strikerOnly ? `You are #${striker+1} · Striker` : `Team ${side.toUpperCase()} · Select a player` };
 }
 
 // Online turns have their own monotonic revision because regulation kick_count

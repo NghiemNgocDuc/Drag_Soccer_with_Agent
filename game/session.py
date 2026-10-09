@@ -23,7 +23,7 @@ def new_game_state(
     mode: str = "hvai",
     model_b: str = "greedy",
     model_a: str = "greedy",
-    player_count: int = 7,
+    player_count: int = 5,
     half_length: int = 45,
     win_goal_limit: int = 5,
     power_cap: int = 100,

@@ -11,8 +11,10 @@ test('hotseat control follows the current team and its actual roster length', ()
   const turn = controlAccess(state({is_player_a:false}));
   assert.equal(turn.team, 'b'); assert.deepEqual(turn.indices, [0,1,2]);
 });
-test('human versus AI preserves captain control and blocks the AI turn', () => {
-  assert.deepEqual(controlAccess(state({game_mode:'hvai'})).indices, [0]);
+test('human versus AI selects the striker and blocks the AI turn', () => {
+  assert.deepEqual(controlAccess(state({game_mode:'hvai'})).indices, [6]);
+  assert.deepEqual(controlAccess(state({game_mode:'hvai',players_a:Array.from({length:5},()=>({}))})).indices,[4]);
+  assert.deepEqual(controlAccess(state({game_mode:'hvai',penalty_shootout:true})).indices,[0]);
   assert.equal(controlAccess(state({game_mode:'hvai',is_player_a:false})).canKick, false);
   assert.equal(controlAccess(state({game_mode:'aivai'})).canKick, false);
 });

@@ -51,3 +51,24 @@ test('empty and single-frame replays finish immediately',()=>{
     assert.equal(done,1);assert.deepEqual(frames,points);
   }
 });
+
+test('slow frames deliver each player and wall impact once with full roster data',()=>{
+  const points=path.map((p,i)=>({...p,contact:i===1||i===3}));
+  let queue=[],contacts=0,walls=0,sounds=0,done=0;
+  playTrajectory2D(points,{loop:{requestAnimationFrame:fn=>queue.push(fn)},
+    pitch:{onContact:()=>contacts++,onBounce:()=>walls++},onBounce:()=>sounds++,
+    onFrame:p=>assert.equal(p.b.length,1),onDone:()=>done++});
+  queue.shift()(0);queue.shift()(900);queue.shift()(1000);
+  assert.deepEqual({contacts,walls,sounds,done},{contacts:2,walls:1,sounds:3,done:1});
+});
+
+test('long 2D moves use the four-second playback cap and finish at the exact endpoint',()=>{
+  const points=path.map(p=>({...p,t:p.t*8}));
+  let queue=[],done=0,last;
+  playTrajectory2D(points,{loop:{requestAnimationFrame:fn=>queue.push(fn)},
+    onFrame:p=>{last=p;},onDone:()=>done++});
+  queue.shift()(0);queue.shift()(2400);
+  assert.equal(done,0);assert.ok(last.x<points.at(-1).x);
+  queue.shift()(4000);
+  assert.equal(done,1);assert.deepEqual(last,points.at(-1));assert.equal(queue.length,0);
+});
