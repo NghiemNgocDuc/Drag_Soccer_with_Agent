@@ -23,7 +23,7 @@
 | **Connect** | Create online rooms, invite friends, join clans, and use match chat or opt-in voice chat. |
 | **Watch** | Spectate active matches, replay tournament games, and share automatically detected highlights. |
 
-The Canvas 2D views show the entire pitch and draw only when something changes. Playback pauses while hidden or offscreen, and a cached pitch avoids repainting the turf and stands each frame. Auto resolution is the default; 1080p, 1440p, and 4K are available with bounded canvas allocation. Stadium ambience and match effects use synthesized WebAudio sound. See [2D rendering](docs/2d-rendering.md).
+The Canvas 2D views show the entire pitch and draw only when something changes. Playback pauses while hidden or offscreen, and a cached pitch avoids repainting the turf and stands each frame. Auto resolution is the default; 1080p, 1440p, and 4K are available with bounded canvas allocation. Gameplay stays silent except for a quiet synthesized whistle when a goal is scored. See [2D rendering](docs/2d-rendering.md).
 
 <details>
 <summary><strong>Explore player controls, the AI editor, and team builder</strong></summary>
@@ -90,7 +90,7 @@ Open **[localhost:5000](http://localhost:5000)**. Choose **Log in → Try the de
 | Kick | Enter / Space while using the pitch |
 | Cancel aiming | Escape |
 
-Human vs AI gives you striker #5, marked **YOU** on the pitch. Teammates act automatically, then control returns to you. Local Human vs Human and online play allow selection from the active player's roster. Matches end at the selected goal limit or match time; tied timed matches progress through extra time and a shootout.
+Human vs AI gives you striker #5, marked **YOU** on the pitch. Pull the disc backward and release to launch it; longer pulls hit harder. Teammates act automatically, then control returns to you. New matches default to **first to five with no timer**, so taking time to aim cannot trigger penalties. Local Human vs Human and online play allow selection from the active player's roster. Timed matches remain available in settings.
 
 The ball stays on the ground with crisp, ping-pong-style rebounds and a speed limit. Players stay inside the pitch, and every player follows the same playback clock as the ball.
 

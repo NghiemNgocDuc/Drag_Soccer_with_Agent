@@ -83,13 +83,13 @@ def _stat_map_size(stat: int) -> float:
     return 12.0 + (max(0, min(100, stat)) / 100.0) * 16.0
 
 def _stat_map_power(stat: int) -> float:
-    return 4.2 + (max(0, min(100, stat)) / 100.0) * 3.6
+    return 5.0 + (max(0, min(100, stat)) / 100.0) * 4.0
 
 def _stat_map_weight(stat: int) -> float:
     return 3.0 + (max(0, min(100, stat)) / 100.0) * 4.0
 
 def _stat_map_agility(stat: int) -> float:
-    return 1000.0 + (max(0, min(100, stat)) / 100.0) * 1000.0
+    return 700.0 + (max(0, min(100, stat)) / 100.0) * 400.0
 
 DEFAULT_STATS = {"size": _STAT_DEFAULT, "power": _STAT_DEFAULT, "weight": _STAT_DEFAULT, "agility": _STAT_DEFAULT}
 
@@ -134,10 +134,9 @@ def _get_player_mass(stats: dict) -> float:
     return _stat_map_weight(stats["weight"])
 
 def _get_player_kick_vel(stats: dict) -> float:
-    # A maximum-power approach travels at most 220px before contact. Strong
-    # builds still hit harder, without launching a pawn across the whole pitch.
+    # Discs glide after release; cap free travel while preserving pull strength.
     return min(_stat_map_power(stats["power"]),
-               math.sqrt(2.0 * _get_player_friction(stats) * 220.0) / 100.0)
+               math.sqrt(2.0 * _get_player_friction(stats) * 480.0) / 100.0)
 
 
 def human_player_index(state: dict, is_player_a: bool = True) -> int:
@@ -314,20 +313,18 @@ _REF_GOAL_SAFE_X    = 70.0    # near a goal mouth: keep out of the goal band
 _REF_GOAL_SAFE_PAD  = 12.0    # px outside the goal band the ref keeps
 
 #  Pymunk physics parameters — "ping-pong" tuning
-# Snappy, high-elasticity bounces with minimal friction so the ball zips
-# around the pitch like a table-tennis ball. Walls and players give crisp,
-# energy-preserving rebounds; rolling resistance is light so rallies stay
-# fast and the ball carries across the full field.
+# Crisp rebounds with a heavier ball and enough rolling resistance to make
+# shorter passes easier to control. Player launch and glide are independent.
 _PM_DT        = 1.0 / 60.0
 _PM_DAMPING   = 1.0          # no global damping; friction via pivot joints
 _PM_MAX_STEPS = 500
 _PM_KICK_VEL  = 10.0      # px/s per unit of power
 _PM_MASS_P    = 5
-_PM_MASS_B    = 0.75       # light ping-pong ball without excessive impulse spike
+_PM_MASS_B    = 1.5        # heavier ball takes less speed from the same disc contact
 # Crisp, tactile table-tennis rebounds with gentle natural decay.
 _PM_ELASTICITY_P = 0.90    # player-ball: crisp paddle deflection
 _PM_ELASTICITY_B = 0.96    # ball shape default restitution
-_PM_ELASTICITY_W = 0.96    # wall bounce: clean cushion rebound
+_PM_ELASTICITY_W = 0.35    # soft boundary: absorb most of the incoming rebound speed
 _PM_FRICTION  = 0.0
 # Explicit solver settings keep prediction and match simulation identical.
 _PM_ITERATIONS = 10
@@ -335,12 +332,12 @@ _PM_COLLISION_SLOP = 0.1
 
 # Smooth table glide with controlled strength:
 # Glides effortlessly across the pitch without infinite ricochets.
-_PM_LINEAR_FRICTION_P = 1500.0
-_PM_LINEAR_FRICTION_B = 175.0   # smooth table glide that settles naturally
+_PM_LINEAR_FRICTION_P = 900.0
+_PM_LINEAR_FRICTION_B = 250.0   # shorter rolls with smooth, steady deceleration
 _BALL_AIR_FRICTION = 22.0       # light aerodynamic drag
 
-# Gentle rally escalation: provides rising excitement without uncontrollable speed.
-_RALLY_SPEED_BOOST  = 1.025
+# Keep contact speed bounded without injecting extra energy into rebounds.
+_RALLY_SPEED_BOOST  = 1.0      # contacts transfer momentum without an artificial boost
 _RALLY_SPEED_CAP    = 850.0    # controlled ceiling so volleys remain readable and tactical
 
 # Rocket League mutators — multipliers applied via customization (ball_type etc.)
@@ -542,7 +539,7 @@ def _new_physics_space(state):
     def player_impact(arbiter, collision_space, _data):
         if arbiter.is_first_contact and arbiter.total_impulse.length_squared > 1.0:
             collision_space._soccer_events["contact"] = True
-            # Ping-pong rally boost: each player touch accelerates the ball.
+            # Preserve solver momentum, limiting only excessive contact speed.
             for shape in arbiter.shapes:
                 if shape.collision_type == _CAT_BALL:
                     body = shape.body
@@ -1114,6 +1111,8 @@ def apply_kick(
     elif sb >= gw:
         state["game_over"] = True
         state["winner"] = "B"
+    elif hl <= 0:
+        pass  # Untimed flick soccer: only the goal target ends the match.
     elif elapsed >= et2:
         if sa == sb:
             state["penalty_shootout"] = True

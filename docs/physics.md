@@ -24,24 +24,29 @@ speed before any contact occurred.
 
 | Material | Shape restitution | Ground deceleration |
 | --- | ---: | ---: |
-| Player | 0.90 | 1,000–2,000 units/s², from Agility |
-| Normal ball | 0.96 | 175 units/s² |
-| Field wall/post | 0.96 | — |
+| Player | 0.90 | 700–1,100 units/s², from Agility |
+| Normal ball | 0.96 | 250 units/s² |
+| Field wall/post | 0.35 | — |
 | Goal net | 0.20 | — |
 
 Pymunk multiplies the restitution of the two contacting shapes, making the
-normal ball/wall response 0.9216 and ball/player response 0.864. A first player
-contact adds a small 1.025 speed multiplier, capped at 850 units/s even when the
-incoming contact impulse exceeds that cap. Rolling resistance uses a pivot constraint
+normal ball/wall response 0.336 and ball/player response 0.864. The soft boundary
+absorbs about two-thirds of the incoming normal speed. Player contacts
+transfer momentum without an artificial speed boost, capped at 850 units/s even
+when the contact impulse exceeds that cap. Rolling resistance uses a pivot constraint
 with `max_force = mass * deceleration`; its bounded impulse brings the ball to
 rest without reversing it. Global exponential damping is disabled. See the
 [Pymunk reference](https://www.pymunk.org/en/latest/pymunk.html#pymunk.Space.step)
 for fixed steps, impulses, material restitution and post-solve collision data.
 
 Saved ball presets control mass, resistance, restitution and physical radius.
+The normal ball has mass 1.5 (previously 0.75), with rolling deceleration raised
+from 175 to 250 units/s². This reduces travel from the same pull while retaining
+the existing player-disc glide and wall restitution. AI estimates read these
+same material values.
 Even high-bounce presets cap ball restitution at 0.96. Small/normal/large radii
 are 9.84/12/14.16. Gameplay, replay and live
-spectator rendering use the authoritative size, including squash and spin.
+spectator rendering use the authoritative size. The ball stays circular on impact.
 The first trajectory frame stores size for future replays; older replays default
 to normal. Cube/puck presets still use the existing circular contact geometry.
 
@@ -49,11 +54,17 @@ to normal. Cube/puck presets still use the existing circular contact geometry.
 
 New matches use five players per team. In Human vs AI the human controls the
 last formation slot, striker #5; the teammate policy excludes that slot.
-Power maps to 4.2–7.8 units/s per command point, further bounded so a free
-maximum-strength approach travels at most 220 units (plus fixed-step tolerance).
+Power maps to 5–9 units/s per command point, further bounded so a free
+maximum-strength approach travels at most 480 units (plus fixed-step tolerance).
+The default build glides about 272 units on a full pull. Longer pulls increase
+launch speed linearly and free stopping distance quadratically.
 Players have solid pitch boundaries, including the goal mouths. A substep guard
 repairs any residual penetration while reflecting outward velocity. Only actual
 contact moves the ball: missed kicks cannot remotely loft or displace it.
+
+New playable matches default to an untimed first-to-five rule (`half_length=0`).
+Waiting, switching tabs or taking time to aim cannot trigger halftime or penalties.
+Timed matches and explicit penalty practice remain available in match settings.
 
 Live and replay 2D playback use the same roster and ball timestamps, capped at
 four seconds per move at normal speed. AI moves use the selected playback speed.

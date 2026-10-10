@@ -50,6 +50,23 @@ def run() -> dict:
         page.on('pageerror', lambda error: errors.append(str(error)))
         page.set_content('<button id="sound-btn" aria-pressed="false">Sound on</button>')
         page.add_script_tag(path=str(ROOT / 'static' / 'js/game/sound.js'))
+        quiet = page.evaluate('''async () => {
+          const context=new OfflineAudioContext(2,48000,48000);
+          SoundManager.attach(context,{goalOnly:true});
+          await SoundManager.crowdAmbient();await SoundManager.crowdCheer();await SoundManager.whistle();
+          SoundManager._play(context.createBuffer(1,100,48000),1,1,'impact');
+          const silent=SoundManager._effects.size===0 && SoundManager._buffers.size===0 && !SoundManager._ambientSource;
+          await Promise.all([SoundManager.goal(),SoundManager.goal()]);
+          const effects=[...SoundManager._effects];
+          const singleGoal=effects.length===1 && effects[0].kind==='goal-whistle';
+          const gain=effects[0]?.gain.gain.value;
+          const rendered=await context.startRendering();
+          let peak=0;for(let ch=0;ch<2;ch++)for(const x of rendered.getChannelData(ch))peak=Math.max(peak,Math.abs(x));
+          SoundManager.dispose();return {silent,singleGoal,gain,peak};
+        }''')
+        check('goal-only mode has no crowd, impact or kickoff sources', quiet['silent'], quiet)
+        check('duplicate goals coalesce into one quiet whistle', quiet['singleGoal'], quiet)
+        check('goal whistle renders quietly without clipping', 0 < quiet['peak'] < .05 and quiet['gain'] < .06, quiet)
         cooperative = page.evaluate('''async () => {
           const context=new AudioContext();await context.suspend();
           let resumeCalls=0,sourceCount=0;

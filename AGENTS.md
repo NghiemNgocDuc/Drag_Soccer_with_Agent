@@ -14,6 +14,7 @@ Browser-based five-a-side 2D soccer game where human/AI players take turns kicki
 ## What's in place
 
 ### Current 2D presentation
+- Live and replay sound is goal-only: gain 0.055 whistle, no crowd/kick/bounce/kickoff audio and no crowd buffer generation. Legacy sound APIs remain for unserved 3D references.
 - Full-pitch Canvas rendering uses a cached background, numbered stat-sized players, distinct keepers, a ball with a height indicator, a referee marker, aim arrows and finite goal/whistle effects. Current physics and striker controls are described below.
 - Auto resolution is the default; optional 4K uses a 3840-pixel long edge, bounded by 4096 pixels per edge and 10 million pixels total. Idle, hidden and offscreen views stop drawing.
 - Verification: `python tools/browser/verify_2d.py` and `node --test tests/frontend/test_pitch_2d.mjs`. README images are captured by the updated `tools/browser/capture_readme.py`. See `docs/2d-rendering.md`.
@@ -61,15 +62,16 @@ Browser-based five-a-side 2D soccer game where human/AI players take turns kicki
 - Historical loft/vertical (ordinary kicks now remain grounded): `_loft_angle(power)` → 0 deg below power=40, (power-40)*0.5 capped at 30 deg above
 - **Airborne friction fix (Path B)**: `ball_pivot.max_force` reduced to 10% (1000→100) while `ball_z > 0`, restores on touchdown. This lets lofted passes cover full field distance.
 - **Ping-Pong / Fast Arcade 2D Physics Redesign**:
-  - **Ball physics**: Lightweight mass (0.75), high bounciness restitution (0.90 player / 0.96 ball / 0.96 wall cushion), smooth rolling deceleration (175 px/s²) and air friction (22) so the ball glides smoothly across the field with controlled, readable strength instead of infinite ricochets.
-  - **Rally boost & speed cap**: Each player contact applies a gentle `_RALLY_SPEED_BOOST = 1.025` acceleration (capped at 850 px/s) creating rising excitement and volley tempo while preventing overwhelming rocket speeds.
+  - **Ball physics**: Heavier mass (1.5), restitution (0.90 player / 0.96 ball / 0.35 soft boundary), smooth rolling deceleration (250 px/s²) and air friction (22). Boundary rebounds retain about one-third of incoming normal speed. Player-disc glide is unchanged. AI estimates share these material values.
+  - **Contact speed cap**: Player contacts transfer momentum without artificial acceleration (`_RALLY_SPEED_BOOST = 1.0`), capped at 850 px/s.
   - **Ground contact integrity**: Removed artificial remote lofting on missed kicks; momentum transfers purely through physical pymunk contact.
-  - **2D Juicing & Feedback**: `static/js/game/pitch-2d.js` renders dynamic screen shake on wall bounces, player touches and goals, particle bursts on contact/celebration, and active striker highlight indicator.
+  - **2D feedback**: `static/js/game/pitch-2d.js` keeps the board steady and ball circular, with finite contact particles, an elastic drag preview and a persistent striker indicator.
 
 
 ### Current five-a-side controls
 - New local and online matches use five players per team. Human vs AI controls index 4, the central striker marked YOU; shootouts use the placed kicker at index 0.
-- Power maps to 4.2–7.8 px/s per command point, bounded to 220px free approach distance. Players remain inside solid pitch boundaries, including goal mouths.
+- Power maps to 5–9 px/s per command point, bounded to 480px free approach distance. Agility maps to 700–1,100 px/s² braking. Players remain inside solid pitch boundaries, including goal mouths.
+- Playable matches default to untimed first-to-five (`half_length=0`); explicit timed modes retain halftime and penalties. The pitch fills the panel width; short IDE panes scroll vertically to keep players readable.
 - Missed kicks never lift the ball. Replay sampling preserves player impacts and full penalty roster tracks. Impact effects share the paused render clock and expire before idle drawing sleeps.
 - Regression coverage: `tests/backend/test_five_a_side.py`, `test_physics_api.py`, `tests/frontend/test_pitch_2d.mjs`, and `tools/browser/verify_2d.py`.
 

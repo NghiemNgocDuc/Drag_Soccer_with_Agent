@@ -12,7 +12,8 @@ endpoint names are retained so existing redirects and saved links keep working.
 
 - `static/js/game/pitch-2d.js` owns drawing, screen-to-pitch coordinates and hit
   testing. The turf, markings, nets and static stands are cached on a second canvas.
-- Players use their physical size and team colors, numbered markers and distinct
+- Player markers scale with the Size stat, at 2.1 times the collision radius for
+  readability, with matching pointer targets, team colors, numbers and distinct
   keeper rings. The ball's height indicator is cosmetic; coordinates stay in server
   space. Referee positions follow the server and hide when off the pitch.
 - Drag back and release, touch selection, keyboard aiming, player selection and
@@ -26,15 +27,24 @@ endpoint names are retained so existing redirects and saved links keep working.
 - `render-on-demand.js` coalesces draws, stops when idle, and pauses its animation
   clock while the pitch is hidden or outside the viewport. Goal and whistle
   effects are finite. Online polling continues independently.
-- Contact particles, trails, ball squash and brief screen shake share that paused
-  clock. Particle storage is bounded, and trails expire before idle drawing stops.
+- Contact particles and trails share that paused clock. The board stays steady
+  and the ball stays circular. Particle storage is bounded, and trails expire
+  before idle drawing stops. The live pitch fills the panel width at its natural
+  aspect ratio. Short IDE panes scroll vertically instead of shrinking the field
+  and players into a small area between wide side gutters.
+- Dragging shows an elastic pull line, a ghost disc and a strength ring before
+  release. The physical disc remains at its authoritative position while aiming.
+- Enlarge pitch expands the board using browser fullscreen, with an in-page
+  fallback for embedded previews. The exit button or Escape restores the view.
 - Auto resolution follows device pixel ratio up to 2. Optional 1080p, 1440p and 4K
   use long edges of 1920, 2560 and 3840 pixels. Allocation is capped at 4096 pixels
   per edge and 10 million pixels per canvas. The setting uses its own storage key,
   so an old saved 3D quality preference does not force a large canvas.
 
-SoundManager retains synthesized kicks, bounces, goals, crowd ambience and referee
-whistles, with the existing gesture unlock and mute control. Camera controls and
+SoundManager uses goal-only audio in live games and replays: no crowd, kick,
+bounce or kickoff sounds. A goal plays one quiet whistle at gain 0.055, one-quarter
+of the previous whistle gain. Crowd buffers are not generated. Gesture unlock
+and mute controls remain available. Camera controls and
 3D-only sky/weather/crowd presets have no effect on this renderer. Pitch, team,
 keeper, ball, net, field-line and referee colors are supported; other saved
 customization choices remain stored for compatibility.
@@ -55,8 +65,8 @@ Screenshots and the report are saved under the system temporary directory in
 `agent-soccer-2d`. The README capture writes actual screenshots to
 `docs/assets/readme`.
 
-Verified on 2026-10-09 after the five-a-side update: 707 backend tests passed
-(4 integration-dependent skips), 71 frontend unit tests passed and all 47 Canvas
+Verified on 2026-10-09 after the five-a-side update: 710 backend tests passed
+(4 integration-dependent skips), 71 frontend unit tests passed and all 55 Canvas
 browser checks passed with zero JavaScript exceptions. Coverage includes physics
 limits, striker enforcement, complete penalty rosters, impact playback and
 hidden-tab effect expiry. Desktop, striker, mobile and replay screenshots are

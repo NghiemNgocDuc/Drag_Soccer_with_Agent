@@ -25,6 +25,7 @@ window.__qa2D={
  busy:()=>isAnimating,
  revision:()=>typeof gameState!=='undefined'?gameState.kick_count:LIVE.lastKick,
  point:(side,index)=>{const s=window.__qa2D.active(),p=s['players_'+side][index];return pitch.clientPoint(p.x,p.y)},
+ field:()=>({left:pitch.clientPoint(0,437.5),right:pitch.clientPoint(1400,437.5)}),
  seek:target=>seekToEntry(target),
  online:()=>typeof ONLINE!=='undefined'?ONLINE:null,
  invalidate:()=>pitch.loop.invalidate(),
@@ -60,7 +61,7 @@ def main():
     def login(name):
         session['user_id'] = 'dev:canvas-' + name
         session['username'] = name
-        game = new_soccer_state(mode='hvh', player_count=int(request.args.get('count', 5)), half_length=9999)
+        game = new_soccer_state(mode='hvh', player_count=int(request.args.get('count', 5)), half_length=0)
         game['game_mode'] = request.args.get('mode', 'hvh')
         if request.args.get('penalty'):
             game['penalty_shootout'] = True
@@ -123,6 +124,7 @@ def main():
             page.goto(base + '/__2d/login/desktop')
             ready(page)
             check('Canvas renders 5v5', page.evaluate('window.__pitch2D().players_a.length===5 && window.__pitch2D().width>0'))
+            check('live audio is silent until a goal and allocates no crowd buffers', page.evaluate('SoundManager._goalOnly && !SoundManager._ambientSource && SoundManager._buffers.size===0 && SoundManager._effects.size===0'))
             check('no horizontal overflow', page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
             idle(page)
 
@@ -145,6 +147,7 @@ def main():
             page.mouse.move(point['x'], point['y'])
             page.mouse.down()
             page.mouse.move(point['x'] - 80, point['y'], steps=5)
+            check('pull gesture shows elastic aim without moving the disc', page.evaluate('window.__pitch2D().aim.pull.pullX < window.__pitch2D().aim.home.x && window.__pitch2D().players_a[4].x===window.__pitch2D().aim.home.x'))
             page.mouse.up()
             page.wait_for_function('(n)=>!window.__qa2D.busy() && window.__qa2D.active().kick_count>n', arg=before)
             check('drag performs real move', page.evaluate('!window.__qa2D.active().is_player_a'))
@@ -181,6 +184,7 @@ def main():
             replay_page = page_for(context)
             replay_page.goto(base + '/__2d/replay')
             ready(replay_page)
+            check('replay uses quiet goal-only audio', replay_page.evaluate('SoundManager._goalOnly && !SoundManager._ambientSource && SoundManager._buffers.size===0'))
             replay_page.evaluate('window.__qa2D.seek(0)')
             check('seeking start retains roster', replay_page.evaluate('window.__pitch2D().players_a.length===5'))
             replay_page.evaluate('window.toggleAutoPlay()')
@@ -261,6 +265,28 @@ def main():
             mobile_page.goto(base + '/__2d/login/mobile?count=11')
             ready(mobile_page)
             check('legacy local roster starts a five-a-side match', mobile_page.evaluate('window.__pitch2D().players_a.length===5 && window.__pitch2D().players_b.length===5'))
+            compact = browser.new_context(viewport={'width': 900, 'height': 390})
+            compact_page = page_for(compact)
+            compact_page.goto(base + '/__2d/login/compact?mode=hvai')
+            ready(compact_page)
+            check('pitch fills panel width in short IDE preview pane', compact_page.evaluate('(()=>{const r=document.querySelector("#pitch-container").getBoundingClientRect(),f=window.__qa2D.field();return (f.right.x-f.left.x)/r.width>0.89 && Math.abs(r.width/r.height-1552/1027)<0.01 && r.left>=0 && r.right<=innerWidth})()'))
+            compact_page.screenshot(path=str(out / 'wide-pitch.png'))
+            check('flick match shows goal target instead of timer', compact_page.locator('#game-clock').inner_text() == 'First to 5')
+            compact_page.evaluate("Object.defineProperty(document,'fullscreenEnabled',{configurable:true,value:false})")
+            compact_page.locator('#pitch-fullscreen-btn').click()
+            check('embedded preview can enlarge without browser fullscreen permission', compact_page.evaluate('document.querySelector("#fs-wrap").classList.contains("pitch-expanded") && document.querySelector("#fs-wrap").getBoundingClientRect().height===innerHeight'))
+            compact_page.screenshot(path=str(out / 'enlarged-pitch.png'))
+            compact_page.keyboard.press('Escape')
+            check('escape restores the normal pitch layout', compact_page.evaluate('!document.querySelector("#fs-wrap").classList.contains("pitch-expanded")'))
+            ready(compact_page)
+            point=compact_page.evaluate("window.__qa2D.point('a',4)")
+            compact_page.mouse.move(point['x'],point['y'])
+            compact_page.mouse.down()
+            compact_page.mouse.move(point['x']-25,point['y'],steps=6)
+            compact_page.screenshot(path=str(out / 'flick-aim.png'))
+            compact_page.mouse.up()
+            compact_page.wait_for_function('!window.__qa2D.busy() && window.__qa2D.active().kick_count>=4',timeout=40000)
+            check('drag release finishes a striker cycle in short preview pane', compact_page.evaluate('window.__playerControlState().selectedIndex===4 && !window.__qa2D.active().penalty_shootout'))
             page.goto(base + '/__2d/login/penalty?penalty=1')
             ready(page)
             check('penalty referee stays hidden', page.evaluate('window.__pitch2D().referee===null'))

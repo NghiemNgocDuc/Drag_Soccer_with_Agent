@@ -18,12 +18,14 @@ const SoundManager = {
   _ambientGain: null,
   _ambientPending: null,
   _lastCheerAt: -Infinity,
+  _goalOnly: false,
 
-  attach(ctx) {
-    if (ctx === this._ctx && this._master) return;
+  attach(ctx, {goalOnly = false} = {}) {
+    if (ctx === this._ctx && this._master && this._goalOnly === goalOnly) return;
     const previous = this._ctx;
     this._release();
     this._ctx = ctx || null;
+    this._goalOnly = goalOnly;
     this._ready = !!ctx;
     if (ctx) {
       this._master = ctx.createGain();
@@ -38,8 +40,10 @@ const SoundManager = {
       // Build both crowd buffers during page setup, even while audio is
       // gesture-locked. This creates no sources and never resumes the context.
       // Prepare the shorter reaction first so it is ready before ambience.
-      this._crowdBufferAsync(true).catch(() => {});
-      this._crowdBufferAsync(false).catch(() => {});
+      if (!this._goalOnly) {
+        this._crowdBufferAsync(true).catch(() => {});
+        this._crowdBufferAsync(false).catch(() => {});
+      }
     }
     if (previous && previous !== ctx && typeof previous.close === 'function') {
       try { Promise.resolve(previous.close()).catch(() => {}); } catch (_) {}
@@ -122,6 +126,7 @@ const SoundManager = {
   },
 
   _play(buffer, volume, rate = 1, kind = 'effect') {
+    if (this._goalOnly && kind !== 'goal-whistle') return null;
     const ctx = this._ctx;
     if (!ctx || !buffer || !this._master || this.muted) return null;
     // Reactions may overlap at high replay speeds, but cannot pile up into a
@@ -267,13 +272,13 @@ const SoundManager = {
     });
   },
 
-  async whistle() {
-    if (this.muted) return;
+  async whistle(goal = false) {
+    if (this.muted || (this._goalOnly && !goal)) return;
     const ctx = await this._ensure();
     if (!ctx || this.muted) return;
     // Repeated event delivery must not layer several piercing whistles.
-    if ([...this._effects].some(effect => effect.kind === 'whistle')) return;
-    this._play(this._whistleBuffer(), 0.22, 1, 'whistle');
+    if ([...this._effects].some(effect => effect.kind === 'whistle' || effect.kind === 'goal-whistle')) return;
+    this._play(this._whistleBuffer(), goal ? 0.055 : 0.22, 1, goal ? 'goal-whistle' : 'whistle');
   },
 
   // Each group has a different pitch, syllable rhythm, vowel resonance and
@@ -435,6 +440,7 @@ const SoundManager = {
   },
 
   crowdAmbient() {
+    if (this._goalOnly) return Promise.resolve();
     if (this._ambientSource) return Promise.resolve();
     if (this._ambientPending) return this._ambientPending;
     const ensuring = this._ensure();
@@ -463,6 +469,7 @@ const SoundManager = {
   },
 
   async crowdCheer() {
+    if (this._goalOnly) return;
     if (this.muted) return;
     const ctx = await this._ensure();
     if (!ctx || this.muted) return;
@@ -484,6 +491,6 @@ const SoundManager = {
     }
   },
 
-  // The goal reward is the stand's reaction, with no electronic fanfare.
-  goal() { return this.crowdCheer(); },
+  // Served 2D views use a quiet goal whistle; legacy stadium views retain cheers.
+  goal() { return this._goalOnly ? this.whistle(true) : this.crowdCheer(); },
 };

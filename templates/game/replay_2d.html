@@ -234,19 +234,11 @@ const updateBall=(x,y,z=0)=>pitch.setBall(x,y,z);
 const updateReferee=(x,y)=>pitch.setReferee(x,y);
 const syncBallSize=state=>pitch.setBallSize(state?.ball_size);
 const triggerGoalEffect=()=>pitch.celebrate();
-const triggerCrowdCheer=()=>SoundManager.crowdCheer();
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-SoundManager.attach(audioCtx);
-const _kickBuf=SoundManager.makeKickBuffer(), _bounceBuf=SoundManager.makeBounceBuffer();
-function playPositional(buffer, position, options={}) {
-  if(!SoundManager.isMuted())SoundManager._play(buffer,options.volume??.65,options.playbackRate??1,'impact');
-}
-function playRefereeWhistle(){pitch.whistle();return SoundManager.whistle();}
+SoundManager.attach(audioCtx, {goalOnly:true});
 async function unlockAudio(){
   await SoundManager.resume();
   if(audioCtx.state!=='running')return;
-  SoundManager.crowdAmbient();
-  if(!window._whistlePlayed){window._whistlePlayed=true;playRefereeWhistle();}
   for(const type of ['pointerdown','keydown','touchstart'])document.removeEventListener(type,unlockAudio,true);
 }
 for(const type of ['pointerdown','keydown','touchstart'])document.addEventListener(type,unlockAudio,{capture:true,passive:true});
@@ -503,7 +495,6 @@ let _skipKickerTeam = '';
 function animateTrajectory(trajectory,onDone,current=()=>true,playbackSpeed=1) {
   syncBallSize(trajectory?.[0]?.ball_size?trajectory[0]:state);
   playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,pitch,
-    onBounce:point=>playPositional(point.contact ? _kickBuf : _bounceBuf,point,{volume: point.contact ? .6 : .45}),
     onFrame:point=>{
       state.ball={x:point.x,y:point.y,z:point.z||0};
       updateBall(point.x,point.y,point.z||0);
@@ -568,14 +559,13 @@ window.playNextMove = function() {
   if (move.scored && raw.length > 0) {
     // Kick sound at kicker position
     const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
-    if (!highlightSilent && kickerSrv) playPositional(_kickBuf, pitchPosition(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
     // Animate trajectory, then slide back to kickoff positions
     animateTrajectory(raw, () => {
       // Celebrate at the goal, then reset from the final physical positions.
       // Rewinding to the pre-kick roster here caused a visible teleport.
       if (!highlightSilent) SoundManager.goal();
       triggerGoalEffect(move.mover === 'a' ? 'a' : 'b');
-      triggerCrowdCheer();
+
       const resetA = state.players_a.map(p => ({ x: p.x, y: p.y }));
       const resetB = state.players_b.map(p => ({ x: p.x, y: p.y }));
       const dur = 200;
@@ -601,7 +591,6 @@ window.playNextMove = function() {
   } else {
     // Kick sound at kicker position
     const kickerSrv2 = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
-    if (!highlightSilent && kickerSrv2) playPositional(_kickBuf, pitchPosition(kickerSrv2.x, kickerSrv2.y), { volume: 0.7 });
     animateTrajectory(raw, finish);
   }
 };
@@ -721,12 +710,11 @@ async function pollLive() {
       const _preA = raw[0].a ? raw[0].a.map(p => ({ x: p.x, y: p.y })) : [];
       const _preB = raw[0].b ? raw[0].b.map(p => ({ x: p.x, y: p.y })) : [];
       const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
-      if (!highlightSilent && kickerSrv) playPositional(_kickBuf, pitchPosition(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
       const wasGoal = move.scored === 'A' || move.scored === 'B';
       if (wasGoal) {
         if (!highlightSilent) SoundManager.goal();
         triggerGoalEffect(move.scored.toLowerCase());
-        triggerCrowdCheer();
+
       }
       isAnimating = true;
       await new Promise(resolve => animateTrajectory(raw, resolve));
@@ -987,11 +975,10 @@ window.playLossTurn = async function () {
     if (Array.isArray(raw[0]?.b)) state.players_b = raw[0].b.map((p,i) => ({...state.players_b[i],...p}));
     updatePlayerPositions(state.players_a, state.players_b);
     const kickerSrv = (tr.state.is_player_a ? state.players_a : state.players_b)[d.player_idx];
-    if (!highlightSilent && kickerSrv) playPositional(_kickBuf, pitchPosition(kickerSrv.x, kickerSrv.y), { volume: 0.7 });
     if (data.scored === 'A' || data.scored === 'B') {
       if (!highlightSilent) SoundManager.goal();
       triggerGoalEffect(data.scored === 'A' ? 'a' : 'b');
-      triggerCrowdCheer();
+
     }
     isAnimating = true;
     animateTrajectory(raw, function () {

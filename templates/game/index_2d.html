@@ -75,18 +75,18 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
 #voice-opp-muted{display:none;font-size:.7rem;color:#b45309;font-weight:600;background:#fef3c7;
   border-radius:6px;padding:2px 6px}
 </style>
-<script src="/static/js/game/sound.js?v=2"></script>
+<script src="/static/js/game/sound.js?v=3"></script>
 <script src="/static/js/ui/chat.js"></script>
 <script src="/static/js/ui/achievements.js"></script>
 {% include 'shared/_ui_assets.html' %}
 <link rel="stylesheet" href="/static/css/frontend-game.css">
 <link rel="stylesheet" href="/static/css/pitch-2d.css">
 </head>
-<body class="as-app as-game">
+<body class="as-app as-game as-flick-game">
 <div class="flash-msg" id="flash-msg"></div>
 {{ app_nav('play') }}
 <main class="as-main" id="as-content">
-  {{ page_header('Match day','Every move matters.','Drag a player to aim your kick. Release to take your turn.','/customize','Team & stadium') }}
+  {{ page_header('Flick soccer','Pull back. Let it fly.','Drag your highlighted disc backward, then release. A longer pull hits harder.','/customize','Team & stadium') }}
   <div id="online-bar" style="display:none"></div>
   <div id="fs-wrap">
     <div class="glass hud">
@@ -97,6 +97,7 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
       <div class="hud-mid">
         <div class="turn-badge turn-a" id="turn-badge">Your turn</div>
         <div class="kick-counter" id="game-clock">00:00</div>
+        <button class="btn btn-ghost btn-sm" type="button" id="pitch-fullscreen-btn" onclick="togglePitchFullscreen()">Enlarge pitch</button>
         <div class="winner-banner" id="winner-banner"></div>
         <div id="post-game-options" style="display:none;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center">
           <button class="btn btn-secondary btn-sm" onclick="showHighlights()">Highlights</button>
@@ -128,7 +129,7 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
     <div class="player-control-fields">
       <div class="player-control-field"><label for="player-select">Player</label><div class="player-picker"><button id="player-prev" class="btn btn-ghost" type="button" aria-label="Previous player">&larr;</button><select id="player-select"></select><button id="player-next" class="btn btn-ghost" type="button" aria-label="Next player">&rarr;</button></div></div>
       <div class="player-control-field"><label for="aim-angle">Direction <span>degrees</span></label><input id="aim-angle" type="number" min="0" max="359" step="1" value="0" inputmode="numeric"></div>
-      <div class="player-control-field"><label for="kick-power">Power <output id="kick-power-value" for="kick-power">72%</output></label><input id="kick-power" type="range" min="0" max="100" step="1" value="72"></div>
+      <div class="player-control-field"><label for="kick-power">Power <output id="kick-power-value" for="kick-power">80%</output></label><input id="kick-power" type="range" min="0" max="100" step="1" value="80"></div>
       <div class="player-control-actions"><button id="aim-cancel" class="btn btn-ghost" type="button">Reset aim</button><button id="kick-btn" class="btn btn-primary" type="button" disabled>Kick</button></div>
     </div>
     <p class="player-control-help" id="player-control-help">Pull a player back and release to kick, or set direction and power here. On the pitch: <kbd>←</kbd> <kbd>→</kbd> aim, <kbd>↑</kbd> <kbd>↓</kbd> power, <kbd>Q</kbd> switch, <kbd>Enter</kbd> kick, <kbd>Esc</kbd> cancel.</p>
@@ -354,25 +355,38 @@ const updateBall=(x,y,z=0)=>pitch.setBall(x,y,z);
 const updateReferee=(x,y)=>pitch.setReferee(x,y);
 const syncBallSize=state=>pitch.setBallSize(state?.ball_size);
 const triggerGoalEffect=()=>pitch.celebrate();
-const triggerCrowdCheer=()=>SoundManager.crowdCheer();
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-SoundManager.attach(audioCtx);
-const _kickBuf=SoundManager.makeKickBuffer(), _bounceBuf=SoundManager.makeBounceBuffer();
-function playPositional(buffer, position, options={}) {
-  if(!SoundManager.isMuted())SoundManager._play(buffer,options.volume??.65,options.playbackRate??1,'impact');
-}
-function playRefereeWhistle(){pitch.whistle();return SoundManager.whistle();}
+SoundManager.attach(audioCtx, {goalOnly:true});
 async function unlockAudio(){
   await SoundManager.resume();
   if(audioCtx.state!=='running')return;
-  SoundManager.crowdAmbient();
-  if(!window._whistlePlayed){window._whistlePlayed=true;playRefereeWhistle();}
   for(const type of ['pointerdown','keydown','touchstart'])document.removeEventListener(type,unlockAudio,true);
 }
 for(const type of ['pointerdown','keydown','touchstart'])document.addEventListener(type,unlockAudio,{capture:true,passive:true});
 window.__pitch2D=()=>pitch.snapshot();
 window.__renderStats=()=>({...pitch.snapshot(),isAnimating});
 window.__refereePos=()=>pitch.snapshot().referee;
+const pitchWrap=document.getElementById('fs-wrap');
+const fullscreenButton=document.getElementById('pitch-fullscreen-btn');
+function syncPitchFullscreen(){
+  const expanded=document.fullscreenElement===pitchWrap || pitchWrap.classList.contains('pitch-expanded');
+  fullscreenButton.textContent=expanded?'Exit enlarged view':'Enlarge pitch';
+  fullscreenButton.setAttribute('aria-pressed',String(expanded));
+}
+window.togglePitchFullscreen=async()=>{
+  if(document.fullscreenElement===pitchWrap)await document.exitFullscreen();
+  else if(pitchWrap.classList.contains('pitch-expanded'))pitchWrap.classList.remove('pitch-expanded');
+  else if(document.fullscreenEnabled && pitchWrap.requestFullscreen){
+    try{await pitchWrap.requestFullscreen();}catch(_){pitchWrap.classList.add('pitch-expanded');}
+  }else pitchWrap.classList.add('pitch-expanded');
+  syncPitchFullscreen();
+};
+document.addEventListener('fullscreenchange',syncPitchFullscreen);
+document.addEventListener('keydown',event=>{
+  if(event.key==='Escape' && pitchWrap.classList.contains('pitch-expanded')){
+    pitchWrap.classList.remove('pitch-expanded');syncPitchFullscreen();
+  }
+});
 const qualitySelect=document.getElementById('graphics-quality');
 qualitySelect.value=pitch.quality;
 window.setGraphicsQuality=value=>{pitch.setQuality(value);qualitySelect.value=pitch.quality;};
@@ -1437,7 +1451,6 @@ async function animateOnlineMove(move, game, generation = ONLINE.generation) {
     const team = move.mover === 'a' ? 'a' : 'b';
     const players = team === 'a' ? game.players_a : game.players_b;
     const kickerPos = players && players[move.player_idx];
-    if (kickerPos) playPositional(_kickBuf, pitchPosition(kickerPos.x, kickerPos.y), { volume: 0.7 });
     const isPenalty = move.is_penalty ?? !!gameState.penalty_shootout;
     if (isPenalty) {
       await new Promise(r => animateTrajectory(move.trajectory, r, current));
@@ -1455,7 +1468,7 @@ async function animateOnlineMove(move, game, generation = ONLINE.generation) {
     if (move.scored) {
       SoundManager.goal();
       triggerGoalEffect(typeof move.scored === 'string' ? move.scored.toLowerCase() : team);
-      triggerCrowdCheer();
+
     }
   } finally {
     if (current()) { isAnimating = false; _skipKickerIdx = -1; _skipKickerTeam = ''; playerInput.sync(); }
@@ -1706,6 +1719,11 @@ function showThinking() {
 function updateMatchClock(st, nowMs = performance.timeOrigin + performance.now()) {
   // Display regulation time as a conventional 0:00–90:00 match clock.
   const gc = document.getElementById('game-clock');
+  if (gc && st.half_length === 0) {
+    gc.textContent = `First to ${st.win_goal_limit || 5}`;
+    gc.title = 'No timer. Pull back your disc and release.';
+    return;
+  }
   if (gc && st.start_time) {
     const hl = st.half_length || 45;
     const regulationGameSeconds = hl * 2 * 60;
@@ -1884,7 +1902,6 @@ function showCaptainHint(show){
 function animateTrajectory(trajectory,onDone,current=()=>true,playbackSpeed=animSpeed) {
   syncBallSize(trajectory?.[0]?.ball_size?trajectory[0]:gameState);
   playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,pitch,
-    onBounce:point=>playPositional(point.contact ? _kickBuf : _bounceBuf,point,{volume: point.contact ? .6 : .45}),
     onFrame:point=>{
       gameState.ball={x:point.x,y:point.y,z:point.z||0};
       updateBall(point.x,point.y,point.z||0);
@@ -1956,7 +1973,6 @@ async function animateComputerResult(data, resultKey, team, current = () => true
     ? firstTeam[result.player_idx]
     : players[result.player_idx];
   if (!from) return;
-  playPositional(_kickBuf, pitchPosition(from.x, from.y), { volume: 0.7 });
   await animateKickTrajectory(result, team, from, current, playbackSpeed);
   if (!current()) return;
   _skipKickerIdx = -1;
@@ -1966,7 +1982,7 @@ async function animateComputerResult(data, resultKey, team, current = () => true
   if (result.scored) {
     SoundManager.goal();
     triggerGoalEffect(team);
-    triggerCrowdCheer();
+
   }
 }
 
@@ -1978,11 +1994,10 @@ async function displayMove(data, resultKey, team, options = {}) {
   if (result?.trajectory?.length) {
     if (gameState.penalty_shootout) {
       const from = gameState.ball;
-      playPositional(_kickBuf, pitchPosition(from.x, from.y), { volume: 0.7 });
       await new Promise(resolve => animateTrajectory(result.trajectory, resolve, current, playbackSpeed));
       if (!current()) return;
       syncBall(result.trajectory, result.scored); logMove(result.desc, !!result.scored);
-      if (result.scored) { SoundManager.goal(); triggerGoalEffect(team); triggerCrowdCheer(); }
+      if (result.scored) { SoundManager.goal(); triggerGoalEffect(team); }
     } else await animateComputerResult(data, resultKey, team, current, playbackSpeed);
   }
   if (!current()) return;

@@ -88,7 +88,7 @@ DEFAULT_CUSTOMIZATION = {
     "goal_effect": "confetti",
     "trail_color": "#ffffff",
     "power_bar_style": "classic",
-    "half_length": 45,
+    "half_length": 0,
     "power_cap": 100,
     "win_goal_limit": 5,
     "player_stats": {

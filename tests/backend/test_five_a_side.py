@@ -35,7 +35,7 @@ def test_maximum_power_approach_is_bounded_and_grounded(power_stat, agility):
     state = physics.new_soccer_state(half_length=9999)
     state['players_a'][4].update(x=650, y=180, stats={**physics.DEFAULT_STATS, 'power':power_stat, 'agility':agility})
     trajectory, *_ = physics.apply_kick(state, 4, 0, 100, True)
-    assert 0 < state['players_a'][4]['x'] - 650 <= 224  # one fixed substep of integration tolerance
+    assert 0 < state['players_a'][4]['x'] - 650 <= 486  # one fixed substep of integration tolerance
     assert all(p['z'] == 0 for p in trajectory)
 
 
@@ -52,6 +52,7 @@ def test_wall_reflects_the_ball_without_changing_tangent_direction_or_adding_ene
             assert after.x > 0
             assert after.length < before.length
             assert abs(after.y / before.y) == pytest.approx(physics._PM_ELASTICITY_B * physics._PM_ELASTICITY_W, abs=.02)
+            assert abs(after.y / before.y) < .4  # Boundary absorbs most of the normal speed.
             assert after.x == pytest.approx(before.x, abs=2)
             break
     else:
@@ -129,3 +130,33 @@ def test_goal_resets_keep_player_identity_and_stats():
     assert state['players_a'][4]['name'] == 'You'
     assert state['players_a'][4]['color'] == '#abcdef'
     assert state['players_a'][4]['stats'] == physics.DEFAULT_STATS
+
+
+def test_idle_time_cannot_reset_or_start_penalties_in_default_flick_match():
+    state = new_game_state()
+    state['start_time'] -= 86400
+    before = dict(state['players_a'][4])
+    physics.apply_kick(state, 4, 90, 30, True)
+    assert state['half_length'] == 0
+    assert not state['penalty_shootout'] and not state['game_over']
+    assert state['period'] == 'regular_first'
+    assert state['players_a'][4]['y'] > before['y']
+
+
+def test_default_disc_glides_and_longer_pull_travels_further():
+    distances = []
+    for power in (40, 80, 100):
+        state = new_game_state()
+        state['players_a'][4].update(x=450,y=100)
+        physics.apply_kick(state,4,0,power,True)
+        distances.append(state['players_a'][4]['x']-450)
+    assert distances[0] < distances[1] < distances[2]
+    assert 250 < distances[2] < 300
+    assert distances[1] / distances[0] == pytest.approx(4, rel=.08)
+
+
+def test_untimed_match_still_finishes_at_goal_target():
+    state = new_game_state(win_goal_limit=1)
+    state['score_a'] = 1
+    physics.apply_kick(state,4,90,20,True)
+    assert state['game_over'] and state['winner'] == 'A'

@@ -253,6 +253,8 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "is_player_a":  state["is_player_a"],
         "kick_count":   state.get("kick_count", 0),
         "start_time":   state.get("start_time", 0),
+        "half_length": state.get("half_length", 45),
+        "win_goal_limit": state.get("win_goal_limit", 5),
         "turn_start_time": state.get("turn_start_time", 0),
         "game_over":    state.get("game_over", False),
         "winner":       state.get("winner"),
@@ -1160,7 +1162,7 @@ def reset_game():
     from db.customization import get_customization
     from models.soccer_logic import inject_player_stats
     cust = get_customization(user_id)
-    hl = int(cust.get("half_length", 45))
+    hl = int(cust.get("half_length", 0))
     wl = int(cust.get("win_goal_limit", 5))
     pcap = int(cust.get("power_cap", 100))
     penalty_mode = data.get("penalty_mode", False)
