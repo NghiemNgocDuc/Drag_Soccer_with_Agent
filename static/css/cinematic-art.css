@@ -1,0 +1,36 @@
+/* Decorative tactics boards. The shared motion controller wakes visible scenes
+   only; SVG geometry and readable page content remain intact without JavaScript. */
+.as-cinematic-pitch { overflow:visible; }
+.as-art-pass-ball { animation:as-art-pass 9s cubic-bezier(.35,0,.3,1) infinite; }
+.as-art-support-run { animation:as-art-support 9s ease-in-out infinite; }
+.as-login-pass-ball { animation:as-login-pass 10s cubic-bezier(.35,0,.3,1) infinite; }
+.as-login-support-run { animation:as-login-support 10s ease-in-out infinite; }
+.as-cinematic-pitch [data-motion-loop] { animation-play-state:paused; }
+html.as-motion-enabled:not(.as-motion-paused) .as-cinematic-pitch.is-in-view [data-motion-loop] { animation-play-state:running; }
+
+/* Short holds make each pass readable, then the supporting player finds space. */
+@keyframes as-art-pass {
+  0%,10%,100% { transform:translate(0,0); }
+  27%,35% { transform:translate(114px,-98px); }
+  54%,62% { transform:translate(267px,-19px); }
+  84%,100% { transform:translate(0,0); }
+}
+@keyframes as-art-support {
+  0%,35%,100% { transform:translate(0,0); }
+  54%,72% { transform:translate(18px,30px); }
+  90% { transform:translate(0,0); }
+}
+@keyframes as-login-pass {
+  0%,10%,100% { transform:translate(0,0); }
+  29%,37% { transform:translate(-57px,-18px); }
+  56%,64% { transform:translate(-107px,32px); }
+  86%,100% { transform:translate(0,0); }
+}
+@keyframes as-login-support {
+  0%,37%,100% { transform:translate(0,0); }
+  56%,72% { transform:translate(20px,12px); }
+  92% { transform:translate(0,0); }
+}
+@media(prefers-reduced-motion:reduce) {
+  .as-cinematic-pitch [data-motion-loop] { animation:none!important; }
+}

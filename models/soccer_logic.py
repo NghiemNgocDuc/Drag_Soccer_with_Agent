@@ -49,6 +49,79 @@ _WIN_DEFAULT    = 5   # goals
 def _time_th(hl: int) -> tuple:
     ht = hl * 3
     return (ht, ht * 2, ht * 2 + 45, ht * 2 + 90)  # halftime, fulltime, et1_end, et2_end
+
+
+def match_clock(state: dict, now: float | None = None) -> dict:
+    """Cheap clock metadata; callers advance periods before publishing state.
+
+    One real second represents 20 match seconds. Clamp at the next period
+    boundary until the authoritative state has advanced, and freeze shootouts
+    and finished games at their recorded end time.
+    """
+    now = time.time() if now is None else now
+    hl = state.get("half_length", _HALF_DEFAULT)
+    if hl <= 0:
+        return {"match_elapsed": 0.0, "match_clock_seconds": 0.0,
+                "clock_running": False, "next_period_at": None, "server_time": now}
+    ht, ft, et1, et2 = _time_th(hl)
+    period = state.get("period", "regular_first")
+    boundary = {"regular_first": ht, "regular_second": ft,
+                "et_first": et1, "et_second": et2}.get(period, et2)
+    running = not state.get("game_over") and not state.get("penalty_shootout")
+    elapsed = max(0.0, now - state.get("start_time", now))
+    if not running:
+        elapsed = state.get("clock_stopped_at", et2 if period in ("et_first", "et_second", "penalties") else ft)
+    else:
+        elapsed = min(elapsed, boundary)
+    return {"match_elapsed": elapsed, "match_clock_seconds": elapsed * 20.0,
+            "clock_running": running, "next_period_at": boundary if running else None,
+            "server_time": now}
+
+
+def advance_match_clock(state: dict, now: float | None = None) -> bool:
+    """Apply at most four period transitions, including idle time boundaries.
+
+    Check regulation before extra time even after a long idle interval. A team
+    already leading at 90 minutes must finish there, never at 120 minutes.
+    """
+    if state.get("game_over") or state.get("penalty_shootout"):
+        return False
+    hl = state.get("half_length", _HALF_DEFAULT)
+    if hl <= 0:
+        return False
+    now = time.time() if now is None else now
+    elapsed = max(0.0, now - state.get("start_time", now))
+    ht, ft, et1, et2 = _time_th(hl)
+    changed = False
+    for _ in range(4):
+        period = state.get("period", "regular_first")
+        boundary = {"regular_first": ht, "regular_second": ft,
+                    "et_first": et1, "et_second": et2}.get(period)
+        if boundary is None or elapsed < boundary:
+            break
+        changed = True
+        if period in ("regular_second", "et_second"):
+            sa, sb = state["score_a"], state["score_b"]
+            if sa != sb:
+                state.update(game_over=True, winner="A" if sa > sb else "B",
+                             clock_stopped_at=boundary, _finalized=False)
+                break
+            if period == "et_second":
+                state.update(penalty_shootout=True, period="penalties",
+                             penalty_kick_num=0, penalty_a_score=0, penalty_b_score=0,
+                             penalty_kicks=[], penalty_goalkeeper_move=None,
+                             is_player_a=True, clock_stopped_at=et2,
+                             turn_start_time=now)
+                _setup_penalty_positions(state, True)
+                break
+        state["period"] = {"regular_first": "regular_second",
+                           "regular_second": "et_first", "et_first": "et_second"}[period]
+        state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2, "z": 0.0}
+        _reset_players(state)
+        state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
+        state["is_player_a"] = (state.get("first_kicker", "A") == "A") if period == "regular_second" else (state.get("first_kicker", "A") != "A")
+        state["turn_start_time"] = now
+    return changed
 _GOAL_DEPTH: float = 50.0
 
 # Penaly shootout constants — proportional to field
@@ -609,6 +682,28 @@ def _make_ball(space, position):
     return body, pivot
 
 
+def _release_corner_ball(space, body):
+    """Small arcade corner bumper: return a grounded ball to playable space.
+
+    Ordinary walls retain their soft rebound. Only the intersection of two
+    boundary bands supplies a minimum inward speed, including old stuck saves.
+    Running after the contact solver also frees balls squeezed there by pawns.
+    """
+    x, y = body.position
+    band = _MARGIN + 5.0 + space._soccer_ball["radius"] + 26.0
+    in_corner = min(x, FIELD_W - x) <= band and min(y, FIELD_H - y) <= band
+    if not in_corner:
+        body._corner_bumper_active = False
+        return
+    sx, sy = (1 if x < FIELD_W / 2 else -1), (1 if y < FIELD_H / 2 else -1)
+    vx, vy = body.velocity
+    # 269 px/s diagonally: enough clearance for a pass, well below the rally cap.
+    body.velocity = sx * max(190.0, vx * sx), sy * max(190.0, vy * sy)
+    if not getattr(body, "_corner_bumper_active", False):
+        space._soccer_events["bounce"] = True
+        body._corner_bumper_active = True
+
+
 def _build_space(state: dict):
     """Create an isolated deterministic world from authoritative match positions."""
     space = _new_physics_space(state)
@@ -934,6 +1029,8 @@ def _sim(space, bodies_a, bodies_b, ball_body, ref_body, kicker_idx, is_player_a
                     friction_force = force
             space.step(sub_dt)
             _contain_players(players)
+            if ball_z == 0.0 and ball_vz == 0.0:
+                _release_corner_ball(space, ball_body)
             elapsed += sub_dt
             frame_dt += sub_dt
             if ball_z > 0.0 or ball_vz != 0.0:
@@ -1099,60 +1196,16 @@ def apply_kick(
     })
 
     sa, sb = state["score_a"], state["score_b"]
-    elapsed = time.time() - state.get("start_time", time.time())
-    period = state.get("period", "regular_first")
     hl = state.get("half_length", _HALF_DEFAULT)
     gw = state.get("win_goal_limit", _WIN_DEFAULT)
-    ht, ft, et1, et2 = _time_th(hl)
 
-    if sa >= gw:
+    if hl <= 0 and sa >= gw:
         state["game_over"] = True
         state["winner"] = "A"
-    elif sb >= gw:
+    elif hl <= 0 and sb >= gw:
         state["game_over"] = True
         state["winner"] = "B"
-    elif hl <= 0:
-        pass  # Untimed flick soccer: only the goal target ends the match.
-    elif elapsed >= et2:
-        if sa == sb:
-            state["penalty_shootout"] = True
-            state["period"] = "penalties"
-            state["penalty_kick_num"] = 0
-            state["penalty_a_score"] = 0
-            state["penalty_b_score"] = 0
-            state["penalty_kicks"] = []
-            state["is_player_a"] = True
-            _setup_penalty_positions(state, True)
-        else:
-            state["game_over"] = True
-            state["winner"] = "A" if sa > sb else "B"
-    elif elapsed >= et1 and period == "et_first":
-        state["period"] = "et_second"
-        state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2, "z": 0.0}
-        _reset_players(state)
-        state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
-        state["is_player_a"] = not state["is_player_a"]
-    elif elapsed >= ft and (period == "regular_first" or period == "regular_second"):
-        if period == "regular_first":
-            state["period"] = "regular_second"
-            state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2, "z": 0.0}
-            _reset_players(state)
-            state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
-            state["is_player_a"] = state["first_kicker"] != "A"
-        if sa == sb:
-            state["period"] = "et_first"
-            state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2, "z": 0.0}
-            _reset_players(state)
-            state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
-            state["is_player_a"] = state["first_kicker"] != "A"
-        else:
-            state["game_over"] = True
-            state["winner"] = "A" if sa > sb else "B"
-    elif elapsed >= ht and period == "regular_first":
-        state["period"] = "regular_second"
-        state["ball"] = {"x": FIELD_W / 2, "y": FIELD_H / 2, "z": 0.0}
-        _reset_players(state)
-        state["referee"] = {"x": REFEREE_POS[0], "y": REFEREE_POS[1]}
-        state["is_player_a"] = state["first_kicker"] != "A"
+    else:
+        advance_match_clock(state)
 
     return traj_out, scored, desc, kick_endpoint, push_result

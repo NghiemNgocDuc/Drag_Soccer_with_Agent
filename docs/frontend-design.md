@@ -12,6 +12,13 @@ routes, form actions, API payloads, editor integrations, and the game renderer.
 - `static/js/ui/frontend.js`: mobile navigation, keyboard dismissal, skip link,
   password visibility controls, and status announcements. No polling or frame
   loop is introduced.
+- `static/js/ui/cinematic.js` and `static/css/cinematic.css`: visible-once entrances,
+  pointer-responsive destination cards and artwork, menu transitions, and the
+  shared page-motion control. Pointer updates coalesce into one requested frame;
+  no continuous JavaScript animation loop is used.
+- `static/css/cinematic-art.css`: coordinated ball passes and supporting player
+  runs in the existing SVG illustrations on landing, login, registration, and
+  locker-room pages. Both scenes use only two animated objects.
 - `static/css/frontend-public.css`: landing, registration, recovery,
   locker room, and play overview layouts.
 - `static/css/frontend-login.css`: the dedicated sign-in layout, compact account
@@ -28,9 +35,12 @@ routes, form actions, API payloads, editor integrations, and the game renderer.
 
 The five hubs are direct destination overviews. They do not embed other app
 pages or start a nested game renderer. Public/auth pitch artwork is inline SVG;
-no new image files or remote font requests are needed. Decorative animated
-backgrounds and backdrop blur are disabled. Game movement, weather, and goal
-effects continue to use the existing demand renderer.
+no new image files or remote font requests are needed. Cinematic artwork uses
+CSS transforms, with no WebGL, video, or audio. Scenes pause offscreen and when
+the tab is hidden. The navigation's Motion button stores a local preference;
+the operating system's reduced-motion setting always takes precedence. Touch
+devices keep the artwork animation but do not receive pointer parallax.
+Game movement and goal effects continue to use the existing demand renderer.
 
 ## Page behavior preserved
 
@@ -54,6 +64,7 @@ benchmarks. Screenshots and reports are written to the system temporary folder.
 ```powershell
 python tools/browser/verify_frontend.py
 python tools/browser/verify_login.py
+python tools/browser/verify_cinematic.py
 python tools/browser/verify_frontend_dialogs.py
 python tools/browser/verify_frontend_workshop.py
 python tools/browser/verify_demand_rendering.py --idle-ms 500
@@ -65,12 +76,17 @@ password reset validation and token payloads, feedback submission/focus,
 rendering harness checks actual drawing buffers, idle/hidden/offscreen behavior,
 trajectory completion, queued moves, score changes, and resource handling.
 
+The cinematic verifier checks animation progress and pause/resume behavior,
+saved preferences, reduced motion, mouse and touch behavior, navigation and
+sign-in, responsive layouts, and readable content with JavaScript disabled.
+
 Keep page styles scoped to their body class. Treat selected, disabled, error,
 loading, empty, populated, and mobile states as part of the layout. Use native
 links/buttons and labeled fields when adding actions. Do not add a decorative
-animation loop to the shared shell.
+JavaScript animation loop to the shared shell. Gameplay canvases and control
+panels are excluded from decorative reveals and pointer transformations.
 
-The login refresh uses a compact account header, a static stadium tactics
+The login refresh uses a compact account header, an SVG stadium tactics
 illustration, and a form with larger touch targets. Its demo disclosure retains
 copy controls and adds a button that fills the two fields without signing in.
 Native form submission, password visibility, flashed errors, registration, and

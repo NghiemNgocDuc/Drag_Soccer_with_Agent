@@ -6,7 +6,7 @@ from models.soccer_logic import simulate_kick
 from models.tactics import tactical_candidates, evaluate_outcome
 
 MODEL_NAME = "Team Coordinated"
-DESCRIPTION = "Reachable shooter selection, open passes, safe clears and support recovery."
+DESCRIPTION = "Open passing lanes, spaced forward support runs, defensive cover and controlled shots."
 
 
 def get_ai_move(state, is_player_a):

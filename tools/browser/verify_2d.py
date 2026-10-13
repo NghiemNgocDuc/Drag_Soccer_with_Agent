@@ -13,6 +13,7 @@ import re
 import sys
 import tempfile
 import threading
+import time
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
@@ -30,6 +31,7 @@ window.__qa2D={
  online:()=>typeof ONLINE!=='undefined'?ONLINE:null,
  invalidate:()=>pitch.loop.invalidate(),
  impact:()=>pitch.onContact(700,437.5),
+ clock:(s,now)=>{updateMatchClock(s,now);return document.getElementById('game-clock').textContent},
 };
 """
 
@@ -61,11 +63,25 @@ def main():
     def login(name):
         session['user_id'] = 'dev:canvas-' + name
         session['username'] = name
-        game = new_soccer_state(mode='hvh', player_count=int(request.args.get('count', 5)), half_length=0)
+        timed = request.args.get('timed')
+        game = new_soccer_state(mode='hvh', player_count=int(request.args.get('count', 5)), half_length=45 if timed else 0)
         game['game_mode'] = request.args.get('mode', 'hvh')
+        if timed == 'halftime':
+            # Give the browser time to load, then cross a real server boundary
+            # without submitting any move or waiting for a whole match.
+            game['start_time'] = time.time() - 132
+        if request.args.get('corner'):
+            game['ball'].update(x=39,y=836)
+            game['players_a'][0].update(x=47,y=797)
+            game['players_b'][0].update(x=78,y=828)
         if request.args.get('penalty'):
             game['penalty_shootout'] = True
-            _setup_penalty_positions(game, True)
+            game['period'] = 'penalties'
+            game['is_player_a'] = request.args.get('penalty') != 'keeper'
+            if not game['is_player_a']:
+                game['penalty_kick_num'] = 1
+                game['penalty_kicks'] = [{'team': 'A', 'kicker_idx': 0, 'keeper_move': 'center', 'goal': False}]
+            _setup_penalty_positions(game, game['is_player_a'])
         save_game(session['user_id'], game)
         return redirect('/play2d')
 
@@ -287,6 +303,39 @@ def main():
             compact_page.mouse.up()
             compact_page.wait_for_function('!window.__qa2D.busy() && window.__qa2D.active().kick_count>=4',timeout=40000)
             check('drag release finishes a striker cycle in short preview pane', compact_page.evaluate('window.__playerControlState().selectedIndex===4 && !window.__qa2D.active().penalty_shootout'))
+            page.goto(base + '/__2d/login/clock?timed=halftime')
+            ready(page)
+            page.wait_for_function("window.__qa2D.active().period==='regular_second'", timeout=10000)
+            check('idle clock advances halftime without a kick', page.evaluate('window.__qa2D.active().kick_count===0'))
+            for period, elapsed, label in [('regular_second',270,'90:00'),('et_first',315,'105:00'),('et_second',360,'120:00')]:
+                check('clock formats '+label, page.evaluate('([period,elapsed])=>window.__qa2D.clock({half_length:45,start_time:1000,period},(1000+elapsed)*1000)', [period,elapsed]) == label)
+            page.goto(base + '/__2d/login/corner?corner=1')
+            ready(page)
+            page.locator('#pitch-container canvas').focus()
+            page.keyboard.press('Enter')
+            page.wait_for_function('!window.__qa2D.busy() && window.__qa2D.active().kick_count===1')
+            check('crowded corner ball returns to playable space', page.evaluate('window.__pitch2D().ball.x>65 && window.__pitch2D().ball.y<810'))
+            for direction, dx, dy in [('left',0,-55),('right',0,55),('center',55,0)]:
+                page.goto(base + '/__2d/login/keeper?penalty=keeper&mode=hvai')
+                ready(page)
+                point=page.evaluate("window.__qa2D.point('a',0)")
+                check('keeper drag available '+direction, page.evaluate('window.__goalkeeperControlState().canSave'))
+                page.mouse.move(point['x'],point['y'])
+                page.mouse.down()
+                page.mouse.move(point['x']+dx,point['y']+dy,steps=4)
+                check('keeper preview '+direction, page.evaluate('window.__pitch2D().keeperChoice.direction') == direction)
+                if direction == 'left':
+                    page.keyboard.press('Escape')
+                    page.mouse.up()
+                    check('escape cancels save without a shot', page.evaluate('window.__qa2D.active().penalty_kick_num===1 && !window.__goalkeeperControlState().dragging'))
+                    page.mouse.move(point['x'],point['y']);page.mouse.down()
+                    page.mouse.move(point['x']+dx,point['y']+dy,steps=4)
+                    page.screenshot(path=str(out / 'keeper-drag.png'))
+                with page.expect_request(lambda req: req.url.endswith('/goalkeeper_move')) as submitted:
+                    page.mouse.up()
+                check('keeper submits '+direction, submitted.value.post_data_json['direction']==direction)
+                page.wait_for_function('!window.__qa2D.busy() && window.__qa2D.active().penalty_kick_num===2',timeout=15000)
+                check('keeper gesture plays one shot and returns to kicker '+direction, page.evaluate('window.__qa2D.active().is_player_a && !window.__goalkeeperControlState().canSave'))
             page.goto(base + '/__2d/login/penalty?penalty=1')
             ready(page)
             check('penalty referee stays hidden', page.evaluate('window.__pitch2D().referee===null'))

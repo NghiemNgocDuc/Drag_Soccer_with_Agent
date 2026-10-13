@@ -132,8 +132,8 @@ def test_goal_resets_keep_player_identity_and_stats():
     assert state['players_a'][4]['stats'] == physics.DEFAULT_STATS
 
 
-def test_idle_time_cannot_reset_or_start_penalties_in_default_flick_match():
-    state = new_game_state()
+def test_idle_time_cannot_reset_or_start_penalties_in_explicit_untimed_match():
+    state = new_game_state(half_length=0)
     state['start_time'] -= 86400
     before = dict(state['players_a'][4])
     physics.apply_kick(state, 4, 90, 30, True)
@@ -156,7 +156,7 @@ def test_default_disc_glides_and_longer_pull_travels_further():
 
 
 def test_untimed_match_still_finishes_at_goal_target():
-    state = new_game_state(win_goal_limit=1)
+    state = new_game_state(half_length=0, win_goal_limit=1)
     state['score_a'] = 1
     physics.apply_kick(state,4,90,20,True)
     assert state['game_over'] and state['winner'] == 'A'

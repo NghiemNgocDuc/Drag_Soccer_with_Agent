@@ -90,7 +90,7 @@ Open **[localhost:5000](http://localhost:5000)**. Choose **Log in → Try the de
 | Kick | Enter / Space while using the pitch |
 | Cancel aiming | Escape |
 
-Human vs AI gives you striker #5, marked **YOU** on the pitch. Pull the disc backward and release to launch it; longer pulls hit harder. Teammates act automatically, then control returns to you. New matches default to **first to five with no timer**, so taking time to aim cannot trigger penalties. Local Human vs Human and online play allow selection from the active player's roster. Timed matches remain available in settings.
+Human vs AI gives you striker #5, marked **YOU** on the pitch. Pull the disc backward and release to launch it; longer pulls hit harder. Teammates act automatically, then control returns to you. New matches use a **90:00 clock** (4½ real minutes), with tied matches continuing to **105:00**, **120:00**, then penalties. In local Human vs AI shootouts, drag your keeper to either labeled side to dive, or toward the ball to stay central. Local Human vs Human and online play allow selection from the active player's roster. Untimed practice remains available in settings.
 
 The ball stays on the ground with crisp, ping-pong-style rebounds and a speed limit. Players stay inside the pitch, and every player follows the same playback clock as the ball.
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 import math
 
 from models.common import aim_through, needs_clear
+from models.team_support import SupportPlan
 from models.soccer_logic import (
     FIELD_W, FIELD_H, GOAL_Y1, GOAL_Y2, _MARGIN, _PM_ELASTICITY_P,
     _ball_physics, _get_player_stats, _get_player_radius, _get_player_mass,
@@ -141,7 +142,7 @@ def _estimate(state, side, move, material, profiles):
     return endpoint, scored
 
 
-def evaluate_outcome(state, side, move, trajectory, scored):
+def evaluate_outcome(state, side, move, trajectory, scored, *, support_plan=None):
     """Score progress, safe possession and useful support from real end positions."""
     target = "A" if side else "B"
     if scored:
@@ -179,6 +180,16 @@ def evaluate_outcome(state, side, move, trajectory, scored):
             value -= max(0.0, 55.0 - spacing) * 0.7
         if index == 0 and len(own) > 1 and not needs_clear(state, side):
             value -= 70.0
+    # Reward useful off-ball movement even when the ball stays with the human.
+    # Only compare the moved pawn's improvement, never a pre-existing formation.
+    if index > 0 and _distance(end, state['ball']) < 40.0:
+        if support_plan is None:
+            material = _ball_physics(state)
+            profiles = {team: [_profile(state, team, i, material)
+                              for i in range(len(state['players_a' if team else 'players_b']))]
+                        for team in (True, False)}
+            support_plan = SupportPlan(state, side, material, profiles)
+        value += support_plan.gain(index, own_end)
     return value
 
 
@@ -203,6 +214,7 @@ def tactical_candidates(state, side, allowed_players=None, max_candidates=8):
         for roster_side in (True, False)
     }
     ball = state["ball"]
+    support_plan = SupportPlan(state, side, material, profiles)
     defensive = needs_clear(state, side)
     distances, reachable = {}, []
     for i in allowed:
@@ -230,7 +242,7 @@ def tactical_candidates(state, side, allowed_players=None, max_candidates=8):
         if goal and _lane_blocked(ball, endpoint, opponents, material):
             goal = None
             bonus -= 170.0
-        value = evaluate_outcome(state, side, move, [endpoint], goal) + bonus
+        value = evaluate_outcome(state, side, move, [endpoint], goal, support_plan=support_plan) + bonus
         # Resolve genuinely equivalent mirrored moves by insertion order, not
         # by insignificant trigonometric floating-point noise.
         ranked.append((round(value, 8), len(ranked), move))
@@ -288,6 +300,13 @@ def tactical_candidates(state, side, allowed_players=None, max_candidates=8):
                 target_y = max(_MARGIN + 40.0, min(FIELD_H - _MARGIN - 40.0, ball["y"] + offset))
                 angle = math.degrees(math.atan2(target_y - player["y"], ball["x"] - player["x"]))
                 add(i, angle, cap)
+    for index, angle, power in support_plan.moves(allowed, cap):
+        add(index, angle, power)
+    if support_plan.active and support_plan.carrier not in allowed:
+        # Already useful receivers may hold their lane instead of crowding the striker.
+        holder = next((i for i in allowed if i != 0), None)
+        if holder is not None:
+            add(holder, 0.0 if side else 180.0, 0.0)
     ranked.sort(key=lambda item: (-item[0], item[1]))
     return [move for _, _, move in ranked[:max(1, int(max_candidates))]]
 

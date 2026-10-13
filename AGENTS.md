@@ -13,6 +13,11 @@ Browser-based five-a-side 2D soccer game where human/AI players take turns kicki
 
 ## What's in place
 
+### Cinematic page motion
+- Shared `cinematic.js` / `cinematic.css` add one-time entrances, pointer-responsive artwork and destination cards, and menu transitions across public pages and hubs. Gameplay canvases and controls are excluded from decorative transforms.
+- `cinematic-art.css` animates two SVG objects per tactics board (passing ball and support run) on landing, login, registration, and locker-room pages. Scenes pause offscreen or in hidden tabs; no continuous JavaScript animation loop, audio, video, or WebGL is added.
+- Navigation has a saved Motion on/off preference; OS reduced motion takes precedence. Pointer effects run only for a fine mouse pointer. Verify with `python tools/browser/verify_cinematic.py`.
+
 ### Current 2D presentation
 - Live and replay sound is goal-only: gain 0.055 whistle, no crowd/kick/bounce/kickoff audio and no crowd buffer generation. Legacy sound APIs remain for unserved 3D references.
 - Full-pitch Canvas rendering uses a cached background, numbered stat-sized players, distinct keepers, a ball with a height indicator, a referee marker, aim arrows and finite goal/whistle effects. Current physics and striker controls are described below.
@@ -34,6 +39,7 @@ Browser-based five-a-side 2D soccer game where human/AI players take turns kicki
 ### AI responsiveness and coordination
 - `models/search_budget.py` owns request-local limits, cancellation, completed-move selection, and physics prediction caching. Nested expert simulations share the active budget. Known built-in snapshots omit accumulated replay data.
 - `models/tactics.py` ranks reachable players using actual stats and ball materials, then plans shots, open passes, defensive clearances, or support. Goalkeepers stay home when an outfielder can reach in attacking positions. All actions move only the selected pawn.
+- `models/team_support.py` adds deterministic off-ball runs when the full roster has safe access to the ball, including the human striker. Players seek clear forward passing lanes on distinct flanks, keep spacing, and retain one outfielder behind the ball. At most 12 slots and two proposed runs per eligible outfielder; swept-path checks and stat-based stopping power require no extra physics worlds. Shared outcome scoring rewards positional improvement within the existing search budget. See `tests/backend/test_team_support.py`.
 - `models/common.py` uses absolute world launch angles and the correct attacking direction for both teams. Predictions retain exact final physical outcomes while skipping cosmetic referee motion and some intermediate snapshots.
 - `/random_move` now uses the coordinated policy with the human striker excluded. Human vs AI completes A/B/A/B, then returns control to the striker; one-player squads use A/B. Failed automatic legs can retry, session changes cancel stale frontend work, and local AI playback uses the selected speed with a four-second cap.
 - Default fast LLM decisions use the local fallback. `AI_DECISION_BUDGET_MS` and `AI_MAX_SIMULATIONS` tune the speed/accuracy tradeoff. Benchmark, browser commands, and measurements are documented in `docs/ai-responsiveness.md`.
@@ -71,7 +77,8 @@ Browser-based five-a-side 2D soccer game where human/AI players take turns kicki
 ### Current five-a-side controls
 - New local and online matches use five players per team. Human vs AI controls index 4, the central striker marked YOU; shootouts use the placed kicker at index 0.
 - Power maps to 5–9 px/s per command point, bounded to 480px free approach distance. Agility maps to 700–1,100 px/s² braking. Players remain inside solid pitch boundaries, including goal mouths.
-- Playable matches default to untimed first-to-five (`half_length=0`); explicit timed modes retain halftime and penalties. The pitch fills the panel width; short IDE panes scroll vertically to keep players readable.
+- Playable matches default to 90:00 (`half_length=45`, 3 real seconds per game minute), then 105:00 / 120:00 extra-time boundaries if tied, followed by penalties. Clock display is MM:SS, freezes at completion, and state refresh advances idle period boundaries. Explicit `half_length=0` retains first-to-five practice. Local hvai penalties support goalkeeper drag toward either labeled side or forward toward the ball to stay central; human penalty choices wait for input. The pitch fills the panel width; short IDE panes scroll vertically to keep players readable.
+- Grounded balls within both corner boundary bands receive a small inward bumper velocity during the shared physics substep. Ordinary wall restitution is unchanged; no teleport, extra physics world, or audio. Regression: `test_corner_bumper.py`, `test_match_clock.py`, and `test_goalkeeper_input.mjs`.
 - Missed kicks never lift the ball. Replay sampling preserves player impacts and full penalty roster tracks. Impact effects share the paused render clock and expire before idle drawing sleeps.
 - Regression coverage: `tests/backend/test_five_a_side.py`, `test_physics_api.py`, `tests/frontend/test_pitch_2d.mjs`, and `tools/browser/verify_2d.py`.
 

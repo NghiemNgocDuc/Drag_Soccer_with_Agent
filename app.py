@@ -22,7 +22,7 @@ from game.session import (
     get_game, save_game, new_game_state, push_snapshot, pop_snapshot,
     new_pg_state, get_pg, save_pg,
 )
-from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions, normalize_kick, human_player_index
+from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions, normalize_kick, human_player_index, advance_match_clock, match_clock
 from models.search_budget import get_model_move, is_builtin, DEFAULT_BUDGET_S
 
 #  Mem0-style memory (short/long) 
@@ -287,6 +287,8 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "manager_b":   state.get("manager_b"),
         "formation_b": state.get("formation_b"),
     }
+    result["penalty_goalkeeper_move"] = state.get("penalty_goalkeeper_move")
+    result.update(match_clock(state))
     if extra:
         result.update(extra)
     if state.get("game_over") and state.get("game_mode") == "hvai" and not state.get("_finalized"):
@@ -994,6 +996,10 @@ def human_move():
     user_id = uid()
     state   = get_game(user_id)
 
+    if advance_match_clock(state):
+        save_game(user_id, state)
+        return jsonify(_full_state(state, {"period_changed": True}))
+
     if state.get("game_over"):
         return jsonify(_full_state(state, {"error": "Game is over"}))
     if state["game_mode"] == "hvai" and not state["is_player_a"]:
@@ -1050,6 +1056,9 @@ def human_move():
 def trigger_ai_move():
     user_id = uid()
     state   = get_game(user_id)
+    if advance_match_clock(state):
+        save_game(user_id, state)
+        return jsonify(_full_state(state, {"period_changed": True}))
     if state.get("game_over"):
         return jsonify(_full_state(state, {"error": "Game is over"}))
     is_player_a = state["is_player_a"]
@@ -1090,6 +1099,9 @@ def trigger_ai_move():
 def random_teammate_move():
     user_id = uid()
     state = get_game(user_id)
+    if advance_match_clock(state):
+        save_game(user_id, state)
+        return jsonify(_full_state(state, {"period_changed": True}))
     if state.get("game_over"):
         return jsonify(_full_state(state, {"error": "Game is over"}))
     if state.get("game_mode") != "hvai" or not state.get("is_player_a"):
@@ -1162,7 +1174,7 @@ def reset_game():
     from db.customization import get_customization
     from models.soccer_logic import inject_player_stats
     cust = get_customization(user_id)
-    hl = int(cust.get("half_length", 0))
+    hl = int(cust.get("half_length", 45))
     wl = int(cust.get("win_goal_limit", 5))
     pcap = int(cust.get("power_cap", 100))
     penalty_mode = data.get("penalty_mode", False)
@@ -1378,7 +1390,11 @@ def get_state_route():
         except Exception:
             pass
     state = get_game(user_id)
-    return jsonify(_full_state(state))
+    changed = advance_match_clock(state)
+    result = _full_state(state)
+    if changed:
+        save_game(user_id, state)
+    return jsonify(result)
 
 
 @app.route("/benchmark", methods=["POST"])
@@ -2680,6 +2696,30 @@ def _save_room(room_id, room):
     r.setex(f"room:{room_id}", ROOM_TTL, _json.dumps(room))
 
 
+def _advance_online_clock(room_id, room):
+    """Called under the existing room lock; a period reset is a state revision."""
+    if room.get("status") != "active" or not advance_match_clock(room["game"]):
+        return False
+    room["move_count"] = _online_move_count(room) + 1
+    room["game"]["online_move_count"] = room["move_count"]
+    # There is no kick trajectory for a halftime reset. Missing history makes
+    # participant/spectator replay plans snap to the authoritative formation.
+    room["last_move"] = None
+    if room["game"].get("game_over"):
+        _finish_online_room(room_id, room)
+    else:
+        _save_room(room_id, room)
+    return True
+
+
+def _online_clock_fields(room):
+    clock = match_clock(room["game"])
+    if room.get("status") == "waiting":
+        clock.update(match_elapsed=0.0, match_clock_seconds=0.0,
+                     clock_running=False, next_period_at=None)
+    return clock
+
+
 _ROOM_WRITE_LOCKS = tuple(threading.RLock() for _ in range(64))
 
 
@@ -3681,6 +3721,7 @@ def online_join(room_id):
         room["player_b"] = my_uid
         room["name_b"] = session.get("username", "Guest")
         room["status"] = "active"
+        room["game"]["start_time"] = room["game"]["turn_start_time"] = _time.time()
         _save_room(room_id, room)
         _mark_room_active(room_id)
         _set_presence_in_match(room["player_a"], room_id)
@@ -3703,6 +3744,14 @@ def online_room_state(room_id):
             raise ValueError
     except (TypeError, ValueError):
         return jsonify({"error": "Invalid move cursor"}), 400
+    clock = _online_clock_fields(room)
+    if clock["clock_running"] and clock["match_elapsed"] >= clock["next_period_at"]:
+        try:
+            with _online_write_lock(f"room:{room_id}"):
+                room = _get_room(room_id) or room
+                _advance_online_clock(room_id, room)
+        except _OnlineWriteBusy:
+            pass  # A move owns the lock; the next bounded poll can retry.
     if (room.get("ranked") and room.get("status") == "done"
             and room.get("ranked_pending") and not room.get("ranked_processed")):
         try:
@@ -3717,6 +3766,7 @@ def online_room_state(room_id):
         room = _get_room(room_id) or room
     revision = _online_move_count(room)
     room["game"]["online_move_count"] = revision
+    room["game"].update(_online_clock_fields(room))
     resp = {"game": room["game"], "name_a": room["name_a"], "name_b": room["name_b"],
             "status": room["status"], "room_id": room_id, "move_count": revision,
             "ranked": room.get("ranked", False)}
@@ -3801,6 +3851,11 @@ def online_move(room_id):
     if not my_side:
         return jsonify({"error": "Not a player in this room"}), 403
     game = room["game"]
+    if _advance_online_clock(room_id, room):
+        game.update(_online_clock_fields(room))
+        return jsonify({"error": "The period changed. Refresh and try again.",
+                        "period_changed": True, "game": game,
+                        "move_count": _online_move_count(room), "status": room["status"]}), 409
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"error": "Kick command must be a JSON object"}), 400
@@ -3846,6 +3901,7 @@ def online_move(room_id):
         _finish_online_room(room_id, room)
     else:
         _save_room(room_id, room)
+    game.update(_online_clock_fields(room))
     response = {"move_result": move_res, "game": game, "move_count": revision,
                 "status": room["status"], "achievements": _ach_toasts()}
     if room.get("ranked_result"):
@@ -4010,6 +4066,7 @@ def online_accept_invite(invite_id):
                 room["player_b"] = uid()
                 room["name_b"] = session.get("username", "Guest")
                 room["status"] = "active"
+                room["game"]["start_time"] = room["game"]["turn_start_time"] = _time.time()
                 _save_room(inv["room_id"], room)
                 _mark_room_active(inv["room_id"])
                 _set_presence_in_match(room["player_a"], inv["room_id"])

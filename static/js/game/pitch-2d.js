@@ -40,7 +40,7 @@ export function createPitch2D(container) {
   if (!ctx) throw new Error('This browser cannot create the 2D pitch.');
   const background = document.createElement('canvas'), bg = background.getContext('2d', { alpha: false });
   let teams = { a: [], b: [] }, ball = { x: 700, y: 437.5, z: 0 }, referee = null;
-  let selection = null, humanPlayer = null, aim = null, theme = {}, goal = null, whistleAt = null;
+  let selection = null, humanPlayer = null, aim = null, keeperChoice = null, theme = {}, goal = null, whistleAt = null;
   let radius = 12, frames = 0, backgroundBuilds = 0, rosterStamp = '', mode = 'auto';
   let transform = pitchTransform(1, 1);
   try { mode = localStorage.getItem('agent-soccer-2d-quality') || 'auto'; } catch (_) {}
@@ -401,6 +401,23 @@ export function createPitch2D(container) {
     }
 
     // ── Aim arrow & trajectory preview ───────────────────────────
+    if (keeperChoice) {
+      const {origin, direction, forward} = keeperChoice;
+      ctx.save();
+      for (const [choice, dx, dy, label] of [['left',0,-120,'LEFT'],['right',0,120,'RIGHT'],['center',forward*135,0,'STAY']]) {
+        const selected = direction === choice;
+        const x = origin.x + dx, y = origin.y + dy;
+        ctx.strokeStyle = selected ? '#fde047' : '#b9dbec';
+        ctx.lineWidth = selected ? 6 : 3;
+        ctx.setLineDash(selected ? [] : [7,7]);
+        ctx.beginPath();ctx.moveTo(origin.x,origin.y);ctx.lineTo(x,y);ctx.stroke();ctx.setLineDash([]);
+        circle(ctx,x,y,selected?13:9,selected?'#fde047':'#b9dbec','#0f172a',2);
+        ctx.font = '800 20px system-ui';ctx.textAlign='left';ctx.textBaseline='middle';
+        ctx.strokeStyle='#071820';ctx.lineWidth=5;ctx.strokeText(label,x+20,y);
+        ctx.fillStyle=selected?'#fde047':'#fff';ctx.fillText(label,x+20,y);
+      }
+      ctx.restore();
+    }
     if (aim) {
       const { home, pull } = aim;
       const length = 46 + pull.power * 2.4;
@@ -609,6 +626,7 @@ export function createPitch2D(container) {
     setHumanPlayer(team,index) {const next=team?{team,index}:null;if(JSON.stringify(next)===JSON.stringify(humanPlayer))return;humanPlayer=next;loop.invalidate();},
     setAim(home,pull) {aim=home?{home,pull}:null;loop.invalidate();},
     clearAim() {if(aim){aim=null;loop.invalidate();}},
+    setKeeperChoice(value) {if(JSON.stringify(value)===JSON.stringify(keeperChoice))return;keeperChoice=value;loop.invalidate();},
     setTheme(value) {const next={...theme,...value};if(JSON.stringify(next)===JSON.stringify(theme))return;
       theme=next;paintBackground();loop.invalidate();},
     celebrate() {
@@ -640,7 +658,7 @@ export function createPitch2D(container) {
     },
     snapshot:()=>({renderer:'canvas2d',frames,backgroundBuilds,quality:mode,width:canvas.width,height:canvas.height,
       effects:{particles:particles.length,trail:trail.length,shaking:false,squashing:false},
-      ball:{...ball},players_a:teams.a.map(p=>({...p})),players_b:teams.b.map(p=>({...p})),referee,selection,humanPlayer,aim,loop:loop.stats()}),
+      ball:{...ball},players_a:teams.a.map(p=>({...p})),players_b:teams.b.map(p=>({...p})),referee,selection,humanPlayer,aim,keeperChoice,loop:loop.stats()}),
     dispose(){observer.disconnect();window.removeEventListener('resize',resize);loop.dispose();canvas.remove();},
   };
 }

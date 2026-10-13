@@ -10,8 +10,23 @@ exploration; it does not establish a higher win rate.
 `models/tactics.py` builds a short list using the actual roster, player stats,
 power cap, ball materials, reachable contact geometry, and open passing lanes.
 It considers shots, controlled passes, defensive clearances, and moving toward
-the ball when no player can reach. Goalkeepers stay home when an outfielder can
-reach during an attack. A turn still moves only its selected player.
+the ball when no player can reach. `models/team_support.py` also proposes forward
+support runs when a teammate has the safer position near the ball, including
+when that teammate is the human striker excluded from the AI's turn.
+
+Support players look for open lanes 100–460 pixels from the ball, keep separation
+from teammates and defenders, and use both flanks. One outfielder stays behind
+the ball as cover while the nearest player remains available to play it. Each
+eligible outfielder checks at most twelve destinations and contributes at most
+two runs. Their stopping power follows actual Power/Agility and the match cap;
+the entire path must clear the ball and other players. Already useful receivers
+can hold position. Loose balls, urgent clearances and scoring chances still take
+priority. Goalkeepers stay home when an outfielder can reach during an attack.
+A turn still moves only its selected player.
+
+Support checks are deterministic geometry calculations and create no extra
+physics worlds. The same positional improvement score is used by the quick
+fallback and verified search, within the existing 120 ms / 12-prediction budget.
 
 `models/search_budget.py` verifies up to four tactical seeds, then lets the
 selected agent refine them within the remaining shared budget. The best
@@ -124,3 +139,9 @@ physical parity, roster legality, open passes, defensive clearances, and striker
 constraints. The full Python suite passes 686 tests with 4 skips; the JavaScript
 suites pass 59 tests. The focused browser verifier passed 13 checks; the existing player
 controls verifier passed 55, both without JavaScript exceptions.
+
+`tests/backend/test_team_support.py` checks forward runs with a stationary ball,
+mirrored teams, blocked passing lanes and run paths, distinct flank receivers,
+defensive cover, urgent clearances, stat/power limits, and support choices under
+the existing prediction cap. The older counts above describe the original
+responsiveness release.

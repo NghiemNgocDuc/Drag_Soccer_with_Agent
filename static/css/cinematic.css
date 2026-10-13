@@ -1,0 +1,31 @@
+/* Shared motion stays on decorative layers, never on a gameplay canvas or form. */
+:root{--as-motion-ease:cubic-bezier(.2,.8,.2,1);--as-motion-time:220ms}
+body.as-app .as-motion-toggle{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex-shrink:0;min-width:44px;min-height:44px;padding:8px 10px;border:1px solid #55746a;border-radius:8px;background:transparent;color:#e6f0e8;font-size:11px;font-weight:600;white-space:nowrap}
+body.as-app .as-motion-toggle:hover{background:#29483d}
+body.as-login .as-motion-toggle{color:var(--as-ink);border-color:#bdcfc2}
+body.as-login .as-motion-toggle:hover{background:var(--as-soft)}
+.as-motion-toggle[aria-pressed=true] .as-motion-play,.as-motion-toggle[aria-pressed=false] .as-motion-pause{display:none}
+body.as-app .as-motion-toggle:disabled{opacity:.7;cursor:default}
+[data-motion-depth]{--motion-x:0;--motion-y:0;--motion-depth:8px}
+html.as-motion-enabled:not(.as-motion-paused) [data-motion-depth]{transform:translate3d(calc(var(--motion-x)*var(--motion-depth)),calc(var(--motion-y)*var(--motion-depth)),0);transition:transform 300ms var(--as-motion-ease)}
+html.as-motion-enabled body.as-app :is(.as-nav-link,.as-nav-play,.btn) .as-icon{transition:transform var(--as-motion-time) var(--as-motion-ease)}
+html.as-motion-enabled body.as-app :is(.as-nav-play,.btn):is(:hover,:focus-visible) .as-icon:last-child{transform:translateX(3px)}
+html.as-motion-enabled body.as-app .as-brand:hover>.as-icon{transform:rotate(-18deg);transition:transform 300ms var(--as-motion-ease)}
+html.as-motion-enabled body.as-app [data-motion-card]{transition:transform var(--as-motion-time) var(--as-motion-ease),border-color var(--as-motion-time),box-shadow var(--as-motion-time)}
+html.as-motion-enabled body.as-app [data-motion-card]>.as-icon{transition:transform var(--as-motion-time) var(--as-motion-ease)}
+html.as-motion-enabled body.as-app [data-motion-card]:is(:hover,:focus-visible)>.as-icon{transform:translateY(-2px) rotate(-6deg)}
+html.as-motion-enabled body.as-app [data-motion-card] :is(.card-destination,span)>.as-icon{transition:transform var(--as-motion-time) var(--as-motion-ease)}
+html.as-motion-enabled body.as-app [data-motion-card]:is(:hover,:focus-visible) span>.as-icon{transform:translateX(4px)}
+@media(hover:hover) and (pointer:fine){
+  html.as-motion-enabled:not(.as-motion-paused) body.as-app [data-motion-card]:hover{transform:perspective(900px) rotateX(calc(var(--motion-y,0)*-2deg)) rotateY(calc(var(--motion-x,0)*2deg)) translateY(-4px);box-shadow:0 15px 32px rgb(20 42 43 / 10%)}
+}
+html.as-motion-enabled body.as-app [data-motion-card]:active{scale:.985}
+html.as-motion-enabled .as-dropdown,html.as-motion-enabled .as-toast.show{animation:as-panel-enter 180ms var(--as-motion-ease)}
+@keyframes as-panel-enter{from{opacity:.4;translate:0 -5px}to{opacity:1;translate:0 0}}
+@media(max-width:1200px){.as-motion-toggle>span{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
+@media(max-width:420px){body.as-app .as-account{gap:8px}.as-nav{column-gap:8px}body.as-login .as-login-nav-action{gap:8px}}
+@media(prefers-reduced-motion:reduce){
+  [data-motion-depth],[data-motion-card]{transform:none!important;scale:none!important}
+  [data-motion-loop]{animation:none!important}
+}
+html:not(.as-motion-enabled) [data-motion-loop],html.as-motion-paused [data-motion-loop]{animation-play-state:paused!important}

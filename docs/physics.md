@@ -44,6 +44,11 @@ The normal ball has mass 1.5 (previously 0.75), with rolling deceleration raised
 from 175 to 250 units/s². This reduces travel from the same pull while retaining
 the existing player-disc glide and wall restitution. AI estimates read these
 same material values.
+The four corners have a small arcade bumper: within 26 units of both ball-center
+boundary limits, a grounded ball gets at least 190 units/s inward on each axis.
+It rebounds during the physics substep without teleporting, including when pawns
+crowd an old stuck ball. Ordinary walls keep their soft restitution. AI prediction
+and replay recording use this same rule (`test_corner_bumper.py`).
 Even high-bounce presets cap ball restitution at 0.96. Small/normal/large radii
 are 9.84/12/14.16. Gameplay, replay and live
 spectator rendering use the authoritative size. The ball stays circular on impact.
@@ -62,9 +67,19 @@ Players have solid pitch boundaries, including the goal mouths. A substep guard
 repairs any residual penetration while reflecting outward velocity. Only actual
 contact moves the ball: missed kicks cannot remotely loft or displace it.
 
-New playable matches default to an untimed first-to-five rule (`half_length=0`).
-Waiting, switching tabs or taking time to aim cannot trigger halftime or penalties.
-Timed matches and explicit penalty practice remain available in match settings.
+New playable matches default to 90 minutes (`half_length=45`), at three real
+seconds per game minute: 4½ minutes of regulation. The display is `MM:SS` with
+no fractional suffix. Tied games continue through 105:00 and 120:00, then penalties.
+Timed matches ignore the goal target; explicit untimed practice (`half_length=0`)
+still uses it. Period boundaries advance on state refresh even without a kick,
+with online resets serialized through the room lock. The clock freezes at full
+time or during the shootout. Hidden tabs stop clock painting, not match time.
+
+In local Human vs AI penalties, drag your goalkeeper toward the labeled LEFT or
+RIGHT guide to dive, or forward toward the ball to stay central. Release commits
+one choice; Escape cancels. Buttons provide the same choices. Human penalties
+wait for input, with no automatic five-second save or ten-second shot. Shooting
+still uses the existing pull-back gesture on the ball.
 
 Live and replay 2D playback use the same roster and ball timestamps, capped at
 four seconds per move at normal speed. AI moves use the selected playback speed.

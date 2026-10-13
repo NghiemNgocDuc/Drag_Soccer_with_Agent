@@ -345,6 +345,8 @@ import { createPitch2D } from '/static/js/game/pitch-2d.js';
 import { playTrajectory2D } from '/static/js/game/playback-2d.js';
 import { controlAccess, onlineRevision, onlineReplayPlan } from '/static/js/game/player-controls.js';
 import { createPlayerInput } from '/static/js/game/player-input.js';
+import { createGoalkeeperInput, goalkeeperAccess } from '/static/js/game/goalkeeper-input.js';
+import { matchClockView } from '/static/js/game/match-clock.js';
 const W=1400, H=875, PLAYER_R=20, PLAYER_TRAVEL=8;
 const container=document.getElementById('pitch-container');
 const pitch=createPitch2D(container);
@@ -1511,10 +1513,6 @@ async function submitOnlineKick(playerIdx, angleDeg, power) {
 let CUST_TEAM_A = '#3b82f6';
 let CUST_TEAM_B = '#ef4444';
 
-// Penalty timer refs
-let keepTimer = null;
-let penaltyShootTimer = null;
-
 // Animated ball position
 let animBall = null;
 
@@ -1527,7 +1525,7 @@ function updatePlayerPositions(syncControls=true){
   if(!gameState)return;pitch.setRoster(gameState.players_a,gameState.players_b);
   const human=!ONLINE.active&&gameState.game_mode==='hvai';
   pitch.setHumanPlayer(human?'a':null,gameState.penalty_shootout?0:(gameState.human_player_idx??gameState.players_a.length-1));
-  if(syncControls)playerInput.sync();
+  if(syncControls)syncInputs();
 }
 const playerInput=createPlayerInput({
   canvas:pitch.canvas,getState:()=>gameState,getOnline:()=>ONLINE,isBusy:()=>isAnimating||!!LOCAL_TURN.pending,
@@ -1539,6 +1537,21 @@ const playerInput=createPlayerInput({
 });
 window.setPassType=value=>playerInput.setPassType(value);
 window.__playerControlState=()=>playerInput.snapshot();
+const goalkeeperInput=createGoalkeeperInput({
+  canvas:pitch.canvas,getState:()=>gameState,getOnline:()=>ONLINE,isBusy:()=>isAnimating,
+  getGround:(x,y)=>pitch.point(x,y),hitTest:(x,y,legal)=>pitch.hitTest(x,y,legal,gameState),
+  onPreview:()=>updateKeeperGuide(),onClear:()=>updateKeeperGuide(),
+  onSubmit:chooseKeeperDir,onError:error=>playerInput.reportError(error.message),
+});
+window.__goalkeeperControlState=()=>goalkeeperInput.snapshot();
+function syncInputs(){playerInput.sync();goalkeeperInput.sync();updateKeeperGuide();}
+function updateKeeperGuide(){
+  const access=goalkeeperAccess(gameState,ONLINE,isAnimating);
+  const keeper=gameState?.players_a?.[0];
+  pitch.setKeeperChoice(access.canSave?{origin:{x:keeper.x,y:keeper.y},
+    direction:goalkeeperInput.snapshot().direction,forward:Math.sign(gameState.ball.x-keeper.x)||1}:null);
+  showCaptainHint(false);
+}
 
 // Teams and formations
 let TEAMS_CACHE = [];
@@ -1697,6 +1710,7 @@ requestRender();
 
 // The match clock updates without waking the pitch renderer.
 let hudClockTimer = null;
+let clockRefreshing = false, clockRetryAt = 0;
 function updateClockTimer() {
   if (hudClockTimer) { clearInterval(hudClockTimer); hudClockTimer = null; }
   if (document.hidden) return;
@@ -1717,30 +1731,29 @@ function showThinking() {
 }
 
 function updateMatchClock(st, nowMs = performance.timeOrigin + performance.now()) {
-  // Display regulation time as a conventional 0:00–90:00 match clock.
   const gc = document.getElementById('game-clock');
-  if (gc && st.half_length === 0) {
-    gc.textContent = `First to ${st.win_goal_limit || 5}`;
-    gc.title = 'No timer. Pull back your disc and release.';
-    return;
-  }
-  if (gc && st.start_time) {
-    const hl = st.half_length || 45;
-    const regulationGameSeconds = hl * 2 * 60;
-    const elapsed = Math.max(0, nowMs / 1000 - st.start_time);
-    const gameSeconds = Math.min(regulationGameSeconds, elapsed * 20);
-    const mins = Math.floor(gameSeconds / 60);
-    const secs = Math.floor(gameSeconds % 60);
-    const tenths = Math.floor((gameSeconds % 1) * 10);
-    const text = String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0') + '.' + tenths;
-    if (gc.textContent !== text) gc.textContent = text;
-    const title = st.period + (st.game_over ? ' — FT' : '');
-    if (gc.title !== title) gc.title = title;
-  }
+  const clock=matchClockView(st,nowMs);
+  if(gc){if(gc.textContent!==clock.text)gc.textContent=clock.text;if(gc.title!==clock.title)gc.title=clock.title;}
+  if(st===gameState && clock.due)void refreshMatchPeriod();
+}
+
+async function refreshMatchPeriod(){
+  if(clockRefreshing||document.hidden||ONLINE.active||isAnimating||Date.now()<clockRetryAt)return;
+  clockRefreshing=true;
+  const run=beginLocalTurn();isAnimating=true;syncInputs();
+  try{
+    const response=await fetch('/state',{signal:run.signal});
+    if(!response.ok)throw new Error('Could not update match clock. Retrying.');
+    const data=await response.json();
+    if(!run.current())return;
+    LOCAL_TURN.pending=null;
+    await displayMove({...data,period_changed:true},'move_result',null,{current:run.current});
+  }catch(error){if(run.current()){clockRetryAt=Date.now()+2000;playerInput.reportError(error.message);}}
+  finally{clockRefreshing=false;finishLocalTurn(run);}
 }
 
 function updateHUD(st) {
-  playerInput.sync();
+  syncInputs();
   document.querySelector('.team-a .team-name').textContent = ONLINE.active ? ONLINE.nameA || 'Team A' : st.game_mode === 'hvai' ? 'You' : 'Team A';
   document.querySelector('.team-b .team-name').textContent = ONLINE.active ? ONLINE.nameB || 'Team B' : st.game_mode === 'hvai' ? 'AI' : 'Team B';
   syncBallSize(st);
@@ -1763,25 +1776,20 @@ function updateHUD(st) {
     pUI.style.display = 'block';
     const isA = st.is_player_a;
     const m = st.game_mode;
-    pScore.textContent = 'Penalty ' + (st.penalty_kick_num + 1) + '/' + (st.penalty_kicks.length || 5) +
+    pScore.textContent = 'Penalty ' + (st.penalty_kick_num + 1) +
       ' — A: ' + st.penalty_a_score + ' / B: ' + st.penalty_b_score;
     if (m === 'hvai' && !isA) {
-      keeperBtns.style.display = 'flex';
-      startKeeperTimer();
+      keeperBtns.style.display = isAnimating || st.penalty_goalkeeper_move ? 'none' : 'flex';
+      keeperTimer.textContent = 'Drag your keeper sideways to dive, or toward the ball to stay. You can also use the buttons.';
     } else if (m === 'hvai' && isA) {
       keeperBtns.style.display = 'none';
-      if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
-      startPenaltyShootTimer();
+      keeperTimer.textContent = 'Pull back from the ball and release to take your penalty.';
     } else {
       keeperBtns.style.display = 'none';
       keeperTimer.textContent = '';
-      if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
-      if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
     }
   } else {
     pUI.style.display = 'none';
-    if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
-    if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
   }
 
   if (over) {
@@ -1834,9 +1842,10 @@ function updateHUD(st) {
     }
   }
   const aiBtn = document.getElementById('aivai-btn');
-  aiBtn.style.display = !ONLINE.active && (st.game_mode === 'aivai' || (st.game_mode === 'hvai' && !st.penalty_shootout && (!st.is_player_a || LOCAL_TURN.pending))) ? '' : 'none';
+  const retryPenalty=st.game_mode==='hvai' && st.penalty_shootout && !st.is_player_a && st.penalty_goalkeeper_move;
+  aiBtn.style.display = !ONLINE.active && (st.game_mode === 'aivai' || retryPenalty || (st.game_mode === 'hvai' && !st.penalty_shootout && (!st.is_player_a || LOCAL_TURN.pending))) ? '' : 'none';
   aiBtn.disabled = isAnimating || st.game_over;
-  aiBtn.textContent = st.game_mode === 'aivai' ? 'Run AI' : 'Retry AI move';
+  aiBtn.textContent = st.game_mode === 'aivai' ? 'Run AI' : retryPenalty ? 'Continue penalty' : 'Retry AI move';
 }
 // A separate DOM timer keeps the match clock moving between server updates.
 
@@ -1851,53 +1860,20 @@ function logMove(text, isGoal) {
 
 //  Penalty Shootout
 async function chooseKeeperDir(dir) {
-  if (isAnimating || !gameState?.penalty_shootout || gameState.game_over) return;
-  if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
+  if (!goalkeeperAccess(gameState,ONLINE,isAnimating).canSave || !['left','center','right'].includes(dir)) return;
   document.getElementById('penalty-keeper-btns').style.display = 'none';
   document.getElementById('penalty-keeper-timer').textContent = '';
-  await triggerAI({ keeperDirection: dir });
+  await triggerAI({ keeperDirection: dir, reportFailure: true });
 }
-window.chooseKeeperDir = chooseKeeperDir;
-
-function startKeeperTimer() {
-  if (keepTimer) { clearInterval(keepTimer); keepTimer = null; }
-  let sec = 5;
-  document.getElementById('penalty-keeper-timer').textContent = 'Goalkeeper: ' + sec + 's';
-  keepTimer = setInterval(() => {
-    sec--;
-    document.getElementById('penalty-keeper-timer').textContent = 'Goalkeeper: ' + sec + 's';
-    if (sec <= 0) {
-      clearInterval(keepTimer); keepTimer = null;
-      document.getElementById('penalty-keeper-btns').style.display = 'none';
-      document.getElementById('penalty-keeper-timer').textContent = '';
-      autoPenaltyKick();
-    }
-  }, 1000);
-}
-
-function startPenaltyShootTimer() {
-  if (penaltyShootTimer) { clearInterval(penaltyShootTimer); penaltyShootTimer = null; }
-  let sec = 10;
-  document.getElementById('penalty-keeper-timer').textContent = 'Shoot! ' + sec + 's';
-  penaltyShootTimer = setInterval(() => {
-    sec--;
-    document.getElementById('penalty-keeper-timer').textContent = 'Shoot! ' + sec + 's';
-    if (sec <= 0) {
-      clearInterval(penaltyShootTimer); penaltyShootTimer = null;
-      document.getElementById('penalty-keeper-timer').textContent = '';
-      autoPenaltyKick();
-    }
-  }, 1000);
-}
-
-async function autoPenaltyKick() {
-  if (isAnimating || !gameState || gameState.game_over) return;
-  await triggerAI({ keeperDirection: gameState.game_mode === 'hvai' && !gameState.is_player_a && !gameState.penalty_goalkeeper_move ? 'center' : null });
-}
+// Button failures are already shown by triggerAI; pointer failures reach its controller.
+window.chooseKeeperDir = dir => { void chooseKeeperDir(dir).catch(()=>{}); };
 
 function showCaptainHint(show){
-  document.getElementById('captain-hint').style.display=show?'block':'none';
-  pitch.canvas.style.cursor=show?'grab':'default';
+  const canSave=goalkeeperAccess(gameState,ONLINE,isAnimating).canSave;
+  const hint=document.getElementById('captain-hint');
+  hint.textContent=canSave?'Drag keeper to LEFT / RIGHT. Toward ball = STAY.':'Pull back to aim. Release to kick.';
+  hint.style.display=show||canSave?'block':'none';
+  pitch.canvas.style.cursor=show||canSave?'grab':'default';
 }
 function animateTrajectory(trajectory,onDone,current=()=>true,playbackSpeed=animSpeed) {
   syncBallSize(trajectory?.[0]?.ball_size?trajectory[0]:gameState);
@@ -2014,6 +1990,7 @@ function cancelLocalTurn() {
   LOCAL_TURN.timer = null; LOCAL_TURN.pending = null;
   isAnimating = false; animBall = null; _skipKickerIdx = -1; _skipKickerTeam = '';
   pitch.clearAim();
+  goalkeeperInput.cancel();pitch.setKeeperChoice(null);
 }
 
 function beginLocalTurn() {
@@ -2031,7 +2008,12 @@ function finishLocalTurn(run) {
   if (!run.current()) return;
   LOCAL_TURN.controller = null;
   isAnimating = false; _skipKickerIdx = -1; _skipKickerTeam = '';
-  setOverlay(false); playerInput.sync(); updateHUD(gameState);
+  setOverlay(false); syncInputs(); updateHUD(gameState);
+  if(gameState.period_changed && !gameState.game_over && !gameState.penalty_shootout &&
+    (gameState.game_mode==='aivai'||(gameState.game_mode==='hvai'&&!gameState.is_player_a))){
+    delete gameState.period_changed;
+    void triggerAI();
+  }
 }
 
 async function requestMoveState(url, command, run) {
@@ -2062,6 +2044,7 @@ async function completeHumanTurn(run) {
     const data = await requestMoveState(url, undefined, run);
     await displayMove(data, key, teammate ? 'a' : 'b', { current: run.current, speed: animSpeed });
     if (!run.current()) return;
+    if(data.period_changed){LOCAL_TURN.pending=null;return;}
     if (phase === 2) LOCAL_TURN.pending = null;
     else LOCAL_TURN.pending.phase++;
   }
@@ -2079,7 +2062,7 @@ async function submitKick(playerIdx, angleDeg, power) {
     await displayMove(data, 'move_result', legal.team, { current: run.current });
     if (!run.current()) return;
     // In a shootout the human must choose their keeper direction before the AI.
-    if (!gameState.game_over && gameState.game_mode === 'hvai' && !gameState.is_player_a && !gameState.penalty_shootout) {
+    if (!data.period_changed && !gameState.game_over && gameState.game_mode === 'hvai' && !gameState.is_player_a && !gameState.penalty_shootout) {
       LOCAL_TURN.pending = { phase: 0 };
       await completeHumanTurn(run);
     }
@@ -2087,20 +2070,20 @@ async function submitKick(playerIdx, angleDeg, power) {
   finally { finishLocalTurn(run); }
 }
 
-async function triggerAI({ keeperDirection = null } = {}) {
+async function triggerAI({ keeperDirection = null, reportFailure = false } = {}) {
   if (isAnimating || ONLINE.active || !gameState || gameState.game_over) return;
   if (gameState.game_mode === 'hvai' && gameState.is_player_a && !gameState.penalty_shootout && !LOCAL_TURN.pending) return;
   if (LOCAL_TURN.timer !== null) { clearTimeout(LOCAL_TURN.timer); LOCAL_TURN.timer = null; }
   const run = beginLocalTurn();
   const team = gameState.is_player_a ? 'a' : 'b';
-  isAnimating = true; playerInput.sync(); showThinking();
+  isAnimating = true; syncInputs(); showThinking();
   let continueAI = false;
   try {
     if (keeperDirection) await requestMoveState('/goalkeeper_move', { direction: keeperDirection }, run);
     if (LOCAL_TURN.pending && !gameState.penalty_shootout) await completeHumanTurn(run);
     else await displayMove(await requestMoveState('/ai_move', undefined, run), 'ai_result', team, { current: run.current, speed: animSpeed });
     continueAI = run.current() && gameState.game_mode === 'aivai' && !gameState.game_over;
-  } catch (error) { if (run.current()) playerInput.reportError(error.message); }
+  } catch (error) { if (run.current()) {playerInput.reportError(error.message);if(reportFailure)throw error;} }
   finally { finishLocalTurn(run); }
   if (continueAI) {
     const generation = LOCAL_TURN.generation, onlineGeneration = ONLINE.generation;

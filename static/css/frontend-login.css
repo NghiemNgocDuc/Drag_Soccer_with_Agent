@@ -1,4 +1,4 @@
-/* Login-only layout. The illustration is static SVG: no renderer or frame loop. */
+/* Login-only layout. SVG artwork uses optional CSS motion; no renderer or frame loop. */
 .as-login { --login-forest:#163d34; }
 .as-login .as-login-header { background:var(--as-bg); border-bottom:1px solid var(--as-line); }
 .as-login .as-nav { max-width:1320px; min-height:86px; padding:0 12px; }
