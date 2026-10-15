@@ -140,6 +140,13 @@ def main():
             page.goto(base + '/__2d/login/desktop')
             ready(page)
             check('Canvas renders 5v5', page.evaluate('window.__pitch2D().players_a.length===5 && window.__pitch2D().width>0'))
+            for model in ('possession','counter_attack','high_press'):
+                page.wait_for_function('(id)=>!!document.querySelector(`#model-select option[value="${id}"]`)', arg=model)
+                with page.expect_response(lambda response: response.url.endswith('/switch_model')) as switched:
+                    page.locator('#model-select').select_option(model)
+                check('new model selectable: '+model, switched.value.ok and context.request.get(base+'/state').json()['ai_model']==model)
+            with page.expect_response(lambda response: response.url.endswith('/switch_model')):
+                page.locator('#model-select').select_option('greedy')
             check('live audio is silent until a goal and allocates no crowd buffers', page.evaluate('SoundManager._goalOnly && !SoundManager._ambientSource && SoundManager._buffers.size===0 && SoundManager._effects.size===0'))
             check('no horizontal overflow', page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
             idle(page)

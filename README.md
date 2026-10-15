@@ -141,7 +141,7 @@ The contract and execution settings live in [user_models/runner.py](user_models/
 
 ## AI catalog
 
-Twelve built-in agents offer different ways to choose a kick. The supported IDs are defined in [app.py](app.py).
+Fifteen built-in agents offer different ways to choose a kick. The supported IDs are defined in [app.py](app.py).
 
 | Agent ID | Approach |
 | --- | --- |
@@ -155,12 +155,17 @@ Twelve built-in agents offer different ways to choose a kick. The supported IDs 
 | `goalnet_gat` | Handcrafted attention, centrality, and threat scoring |
 | `edms` | Space, pass, and threat heuristics |
 | `team_coordinated` | Kick selection using team spacing and possession value |
+| `possession` | Patient short passes, safe receivers, and controlled possession |
+| `counter_attack` | Direct forward progress balanced against turnover risk |
+| `high_press` | Outfield pressure and closing down loose balls |
 | `hybrid_ensemble` | Region-based expert selection and fixed-weight voting |
 | `langchain` | Optional LLM candidates with physics checks and a local fallback |
 
 Built-in agents share a fast tactical shortlist for shots, open passes, clearances, and support. Their searches stop after **120 ms or 12 physics predictions** by default, keeping the best completed move; the Q-table learner retains its immediate lookup. Each agent refines the shortlist while time remains. The advantage and attention agents use handcrafted scoring. The LLM agent uses its local strategy in the default fast mode.
 
 Live requests use four worker slots per process and return a legal tactical fallback when busy. Built-in physics searches stop cooperatively; arbitrary uploaded Python retains its slot until execution finishes. See [AI responsiveness](docs/ai-responsiveness.md) for tuning, timing measurements, and tradeoffs.
+
+Possession, Counter Attack, and High Press are lightweight deterministic tactical agents, with no downloads, API keys, or training data. Their own scoring priorities apply to both candidate ordering and budget-limited results. Goals, keeper safety, spacing, and the existing one-player-at-a-time turns remain shared.
 
 ## Architecture
 

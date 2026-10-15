@@ -7,6 +7,19 @@ exploration; it does not establish a higher win rate.
 
 ## How decisions work
 
+The catalog includes three additional tactical styles: `possession` prefers safe
+short outlets, `counter_attack` values direct forward progress while penalizing
+turnovers, and `high_press` rewards outfield players closing down the ball.
+`models/tactical_styles.py` shares their geometry and search code. These are
+deterministic heuristics, not trained neural networks; they need no additional
+dependencies, downloaded weights, remote calls, or persistent storage.
+
+Their scorer is passed through candidate ordering and `SearchBudget.record`,
+so a timeout retains the best completed result for that style. They use the
+existing 120 ms / 12-prediction limits, keeper safeguards, support runs, and
+one-pawn turns. An already-expired request still returns the generic legal
+fallback immediately. Regression checks are in `test_tactical_styles.py`.
+
 `models/tactics.py` builds a short list using the actual roster, player stats,
 power cap, ball materials, reachable contact geometry, and open passing lanes.
 It considers shots, controlled passes, defensive clearances, and moving toward

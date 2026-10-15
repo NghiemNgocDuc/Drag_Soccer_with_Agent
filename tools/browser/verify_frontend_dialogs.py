@@ -39,14 +39,14 @@ def run() -> list[dict]:
     markup = re.sub(r"<script\b[^>]*>[\s\S]*?</script>", "", markup, flags=re.IGNORECASE)
     markup = re.sub(r"<link\b[^>]*>", "", markup, flags=re.IGNORECASE)
     styles = "\n".join((ROOT / "static" / name).read_text(encoding="utf-8")
-                       for name in ("css/frontend.css", "css/frontend-game.css"))
+                       for name in ("css/frontend.css", "css/frontend-game.css", "css/model-picker.css"))
     styles = re.sub(r"@import[^;]+;", "", styles)
     source = (ROOT / "templates/game/index_2d.html").read_text(encoding="utf-8")
     functions = [game_function(source, name) for name in
                  ("showOnlineLobby", "closeOnlineLobby", "createOnlineMatch", "openMatchModels", "closeMatchModels",
                   "showHighlights", "closeHighlights", "showPlayerRatings", "closeRatings")]
     functions += [game_function(source, name, plain=True) for name in (
-        "detectHighlights", "escM", "onlineJSON", "lobbyStatus", "lobbyBusy",
+        "detectHighlights", "modelChoiceError", "onlineJSON", "lobbyStatus", "lobbyBusy",
         "resetLobbyView", "offerResumeRoom", "cancelWaitingRoom", "cancelLobbyWait", "lobbyDelay",
     )]
     results = []
@@ -62,26 +62,29 @@ def run() -> list[dict]:
         page.set_content(markup)
         page.add_style_tag(content=styles)
         page.add_script_tag(path=str(ROOT / "static/js/ui/frontend.js"))
-        page.evaluate("() => {window.gameState={}; window.fetch=async()=>({json:async()=>({models:[{id:'greedy',name:'Greedy',type:'builtin',desc:'Test model'}]})});}")
+        page.evaluate("() => {window.gameState={}; window.fetch=async()=>({ok:true,json:async()=>[{id:'greedy',name:'Greedy',type:'builtin',desc:'Test model'}]});}")
         # Supply the current lobby state and its real helpers, while keeping
         # renderer initialization and ranked matchmaking outside this fixture.
         page.add_script_tag(content="""
           const ONLINE = {active:false}, RANKED = {active:false}, QUICK = {active:false};
           let isAnimating = false;
         """ + re.search(r"^const ONLINE_LOBBY = .*;$", source, re.MULTILINE)[0])
+        picker = (ROOT / "static/js/game/model-picker.js").read_text(encoding="utf-8")
+        page.add_script_tag(content=picker.replace('export function createModelPicker', 'function createModelPicker')
+                            + '\nconst modelPicker = createModelPicker({onChoose:async()=>{}});')
         page.add_script_tag(content="\n".join(functions))
 
         page.locator("#online-btn").click()
         page.locator("#match-models-btn").click()
-        page.wait_for_function("document.querySelector('#match-models-list button')")
+        page.wait_for_function("document.querySelector('#match-models-list input')")
         check("Model picker receives focus", page.evaluate("document.activeElement.closest('.online-modal').id") == "match-models-modal")
         check("Dialog IDs are unique", page.evaluate("new Set([...document.querySelectorAll('[id]')].map(el=>el.id)).size===document.querySelectorAll('[id]').length"))
         child = page.locator("#match-models-modal")
-        child.get_by_role("link", name="Go to Code Models").focus()
+        child.get_by_role("link", name="Manage my models").focus()
         page.keyboard.press("Tab")
-        check("Child Tab wraps within model picker", page.evaluate("document.activeElement===document.querySelector('#match-models-modal a[href]')"))
+        check("Child Tab wraps within model picker", page.evaluate("document.activeElement===document.querySelector('#match-models-modal [data-dialog-close]')"))
         page.keyboard.press("Shift+Tab")
-        check("Child reverse Tab wraps within model picker", page.evaluate("document.activeElement.textContent.trim()") == "Go to Code Models")
+        check("Child reverse Tab wraps within model picker", page.evaluate("document.activeElement.textContent.trim()") == "Manage my models")
         page.keyboard.press("Escape")
         check("Child Escape preserves parent lobby", child.is_hidden() and page.locator("#online-lobby").is_visible())
         check("Child close restores parent opener", page.evaluate("document.activeElement.id") == "match-models-btn")

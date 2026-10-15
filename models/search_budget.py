@@ -19,6 +19,7 @@ BUILTIN_MODULES = frozenset({
     "models.voronoi", "models.a2c_lite", "models.expectimax",
     "models.adaptive_learner", "models.goalnet_gat", "models.edms",
     "models.team_coordinated", "models.hybrid_ensemble", "models.langchain_model",
+    "models.possession", "models.counter_attack", "models.high_press",
 })
 
 
@@ -48,10 +49,11 @@ def is_builtin(model):
 
 class SearchBudget:
     def __init__(self, state, side, allowed_players, budget_s, max_simulations,
-                 cancelled=None):
+                 cancelled=None, evaluator=None):
         from models.tactics import quick_move
 
         self.state = state
+        self.evaluator = evaluator
         self.side = side
         players = state["players_a" if side else "players_b"]
         eligible = range(len(players)) if allowed_players is None else allowed_players
@@ -117,7 +119,7 @@ class SearchBudget:
         if key is None:
             return
         self.cache[key] = result
-        value = evaluate_outcome(state, side, move, *result)
+        value = (self.evaluator or evaluate_outcome)(state, side, move, *result)
         if value > self.best_value:
             self.best_value = value
             self.best_move = move
@@ -141,6 +143,7 @@ experts share the parent budget instead of starting another complete search.
         DEFAULT_BUDGET_S if budget_s is None else budget_s,
         DEFAULT_MAX_SIMULATIONS if max_simulations is None else max_simulations,
         cancelled,
+        evaluator=getattr(model, "evaluate_move", None),
     )
     token = _current.set(search)
     started = time.perf_counter()
@@ -156,7 +159,8 @@ experts share the parent budget instead of starting another complete search.
                 state.pop("_learner_last", None)
             return search.best_move
 
-        for move in tactical_candidates(state, is_player_a, search.allowed, max_candidates=4):
+        scoring = {"evaluator": search.evaluator} if search.evaluator is not None else {}
+        for move in tactical_candidates(state, is_player_a, search.allowed, max_candidates=4, **scoring):
             result = simulate_kick(state, *move, is_player_a)
             if result[1] == ("A" if is_player_a else "B"):
                 return search.best_move

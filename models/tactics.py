@@ -193,7 +193,7 @@ def evaluate_outcome(state, side, move, trajectory, scored, *, support_plan=None
     return value
 
 
-def tactical_candidates(state, side, allowed_players=None, max_candidates=8):
+def tactical_candidates(state, side, allowed_players=None, max_candidates=8, *, evaluator=None):
     """Return a small ordered shortlist of legal shots, passes, clears or support.
 
     ``allowed_players`` restricts who may kick (for captain-only modes). Reach
@@ -242,7 +242,8 @@ def tactical_candidates(state, side, allowed_players=None, max_candidates=8):
         if goal and _lane_blocked(ball, endpoint, opponents, material):
             goal = None
             bonus -= 170.0
-        value = evaluate_outcome(state, side, move, [endpoint], goal, support_plan=support_plan) + bonus
+        score = evaluator or evaluate_outcome
+        value = score(state, side, move, [endpoint], goal, support_plan=support_plan) + bonus
         # Resolve genuinely equivalent mirrored moves by insertion order, not
         # by insignificant trigonometric floating-point noise.
         ranked.append((round(value, 8), len(ranked), move))

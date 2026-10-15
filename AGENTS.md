@@ -7,11 +7,15 @@ Browser-based five-a-side 2D soccer game where human/AI players take turns kicki
 
 - **Backend**: Flask (Python), pymunk physics engine, Redis (Upstash) + Supabase, gthread 4×2
 - **Frontend**: Canvas 2D via `templates/game/index_2d.html` and `replay_2d.html`, shared `pitch-2d.js`, `playback-2d.js`, SoundManager (`static/js/game/sound.js`), shared CSS and local fonts
-- **AI models**: 12 supported IDs in `app.py:MODELS`; current catalog and approaches are in README. Built-ins share a 120 ms / 12-prediction budget, tactical seeds, and cooperative physics cancellation; the Q learner retains its immediate lookup. Live requests use four worker slots and a legal tactical fallback. Unknown/custom models retain a two-second request wait and keep their slot until done; uploaded execution has a separate five-second limit. See `docs/ai-responsiveness.md`. Historical feature sections below may describe retired agents.
+- **AI models**: 15 supported IDs in `app.py:MODELS`; current catalog and approaches are in README. Possession, Counter Attack, and High Press share `models/tactical_styles.py`, with style-specific scoring retained through candidate ordering and budget cutoffs. Built-ins share a 120 ms / 12-prediction budget, tactical seeds, and cooperative physics cancellation; the Q learner retains its immediate lookup. Live requests use four worker slots and a legal tactical fallback. Unknown/custom models retain a two-second request wait and keep their slot until done; uploaded execution has a separate five-second limit. See `docs/ai-responsiveness.md`. Historical feature sections below may describe retired agents.
 - **Auth**: Supabase + Clerk optional, Flask-Login, dev `DEV_MODE=1` in-memory
 - **2D default**: `/play2d` and `/replay2d/<tid>/<match_id>` serve Canvas views; existing `/play3d` and `/replay3d` URLs remain compatible aliases. Spectators, highlights and loss review also use 2D. The old 3D templates are retained as unserved reference files. The served diagram is `static/images/workflow.png`; its editable source is `docs/diagrams/workflow-source.html`.
 
 ## What's in place
+
+### Opponent picker
+- The served game uses a dedicated opponent panel and a shared searchable model library (`static/js/game/model-picker.js`, `static/css/model-picker.css`). Native select/radio controls, built-in/custom filters, concise playing styles, one scrolling results area and one confirmation action work on desktop and mobile.
+- Selection checks server responses, preserves custom model IDs and the previous opponent on failed saves, prevents duplicate requests, and blocks changes during moves or matchmaking. Catalog loading is cached per page with retry; no polling or animation loop is added. Verify with `python tools/browser/verify_model_picker.py` and `python tools/browser/verify_frontend_dialogs.py`.
 
 ### Cinematic page motion
 - Shared `cinematic.js` / `cinematic.css` add one-time entrances, pointer-responsive artwork and destination cards, and menu transitions across public pages and hubs. Gameplay canvases and controls are excluded from decorative transforms.

@@ -81,6 +81,7 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
 {% include 'shared/_ui_assets.html' %}
 <link rel="stylesheet" href="/static/css/frontend-game.css">
 <link rel="stylesheet" href="/static/css/pitch-2d.css">
+<link rel="stylesheet" href="/static/css/model-picker.css">
 </head>
 <body class="as-app as-game as-flick-game">
 <div class="flash-msg" id="flash-msg"></div>
@@ -145,14 +146,24 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
   </div>
   </div>
   <div id="match-chat-wrap"></div>
-  <section class="as-control-panel" aria-labelledby="match-controls-title"><div class="as-control-panel-heading"><h2 id="match-controls-title">Match controls</h2><p>Choose your opponent, pace, and pass.</p></div><div class="glass controls">
+  <section class="as-control-panel" aria-labelledby="match-controls-title"><div class="as-control-panel-heading"><h2 id="match-controls-title">Match controls</h2><p>Choose your opponent, pace, and pass.</p></div>
+    <div class="opponent-control">
+      <div class="opponent-control-title"><span class="as-section-label">Your opposition</span><h3>Choose a playing style</h3></div>
+      <div class="opponent-selection">
+        <label for="model-select">AI opponent</label>
+        <select id="model-select" aria-describedby="model-summary model-select-status" onchange="switchModel(this.value)"><option value="greedy">Greedy</option></select>
+        <p id="model-summary">A direct, goal-focused opponent.</p>
+      </div>
+      <button type="button" class="btn btn-ghost" id="browse-models-btn" onclick="openMatchModels(false)" aria-haspopup="dialog">Browse models {{ icon('arrow-right') }}</button>
+      <p id="model-select-status" class="model-status" role="status"></p>
+    </div>
+    <div class="glass controls">
     <div class="as-control-field"><label for="mode-select">Match mode</label>
     <select id="mode-select" onchange="setMode(this.value)">
       <option value="hvai">Human vs AI</option>
       <option value="hvh">Human vs Human</option>
       <option value="aivai">AI vs AI</option>
     </select></div>
-    <div class="as-control-field"><label for="model-select">AI opponent</label><select id="model-select" onchange="switchModel(this.value)"><option value="greedy">Greedy Striker</option></select></div>
     <div class="sep"></div>
     <button class="btn btn-primary" onclick="resetGame()">New Game</button>
     <button class="btn btn-ghost" onclick="undoMove()">Undo</button>
@@ -239,7 +250,7 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
         <p style="font-size:.72rem;color:var(--muted);margin-bottom:8px">Player vs Player searches for an active player — if none in 8s you play a random AI. Player vs AI is instant vs a random built-in.</p>
         <div class="row" style="gap:8px">
           <button class="btn btn-primary" id="quick-play-btn" onclick="quickPlayPVP()">Play</button>
-          <button class="btn btn-ghost" id="match-models-btn" onclick="openMatchModels()">Match Models</button>
+          <button class="btn btn-ghost" id="match-models-btn" onclick="openMatchModels(true)" aria-haspopup="dialog">Choose AI opponent</button>
           <button class="btn btn-ghost" id="quick-pva-btn" onclick="quickPlayVsAI()">Player vs AI</button>
           <button class="btn btn-ghost" id="quick-cancel-btn" style="display:none" onclick="quickCancel()">Cancel</button>
         </div>
@@ -253,16 +264,37 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
       <style>@keyframes qm-spin{to{transform:rotate(360deg)}}</style>
     </div>
   </div>
-    <!-- Match Models picker (choose any stored model to play vs) -->
+    <!-- Shared opponent library for local controls and quick play. -->
     <div class="online-modal" id="match-models-modal" style="display:none">
-      <div class="online-modal-card" style="max-width:520px;max-height:80vh;overflow:auto">
-        <h3>Match Models</h3>
-        <p style="font-size:.8rem;color:#475569">Pick a model from the coding editor (builtins + your code models) to play against. Tip: <a href="/learn" style="color:#0284c7">Learn</a> shows how to code your own, <a href="/my-models" style="color:#0284c7">My Models</a> to write it.</p>
-        <div id="match-models-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px;max-height:48vh;overflow:auto"></div>
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn btn-ghost" onclick="closeMatchModels()">Close</button>
-          <a class="btn btn-primary" href="/my-models" style="margin-left:auto">Go to Code Models</a>
+      <div class="online-modal-card model-picker" aria-describedby="model-picker-intro">
+        <header class="model-picker-header">
+          <span class="as-section-label">Opponent library</span>
+          <h3>Find your next challenge</h3>
+          <p id="model-picker-intro">Different minds. Different ways to play.</p>
+          <button type="button" class="as-dialog-close" data-dialog-close aria-label="Close model picker" onclick="closeMatchModels()"><svg class="as-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6"/></svg></button>
+        </header>
+        <div class="model-picker-tools">
+          <label class="model-search-label" for="model-search">Search models</label>
+          <div class="model-search-field">{{ icon('search') }}<input id="model-search" type="search" placeholder="Search by name or playing style" autocomplete="off"></div>
+          <div class="model-picker-filter-row">
+            <div class="model-filters" role="group" aria-label="Model source">
+              <button type="button" data-model-filter="all" aria-pressed="true">All models</button>
+              <button type="button" data-model-filter="builtin" aria-pressed="false">Built-in</button>
+              <button type="button" data-model-filter="user" aria-pressed="false">My models</button>
+            </div>
+            <span id="model-results-count" role="status"></span>
+          </div>
         </div>
+        <div class="model-picker-results" tabindex="0" aria-label="Available opponents">
+          <div id="match-models-list" role="radiogroup" aria-label="Choose an opponent"></div>
+          <div id="model-picker-empty" class="model-picker-empty" hidden></div>
+          <button type="button" class="btn btn-ghost" id="model-picker-retry" hidden>Try again</button>
+        </div>
+        <footer class="model-picker-footer">
+          <div class="model-picker-selection"><span class="as-section-label">Selected opponent</span><strong id="model-picker-selected">Choose a model</strong><p id="model-picker-status" class="model-status" role="status"></p></div>
+          <button type="button" class="btn btn-primary" id="model-picker-apply" disabled>Use opponent {{ icon('arrow-right') }}</button>
+        </footer>
+        <div class="model-picker-workshop"><span>Have your own tactics?</span><a href="/my-models">Manage my models {{ icon('arrow-right') }}</a></div>
       </div>
     </div>
     <!-- Post-game: Highlights (shot-only) -->
@@ -347,6 +379,7 @@ import { controlAccess, onlineRevision, onlineReplayPlan } from '/static/js/game
 import { createPlayerInput } from '/static/js/game/player-input.js';
 import { createGoalkeeperInput, goalkeeperAccess } from '/static/js/game/goalkeeper-input.js';
 import { matchClockView } from '/static/js/game/match-clock.js';
+import { createModelPicker } from '/static/js/game/model-picker.js';
 const W=1400, H=875, PLAYER_R=20, PLAYER_TRAVEL=8;
 const container=document.getElementById('pitch-container');
 const pitch=createPitch2D(container);
@@ -560,7 +593,7 @@ window.joinOnlineByCode = async function() {
 
 function setOnlineUI(active) {
   document.getElementById('mode-select').disabled = active;
-  document.getElementById('model-select').disabled = active;
+  modelPicker.setDisabled(active);
   document.getElementById('aivai-btn').style.display = 'none';
   document.getElementById('online-btn').style.display = active ? 'none' : '';
   document.getElementById('online-leave-btn').style.display = active ? '' : 'none';
@@ -1053,47 +1086,62 @@ function resetQuickUI(){
 }
 window.quickPlayPVP = window.quickPlayPVP; window.quickPlayVsAI = window.quickPlayVsAI; window.quickCancel = window.quickCancel;
 
-// Match Models picker — list from coding editor (builtins + my models)
-window.openMatchModels = async function(){
-  const modal=document.getElementById('match-models-modal');
-  const list=document.getElementById('match-models-list');
-  list.innerHTML='<div style="font-size:.82rem;color:var(--muted)">Loading models…</div>';
-  modal.style.display='flex';
-  window.AgentSoccerDialogs.open(modal);
-  try{
-    const r=await fetch('/api/quick/models');
-    const d=await r.json();
-    const models=d.models||[];
-    if(!models.length){ list.innerHTML='<div style="font-size:.82rem;color:#ef4444">No models found</div>'; return; }
-    list.innerHTML='';
-    models.forEach(m=>{
-      const row=document.createElement('div');
-      row.style='display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid rgba(148,163,184,.2);border-radius:10px;cursor:pointer;background:rgba(255,255,255,.6)';
-      row.innerHTML='<div style="flex:1"><div style="font-size:.85rem;font-weight:700">'+escM(m.name)+'<span style="font-size:.68rem;color:var(--muted);margin-left:6px">'+escM(m.type)+'</span></div><div style="font-size:.72rem;color:var(--muted)">'+escM(m.desc||'')+'</div></div><button class="btn btn-primary btn-sm">Play vs this</button>';
-      row.onclick=()=> playVsModel(m.id);
-      row.querySelector('button').onclick=(e)=>{ e.stopPropagation(); playVsModel(m.id); };
-      list.appendChild(row);
-    });
-  }catch(e){ list.innerHTML='<div style="font-size:.82rem;color:#ef4444">Failed to load</div>'; }
-};
-window.closeMatchModels = function(){ const modal=document.getElementById('match-models-modal');modal.style.display='none';window.AgentSoccerDialogs.close(modal); };
-async function playVsModel(modelId){
-  closeMatchModels();
-  const st=document.getElementById('quick-status');
-  st.style.display='block'; st.textContent='Starting vs '+modelId+'…';
-  try{
-    // close quick queue if active
-    try{ await fetch('/api/quick/cancel',{method:'POST'});}catch(e){}
-    resetQuickUI();
-    await fetch('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model: modelId.replace(/^user_model:/,''), target:'b'}) });
-    closeOnlineLobby();
-    const modeSel=document.getElementById('mode-select'); if(modeSel) modeSel.value='hvai';
-    if (window.setMode) await window.setMode('hvai');
-    st.textContent='Vs '+modelId+' ready';
-    setTimeout(()=> st.style.display='none', 1800);
-  }catch(e){ st.textContent='Failed to start vs '+modelId; }
+// One catalog and save path for the compact select and opponent library.
+function modelChoiceError() {
+  if (!gameState) return 'Wait for the match to load.';
+  if (ONLINE.active) return 'Return to a local game to change the AI opponent.';
+  if (isAnimating) return 'Finish the current move before changing opponents.';
+  if (ONLINE_LOBBY.busy || ONLINE_LOBBY.waitRoom || QUICK.active || QUICK.joining || QUICK.cancelling || RANKED.active || RANKED.joining || RANKED.cancelling)
+    return 'Cancel your match search before choosing an AI opponent.';
+  return '';
 }
-function escM(s){ const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
+const modelPicker = createModelPicker({
+  async onChoose(id, {play}) {
+    const error = modelChoiceError();
+    if (error) throw new Error(error);
+    cancelLocalTurn();
+    const generation = ONLINE.generation, localGeneration = LOCAL_TURN.generation;
+    const current = () => !ONLINE.active && ONLINE.generation === generation && LOCAL_TURN.generation === localGeneration;
+    let committed = false;
+    isAnimating = true; playerInput.sync();
+    try {
+      await onlineJSON('/switch_model', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model:id, target:'b'})});
+      if (!current()) throw new Error('The match changed. Choose your opponent again.');
+      gameState.ai_model = id;
+      committed = true;
+      if (play) {
+        await onlineJSON('/set_mode', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:'hvai'})});
+        if (!current()) throw new Error('The match changed. Choose your opponent again.');
+        const state = await onlineJSON('/state');
+        if (!current()) throw new Error('The match changed. Choose your opponent again.');
+        gameState = state;
+        document.getElementById('mode-select').value = 'hvai';
+        rebuildPlayers(); updateHUD(state);
+      }
+    } catch (error) {
+      if (committed && current()) {
+        error.committedModel = id;
+        error.message = 'Opponent saved, but the match mode could not be changed. Try again.';
+      }
+      throw error;
+    } finally {
+      if (current()) { isAnimating = false; playerInput.sync(); }
+    }
+  },
+  onApplied({play}) {
+    if (play) { window.showOnlineLobby(false); document.getElementById('browse-models-btn').focus(); }
+  },
+});
+window.openMatchModels = function(play = false) {
+  const error = modelChoiceError();
+  if (error) {
+    document.getElementById('model-select-status').textContent = error;
+    lobbyStatus(error);
+    return;
+  }
+  modelPicker.open({play});
+};
+window.closeMatchModels = function() { modelPicker.close(); };
 
 //  Post-game: Highlights (shot-only) + Player Ratings (WhoScored 6.0 + FIFA)
 function detectHighlights(moves){
@@ -1754,6 +1802,7 @@ async function refreshMatchPeriod(){
 
 function updateHUD(st) {
   syncInputs();
+  if (!ONLINE.active) modelPicker.setCurrent(st.ai_model);
   document.querySelector('.team-a .team-name').textContent = ONLINE.active ? ONLINE.nameA || 'Team A' : st.game_mode === 'hvai' ? 'You' : 'Team A';
   document.querySelector('.team-b .team-name').textContent = ONLINE.active ? ONLINE.nameB || 'Team B' : st.game_mode === 'hvai' ? 'AI' : 'Team B';
   syncBallSize(st);
@@ -2137,10 +2186,7 @@ window.setMode = async function(mode) {
   updateHUD(data);
 };
 
-window.switchModel = async function(name) {
-  if (ONLINE.active || isAnimating) return;
-  await fetch('/switch_model', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name, target: 'b' }) });
-};
+window.switchModel = async function(name) { await modelPicker.choose(name); };
 
 window.setAnimSpeed = function(v) { animSpeed = v; };
 
@@ -2162,6 +2208,7 @@ function setOverlay(show, text) {
     if(cust.team_b_color)CUST_TEAM_B=cust.team_b_color;
   }catch(_){}
 
+  void modelPicker.load();
   const urlRoom = new URLSearchParams(location.search).get('room');
   if (urlRoom) {
     // Online room mode (chat-enabled 1v1) — game state comes from the room
@@ -2194,18 +2241,7 @@ function setOverlay(show, text) {
   updateBall(data.ball.x, data.ball.y, data.ball.z || 0);
   updateHUD(data);
 
-  // Fill model selector
-  try {
-    const models = await fetch('/models').then(r => r.json());
-    const sel = document.getElementById('model-select');
-    sel.innerHTML = '';
-    models.forEach(m => {
-      const opt = document.createElement('option');
-      opt.value = m.id; opt.textContent = m.name;
-      if (m.id === data.ai_model) opt.selected = true;
-      sel.appendChild(opt);
-    });
-  } catch (e) {}
+  await modelPicker.load();
 })();
 </script>
 </body>

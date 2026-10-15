@@ -20,6 +20,9 @@ _BUILTIN_MODEL_PATHS: dict[str, str] = {
     "goalnet_gat":      "models.goalnet_gat",
     "edms":             "models.edms",
     "team_coordinated": "models.team_coordinated",
+    "possession":       "models.possession",
+    "counter_attack":   "models.counter_attack",
+    "high_press":       "models.high_press",
     "hybrid_ensemble":  "models.hybrid_ensemble",
     "langchain":        "models.langchain_model",
 }
@@ -35,6 +38,9 @@ MODEL_CATALOG: list[dict] = [
     {"id": "goalnet_gat",      "name": "GoalNet GAT"},
     {"id": "edms",             "name": "EDMS"},
     {"id": "team_coordinated", "name": "Team Coordinated"},
+    {"id": "possession",       "name": "Possession"},
+    {"id": "counter_attack",   "name": "Counter Attack"},
+    {"id": "high_press",       "name": "High Press"},
     {"id": "hybrid_ensemble",  "name": "Hybrid Ensemble"},
     {"id": "langchain",        "name": "LangChain Tactician"},
 ]
