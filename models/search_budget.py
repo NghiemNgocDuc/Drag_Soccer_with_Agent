@@ -82,6 +82,7 @@ class SearchBudget:
         # a prediction made before that change.
         if state is not self.state or side != self.side:
             return None
+        from models.playstyle import playstyle_level
         ball = state["ball"]
         roster = tuple(tuple(
             (p["x"], p["y"], tuple((p.get("stats") or {}).get(k, 50)
@@ -91,8 +92,11 @@ class SearchBudget:
         settings = tuple(state.get(k) for k in (
             "power_cap", "ball_type", "ball_size", "ball_bounciness", "keeper_style_a",
             "keeper_style_b", "penalty_shootout", "penalty_goalkeeper_move",
-        ))
-        return (ball["x"], ball["y"], ball.get("z", 0), roster, settings, move)
+            "team_movement", "game_mode",
+        )) + tuple(state.get(k) if isinstance(state.get(k), str) else None
+                   for k in ("formation_a", "formation_b"))
+        return (ball["x"], ball["y"], ball.get("z", 0), roster, settings,
+                playstyle_level(state, True), playstyle_level(state, False), move)
 
     def cached(self, state, move, side):
         self.checkpoint()

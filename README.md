@@ -165,7 +165,9 @@ Built-in agents share a fast tactical shortlist for shots, open passes, clearanc
 
 Live requests use four worker slots per process and return a legal tactical fallback when busy. Built-in physics searches stop cooperatively; arbitrary uploaded Python retains its slot until execution finishes. See [AI responsiveness](docs/ai-responsiveness.md) for tuning, timing measurements, and tradeoffs.
 
-Possession, Counter Attack, and High Press are lightweight deterministic tactical agents, with no downloads, API keys, or training data. Their own scoring priorities apply to both candidate ordering and budget-limited results. Goals, keeper safety, spacing, and the existing one-player-at-a-time turns remain shared.
+Possession, Counter Attack, and High Press are lightweight deterministic tactical agents, with no downloads, API keys, or training data. Their own scoring priorities apply to both candidate ordering and budget-limited results. In AI matches, both squads reposition during each kick with fixed jobs: #1 guards goal, #2 and #3 defend, #4 supports passes, and #5 attacks. You keep control of your striker. All runs share the kick's existing physics world and recorded timeline.
+
+Use the **five-dot playstyle control** to choose Deep defend, Defend, Balanced, Attack, or All-out attack. Your team adjusts its positioning and risk preference while keeping its player roles. Balanced is the default, and your choice carries into the next match reset.
 
 ## Architecture
 

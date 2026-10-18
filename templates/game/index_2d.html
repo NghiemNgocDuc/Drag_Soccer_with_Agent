@@ -30,6 +30,12 @@
 }
 .sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
 #captain-hint{position:absolute;left:50%;bottom:10px;transform:translateX(-50%);z-index:4;display:none;padding:6px 10px;border:1px solid rgba(255,255,255,.55);border-radius:999px;background:rgba(2,6,23,.72);color:#fff;font-size:.72rem;font-weight:700;pointer-events:none}
+.squad-role-guide{margin:0 0 16px;color:#334155}
+.squad-role-guide h3{margin:0 0 8px;font-size:.75rem;font-weight:700;color:#475569}
+.squad-role-list{display:flex;flex-wrap:wrap;gap:6px 8px;list-style:none;margin:0;padding:0}
+.squad-role-list li{display:flex;align-items:center;gap:6px;border:1px solid #dce5e7;border-radius:8px;background:#f8fafc;padding:6px 9px;font-size:.75rem;line-height:1.4}
+.squad-role-list strong{font-variant-numeric:tabular-nums;color:#0f172a}
+.squad-role-list .squad-role-you{color:#075985;background:#e0f2fe;border-radius:4px;padding:1px 4px;font-size:.63rem;font-weight:800;letter-spacing:.03em}
 #match-chat-wrap{width:100%;height:auto}
 #match-chat-wrap:empty{display:none}
 #match-chat-wrap>.chat-panel{height:380px}
@@ -82,6 +88,7 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
 <link rel="stylesheet" href="/static/css/frontend-game.css">
 <link rel="stylesheet" href="/static/css/pitch-2d.css">
 <link rel="stylesheet" href="/static/css/model-picker.css">
+<link rel="stylesheet" href="/static/css/playstyle-control.css">
 </head>
 <body class="as-app as-game as-flick-game">
 <div class="flash-msg" id="flash-msg"></div>
@@ -127,6 +134,25 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
 
   <section id="player-controls" class="player-controls" aria-label="Player controls">
     <div class="player-control-heading"><strong>Take your turn</strong><span id="player-control-status" role="status" aria-live="polite">Loading match…</span></div>
+    <div id="squad-role-guide" class="squad-role-guide" hidden>
+      <h3 id="squad-role-title">Your squad</h3>
+      <ul id="squad-role-list" class="squad-role-list" aria-labelledby="squad-role-title"></ul>
+    </div>
+    <fieldset id="playstyle-control" class="playstyle-control" disabled aria-describedby="playstyle-help playstyle-status">
+      <legend>Team mentality</legend>
+      <div class="playstyle-layout">
+        <div class="playstyle-team"><span id="playstyle-team-label">Your team</span><label id="playstyle-team-choice" hidden>Team<select id="playstyle-team"><option value="a">Team A</option><option value="b">Team B</option></select></label></div>
+        <div><div class="playstyle-track">
+          <label><input type="radio" name="team-playstyle" value="1"><span class="playstyle-sr-only">Deep defend</span></label>
+          <label><input type="radio" name="team-playstyle" value="2"><span class="playstyle-sr-only">Defend</span></label>
+          <label><input type="radio" name="team-playstyle" value="3" checked><span class="playstyle-sr-only">Balanced</span></label>
+          <label><input type="radio" name="team-playstyle" value="4"><span class="playstyle-sr-only">Attack</span></label>
+          <label><input type="radio" name="team-playstyle" value="5"><span class="playstyle-sr-only">All-out attack</span></label>
+        </div><div class="playstyle-endpoints" aria-hidden="true"><span>Defend</span><span>Attack</span></div></div>
+        <div class="playstyle-copy"><strong id="playstyle-name">Balanced</strong><p id="playstyle-help">Balance defensive cover with forward support.</p></div>
+      </div>
+      <p id="playstyle-status" class="playstyle-status" role="status" aria-live="polite"></p>
+    </fieldset>
     <div class="player-control-fields">
       <div class="player-control-field"><label for="player-select">Player</label><div class="player-picker"><button id="player-prev" class="btn btn-ghost" type="button" aria-label="Previous player">&larr;</button><select id="player-select"></select><button id="player-next" class="btn btn-ghost" type="button" aria-label="Next player">&rarr;</button></div></div>
       <div class="player-control-field"><label for="aim-angle">Direction <span>degrees</span></label><input id="aim-angle" type="number" min="0" max="359" step="1" value="0" inputmode="numeric"></div>
@@ -380,6 +406,7 @@ import { createPlayerInput } from '/static/js/game/player-input.js';
 import { createGoalkeeperInput, goalkeeperAccess } from '/static/js/game/goalkeeper-input.js';
 import { matchClockView } from '/static/js/game/match-clock.js';
 import { createModelPicker } from '/static/js/game/model-picker.js';
+import { createPlaystyleControl } from '/static/js/game/playstyle-control.js';
 const W=1400, H=875, PLAYER_R=20, PLAYER_TRAVEL=8;
 const container=document.getElementById('pitch-container');
 const pitch=createPitch2D(container);
@@ -434,6 +461,8 @@ let animSpeed = 1.0;
 let _skipKickerIdx = -1;
 let _skipKickerTeam = '';
 const LOCAL_TURN = { generation: 0, controller: null, timer: null, pending: null };
+let playstyleControl = null;
+const syncPlaystyle = () => playstyleControl?.sync();
 
 //  Online match (chat-enabled 1v1 room mode)
 const ONLINE = {
@@ -461,6 +490,7 @@ async function onlineJSON(url, options = {}) {
 function lobbyStatus(message) { document.getElementById('online-lobby-status').textContent = message; }
 function lobbyBusy(busy) {
   ONLINE_LOBBY.busy = busy;
+  syncPlaystyle();
   document.querySelectorAll('#online-lobby-join button').forEach(button => { button.disabled = busy; });
 }
 function resetLobbyView() {
@@ -592,6 +622,7 @@ window.joinOnlineByCode = async function() {
 };
 
 function setOnlineUI(active) {
+  syncPlaystyle();
   document.getElementById('mode-select').disabled = active;
   modelPicker.setDisabled(active);
   document.getElementById('aivai-btn').style.display = 'none';
@@ -856,6 +887,7 @@ window.shareMatchSummary = shareMatchSummary;
 const RANKED = { active: false, timer: null, delta: null, generation: 0, polling: false, joining: false, cancelling: false, request: null };
 
 function resetRankedUI() {
+  syncPlaystyle();
   if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
   document.getElementById('ranked-btn').style.display = '';
   document.getElementById('ranked-btn').disabled = RANKED.cancelling;
@@ -867,6 +899,7 @@ window.rankedJoin = async function() {
   if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
   const generation = ++RANKED.generation;
   RANKED.active = true;
+  syncPlaystyle();
   document.getElementById('ranked-btn').style.display = 'none';
   document.getElementById('ranked-cancel-btn').style.display = '';
   const st = document.getElementById('ranked-status');
@@ -942,6 +975,7 @@ window.rankedCancel = async function() {
   if (RANKED.cancelling) return;
   const generation = ++RANKED.generation;
   RANKED.active = false; RANKED.joining = false; RANKED.polling = false; RANKED.cancelling = true;
+  syncPlaystyle();
   resetRankedUI();
   try {
     await RANKED.request?.catch(() => {});
@@ -957,6 +991,7 @@ window.quickPlayPVP = async function() {
   if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || QUICK.active || QUICK.cancelling || RANKED.active || RANKED.joining || RANKED.cancelling) return;
   const generation = ++QUICK.generation;
   QUICK.active = true; QUICK.mode = 'pvp';
+  syncPlaystyle();
   document.getElementById('quick-play-btn').style.display = 'none';
   document.getElementById('quick-pva-btn').style.display = 'none';
   document.getElementById('quick-cancel-btn').style.display = '';
@@ -985,6 +1020,7 @@ window.quickPlayPVP = async function() {
 window.quickPlayVsAI = async function() {
   if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || QUICK.active || QUICK.cancelling || RANKED.active || RANKED.joining || RANKED.cancelling) return;
   const generation = ++QUICK.generation; QUICK.active = true; QUICK.mode = 'pva'; QUICK.joining = true;
+  syncPlaystyle();
   document.getElementById('quick-play-btn').disabled = true; document.getElementById('quick-pva-btn').disabled = true;
   try {
     QUICK.request = onlineJSON('/api/quick/join', { method: 'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({mode:'pva'}) });
@@ -1000,7 +1036,7 @@ async function startQuickAI(data, generation) {
   cancelLocalTurn();
   const localGeneration = LOCAL_TURN.generation;
   const pick = data.ai_model || data.ai_name || 'greedy';
-  isAnimating = true; playerInput.sync();
+  isAnimating = true; playerInput.sync(); syncPlaystyle();
   try {
     await onlineJSON('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model:pick,target:'b'}) });
     if (!current()) return;
@@ -1010,7 +1046,7 @@ async function startQuickAI(data, generation) {
     if (!current()) return;
     gameState = game; document.getElementById('model-select').value = pick; document.getElementById('mode-select').value = 'hvai';
     rebuildPlayers(); updateHUD(game); window.showOnlineLobby(false);
-  } finally { if (!ONLINE.active && LOCAL_TURN.generation === localGeneration) { isAnimating = false; playerInput.sync(); } }
+  } finally { if (!ONLINE.active && LOCAL_TURN.generation === localGeneration) { isAnimating = false; playerInput.sync(); syncPlaystyle(); } }
 }
 async function handleQuickFallback(generation = QUICK.generation) {
   if (!QUICK.active || QUICK.mode!=='pvp' || QUICK.joining || QUICK.generation !== generation) return;
@@ -1072,6 +1108,7 @@ window.quickCancel = async function(){
 function resetQuickUI(){
   QUICK.active=false;
   QUICK.joining=false; QUICK.polling=false;
+  syncPlaystyle();
   if (QUICK.timer){ clearInterval(QUICK.timer); QUICK.timer=null; }
   if (QUICK.fallback){ clearInterval(QUICK.fallback); QUICK.fallback=null; }
   document.getElementById('quick-play-btn').style.display='';
@@ -1103,7 +1140,7 @@ const modelPicker = createModelPicker({
     const generation = ONLINE.generation, localGeneration = LOCAL_TURN.generation;
     const current = () => !ONLINE.active && ONLINE.generation === generation && LOCAL_TURN.generation === localGeneration;
     let committed = false;
-    isAnimating = true; playerInput.sync();
+    isAnimating = true; playerInput.sync(); syncPlaystyle();
     try {
       await onlineJSON('/switch_model', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model:id, target:'b'})});
       if (!current()) throw new Error('The match changed. Choose your opponent again.');
@@ -1125,7 +1162,7 @@ const modelPicker = createModelPicker({
       }
       throw error;
     } finally {
-      if (current()) { isAnimating = false; playerInput.sync(); }
+      if (current()) { isAnimating = false; playerInput.sync(); syncPlaystyle(); }
     }
   },
   onApplied({play}) {
@@ -1560,6 +1597,7 @@ async function submitOnlineKick(playerIdx, angleDeg, power) {
 
 let CUST_TEAM_A = '#3b82f6';
 let CUST_TEAM_B = '#ef4444';
+let squadRoleStamp = '';
 
 // Animated ball position
 let animBall = null;
@@ -1592,7 +1630,65 @@ const goalkeeperInput=createGoalkeeperInput({
   onSubmit:chooseKeeperDir,onError:error=>playerInput.reportError(error.message),
 });
 window.__goalkeeperControlState=()=>goalkeeperInput.snapshot();
-function syncInputs(){playerInput.sync();goalkeeperInput.sync();updateKeeperGuide();}
+function syncInputs(){playerInput.sync();goalkeeperInput.sync();updateKeeperGuide();updateSquadRoles();syncPlaystyle();}
+function playstyleBlockedReason(){
+  if(!gameState)return 'Loading match…';
+  if(ONLINE.active)return 'Team mentality is available in local AI matches.';
+  if(gameState.penalty_shootout)return 'Mentality is fixed during the shootout.';
+  if(gameState.game_over)return 'Start a new match to change mentality.';
+  if(!['hvai','aivai'].includes(gameState.game_mode)||!gameState.team_movement)return 'Choose an AI match with team movement to use mentality.';
+  if(ONLINE_LOBBY.busy||ONLINE_LOBBY.waitRoom||QUICK.active||QUICK.joining||QUICK.cancelling||RANKED.active||RANKED.joining||RANKED.cancelling)return 'Finish or cancel matchmaking before changing mentality.';
+  if(isAnimating||LOCAL_TURN.pending)return 'Change mentality between turns.';
+  return '';
+}
+function lockPlaystyleSave(saving){
+  document.getElementById('mode-select').disabled=saving||ONLINE.active;
+  document.querySelectorAll('[onclick="resetGame()"],[onclick="undoMove()"]').forEach(button=>{button.disabled=saving||ONLINE.active;});
+  modelPicker.setDisabled(saving||ONLINE.active);
+}
+playstyleControl=createPlaystyleControl({
+  getState:()=>gameState,
+  blockedReason:playstyleBlockedReason,
+  getContext:()=>[LOCAL_TURN.generation,ONLINE.generation,gameState?.game_mode].join(':'),
+  async onSave(level,side){
+    const reason=playstyleBlockedReason();
+    if(reason)throw new Error(reason);
+    cancelLocalTurn();
+    const run=beginLocalTurn();
+    isAnimating=true;lockPlaystyleSave(true);syncInputs();
+    try{
+      const data=await requestMoveState('/set_playstyle',{level,side},run);
+      if(!run.current())throw new DOMException('Match changed','AbortError');
+      if(![data.playstyle_a,data.playstyle_b].every(value=>Number.isInteger(value)&&value>=1&&value<=5))throw new Error('Could not confirm mentality. Try again.');
+      // A settings response must never replace newer positions or match state.
+      gameState.playstyle_a=data.playstyle_a;gameState.playstyle_b=data.playstyle_b;
+    }finally{lockPlaystyleSave(false);finishLocalTurn(run);}
+  },
+});
+function updateSquadRoles(){
+  const guide=document.getElementById('squad-role-guide');
+  if(!gameState || !gameState.team_movement || gameState.penalty_shootout){guide.hidden=true;return;}
+  const manualStriker=!ONLINE.active && gameState.game_mode==='hvai';
+  const side=ONLINE.active?ONLINE.side:manualStriker?'a':gameState.is_player_a?'a':'b';
+  const roles=gameState['player_roles_'+side],players=gameState['players_'+side];
+  if(!Array.isArray(roles)||!Array.isArray(players)||roles.length!==players.length||!roles.length){guide.hidden=true;return;}
+  const humanIndex=manualStriker?(gameState.human_player_idx??players.length-1):-1;
+  const title=manualStriker||ONLINE.active?'Your squad':'Team '+side.toUpperCase()+' roles';
+  guide.hidden=false;
+  const stamp=JSON.stringify([side,roles,humanIndex,title]);
+  if(stamp===squadRoleStamp)return;
+  squadRoleStamp=stamp;
+  document.getElementById('squad-role-title').textContent=title;
+  const names={goalkeeper:'Goalkeeper',defender:'Defender',support:'Support',attacker:'Striker'};
+  const fragment=document.createDocumentFragment();
+  roles.forEach((role,index)=>{
+    const item=document.createElement('li'),number=document.createElement('strong');
+    item.dataset.role=role;number.textContent='#'+(index+1);item.append(number,document.createTextNode(' '+(names[role]||'Player')));
+    if(index===humanIndex){const badge=document.createElement('span');badge.className='squad-role-you';badge.textContent='YOU';item.append(document.createTextNode(' '),badge);}
+    fragment.append(item);
+  });
+  document.getElementById('squad-role-list').replaceChildren(fragment);
+}
 function updateKeeperGuide(){
   const access=goalkeeperAccess(gameState,ONLINE,isAnimating);
   const keeper=gameState?.players_a?.[0];
@@ -2076,7 +2172,8 @@ async function requestMoveState(url, command, run) {
   AW.handle(data); return data;
 }
 
-// A complete human cycle returns to your striker: A, B, teammate A, B.
+// Team movement accompanies each kick, so A then B returns to your striker.
+// Explicit legacy matches retain A, B, teammate A, B.
 // Keep the next leg for Retry if a request fails after an earlier leg succeeded.
 async function completeHumanTurn(run) {
   while (run.current() && LOCAL_TURN.pending) {
@@ -2094,7 +2191,7 @@ async function completeHumanTurn(run) {
     await displayMove(data, key, teammate ? 'a' : 'b', { current: run.current, speed: animSpeed });
     if (!run.current()) return;
     if(data.period_changed){LOCAL_TURN.pending=null;return;}
-    if (phase === 2) LOCAL_TURN.pending = null;
+    if (gameState.team_movement === true || phase === 2) LOCAL_TURN.pending = null;
     else LOCAL_TURN.pending.phase++;
   }
 }
@@ -2105,7 +2202,7 @@ async function submitKick(playerIdx, angleDeg, power) {
   if (ONLINE.active) return submitOnlineKick(playerIdx, angleDeg, power);
   const run = beginLocalTurn();
   LOCAL_TURN.pending = null;
-  isAnimating = true; setOverlay(false); playerInput.sync();
+  isAnimating = true; setOverlay(false); playerInput.sync(); syncPlaystyle();
   try {
     const data = await requestMoveState('/move', { player_idx: playerIdx, angle: angleDeg, power }, run);
     await displayMove(data, 'move_result', legal.team, { current: run.current });
@@ -2144,47 +2241,41 @@ async function triggerAI({ keeperDirection = null, reportFailure = false } = {})
 }
 
 //  Controls
-window.resetGame = async function() {
-  if (isAnimating || ONLINE.active) return;
+async function changeLocalMatch(url, body, { refresh = false, clearLog = false } = {}) {
+  if (isAnimating || ONLINE.active || !gameState) return;
   cancelLocalTurn();
-  const generation = ONLINE.generation;
-  const body = { player_count: 5 };
-  const data = await fetch('/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json());
-  if (ONLINE.active || ONLINE.generation !== generation) return;
-  AW.handle(data);
-  gameState = data;
-  rebuildPlayers();
-  updateBall(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
-  document.getElementById('log-panel').innerHTML = '';
-  updateHUD(data);
-};
+  const run = beginLocalTurn();
+  isAnimating = true; lockPlaystyleSave(true); syncInputs();
+  try {
+    let data = await requestMoveState(url, body, run);
+    if (refresh) {
+      const response = await fetch('/state', { signal: run.signal });
+      data = await response.json();
+      if (!run.current()) throw new DOMException('Match changed', 'AbortError');
+      if (!response.ok || data.error) throw new Error(data.error || 'Could not load the match. Try again.');
+      AW.handle(data);
+    }
+    if (!run.current()) return;
+    gameState = data;
+    document.getElementById('mode-select').value = data.game_mode || 'hvai';
+    rebuildPlayers();
+    updateBall(data.ball.x, data.ball.y, data.ball.z || 0);
+    if (clearLog) document.getElementById('log-panel').innerHTML = '';
+    updateHUD(data);
+  } catch (error) {
+    if (run.current()) {
+      document.getElementById('mode-select').value = gameState.game_mode || 'hvai';
+      playerInput.reportError(error.message);
+    }
+  } finally {
+    if (run.current()) lockPlaystyleSave(false);
+    finishLocalTurn(run);
+  }
+}
 
-window.undoMove = async function() {
-  if (isAnimating || ONLINE.active) return;
-  cancelLocalTurn();
-  const generation = ONLINE.generation;
-  const data = await fetch('/undo', { method: 'POST' }).then(r => r.json());
-  if (ONLINE.active || ONLINE.generation !== generation) return;
-  AW.handle(data);
-  gameState = data;
-  rebuildPlayers();
-  updateBall(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
-  updateHUD(data);
-};
-
-window.setMode = async function(mode) {
-  if (isAnimating || ONLINE.active) return;
-  cancelLocalTurn();
-  const generation = ONLINE.generation;
-  await fetch('/set_mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode }) });
-  const data = await fetch('/state').then(r => r.json());
-  if (ONLINE.active || ONLINE.generation !== generation) return;
-  AW.handle(data);
-  gameState = data;
-  rebuildPlayers();
-  updateBall(gameState.ball.x, gameState.ball.y, gameState.ball.z || 0);
-  updateHUD(data);
-};
+window.resetGame = () => changeLocalMatch('/reset', { player_count: 5 }, { clearLog: true });
+window.undoMove = () => changeLocalMatch('/undo');
+window.setMode = mode => changeLocalMatch('/set_mode', { mode }, { refresh: true });
 
 window.switchModel = async function(name) { await modelPicker.choose(name); };
 

@@ -66,6 +66,8 @@ def main():
         timed = request.args.get('timed')
         game = new_soccer_state(mode='hvh', player_count=int(request.args.get('count', 5)), half_length=45 if timed else 0)
         game['game_mode'] = request.args.get('mode', 'hvh')
+        if request.args.get('team_movement') == '0':
+            game['team_movement'] = False
         if timed == 'halftime':
             # Give the browser time to load, then cross a real server boundary
             # without submitting any move or waiting for a whole match.
@@ -140,6 +142,7 @@ def main():
             page.goto(base + '/__2d/login/desktop')
             ready(page)
             check('Canvas renders 5v5', page.evaluate('window.__pitch2D().players_a.length===5 && window.__pitch2D().width>0'))
+            check('manual hotseat does not show automatic squad jobs', page.locator('#squad-role-guide').is_hidden())
             for model in ('possession','counter_attack','high_press'):
                 page.wait_for_function('(id)=>!!document.querySelector(`#model-select option[value="${id}"]`)', arg=model)
                 with page.expect_response(lambda response: response.url.endswith('/switch_model')) as switched:
@@ -190,19 +193,54 @@ def main():
             page.goto(base + '/__2d/login/ai?mode=hvai')
             ready(page)
             check('human controls only striker number five', page.evaluate('window.__playerControlState().selectedIndex===4 && JSON.stringify(window.__playerControlState().allowedIndices)==="[4]" && window.__pitch2D().humanPlayer.index===4'))
+            check('squad guide explains all five stable jobs', page.locator('#squad-role-guide').is_visible()
+                  and page.locator('#squad-role-list li').all_text_contents() == ['#1 Goalkeeper', '#2 Defender', '#3 Defender', '#4 Support', '#5 Striker YOU'])
+            check('squad guide marks only the manual striker', page.locator('#squad-role-list .squad-role-you').count() == 1
+                  and page.locator('#squad-role-list li').last.locator('.squad-role-you').inner_text() == 'YOU')
             page.screenshot(path=str(out / 'striker.png'), full_page=True)
-            page.evaluate('''window.__rosterQA={frames:0,invalid:0,watch:true};
+            page.evaluate('''window.__rosterQA={frames:0,invalid:0,watch:true,
+              initial:structuredClone(window.__pitch2D()),support:false,defense:false};
               function sample(){if(!window.__rosterQA.watch)return;const s=window.__pitch2D();
               if(window.__qa2D.busy()){window.__rosterQA.frames++;if(s.players_a.length!==5||s.players_b.length!==5||[...s.players_a,...s.players_b].some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y)||p.x<20||p.x>1380||p.y<20||p.y>855))window.__rosterQA.invalid++;}
+              if(window.__qa2D.busy()&&window.__qa2D.active().kick_count===0){
+                const q=window.__rosterQA,moved=(side,i)=>Math.hypot(s['players_'+side][i].x-q.initial['players_'+side][i].x,s['players_'+side][i].y-q.initial['players_'+side][i].y)>1;
+                q.support ||= [0,1,2,3].some(i=>moved('a',i));q.defense ||= [0,1,2,3,4].some(i=>moved('b',i));}
               requestAnimationFrame(sample);}requestAnimationFrame(sample);''')
             before = page.evaluate('window.__qa2D.active().kick_count')
+            request_start = len(resources)
             page.locator('#pitch-container canvas').focus()
             page.keyboard.press('Enter')
-            page.wait_for_function('(n)=>!window.__qa2D.busy() && window.__qa2D.active().kick_count>=n+4', arg=before, timeout=40000)
-            check('human and three AI legs finish', page.evaluate('window.__qa2D.active().is_player_a'))
+            page.wait_for_function('(n)=>!window.__qa2D.busy() && window.__qa2D.active().kick_count>=n+2', arg=before, timeout=40000)
+            check('human and one opponent move return control', page.evaluate('(n)=>window.__qa2D.active().is_player_a && window.__qa2D.active().kick_count===n+2', before))
+            cycle_requests = [url.rsplit('/', 1)[-1] for url in resources[request_start:] if url.rsplit('/', 1)[-1] in ('move', 'ai_move', 'random_move')]
+            check('team movement cycle submits no separate teammate move', cycle_requests == ['move', 'ai_move'], cycle_requests)
             page.evaluate('window.__rosterQA.watch=false')
             check('all ten players remain visible throughout AI cycle', page.evaluate('window.__rosterQA.frames>0 && window.__rosterQA.invalid===0'))
+            check('support and defensive players animate during the human kick', page.evaluate('window.__rosterQA.support && window.__rosterQA.defense'))
             check('control returns to striker', page.evaluate('window.__playerControlState().selectedIndex===4 && window.__pitch2D().humanPlayer.index===4'))
+            check('squad jobs stay unchanged after the complete turn', page.locator('#squad-role-list li').all_text_contents() == ['#1 Goalkeeper', '#2 Defender', '#3 Defender', '#4 Support', '#5 Striker YOU'])
+
+            page.goto(base + '/__2d/login/retry?mode=hvai')
+            ready(page)
+            def fail_ai(route):
+                route.fulfill(status=503, json={'error': 'Temporary AI failure'})
+            page.route('**/ai_move', fail_ai)
+            page.locator('#pitch-container canvas').focus()
+            page.keyboard.press('Enter')
+            page.wait_for_function('!window.__qa2D.busy() && window.__qa2D.active().kick_count===1', timeout=20000)
+            check('failed opponent move exposes retry without returning human control', page.locator('#aivai-btn').is_visible() and not page.evaluate('window.__qa2D.active().is_player_a'))
+            page.unroute('**/ai_move', fail_ai)
+            page.locator('#aivai-btn').click()
+            page.wait_for_function('!window.__qa2D.busy() && window.__qa2D.active().kick_count===2', timeout=20000)
+            check('retry completes exactly one opponent move', page.evaluate('window.__qa2D.active().is_player_a && window.__playerControlState().selectedIndex===4'))
+
+            page.goto(base + '/__2d/login/legacy?mode=hvai&team_movement=0')
+            ready(page)
+            page.locator('#pitch-container canvas').focus()
+            page.keyboard.press('Enter')
+            page.wait_for_function('!window.__qa2D.busy() && window.__qa2D.active().kick_count===4', timeout=40000)
+            check('explicit legacy match retains separate teammate turns', page.evaluate('window.__qa2D.active().is_player_a && window.__qa2D.active().team_movement===false'))
+            check('legacy single-player turns hide automatic squad jobs', page.locator('#squad-role-guide').is_hidden())
 
             replay_page = page_for(context)
             replay_page.goto(base + '/__2d/replay')
@@ -308,7 +346,7 @@ def main():
             compact_page.mouse.move(point['x']-25,point['y'],steps=6)
             compact_page.screenshot(path=str(out / 'flick-aim.png'))
             compact_page.mouse.up()
-            compact_page.wait_for_function('!window.__qa2D.busy() && window.__qa2D.active().kick_count>=4',timeout=40000)
+            compact_page.wait_for_function('!window.__qa2D.busy() && window.__qa2D.active().kick_count===2',timeout=40000)
             check('drag release finishes a striker cycle in short preview pane', compact_page.evaluate('window.__playerControlState().selectedIndex===4 && !window.__qa2D.active().penalty_shootout'))
             page.goto(base + '/__2d/login/clock?timed=halftime')
             ready(page)
@@ -347,6 +385,7 @@ def main():
             ready(page)
             check('penalty referee stays hidden', page.evaluate('window.__pitch2D().referee===null'))
             check('penalty restricts selection to kicker', page.evaluate('JSON.stringify(window.__playerControlState().allowedIndices)==="[0]"'))
+            check('shootout hides formation jobs while kicker and keeper roles change', page.locator('#squad-role-guide').is_hidden())
             page.locator('#view-settings-btn').click()
             check('resolution dialog opens', page.locator('#view-settings-modal').is_visible())
             page.keyboard.press('Escape')

@@ -218,6 +218,12 @@ def human_player_index(state: dict, is_player_a: bool = True) -> int:
         return 0
     return max(0, len(state["players_a" if is_player_a else "players_b"]) - 1)
 
+
+def team_movement_enabled(state: dict) -> bool:
+    """AI matches reposition both squads; human-only matches remain manual."""
+    return (not state.get("penalty_shootout") and bool(state.get(
+        "team_movement", state.get("game_mode", "hvai") in ("hvai", "aivai"))))
+
 def _get_player_friction(stats: dict) -> float:
     return _stat_map_agility(stats["agility"])
 
@@ -258,6 +264,8 @@ def _home_positions(count: int, side: str, formation: str | None = None) -> list
     """Generate realistic soccer formation. Index 0 = GK.
     formation: for 7 players, e.g. "3-2-1" (DEF-MID-FWD). If provided, overrides default.
     """
+    if not isinstance(formation, str):
+        formation = None
     center_y = FIELD_H / 2
     # gk/def/mid are ratios of FIELD_W (auto-widen with the field);
     # atk is an ABSOLUTE 95px from center — the tuned kicker-to-ball gap
@@ -442,6 +450,7 @@ def new_soccer_state(
     formation_a: str | None = None,
     formation_b: str | None = None,
     referee_name: str | None = None,
+    team_movement: bool | None = None,
 ) -> dict:
     # default formation from manager if not provided and count==7
     if player_count == 7:
@@ -469,6 +478,9 @@ def new_soccer_state(
         "move_history":  [],
         "snapshots":     [],
         "game_mode":     mode,
+        "playstyle_a":   3,
+        "playstyle_b":   3,
+        **({"team_movement": bool(team_movement)} if team_movement is not None else {}),
         "model_name_a":  model_a,
         "model_name_b":  model_b,
         "first_kicker":  "A",
@@ -1083,6 +1095,15 @@ def _launch_kicker(state, kicker, player_idx, angle_deg, power, is_player_a):
     return 0.0
 
 
+def _launch_support(state, bodies_a, bodies_b, player_idx, angle_deg, power, side):
+    if not team_movement_enabled(state) or power <= 0:
+        return
+    from models.team_movement import support_moves
+    for teammate_side, index, angle, strength in support_moves(state, player_idx, angle_deg, power, side):
+        body = (bodies_a if teammate_side else bodies_b)[index]
+        _launch_kicker(state, body, index, angle, strength, teammate_side)
+
+
 def simulate_kick(
     state: dict,
     player_idx: int,
@@ -1108,6 +1129,7 @@ def simulate_kick(
 
     kicker = (bodies_a if is_player_a else bodies_b)[player_idx]
     vz0 = _launch_kicker(state, kicker, player_idx, angle_deg, power, is_player_a)
+    _launch_support(state, bodies_a, bodies_b, player_idx, angle_deg, power, is_player_a)
 
     trajectory, scored, _ = _sim(space, bodies_a, bodies_b, ball_body, ref_body, player_idx, is_player_a,
                                vz0=vz0, ball_pivot=ball_pivot, search=search)
@@ -1131,6 +1153,7 @@ def apply_kick(
 
     kicker = (bodies_a if is_player_a else bodies_b)[player_idx]
     vz0 = _launch_kicker(state, kicker, player_idx, angle_deg, power, is_player_a)
+    _launch_support(state, bodies_a, bodies_b, player_idx, angle_deg, power, is_player_a)
 
     trajectory, scored, _ = _sim(space, bodies_a, bodies_b, ball_body, ref_body, player_idx, is_player_a, vz0=vz0, ball_pivot=ball_pivot)
 

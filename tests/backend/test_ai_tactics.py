@@ -141,7 +141,9 @@ def test_no_reachable_player_moves_support_closer_and_preserves_keeper():
     _place(state["players_a"], [(800, 437.5), (450, 350), (300, 650)])
     _place(state["players_b"], [(1310, 437.5), (1000, 200), (1100, 650)])
     move = quick_move(state, True)
-    assert move[0] == 1
+    # The distant ball is in attack: the forward should approach while the
+    # nearer defender keeps cover. Neither may sacrifice the keeper.
+    assert move[0] == 2
     trajectory, _ = simulate_kick(state, *move, True)
     before = state["players_a"][move[0]]
     after = trajectory[-1]["a"][move[0]]

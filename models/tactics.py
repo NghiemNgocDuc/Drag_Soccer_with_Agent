@@ -1,7 +1,8 @@
 """Cheap, shared team decisions before an AI spends its physics-search budget.
 
-Only the selected pawn moves. Receivers and supporting players are evaluated at
-their real positions; planning never teleports teammates or mutates match state.
+Receivers and supporting players are evaluated at their real positions; planning
+never teleports teammates or mutates match state. Team runs share each kick's
+authoritative physics prediction when simultaneous movement is enabled.
 The analytic collision estimate ranks candidates, and the caller can verify a
 small shortlist with the authoritative physics engine.
 """
@@ -10,12 +11,15 @@ from __future__ import annotations
 import math
 
 from models.common import aim_through, needs_clear
+from models.playstyle import playstyle_level
+from models.team_roles import role_target, team_roles
 from models.team_support import SupportPlan
 from models.soccer_logic import (
     FIELD_W, FIELD_H, GOAL_Y1, GOAL_Y2, _MARGIN, _PM_ELASTICITY_P,
     _ball_physics, _get_player_stats, _get_player_radius, _get_player_mass,
     _get_player_kick_vel, _get_player_friction, _keeper_radius_bonus,
     _keeper_rush_mult, _RALLY_SPEED_BOOST, _RALLY_SPEED_CAP,
+    team_movement_enabled,
 )
 
 
@@ -142,6 +146,81 @@ def _estimate(state, side, move, material, profiles):
     return endpoint, scored
 
 
+def _role_value(state, side, index, end, own_end, opponent_end):
+    """A bounded preference for doing the selected pawn's stable team job.
+
+    Use final physical positions, not a seed bonus: the same preference must
+    survive the AI's authoritative simulation and request-budget cutoff.
+    Emergency clearances are everyone's job and bypass positional discipline.
+    """
+    own = state["players_a" if side else "players_b"]
+    if (not team_movement_enabled(state) or needs_clear(state, side)
+            or not 0 <= index < min(len(own), len(own_end))):
+        return 0.0
+    role = team_roles(state, side)[index]
+    target = role_target(state, side, index, end)
+    improvement = _distance(own[index], target) - _distance(own_end[index], target)
+    value = max(-55.0, min(55.0, improvement * 0.3))
+    pawn_progress = _progress(own_end[index]["x"], side)
+    ball_progress = _progress(end["x"], side)
+    forward = ball_progress - _progress(state["ball"]["x"], side)
+    if role == "defender":
+        # Defenders can play a forward pass without following it into attack.
+        value -= min(100.0, max(0.0, pawn_progress - FIELD_W * 0.5) * 0.4)
+        if _progress(state["ball"]["x"], side) < FIELD_W * 0.5:
+            value += max(0.0, min(35.0, forward * 0.1))
+    elif role == "support":
+        # Reward an actual controlled reception, rather than any forward punt.
+        receivers = [p for i, p in enumerate(own_end) if i not in (0, index)]
+        receiver_gap = min((_distance(p, end) for p in receivers), default=FIELD_W)
+        opponent_gap = min((_distance(p, end) for p in opponent_end), default=FIELD_W)
+        if _distance(state["ball"], end) > 12.0 and receiver_gap < opponent_gap:
+            value += max(0.0, 85.0 - receiver_gap) * 0.5
+    elif role == "attacker":
+        value += max(-40.0, min(40.0, forward * 0.12))
+    return max(-140.0, min(100.0, value))
+
+
+def _role_order(state, side, indices, distances):
+    """Prefer the responsible line while always considering the closest pawn."""
+    if not team_movement_enabled(state) or needs_clear(state, side) or len(indices) < 2:
+        return indices
+    roles = team_roles(state, side)
+    progress = _progress(state["ball"]["x"], side)
+
+    def cost(index):
+        role = roles[index]
+        if role == "defender":
+            return min(160.0, max(0.0, progress - FIELD_W * 0.5) * 0.45)
+        if role == "attacker":
+            return min(160.0, max(0.0, FIELD_W * 0.45 - progress) * 0.45)
+        return 0.0
+
+    ordered = sorted(indices, key=lambda i: (round(distances[i] + cost(i), 8), i))
+    closest = min(indices, key=lambda i: (round(distances[i], 8), i))
+    if closest not in ordered[:3]:
+        ordered.remove(closest)
+        ordered.insert(2, closest)
+    return ordered
+
+
+def _playstyle_value(state, side, forward, own_distance, opponent_distance, goal_distance):
+    """Bounded mentality preference using the same predicted final positions."""
+    mentality = playstyle_level(state, side) - 3
+    if not mentality or not team_movement_enabled(state) or needs_clear(state, side):
+        return 0.0
+    if mentality > 0:
+        value = mentality * (max(-300.0, min(300.0, forward)) * .22
+                             + max(0.0, 360.0 - goal_distance) * .12)
+    else:
+        advantage = max(-180.0, min(180.0, opponent_distance - own_distance))
+        controlled = max(0.0, 90.0 - own_distance)
+        loose = max(0.0, min(180.0, own_distance - 100.0))
+        value = -mentality * (-max(-300.0, min(300.0, forward)) * .15
+                             + advantage * .30 + controlled * .22 - loose * .15)
+    return max(-220.0, min(220.0, value))
+
+
 def evaluate_outcome(state, side, move, trajectory, scored, *, support_plan=None):
     """Score progress, safe possession and useful support from real end positions."""
     target = "A" if side else "B"
@@ -182,7 +261,11 @@ def evaluate_outcome(state, side, move, trajectory, scored, *, support_plan=None
             value -= 70.0
     # Reward useful off-ball movement even when the ball stays with the human.
     # Only compare the moved pawn's improvement, never a pre-existing formation.
-    if index > 0 and _distance(end, state['ball']) < 40.0:
+    if team_movement_enabled(state):
+        value += _role_value(state, side, index, end, own_end, opponent_end)
+        value += _playstyle_value(state, side, progress - initial_progress,
+                                 own_distance, opponent_distance, goal_distance)
+    elif index > 0 and _distance(end, state['ball']) < 40.0:
         if support_plan is None:
             material = _ball_physics(state)
             profiles = {team: [_profile(state, team, i, material)
@@ -230,6 +313,7 @@ def tactical_candidates(state, side, allowed_players=None, max_candidates=8, *, 
         _progress(players[i]["x"], side) > _progress(ball["x"], side) + 15.0,
         round(distances[i], 8), i,
     ))
+    reachable = _role_order(state, side, reachable, distances)
     ranked, seen = [], set()
 
     def add(i, angle, power, bonus=0.0):
@@ -295,15 +379,17 @@ def tactical_candidates(state, side, allowed_players=None, max_candidates=8, *, 
         # without sacrificing the keeper whenever an outfielder is available.
         support = [i for i in allowed if i != 0] or allowed
         support.sort(key=lambda i: (round(distances[i], 8), i))
+        support = _role_order(state, side, support, distances)
         for i in support[:3]:
             player = players[i]
             for offset in (0.0, -45.0, 45.0):
                 target_y = max(_MARGIN + 40.0, min(FIELD_H - _MARGIN - 40.0, ball["y"] + offset))
                 angle = math.degrees(math.atan2(target_y - player["y"], ball["x"] - player["x"]))
                 add(i, angle, cap)
-    for index, angle, power in support_plan.moves(allowed, cap):
-        add(index, angle, power)
-    if support_plan.active and support_plan.carrier not in allowed:
+    if not team_movement_enabled(state):
+        for index, angle, power in support_plan.moves(allowed, cap):
+            add(index, angle, power)
+    if not team_movement_enabled(state) and support_plan.active and support_plan.carrier not in allowed:
         # Already useful receivers may hold their lane instead of crowding the striker.
         holder = next((i for i in allowed if i != 0), None)
         if holder is not None:

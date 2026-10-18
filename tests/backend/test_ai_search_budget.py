@@ -202,6 +202,9 @@ def test_fast_llm_mode_uses_local_strategy_without_remote_inference(monkeypatch)
     monkeypatch.setattr(model, "get_ai_move", lambda *_: pytest.fail("Fast mode invoked remote inference"))
     calls = []
     monkeypatch.setattr(model, "_fallback_move", lambda *_: calls.append(True) or (0, 0, 50))
+    # Exercise the fallback branch deliberately; a real tactical seed can score
+    # and correctly return early before either model decision method is called.
+    monkeypatch.setattr(tactics, "tactical_candidates", lambda *_a, **_k: [(0, 0, 0)])
     state = physics.new_soccer_state(player_count=3)
     assert budget.get_model_move(model, state, True, budget_s=0.9, max_simulations=12)
     assert calls == [True]

@@ -16,14 +16,90 @@ dependencies, downloaded weights, remote calls, or persistent storage.
 
 Their scorer is passed through candidate ordering and `SearchBudget.record`,
 so a timeout retains the best completed result for that style. They use the
-existing 120 ms / 12-prediction limits, keeper safeguards, support runs, and
-one-pawn turns. An already-expired request still returns the generic legal
+existing 120 ms / 12-prediction limits, keeper safeguards, and support runs.
+An already-expired request still returns the generic legal
 fallback immediately. Regression checks are in `test_tactical_styles.py`.
 
 `models/tactics.py` builds a short list using the actual roster, player stats,
 power cap, ball materials, reachable contact geometry, and open passing lanes.
 It considers shots, controlled passes, defensive clearances, and moving toward
-the ball when no player can reach. `models/team_support.py` also proposes forward
+the ball when no player can reach. Ordinary Human vs AI opponents can select
+their full roster; only shootouts restrict the kicker to the placed index 0.
+
+## Five-level playstyle
+
+The live game offers five connected dots: **Deep defend, Defend, Balanced,
+Attack, All-out attack**. Balanced (level 3) is the default. Lower levels move
+the team's lines deeper and make them more compact, with a stronger preference
+for controlled possession. Higher levels push the lines forward and widen them,
+with more reward for forward play and attacking pressure. Stable player jobs
+remain in place: keepers stay home and defenders' support targets remain in
+their own half. Existing movement limits and physical collisions still apply.
+
+In Human vs AI the control changes your teammates' playstyle; your striker
+remains manual. In AI vs AI either team can be selected. Changes take effect on
+the next kick and are stored in `playstyle_a` / `playstyle_b`, including across
+reloads and match resets. The control is unavailable during moves, saving,
+online/manual-only matches, and shootouts. `POST /set_playstyle` validates the
+level and team; AI prediction cache keys include both teams' levels.
+
+`models/playstyle.py` reads the two small settings. No extra physics worlds,
+network inference, timers or search budget are needed. The shared outcome
+scorer applies the preference to completed predictions as well as candidate
+ordering; goals and urgent clearances retain priority.
+
+Verify with `python tools/run_tests.py tests/backend/test_playstyle.py` and
+`python tools/browser/verify_playstyle.py`. The browser check covers keyboard
+selection, saves and failure recovery, resets, team selection, session changes,
+and desktop/mobile layout.
+
+## Simultaneous team movement
+
+Human vs AI and AI vs AI now launch support runs for **both squads during each
+kick**. `models/team_movement.py` follows stable jobs from `models/team_roles.py`.
+In five-a-side, #1 guards the goal, #2 and #3 defend separate lanes in their own
+half, #4 offers short passing outlets, and #5 stays available to attack. Jobs
+come from the starting formation and roster slot; possession, collisions and
+kickoff resets do not reassign them. Other roster sizes use their formation's
+defender, midfield and forward rows. A two-player team uses keeper and attacker.
+Keepers track the ball inside the goal-mouth band.
+Shared kick scoring also favors each job: defenders retain cover and clear
+danger, support players look for controlled receptions, and attackers favor
+forward play. These are bounded preferences: goals take priority, urgent
+clearances bypass positional penalties, and the nearest eligible player stays
+in consideration. The game page lists each player's job beside their number.
+The human striker is never automatically launched. An outfielder's planned
+free run is bounded to 120 world units and a keeper's to 45, further limited by
+actual stats and the match power cap. Contact can change that travel.
+
+The planner tries at most three swept paths per pawn and reserves destinations
+to reduce crowding. A blocked or already-settled player can hold position;
+there is no random movement just to make every disc appear busy. Each accepted
+run uses a single momentum impulse. Existing friction, collisions and settling
+govern the result, in the same Pymunk world as the chosen kick. No extra physics
+world, search budget, persistent state or background animation loop is added.
+Predictions and actual play use exactly the same plans and physics.
+
+A local five-a-side check on 2026-10-16 (20 repetitions of the same spread
+fixture, excluding imports and state copying) measured 0.29 ms median planning,
+8.31 ms prediction, and 8.59 ms execution with support enabled. The same fixture
+with support disabled took 4.36 ms and 4.49 ms for prediction and execution.
+Both modes created exactly one physics world per prediction or execution;
+planning created none. Three-repeat bounded attack checks measured 28.1 ms
+median for Team Coordinated and 24.1 ms for High Press, each using three
+predictions. These are local fixture measurements, not deployment guarantees.
+After adding fixed roles and role-aware scoring, the same three-repeat bounded
+attack check measured 20.2 ms median for Team Coordinated and 21.1 ms for High
+Press, each with three predictions and four cache hits. This small sample showed
+no material latency regression; it does not establish a speedup.
+
+Human vs AI now completes **your kick, one opponent reply, then your turn**.
+No separate teammate turn is needed. Hotseat and online human-only games retain
+manual turns by default. Shootouts retain their kicker/keeper-only simulation.
+An explicit `team_movement=False` preserves the legacy four-leg human cycle and
+single-pawn physics for saved practice fixtures and physics experiments.
+
+For those legacy games, `models/team_support.py` proposes forward
 support runs when a teammate has the safer position near the ball, including
 when that teammate is the human striker excluded from the AI's turn.
 
@@ -35,11 +111,13 @@ two runs. Their stopping power follows actual Power/Agility and the match cap;
 the entire path must clear the ball and other players. Already useful receivers
 can hold position. Loose balls, urgent clearances and scoring chances still take
 priority. Goalkeepers stay home when an outfielder can reach during an attack.
-A turn still moves only its selected player.
+In that opt-out mode, a turn still moves only its selected player.
 
 Support checks are deterministic geometry calculations and create no extra
 physics worlds. The same positional improvement score is used by the quick
 fallback and verified search, within the existing 120 ms / 12-prediction budget.
+
+## Bounded search
 
 `models/search_budget.py` verifies up to four tactical seeds, then lets the
 selected agent refine them within the remaining shared budget. The best
@@ -81,9 +159,9 @@ retains its worker slot until it finishes. Uploaded execution retains its
 separate five-second limit. This follows Python's
 [Future cancellation behavior](https://docs.python.org/3/library/concurrent.futures.html#concurrent.futures.Future.cancel).
 
-Human vs AI completes striker A, opponent B, teammate A, opponent B, then returns
-control to the striker. The teammate uses the coordinated policy instead of a
-random rush. One-player squads omit the teammate pair. Retry continues the
+Human vs AI completes striker A, then opponent B, and returns control to the
+striker. Explicit legacy matches add teammate A and opponent B before returning
+control; one-player squads omit that teammate pair. Retry continues the
 pending automatic leg; duplicate clicks are blocked, and joining another session
 invalidates old responses and animations. Local AI moves use the
 selected animation speed, with a four-second cap at normal speed in Canvas 2D.

@@ -12,6 +12,19 @@ run at a fixed 180 Hz and trajectories record at 60 Hz, with actual timestamps.
 Recorded impacts survive trajectory thinning. Playback does not resimulate
 physics and remains independent of rendering frame rate.
 
+AI matches reposition both teams during that same simulation. Each non-selected
+AI pawn receives at most one support impulse from `models/team_movement.py`;
+normal friction and contact response then govern its run. Planned free travel
+is at most 120 units for outfield players and 45 for keepers, subject to their
+stats and the power cap. Safe lanes and distinct destinations reduce crowding.
+Formation jobs remain fixed: keepers guard goal, defenders recover to their own
+half, midfield support offers passing lanes, and attackers stay upfield.
+These are movement targets; physical contact can still push a player elsewhere.
+Your striker is excluded from automatic movement, but remains a physical body
+that can receive contact. Both squads' positions are recorded on the same
+trajectory. Human-only matches, shootouts and explicit `team_movement=False`
+fixtures retain their previous movement rules.
+
 Bodies idle below 0.5 units/s sleep after 0.1 seconds and wake on contact or an
 impulse. Sleeping player snapshots reuse cached coordinates with independent
 frame dictionaries. Off-camera rendering does not alter physics outcomes.

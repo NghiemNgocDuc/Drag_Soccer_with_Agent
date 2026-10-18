@@ -129,7 +129,8 @@ def test_high_power_more_loft():
 
 def test_heavy_vs_light_collision():
     """In a player-ball-player chain, lighter player moves more when hit by ball."""
-    st = new_soccer_state()
+    # Isolate passive contact transfer from automatic support-run impulses.
+    st = new_soccer_state(team_movement=False)
     st["ball"] = {"x": 400.0, "y": 312.0, "z": 0.0}
     st["players_a"] = [{"x": 200.0, "y": 312.0}, {"x": 300.0, "y": 312.0}, {"x": 100.0, "y": 312.0}]
     st["players_b"] = [{"x": 800.0, "y": 312.0}, {"x": 600.0, "y": 312.0}, {"x": 700.0, "y": 312.0}]

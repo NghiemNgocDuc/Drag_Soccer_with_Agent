@@ -1,4 +1,4 @@
-"""Useful off-ball runs must survive actual physics and the shared search budget."""
+"""Legacy separate support turns remain valid with simultaneous runs disabled."""
 from copy import deepcopy
 import math
 
@@ -11,7 +11,7 @@ from models.tactics import quick_move, tactical_candidates
 
 
 def support_state():
-    state = new_soccer_state(player_count=5, half_length=0)
+    state = new_soccer_state(player_count=5, half_length=0, team_movement=False)
     state['ball'].update(x=700, y=437.5)
     for key, positions in (
         ('players_a', [(90, 437.5), (360, 437.5), (570, 220), (570, 655), (645, 437.5)]),

@@ -22,7 +22,7 @@ from game.session import (
     get_game, save_game, new_game_state, push_snapshot, pop_snapshot,
     new_pg_state, get_pg, save_pg,
 )
-from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions, normalize_kick, human_player_index, advance_match_clock, match_clock
+from models.soccer_logic import apply_kick, apply_penalty_kick, _setup_penalty_positions, normalize_kick, human_player_index, advance_match_clock, match_clock, team_movement_enabled
 from models.search_budget import get_model_move, is_builtin, DEFAULT_BUDGET_S
 
 #  Mem0-style memory (short/long) 
@@ -247,10 +247,17 @@ def uid() -> str:
 
 
 def _full_state(state: dict, extra: dict | None = None) -> dict:
+    from models.team_roles import team_roles
+    from models.playstyle import playstyle_level
+
     result = {
         "ball":         state["ball"],
         "players_a":    state["players_a"],
         "players_b":    state["players_b"],
+        "player_roles_a": team_roles(state, True),
+        "player_roles_b": team_roles(state, False),
+        "playstyle_a": playstyle_level(state, True),
+        "playstyle_b": playstyle_level(state, False),
         "score_a":      state["score_a"],
         "score_b":      state["score_b"],
         "is_player_a":  state["is_player_a"],
@@ -262,6 +269,7 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "game_over":    state.get("game_over", False),
         "winner":       state.get("winner"),
         "game_mode":    state.get("game_mode", "hvai"),
+        "team_movement": team_movement_enabled(state),
         "player_count": state.get("player_count", 5),
         "human_player_idx": human_player_index(state),
         "power_cap": state.get("power_cap", 100),
@@ -630,7 +638,9 @@ def _do_penalty_ai(state: dict, model_name: str, is_player_a: bool) -> dict:
 
 def _allowed_ai_players(state, is_player_a, excluded_player_idx=None):
     players = state["players_a"] if is_player_a else state["players_b"]
-    if state.get("game_mode") == "hvai" and not is_player_a:
+    # Shootouts place their only kicker at index 0. Ordinary opponents can
+    # choose the full roster, just like AI-vs-AI and tactical predictions.
+    if state.get("penalty_shootout"):
         return (0,)
     return tuple(i for i in range(len(players))
                  if len(players) == 1 or i != excluded_player_idx)
@@ -1154,6 +1164,27 @@ def goalkeeper_move():
     return jsonify({"ok": True})
 
 
+@app.route("/set_playstyle", methods=["POST"])
+@login_required
+def set_playstyle():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Choose a playstyle level from 1 to 5"}), 400
+    level, side = data.get("level"), data.get("side", "a")
+    if type(level) is not int or not 1 <= level <= 5 or side not in ("a", "b"):
+        return jsonify({"error": "Choose a team and a whole playstyle level from 1 to 5"}), 400
+    user_id = uid()
+    state = get_game(user_id)
+    if (state.get("game_mode") not in ("hvai", "aivai")
+            or not team_movement_enabled(state) or state.get("game_over")):
+        return jsonify({"error": "Playstyle is available during local AI matches"}), 409
+    if state.get("game_mode") == "hvai" and side != "a":
+        return jsonify({"error": "You can change your own team's playstyle"}), 403
+    state["playstyle_" + side] = level
+    save_game(user_id, state)
+    return jsonify(_full_state(state))
+
+
 @app.route("/set_mode", methods=["POST"])
 @login_required
 def set_mode():
@@ -1316,6 +1347,9 @@ def reset_game():
             pass
     for field in ("ball_type", "ball_bounciness", "ball_size"):
         state[field] = cust.get(field, "normal")
+    from models.playstyle import playstyle_level
+    state["playstyle_a"] = playstyle_level(old_state, True)
+    state["playstyle_b"] = playstyle_level(old_state, False)
     _auto_clear_state(user_id)
     save_game(user_id, state)
     _ph.track_game_start(uid(), state.get("game_mode", "hvai"), state.get("model_name_b", ""))
