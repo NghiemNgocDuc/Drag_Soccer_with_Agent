@@ -112,9 +112,12 @@ def capture() -> list[dict]:
     browser_errors = []
     failed_requests = []
 
-    def save_preview(page, filename, caption, *, full_page=False):
+    def save_preview(page, filename, caption, *, full_page=False, selector=None):
         path = destination / filename
-        page.screenshot(path=str(path), full_page=full_page, timeout=60000)
+        if selector:
+            page.locator(selector).screenshot(path=str(path), timeout=60000)
+        else:
+            page.screenshot(path=str(path), full_page=full_page, timeout=60000)
         with Image.open(path) as source:
             # Lossless RGB saves discard redundant alpha without softening text.
             source.convert("RGB").save(path, optimize=True)
@@ -138,7 +141,18 @@ def capture() -> list[dict]:
                     if response.status >= 400 else None)
             page.goto(base + "/__readme/sign-in", wait_until="networkidle")
 
-            page.goto(base + f"/play3d?room={room_id}", wait_until="networkidle")
+            page.goto(base + "/play2d", wait_until="networkidle")
+            page.locator('[onclick="resetGame()"]').click()
+            page.locator("#match-start-btn").wait_for(state="visible")
+            page.locator("#mode-select").select_option("hvai")
+            page.wait_for_function("document.querySelectorAll('.setup-team').length === 1")
+            save_preview(page, "match-setup.png", "Choose a formation and playstyle before kickoff.", selector="#match-setup")
+            page.locator("#online-btn").click()
+            page.locator("#online-resume-card").wait_for(state="visible")
+            save_preview(page, "online-lobby.png", "Friend invitations and match recovery in the online lobby.", selector=".online-lobby-card")
+            page.keyboard.press("Escape")
+
+            page.goto(base + f"/play2d?room={room_id}", wait_until="networkidle")
             page.wait_for_function("window.__pitch2D?.().players_a.length === 5")
             page.wait_for_function("document.querySelector('.team-a .team-name').textContent === 'Orion FC'")
             canvas = page.locator("#pitch-container canvas")

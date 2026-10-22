@@ -2,11 +2,11 @@
 
 # Agent Soccer
 
-**A soccer game and Python AI playground, in your browser.** Build a strategy, tune your squad, and watch it compete on a 2D pitch. Agent Soccer combines turn-based controls with server-side physics, online matches, and tools for comparing your agents.
+**Pull back. Aim. Release.** Agent Soccer is a five-a-side, turn-based soccer game and Python AI playground. Choose your tactics, launch your players across a 2D pitch, and compete against AI or another person. Every kick uses server-side physics, with synchronized playback for the ball and both teams.
 
 **Python · Flask · Pymunk · Canvas 2D · WebAudio**
 
-[Quick start](#quick-start) · [Build an agent](#build-an-agent) · [AI catalog](#ai-catalog) · [Documentation](#documentation) · [Demo](https://drag-soccer-with-agent.onrender.com/)
+[Quick start](#quick-start) · [How to play](#how-to-play) · [Online play](#play-online) · [Build an agent](#build-an-agent) · [Documentation](#documentation) · [Demo](https://drag-soccer-with-agent.onrender.com/)
 
 ![A five-a-side online match between Orion FC and Harbor United, with the stadium, scoreboard, and player controls visible.](docs/assets/readme/gameplay.png)
 
@@ -17,6 +17,7 @@
 | | Experience |
 | --- | --- |
 | **Play** | Five players per team. Control your striker against AI, take turns locally, or watch AI vs AI. Pull back, aim, and release. |
+| **Plan** | Choose one of four formations and a five-level AI playstyle before kickoff. Players keep distinct defensive, support, and attacking jobs. |
 | **Build** | Write Python in the AI Playground, validate your strategy, save custom models, and work through seven guided lessons. |
 | **Customize** | Allocate player stats, choose formations and kits, and change pitch, ball, keeper, and referee colors. |
 | **Compete** | Compare agents in the Arena, run tournaments, submit models to the model leaderboard, or play ranked human matches. |
@@ -75,11 +76,29 @@ DEV_MODE=1 python app.py
 
 Open **[localhost:5000](http://localhost:5000)**. Choose **Log in → Try the demo account → Use demo details → Sign in**, then open the Workshop to create an agent. Keep optional integration keys empty for a standalone local session.
 
-### Play your first match
+## How to play
 
 1. Open **Play** and choose Human vs AI, Human vs Human, or AI vs AI.
-2. Choose your match settings. Each team has five players.
-3. Pull a legal player backward and release to kick, or use the direction and power controls.
+2. Choose a **formation** and, for AI matches, a **playstyle**. The lineup preview shows each player's position and job.
+3. Select **Start match**. The clock stays at **00:00** until kickoff.
+4. Pull an eligible player backward and release to launch it, or use the direction and power controls.
+
+![Pre-match setup with a numbered lineup preview, four formation choices, and five playstyle dots.](docs/assets/readme/match-setup.png)
+
+### Choose your tactics
+
+| Formation | Shape |
+| --- | --- |
+| **2-1-1 · Balanced** | Two defenders, one support player, one striker |
+| **1-2-1 · Diamond** | One defender, two midfield outlets, one striker |
+| **2-0-2 · Box** | Two defenders and two forwards |
+| **1-1-2 · Forward pair** | One defender and one support player behind two forwards |
+
+Every formation also includes a goalkeeper. The five playstyle dots run from **Deep defend → Defend → Balanced → Attack → All-out attack**. They adjust AI positioning and risk preference while preserving each player's role.
+
+Human vs AI configures your team; AI vs AI configures both teams. Local Human vs Human lets each side choose a formation. Tactics stay fixed during a match. **New Game** reopens setup with your last choices; refreshing resumes an active match.
+
+### Controls and match rules
 
 | Action | Keyboard |
 | --- | --- |
@@ -90,15 +109,25 @@ Open **[localhost:5000](http://localhost:5000)**. Choose **Log in → Try the de
 | Kick | Enter / Space while using the pitch |
 | Cancel aiming | Escape |
 
-Human vs AI gives you striker #5, marked **YOU** on the pitch. Pull the disc backward and release to launch it; longer pulls hit harder. Teammates act automatically, then control returns to you. New matches use a **90:00 clock** (4½ real minutes), with tied matches continuing to **105:00**, **120:00**, then penalties. In local Human vs AI shootouts, drag your keeper to either labeled side to dive, or toward the ball to stay central. Local Human vs Human and online play allow selection from the active player's roster. Untimed practice remains available in settings.
+Human vs AI gives you striker **#5**, marked **YOU**. Longer pulls produce stronger launches. Both AI squads make support runs during each kick; your striker remains under your control. After the opponent's turn, control returns to you. Local Human vs Human and online play allow selection from the active player's roster.
 
-The ball stays on the ground with crisp, ping-pong-style rebounds and a speed limit. Players stay inside the pitch, and every player follows the same playback clock as the ball.
+Matches use a **90:00 clock** (4½ real minutes of regulation), with tied games continuing to **105:00**, **120:00**, then penalties. In local Human vs AI shootouts, drag your keeper toward either labeled side to dive, or toward the ball to stay central. Untimed practice remains available in settings.
+
+Ordinary kicks keep the ball grounded. Soft boundary rebounds, rolling resistance and a speed cap keep it controllable; an inward corner bumper helps prevent trapped balls. Players stay inside the pitch and follow the same playback clock as the ball.
 
 ### Play online
 
-Open **Online** to share a match invitation, join a friend's link, or find a casual or ranked opponent. The lobby offers your existing match or search when you return. Connection status and a reconnect button show when the game is resynchronizing; interrupted kick requests are checked against the server before play resumes. See [online play](docs/online-play.md) for setup and verification.
+Open **Online** and choose **Play with a friend** or **Find a match**.
 
-### Give each player a role
+- **Friends:** create a room with an optional password, share its invitation, or paste a friend's link or room code.
+- **Matchmaking:** search for a casual opponent or join ranked play with a registered account. Casual search falls back to an AI opponent after eight seconds without a match.
+- **Recovery:** reopen your invitation, resume a match, or recover an ongoing search after refreshing. Connection status and a reconnect button explain interrupted connections. Lost kick responses are checked against the server before input is enabled again.
+
+![Online lobby with separate friend and matchmaking tabs, room creation, invitation entry, and a resume-match action.](docs/assets/readme/online-lobby.png)
+
+Leaving an active match awards the win to your opponent. Cancelling an unjoined invitation does not. See [online play](docs/online-play.md) for deployment requirements and recovery behavior.
+
+### Tune your squad
 
 Each player has a **200-point budget** across four stats, with values from 20 to 80 in the team builder.
 
@@ -170,10 +199,6 @@ Built-in agents share a fast tactical shortlist for shots, open passes, clearanc
 Live requests use four worker slots per process and return a legal tactical fallback when busy. Built-in physics searches stop cooperatively; arbitrary uploaded Python retains its slot until execution finishes. See [AI responsiveness](docs/ai-responsiveness.md) for tuning, timing measurements, and tradeoffs.
 
 Possession, Counter Attack, and High Press are lightweight deterministic tactical agents, with no downloads, API keys, or training data. Their own scoring priorities apply to both candidate ordering and budget-limited results. In AI matches, both squads reposition during each kick with jobs assigned by your formation. In the default 2-1-1, #1 guards goal, #2 and #3 defend, #4 supports passes, and #5 attacks. You keep control of your striker. All runs share the kick's existing physics world and recorded timeline.
-
-Before each new local match, choose your **formation** and **five-dot playstyle**, then select **Start match**. The clock stays at 00:00 while you prepare. Formations are 2-1-1 (Balanced), 1-2-1 (Diamond), 2-0-2 (Box), and 1-1-2 (Forward pair); each has a goalkeeper and four outfield players. The lineup preview shows every player's job, with your #5 striker highlighted.
-
-Playstyles run from Deep defend through Defend, Balanced, Attack, and All-out attack. Your AI teammates adjust their positioning and risk preference while keeping their formation roles. AI vs AI lets you configure both teams; local two-player games let each side choose a formation. Tactics stay fixed during the match. **New Game** reopens setup with your last choices prefilled; refreshing an active match resumes it.
 
 ## Architecture
 
@@ -252,10 +277,12 @@ Browser checks require Playwright and Chromium:
 python -m pip install playwright
 python -m playwright install chromium
 python tools/browser/verify_frontend.py
+python tools/browser/verify_2d.py
+python tools/browser/verify_match_setup.py
 python tools/browser/verify_online_reliability.py
 ```
 
-On Windows, substitute `.\.venv\Scripts\python.exe` for `python` if the environment is not activated. Focused browser checks cover controls, online matches, sound, camera visibility, and rendering. Commands and measurement limits are documented in [tools/README.md](tools/README.md).
+On Windows, substitute `.\.venv\Scripts\python.exe` for `python` if the environment is not activated. Browser checks cover auth forms, desktop/mobile layout, setup, gameplay, replays, and interrupted online requests. They run against an isolated local server; production Redis latency, Render cold starts, and external voice connections require deployment checks. Commands are documented in [tools/README.md](tools/README.md).
 
 ## Deployment
 
@@ -279,7 +306,8 @@ Core integration settings are listed in [.env.example](.env.example). Email, ana
 | [Players and controls](docs/player-controls.md) | Input rules, player models, and turn handling |
 | [Online play](docs/online-play.md) | Rooms, matchmaking, replay synchronization, and verification |
 | [Frontend](docs/frontend-design.md) | Shared page shell, responsive layout, and browser checks |
-| [Stadium experience](docs/stadium-experience.md) | Audience rendering and synthesized match audio |
+| [2D rendering](docs/2d-rendering.md) | Canvas presentation, demand rendering, resolution, and goal-only audio |
+| [Stadium experience](docs/stadium-experience.md) | Historical 3D audience and audio implementation |
 | [Analytics](docs/analytics.md) | Match analysis and reports |
 | [Project layout](docs/project-layout.md) | Folder map and development commands |
 | [Vendored assets](docs/vendoring.md) | Local libraries, fonts, and third-party notices |
