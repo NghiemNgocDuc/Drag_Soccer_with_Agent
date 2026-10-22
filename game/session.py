@@ -49,7 +49,11 @@ def get_game(user_id: str) -> dict:
         data = json.loads(raw)
         if "ball" in data:   # valid soccer state
             return _backfill_field(data)
-    state = new_game_state()
+    from models.formations import DEFAULT_FORMATION_5
+    state = new_game_state(formation_a=DEFAULT_FORMATION_5, formation_b=DEFAULT_FORMATION_5)
+    # Local visitors explicitly choose their tactics before the match clock runs.
+    # Engine-created online, tournament, and playground states keep their lifecycle.
+    state["match_started"] = False
     save_game(user_id, state)
     return state
 

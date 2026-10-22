@@ -14,6 +14,45 @@ and open the host's LAN address. Deployed online matches need a
 shared Redis instance so all Gunicorn workers read the same rooms and queues.
 Set `SITE_URL` to the public browser-accessible base URL for account email links.
 
+## Lobby and match recovery
+
+The served `/play2d` lobby separates **Play with a friend** from **Find a match**.
+Friends can create a room with an optional password, share its invitation, or
+join with a code or full link. Casual matchmaking retains its eight-second AI
+fallback; ranked matchmaking uses registered accounts. Native tabs support
+arrow keys, Home and End, with one scrolling dialog on small screens.
+
+`GET /online/current` recovers the current session's waiting room, active match,
+or ongoing matchmaking search. Opening the lobby offers **Open invitation** or
+**Resume match**, or restores the search controls. Recovery depends on the same
+browser session/account; the endpoint does not expose room passwords.
+
+Room membership and matchmaking changes share one Redis-backed lock. A player
+cannot enter two queues or create another room while already playing.
+`online:room:<user_id>` tracks validated membership without scanning rooms.
+Room and handoff pointers have a six-hour expiry, refreshed when the room is
+saved. Completed/cancelled rooms clear only pointers still referring to that
+room. Repeating Create after a lost response returns the existing waiting room;
+rejoining an assigned room does not require its password again.
+
+## Requests and connection state
+
+`static/js/game/online-transport.js` bounds each request, including response-body
+decoding, to 12 seconds. Read requests can retry transient failures; mutations
+are sent once. A missing kick response may mean the server accepted the move,
+so the client blocks input and reads authoritative state before enabling play.
+It never automatically repeats the kick.
+
+Live match polling runs sequentially, normally every 1.5 seconds. Failed polls
+back off to 3, 6, then 12 seconds. The room bar shows connection state and a
+manual reconnect action. Browser reconnect events trigger another sync.
+Waiting invitations survive transient failures, and queued searches retain
+recovery/cancel controls. Old session responses cannot replace a newer match;
+older revisions cannot roll the same match backward.
+
+This uses the existing HTTP transport and cached Canvas renderer. There is no
+additional animation loop or socket service.
+
 ## Controls and lifecycle
 
 Entering a room first loads its authoritative state, roster, names, and side.
@@ -44,8 +83,9 @@ result arrives or the player exits; the winner panel reports a pending update
 if recovery is still needed.
 
 Room invitations cannot replace an existing opponent or reactivate a finished
-room. Quick and ranked matchmaking serialize queue changes and remove expired
-waiters. Voice signaling retains at most 100 messages while keeping a monotonic
+room. Quick and ranked matchmaking remove expired waiters. A ranked room already
+joined by either player is not reclaimed by the unjoined-room timeout.
+Voice signaling retains at most 100 messages while keeping a monotonic
 sequence, so trimming ICE messages does not strand a peer's cursor. Voice remains
 STUN-only, and restrictive NATs can still require a TURN service.
 
@@ -54,21 +94,27 @@ STUN-only, and restrictive NATs can still require a TURN service.
 `python tools/run_tests.py` runs isolated Python regression tests. The focused
 online HTTP suite covers validation, membership, invitations, concurrent room
 changes, queues, stale commands, cancellation/forfeit, and bounded voice cursors.
-`node --test tests/frontend/test_player_controls.mjs` checks turn gates and revision
-planning. `python tools/browser/verify_online_controls.py` uses two local browser
-contexts plus a spectator and disables external integrations before importing
-Flask. Reports and screenshots are written to the system temporary directory.
-`python tools/browser/verify_online_result.py` checks delayed ranked-result recovery,
-bounded retries, and cleanup when a player leaves.
+`node --test tests/frontend/test_player_controls.mjs tests/frontend/test_online_transport.mjs`
+checks turn gates, revision planning, timeouts, cancellation and read-only retries.
 
-The regression run passed 686 Python tests (four skipped), all 62 JavaScript
-tests, 55 existing player-control browser checks, 57 integrated online browser
-checks, 10 ranked-recovery browser checks, and 21 final layout checks. Browser checks had no JavaScript
-exceptions. Voice checks used real local Chromium peers with fake microphones
-and host-only ICE; they did not test production NAT traversal.
+Run `python tools/browser/verify_online_reliability.py` for the current Canvas 2D
+lobby. It uses independent browser sessions against real local Flask routes and
+physics. Faults are injected into a verifier-only template copy, covering failed
+polls, hung requests, lost responses after server acceptance, stale responses,
+room recovery, password entry, cancellation and desktop/mobile layout. Reports
+and screenshots are written to `%TEMP%/agent-soccer-online-reliability/`.
 
-Use `python tools/browser/verify_online_controls.py --layout-only` for the final room
-badge, chat, and control layout checks at desktop and mobile widths.
+The completed redesign passed 1,050 backend tests (four skipped), 95 JavaScript
+tests, and 41 online browser checks with no uncaught JavaScript exceptions.
+The existing 2D, match setup, model picker and dialog browser suites also passed
+207 checks. The shared frontend/auth verifier passed another 89 checks after
+updating its fixtures to the served 2D renderer and mandatory match setup.
+Browser verification includes both desktop and mobile layouts.
+
+`verify_online_controls.py` and `verify_online_result.py` retain earlier 3D
+renderer assumptions. Their historical results are not verification of the
+current 2D lobby. Production Redis latency, Render cold starts and external NAT
+traversal are outside the local browser tests.
 
 ## Repository cleanup
 
@@ -76,5 +122,5 @@ badge, chat, and control layout checks at desktop and mobile widths.
 page is preserved in `docs/diagrams/workflow-source.html` with local fonts.
 Two unused, byte-identical root exports were removed; `workflow.pdf` had PNG
 bytes rather than PDF content. This removes 2,948,504 duplicate bytes without
-changing the served diagram. README model descriptions now match the 12 supported
-IDs, and the missing benchmark-script reference was removed.
+changing the served diagram. The current supported model catalog is maintained
+in `app.py` and the README.

@@ -6,6 +6,17 @@ const { controlAccess, playerRadius, shotPower, shotFromPull, onlineRevision, on
 const state = overrides => ({ game_mode: 'hvh', is_player_a: true,
   players_a: Array.from({length:7},()=>({})), players_b: Array.from({length:3},()=>({})), ...overrides });
 
+test('pre-match setup blocks all local kick inputs until kickoff', () => {
+  for(const mode of ['hvai','aivai','hvh']) {
+    const access=controlAccess(state({game_mode:mode,match_started:false}));
+    assert.equal(access.canKick,false);
+    assert.deepEqual(access.indices,[]);
+    assert.match(access.reason,/start the match/);
+  }
+  assert.equal(controlAccess(state({match_started:true})).canKick,true);
+  assert.equal(controlAccess(state({match_started:false}),{active:true,side:'a'}).canKick,true);
+});
+
 test('hotseat control follows the current team and its actual roster length', () => {
   assert.deepEqual(controlAccess(state()).indices, [0,1,2,3,4,5,6]);
   const turn = controlAccess(state({is_player_a:false}));

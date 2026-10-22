@@ -4,6 +4,7 @@ import math
 import time
 import pymunk
 from models.search_budget import current_search
+from models.formations import five_player_positions, formation_id
 
 
 def _player_positions(bodies, cache=None):
@@ -60,7 +61,7 @@ def match_clock(state: dict, now: float | None = None) -> dict:
     """
     now = time.time() if now is None else now
     hl = state.get("half_length", _HALF_DEFAULT)
-    if hl <= 0:
+    if hl <= 0 or state.get("match_started") is False:
         return {"match_elapsed": 0.0, "match_clock_seconds": 0.0,
                 "clock_running": False, "next_period_at": None, "server_time": now}
     ht, ft, et1, et2 = _time_th(hl)
@@ -84,7 +85,8 @@ def advance_match_clock(state: dict, now: float | None = None) -> bool:
     Check regulation before extra time even after a long idle interval. A team
     already leading at 90 minutes must finish there, never at 120 minutes.
     """
-    if state.get("game_over") or state.get("penalty_shootout"):
+    if (state.get("match_started") is False or state.get("game_over")
+            or state.get("penalty_shootout")):
         return False
     hl = state.get("half_length", _HALF_DEFAULT)
     if hl <= 0:
@@ -262,8 +264,10 @@ def inject_player_stats(state: dict, team_a_stats: list[dict] | None = None, tea
 
 def _home_positions(count: int, side: str, formation: str | None = None) -> list[tuple[float, float]]:
     """Generate realistic soccer formation. Index 0 = GK.
-    formation: for 7 players, e.g. "3-2-1" (DEF-MID-FWD). If provided, overrides default.
+    Five- and seven-player rosters support named DEF-MID-FWD formations.
     """
+    if count == 5:
+        return five_player_positions(FIELD_W, FIELD_H, side, formation)
     if not isinstance(formation, str):
         formation = None
     center_y = FIELD_H / 2
@@ -452,6 +456,9 @@ def new_soccer_state(
     referee_name: str | None = None,
     team_movement: bool | None = None,
 ) -> dict:
+    if player_count == 5:
+        formation_a = formation_id(formation_a)
+        formation_b = formation_id(formation_b)
     # default formation from manager if not provided and count==7
     if player_count == 7:
         try:

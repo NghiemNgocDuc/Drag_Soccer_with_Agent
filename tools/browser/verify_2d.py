@@ -66,6 +66,8 @@ def main():
         timed = request.args.get('timed')
         game = new_soccer_state(mode='hvh', player_count=int(request.args.get('count', 5)), half_length=45 if timed else 0)
         game['game_mode'] = request.args.get('mode', 'hvh')
+        if request.args.get('setup'):
+            game['match_started'] = False
         if request.args.get('team_movement') == '0':
             game['team_movement'] = False
         if timed == 'halftime':
@@ -121,8 +123,15 @@ def main():
         page.on('request', lambda req: resources.append(req.url))
         return page
 
-    def ready(page):
+    def ready(page, *, start_pending=True):
         page.wait_for_function('window.__qa2D?.ready()')
+        if page.evaluate('window.__qa2D.active().match_started === false'):
+            if not start_pending:
+                return
+            # Fresh or upgraded local games require an explicit kickoff. Use
+            # the same button as a player rather than enabling input by fixture.
+            page.locator('#match-start-btn').click()
+            page.wait_for_function('window.__qa2D.active().match_started === true && !window.__qa2D.busy()')
         page.locator('#pitch-container').scroll_into_view_if_needed()
 
     def idle(page):
@@ -139,9 +148,10 @@ def main():
             browser = p.chromium.launch(headless=True, args=['--disable-webgl'])
             context = browser.new_context(viewport={'width': 1440, 'height': 1100})
             page = page_for(context)
-            page.goto(base + '/__2d/login/desktop')
-            ready(page)
-            check('Canvas renders 5v5', page.evaluate('window.__pitch2D().players_a.length===5 && window.__pitch2D().width>0'))
+            page.goto(base + '/__2d/login/desktop?setup=1')
+            ready(page, start_pending=False)
+            check('fresh local match waits for setup', page.locator('#match-setup').is_visible()
+                  and page.locator('#fs-wrap').is_hidden())
             check('manual hotseat does not show automatic squad jobs', page.locator('#squad-role-guide').is_hidden())
             for model in ('possession','counter_attack','high_press'):
                 page.wait_for_function('(id)=>!!document.querySelector(`#model-select option[value="${id}"]`)', arg=model)
@@ -150,6 +160,10 @@ def main():
                 check('new model selectable: '+model, switched.value.ok and context.request.get(base+'/state').json()['ai_model']==model)
             with page.expect_response(lambda response: response.url.endswith('/switch_model')):
                 page.locator('#model-select').select_option('greedy')
+            ready(page)
+            check('Canvas renders 5v5', page.evaluate('window.__pitch2D().players_a.length===5 && window.__pitch2D().width>0'))
+            check('kickoff closes setup and locks match mode', page.locator('#match-setup').is_hidden()
+                  and page.locator('#mode-select').is_disabled())
             check('live audio is silent until a goal and allocates no crowd buffers', page.evaluate('SoundManager._goalOnly && !SoundManager._ambientSource && SoundManager._buffers.size===0 && SoundManager._effects.size===0'))
             check('no horizontal overflow', page.evaluate('document.documentElement.scrollWidth<=innerWidth'))
             idle(page)

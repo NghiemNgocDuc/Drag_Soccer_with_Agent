@@ -89,14 +89,31 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
 <link rel="stylesheet" href="/static/css/pitch-2d.css">
 <link rel="stylesheet" href="/static/css/model-picker.css">
 <link rel="stylesheet" href="/static/css/playstyle-control.css">
+<link rel="stylesheet" href="/static/css/match-setup.css">
+<link rel="stylesheet" href="/static/css/online-lobby.css">
 </head>
 <body class="as-app as-game as-flick-game">
 <div class="flash-msg" id="flash-msg"></div>
 {{ app_nav('play') }}
 <main class="as-main" id="as-content">
   {{ page_header('Flick soccer','Pull back. Let it fly.','Drag your highlighted disc backward, then release. A longer pull hits harder.','/customize','Team & stadium') }}
-  <div id="online-bar" style="display:none"></div>
-  <div id="fs-wrap">
+  <div id="online-bar" style="display:none">
+    <span id="online-match-label"></span>
+    <div class="online-connection"><span id="online-connection-status" role="status" aria-live="polite">Connecting…</span><button id="online-retry-btn" class="btn btn-ghost btn-sm" type="button" onclick="retryOnlineConnection()" hidden>Reconnect</button></div>
+  </div>
+  <form id="match-setup" class="match-setup" hidden aria-labelledby="match-setup-title">
+    <header class="setup-heading">
+      <div><p class="setup-eyebrow">Before kickoff</p><h2 id="match-setup-title">Set your game plan.</h2><p>Choose your formation and playstyle, then take the pitch.</p></div>
+      <span class="setup-match-tag">5-a-side · You are #5</span>
+    </header>
+    <div id="setup-teams" class="setup-teams"></div>
+    <footer class="setup-footer">
+      <p id="match-setup-status" role="status" aria-live="polite">Loading formations…</p>
+      <div class="setup-start-actions"><button id="match-setup-retry" class="btn btn-ghost" type="button" hidden>Try again</button><button id="match-start-btn" class="btn btn-primary" type="submit" disabled>Start match</button></div>
+    </footer>
+  </form>
+  <p id="match-tactics-summary" class="match-tactics-summary" hidden></p>
+  <div id="fs-wrap" hidden>
     <div class="glass hud">
       <div class="team team-a">
         <div class="team-name">You</div>
@@ -132,27 +149,12 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
     </div>
   </div>
 
-  <section id="player-controls" class="player-controls" aria-label="Player controls">
+  <section id="player-controls" class="player-controls" aria-label="Player controls" hidden>
     <div class="player-control-heading"><strong>Take your turn</strong><span id="player-control-status" role="status" aria-live="polite">Loading match…</span></div>
     <div id="squad-role-guide" class="squad-role-guide" hidden>
       <h3 id="squad-role-title">Your squad</h3>
       <ul id="squad-role-list" class="squad-role-list" aria-labelledby="squad-role-title"></ul>
     </div>
-    <fieldset id="playstyle-control" class="playstyle-control" disabled aria-describedby="playstyle-help playstyle-status">
-      <legend>Team mentality</legend>
-      <div class="playstyle-layout">
-        <div class="playstyle-team"><span id="playstyle-team-label">Your team</span><label id="playstyle-team-choice" hidden>Team<select id="playstyle-team"><option value="a">Team A</option><option value="b">Team B</option></select></label></div>
-        <div><div class="playstyle-track">
-          <label><input type="radio" name="team-playstyle" value="1"><span class="playstyle-sr-only">Deep defend</span></label>
-          <label><input type="radio" name="team-playstyle" value="2"><span class="playstyle-sr-only">Defend</span></label>
-          <label><input type="radio" name="team-playstyle" value="3" checked><span class="playstyle-sr-only">Balanced</span></label>
-          <label><input type="radio" name="team-playstyle" value="4"><span class="playstyle-sr-only">Attack</span></label>
-          <label><input type="radio" name="team-playstyle" value="5"><span class="playstyle-sr-only">All-out attack</span></label>
-        </div><div class="playstyle-endpoints" aria-hidden="true"><span>Defend</span><span>Attack</span></div></div>
-        <div class="playstyle-copy"><strong id="playstyle-name">Balanced</strong><p id="playstyle-help">Balance defensive cover with forward support.</p></div>
-      </div>
-      <p id="playstyle-status" class="playstyle-status" role="status" aria-live="polite"></p>
-    </fieldset>
     <div class="player-control-fields">
       <div class="player-control-field"><label for="player-select">Player</label><div class="player-picker"><button id="player-prev" class="btn btn-ghost" type="button" aria-label="Previous player">&larr;</button><select id="player-select"></select><button id="player-next" class="btn btn-ghost" type="button" aria-label="Next player">&rarr;</button></div></div>
       <div class="player-control-field"><label for="aim-angle">Direction <span>degrees</span></label><input id="aim-angle" type="number" min="0" max="359" step="1" value="0" inputmode="numeric"></div>
@@ -218,76 +220,55 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
 
   <div class="glass log-panel" id="log-panel" role="log" aria-label="Match events" aria-live="polite"></div>
 
-  <!-- Online match lobby (chat-enabled 1v1) -->
+  <!-- Online match lobby -->
   <div class="online-modal" id="online-lobby">
-    <div class="online-modal-card" role="dialog" aria-modal="true" aria-labelledby="online-title">
-      <button class="as-dialog-close" type="button" data-dialog-close aria-label="Close online lobby" onclick="closeOnlineLobby()">&times;</button>
-      <h3 id="online-title">Play online</h3>
-      <p id="online-lobby-status">Create a match, share the link with a friend, and chat while you play.</p>
-      <div id="online-lobby-create">
-        <label for="online-invite-link">Your match invitation</label><input id="online-invite-link" readonly onclick="this.select()">
-        <div class="row">
-          <button class="btn btn-primary" id="online-copy-btn" onclick="copyInviteLink()">Copy Link</button>
-          <button class="btn btn-ghost" onclick="closeOnlineLobby()">Close</button>
+    <div class="online-modal-card online-lobby-card" role="dialog" aria-modal="true" aria-labelledby="online-title" aria-describedby="online-lobby-intro">
+      <header class="online-lobby-heading">
+        <div><span class="online-eyebrow">Multiplayer · 5-a-side</span><h3 id="online-title">A real opponent.<br>A whole new match.</h3><p id="online-lobby-intro">Invite a friend or find your next challenge.</p></div>
+        <svg class="online-lobby-art" viewBox="0 0 170 120" fill="none" aria-hidden="true"><rect x="1" y="1" width="168" height="118" rx="16" stroke="currentColor" opacity=".35"/><path d="M85 1v118M1 38h24v44H1m168-44h-24v44h24" stroke="currentColor" opacity=".35"/><circle cx="85" cy="60" r="23" stroke="currentColor" opacity=".35"/><path d="m48 79 74-38" stroke="currentColor" stroke-dasharray="4 5"/><circle cx="48" cy="79" r="12" fill="#7dd3fc"/><circle cx="122" cy="41" r="12" fill="#fbbf24"/><circle cx="85" cy="60" r="5" fill="white"/></svg>
+        <button class="as-dialog-close" type="button" data-dialog-close aria-label="Close online lobby" onclick="closeOnlineLobby()">&times;</button>
+      </header>
+      <div class="online-lobby-body">
+        <div id="online-resume-card" class="online-resume-card" hidden><div><strong>Your match is still here</strong><p id="online-resume-label">Return to your room to continue.</p></div><button id="online-resume-btn" class="btn btn-primary" type="button" onclick="resumeOnlineMatch()">Resume match</button></div>
+        <div class="online-lobby-tabs" role="tablist" aria-label="How to play online">
+          <button type="button" id="online-tab-friends" role="tab" aria-selected="true" aria-controls="online-friends-panel" data-online-tab="friends">Play with a friend</button>
+          <button type="button" id="online-tab-matchmaking" role="tab" aria-selected="false" aria-controls="online-matchmaking-panel" data-online-tab="matchmaking" tabindex="-1">Find a match</button>
         </div>
-      </div>
-      <div id="online-lobby-join">
-        <label for="online-join-code">Match link or room code</label><input id="online-join-code" placeholder="Paste a match link or room code…">
-        <label for="online-room-password">Room password (optional)</label><input id="online-room-password" type="password" autocomplete="off">
-        <div class="row">
-          <button class="btn btn-primary" onclick="joinOnlineByCode()">Join Match</button>
-          <button class="btn btn-ghost" onclick="createOnlineMatch()">Create Match</button>
-        </div>
-      </div>
-      <div id="online-lobby-waiting">Waiting for your opponent to join&hellip;</div>
-      <div id="team-chooser" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
-        <p style="font-size:.82rem;font-weight:700;margin-bottom:6px"> Choose Team — 2 players cannot pick same team</p>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <select id="team-a-select" aria-label="Team A" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team A — loading...</option></select>
-          <select id="team-b-select" aria-label="Team B" style="flex:1;padding:8px;border-radius:8px;border:1px solid rgba(148,163,184,.4)"><option value="">Team B — loading...</option></select>
-        </div>
-        <p id="team-error" style="font-size:.72rem;color:#ef4444;margin-top:6px;display:none"></p>
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <div style="flex:1">
-            <label for="formation-a-select" style="font-size:.68rem;font-weight:600;color:#475569">Formation A</label>
-            <select id="formation-a-select" style="width:100%;padding:6px;border-radius:8px;border:1px solid rgba(148,163,184,.4);font-size:.78rem"></select>
-            <div id="manager-a" style="font-size:.68rem;color:#64748b;margin-top:2px"></div>
+        <p id="online-lobby-status" class="online-lobby-status" role="status" aria-live="polite">Create a room, or paste an invitation to join your friend.</p>
+        <div id="online-friends-panel" role="tabpanel" aria-labelledby="online-tab-friends">
+          <div id="online-lobby-create" class="online-invitation">
+            <span class="online-eyebrow">Invitation ready</span><h4>Your pitch is waiting.</h4><p>Share this link with your friend. The match begins when they join.</p>
+            <div id="online-lobby-waiting" class="online-waiting" role="status">Waiting for your opponent to join…</div>
+            <label for="online-invite-link">Your match invitation</label><input id="online-invite-link" readonly onclick="this.select()">
+            <div class="row"><button class="btn btn-primary" type="button" id="online-copy-btn" onclick="copyInviteLink()">Copy Link</button><button class="btn btn-ghost" type="button" onclick="closeOnlineLobby()">Cancel invitation</button></div>
           </div>
-          <div style="flex:1">
-            <label for="formation-b-select" style="font-size:.68rem;font-weight:600;color:#475569">Formation B</label>
-            <select id="formation-b-select" style="width:100%;padding:6px;border-radius:8px;border:1px solid rgba(148,163,184,.4);font-size:.78rem"></select>
-            <div id="manager-b" style="font-size:.68rem;color:#64748b;margin-top:2px"></div>
+          <div id="online-lobby-join" class="online-room-grid">
+            <section class="online-option online-option-host" aria-labelledby="online-host-title"><span class="online-option-number">01 / HOST</span><h4 id="online-host-title">Create a room</h4><p>Your own match, with a link you can share.</p>
+              <label for="online-create-password">Set a password <span>optional</span></label><input id="online-create-password" type="password" maxlength="32" autocomplete="new-password" placeholder="Leave blank for a link-only room">
+              <button class="btn btn-primary" type="button" onclick="createOnlineMatch()">Create Match {{ icon('arrow-right') }}</button>
+            </section>
+            <section class="online-option" aria-labelledby="online-join-title"><span class="online-option-number">02 / JOIN</span><h4 id="online-join-title">Have an invitation?</h4><p>Paste a link or enter your friend's room code.</p>
+              <label for="online-join-code">Match link or room code</label><input id="online-join-code" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Paste invitation or room code">
+              <label for="online-room-password">Room password <span>if required</span></label><input id="online-room-password" type="password" maxlength="32" autocomplete="off">
+              <button class="btn btn-secondary" type="button" onclick="joinOnlineByCode()">Join Match {{ icon('arrow-right') }}</button>
+            </section>
           </div>
         </div>
-        <p style="font-size:.68rem;color:#64748b;margin-top:4px">Player names will appear above kits — default 7 players (formation tied to manager, changeable before kickoff)</p>
-        <p id="referee-display" style="font-size:.75rem;color:#334155;margin-top:6px;font-weight:600"></p>
-      </div>
-      <div id="online-lobby-ranked" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
-        <p style="font-size:.8rem;color:var(--muted);margin-bottom:4px">Ranked matches pair you with a player of similar skill &mdash; your ELO rating changes with every result.</p>
-        <p id="ranked-season-line" style="font-size:.72rem;color:var(--muted);margin-bottom:8px"></p>
-        <div class="row">
-          <button class="btn btn-primary" id="ranked-btn" onclick="rankedJoin()">Play Ranked</button>
-          <button class="btn btn-ghost" id="ranked-cancel-btn" style="display:none" onclick="rankedCancel()">Cancel Queue</button>
+        <div id="online-matchmaking-panel" role="tabpanel" aria-labelledby="online-tab-matchmaking" hidden>
+          <div class="online-matchmaking-grid">
+            <section id="quick-match" class="online-option online-option-host"><span class="online-option-number">CASUAL</span><h4>Find a quick match</h4><p>Look for another player. After 8 seconds, continue against an AI if nobody is available.</p>
+              <div class="row"><button class="btn btn-primary" type="button" id="quick-play-btn" onclick="quickPlayPVP()">Find opponent {{ icon('arrow-right') }}</button><button class="btn btn-ghost" type="button" id="quick-cancel-btn" style="display:none" onclick="quickCancel()">Cancel search</button></div>
+              <div id="quick-loading" class="online-search-progress" style="display:none"><span class="quick-spinner" aria-hidden="true"></span><span id="quick-loading-text">Searching for opponent…</span><span id="quick-loading-sub">8s → vs AI</span></div>
+              <p id="quick-status" role="status" style="display:none"></p>
+            </section>
+            <section id="online-lobby-ranked" class="online-option"><span class="online-option-number">COMPETITIVE</span><h4>Play for your rating</h4><p>Match with a player near your skill level. Every result counts toward your ELO rating.</p><p id="ranked-season-line"></p>
+              <div class="row"><button class="btn btn-secondary" type="button" id="ranked-btn" onclick="rankedJoin()">Play Ranked</button><button class="btn btn-ghost" type="button" id="ranked-cancel-btn" style="display:none" onclick="rankedCancel()">Cancel Queue</button></div><p id="ranked-status" role="status" style="display:none"></p>
+            </section>
+          </div>
+          <div class="online-practice"><div><strong>Warm up with an AI</strong><p>Choose a playing style, then set up your local squad.</p></div><div class="row"><button class="btn btn-ghost" type="button" id="match-models-btn" onclick="openMatchModels(true)" aria-haspopup="dialog">Choose AI opponent</button><button class="btn btn-ghost" type="button" id="quick-pva-btn" onclick="quickPlayVsAI()">Random AI</button></div></div>
         </div>
-        <p id="ranked-status" style="display:none;margin-top:8px"></p>
+        <footer class="online-lobby-footer"><span>Five players. One ball. Your move.</span><a href="/spectate">Watch live matches {{ icon('arrow-right') }}</a></footer>
       </div>
-      <div id="quick-match" style="margin-top:14px;border-top:1px solid rgba(255,255,255,.15);padding-top:12px">
-        <p style="font-size:.85rem;font-weight:800;margin-bottom:6px">Quick Match</p>
-        <p style="font-size:.72rem;color:var(--muted);margin-bottom:8px">Player vs Player searches for an active player — if none in 8s you play a random AI. Player vs AI is instant vs a random built-in.</p>
-        <div class="row" style="gap:8px">
-          <button class="btn btn-primary" id="quick-play-btn" onclick="quickPlayPVP()">Play</button>
-          <button class="btn btn-ghost" id="match-models-btn" onclick="openMatchModels(true)" aria-haspopup="dialog">Choose AI opponent</button>
-          <button class="btn btn-ghost" id="quick-pva-btn" onclick="quickPlayVsAI()">Player vs AI</button>
-          <button class="btn btn-ghost" id="quick-cancel-btn" style="display:none" onclick="quickCancel()">Cancel</button>
-        </div>
-        <div id="quick-loading" style="display:none;margin-top:10px;align-items:center;gap:10px;background:rgba(255,255,255,.7);border:1px solid rgba(255,255,255,.6);border-radius:10px;padding:10px 12px">
-          <div class="quick-spinner" style="width:18px;height:18px;border:2px solid rgba(14,165,233,.2);border-top-color:#0ea5e9;border-radius:50%;animation:qm-spin .7s linear infinite"></div>
-          <span id="quick-loading-text" style="font-size:.82rem;color:#0f172a;font-weight:600">Searching for opponent…</span>
-          <span id="quick-loading-sub" style="font-size:.72rem;color:var(--muted);margin-left:auto">8s → vs AI</span>
-        </div>
-        <p id="quick-status" style="display:none;margin-top:8px;font-size:.8rem"></p>
-      </div>
-      <style>@keyframes qm-spin{to{transform:rotate(360deg)}}</style>
     </div>
   </div>
     <!-- Shared opponent library for local controls and quick play. -->
@@ -406,7 +387,10 @@ import { createPlayerInput } from '/static/js/game/player-input.js';
 import { createGoalkeeperInput, goalkeeperAccess } from '/static/js/game/goalkeeper-input.js';
 import { matchClockView } from '/static/js/game/match-clock.js';
 import { createModelPicker } from '/static/js/game/model-picker.js';
-import { createPlaystyleControl } from '/static/js/game/playstyle-control.js';
+import { createMatchSetup } from '/static/js/game/match-setup.js';
+import { setupOnlineLobbyTabs } from '/static/js/game/online-lobby.js';
+setupOnlineLobbyTabs();
+import { requestOnlineJSON, parseRoomCode, retryDelay, isRetryableOnlineError } from '/static/js/game/online-transport.js';
 const W=1400, H=875, PLAYER_R=20, PLAYER_TRAVEL=8;
 const container=document.getElementById('pitch-container');
 const pitch=createPitch2D(container);
@@ -461,8 +445,12 @@ let animSpeed = 1.0;
 let _skipKickerIdx = -1;
 let _skipKickerTeam = '';
 const LOCAL_TURN = { generation: 0, controller: null, timer: null, pending: null };
-let playstyleControl = null;
-const syncPlaystyle = () => playstyleControl?.sync();
+let matchSetup = null;
+const syncPlaystyle = () => {
+  matchSetup?.sync();
+  document.getElementById('mode-select').disabled=isAnimating||ONLINE.active||gameState?.match_started===true;
+  syncLobbyTabs();
+};
 
 //  Online match (chat-enabled 1v1 room mode)
 const ONLINE = {
@@ -472,26 +460,23 @@ const ONLINE = {
   polling: false, generation: 0, ready: false, status: null,
   leaving: false, connectionError: '', pollController: null, moveController: null,
   rosterStamp: '', resultTimer: null, resultController: null, resultAttempts: 0,
+  failures: 0,
 };
-const ONLINE_LOBBY = { generation: 0, busy: false, waitRoom: null, resumeRoom: null, cancelWait: null };
+const ONLINE_LOBBY = { generation: 0, busy: false, waitRoom: null, resumeRoom: null, cancelWait: null, controller: null, discovery: 0 };
 
-async function onlineJSON(url, options = {}) {
-  const response = await fetch(url, options);
-  let data;
-  try { data = await response.json(); }
-  catch (_) { throw new Error(response.redirected ? 'Please log in before creating a match.' : 'Could not read the match response. Try again.'); }
-  if (!response.ok || data.error) {
-    const error = new Error(data.error || 'Could not connect to this match. Try again.');
-    error.status = response.status; error.data = data; throw error;
-  }
-  return data;
-}
+const onlineJSON = (url, options = {}, policy = {}) => requestOnlineJSON(url, options, policy);
 
 function lobbyStatus(message) { document.getElementById('online-lobby-status').textContent = message; }
 function lobbyBusy(busy) {
   ONLINE_LOBBY.busy = busy;
   syncPlaystyle();
   document.querySelectorAll('#online-lobby-join button').forEach(button => { button.disabled = busy; });
+  const resume = document.getElementById('online-resume-btn'); if (resume) resume.disabled = busy;
+  syncLobbyTabs();
+}
+function syncLobbyTabs() {
+  const busy = ONLINE_LOBBY.busy || !!ONLINE_LOBBY.waitRoom || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.joining || QUICK.cancelling;
+  document.querySelectorAll('[data-online-tab]').forEach(button => { button.disabled = !!busy; });
 }
 function resetLobbyView() {
   document.getElementById('online-lobby-create').style.display = 'none';
@@ -502,7 +487,41 @@ function offerResumeRoom(roomId) {
   ONLINE_LOBBY.resumeRoom = roomId;
   document.getElementById('online-join-code').value = roomId;
   if (!ONLINE.active) window.showOnlineLobby(true);
-  lobbyStatus('Your opponent joined. Join this room to continue your match.');
+  window.setOnlineLobbyTab?.('friends');
+  showResumeCard({room_id: roomId, status: 'active'});
+  lobbyStatus('You already have a match. Resume it to continue.');
+}
+function showResumeCard(data) {
+  const card = document.getElementById('online-resume-card');
+  if (!card) return;
+  ONLINE_LOBBY.resumeRoom = data?.room_id || null;
+  card.hidden = !ONLINE_LOBBY.resumeRoom;
+  if (data?.room_id) {
+    const opponent = data.my_side === 'a' ? data.name_b : data.name_a;
+    document.getElementById('online-resume-label').textContent = data.status === 'waiting'
+      ? 'Your invitation is still waiting for a friend.'
+      : 'Your match' + (opponent ? ' against ' + opponent : '') + ' is ready to resume.';
+    document.getElementById('online-resume-btn').textContent = data.status === 'waiting' ? 'Open invitation' : 'Resume match';
+  }
+}
+async function discoverOnlineRoom() {
+  const discovery = ++ONLINE_LOBBY.discovery, generation = ONLINE_LOBBY.generation;
+  try {
+    const data = await onlineJSON('/online/current');
+    if (discovery !== ONLINE_LOBBY.discovery || generation !== ONLINE_LOBBY.generation || ONLINE.active || ONLINE_LOBBY.busy || ONLINE_LOBBY.waitRoom
+        || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.joining || QUICK.cancelling) return;
+    if (data.status === 'searching' && data.queue) recoverOnlineQueue(data.queue);
+    else showResumeCard(data);
+  } catch (_) { /* Discovery is optional; joining by invitation still works. */ }
+}
+function lobbyError(error) {
+  if (error.data?.room_id && error.status === 409) offerResumeRoom(error.data.room_id);
+  else if (error.data?.queue && error.status === 409) recoverOnlineQueue(error.data.queue);
+  else {
+    window.setOnlineLobbyTab?.('friends');
+    lobbyStatus(error.message || 'Could not connect to this match. Try again.');
+    if (error.status === 403 && /password/i.test(error.message)) document.getElementById('online-room-password')?.focus();
+  }
 }
 async function cancelWaitingRoom(roomId) {
   try {
@@ -517,14 +536,16 @@ async function cancelWaitingRoom(roomId) {
 }
 function cancelLobbyWait() {
   ONLINE_LOBBY.generation++;
+  ONLINE_LOBBY.discovery++;
+  ONLINE_LOBBY.controller?.abort(); ONLINE_LOBBY.controller = null;
   ONLINE_LOBBY.cancelWait?.(); ONLINE_LOBBY.cancelWait = null;
   const room = ONLINE_LOBBY.waitRoom; ONLINE_LOBBY.waitRoom = null;
   lobbyBusy(false); resetLobbyView();
   if (room) void cancelWaitingRoom(room);
 }
-function lobbyDelay(generation) {
+function lobbyDelay(generation, delay = 1500) {
   return new Promise(resolve => {
-    const timer = setTimeout(() => { if (ONLINE_LOBBY.generation === generation) ONLINE_LOBBY.cancelWait = null; resolve(); }, 1000);
+    const timer = setTimeout(() => { if (ONLINE_LOBBY.generation === generation) ONLINE_LOBBY.cancelWait = null; resolve(); }, delay);
     ONLINE_LOBBY.cancelWait = () => { clearTimeout(timer); resolve(); };
   });
 }
@@ -544,7 +565,8 @@ window.showOnlineLobby = function(show) {
   el.classList.toggle('visible', !!show);
   if (show) {
     if (!ONLINE_LOBBY.busy && !ONLINE_LOBBY.waitRoom) resetLobbyView();
-    window.AgentSoccerDialogs.open(el, document.getElementById('online-join-code'));
+    window.AgentSoccerDialogs.open(el, el.querySelector('[role="tab"][aria-selected="true"]') || document.getElementById('online-join-code'));
+    if (!ONLINE_LOBBY.busy && !ONLINE_LOBBY.waitRoom) void discoverOnlineRoom();
   }
   else window.AgentSoccerDialogs.close(el);
 };
@@ -556,13 +578,17 @@ window.closeOnlineLobby = function() {
   window.showOnlineLobby(false);
 };
 
-window.copyInviteLink = function() {
+window.copyInviteLink = async function() {
   const input = document.getElementById('online-invite-link');
   if (!input.value) return;
-  navigator.clipboard.writeText(input.value).then(() => {
+  try {
+    if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+    await navigator.clipboard.writeText(input.value);
     const btn = document.getElementById('online-copy-btn');
     if (btn) { btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = 'Copy Link'; }, 1500); }
-  }).catch(() => { input.focus(); input.select(); lobbyStatus('Select and copy the invitation link to share it.'); });
+  } catch (_) {
+    input.focus(); input.select(); lobbyStatus('Select and copy the invitation link to share it.');
+  }
 };
 
 window.createOnlineMatch = async function() {
@@ -570,43 +596,73 @@ window.createOnlineMatch = async function() {
   const generation = ++ONLINE_LOBBY.generation; lobbyBusy(true);
   try {
     const data = await onlineJSON('/online/create', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: document.getElementById('online-room-password').value }) });
+      body: JSON.stringify({ password: document.getElementById('online-create-password')?.value || '' }) });
     if (!data.room_id) throw new Error('Could not create a match. Try again.');
     const roomId = data.room_id;
     if (generation !== ONLINE_LOBBY.generation) { void cancelWaitingRoom(roomId); return; }
-    ONLINE_LOBBY.waitRoom = roomId;
-    document.getElementById('online-invite-link').value = location.origin + '/play3d?room=' + encodeURIComponent(roomId);
-    document.getElementById('online-lobby-join').style.display = 'none';
-    document.getElementById('online-lobby-create').style.display = 'flex';
-    document.getElementById('online-lobby-waiting').style.display = 'block';
-    document.getElementById('online-invite-link').focus();
-    lobbyStatus('Share this link — the match starts when your friend joins.');
-    for (let i = 0; i < 300 && generation === ONLINE_LOBBY.generation; i++) {
-      await lobbyDelay(generation);
-      if (generation !== ONLINE_LOBBY.generation) return;
-      const state = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/state?since_kick=-1');
-      if (generation !== ONLINE_LOBBY.generation) return;
-      if (state.status === 'active' && state.my_side) {
-        ONLINE_LOBBY.waitRoom = null; lobbyBusy(false);
-        startOnline(state); return;
-      }
-      if (state.status !== 'waiting') throw new Error('This invitation is no longer available. Create another match.');
-      if (i % 10 === 9) lobbyStatus('Still waiting for your opponent to join…');
-    }
-    if (generation === ONLINE_LOBBY.generation) { cancelLobbyWait(); lobbyStatus('The invitation expired. Create a new match to try again.'); }
+    await waitForOnlineOpponent(roomId, generation);
   } catch (error) {
     if (generation !== ONLINE_LOBBY.generation) return;
-    cancelLobbyWait(); lobbyStatus(error.message || 'Could not create a match. Try again.');
+    lobbyError(error); void discoverOnlineRoom();
   } finally { if (generation === ONLINE_LOBBY.generation) lobbyBusy(false); }
+};
+
+async function waitForOnlineOpponent(roomId, generation) {
+  ONLINE_LOBBY.waitRoom = roomId; showResumeCard(null);
+  window.setOnlineLobbyTab?.('friends');
+  document.getElementById('online-invite-link').value = location.origin + '/play2d?room=' + encodeURIComponent(roomId);
+  document.getElementById('online-lobby-join').style.display = 'none';
+  document.getElementById('online-lobby-create').style.display = 'flex';
+  document.getElementById('online-lobby-waiting').style.display = 'block';
+  document.getElementById('online-invite-link').focus();
+  lobbyStatus('Share the invitation. The match starts when your friend joins.');
+  let failures = 0;
+  while (generation === ONLINE_LOBBY.generation) {
+    await lobbyDelay(generation, retryDelay(failures));
+    if (generation !== ONLINE_LOBBY.generation) return;
+    const controller = new AbortController(); ONLINE_LOBBY.controller = controller;
+    try {
+      const data = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/state?since_kick=-1', {signal: controller.signal}, {retries: 0});
+      if (generation !== ONLINE_LOBBY.generation) return;
+      failures = 0;
+      if (data.status === 'active' && ['a', 'b'].includes(data.my_side)) {
+        ONLINE_LOBBY.waitRoom = null; startOnline(data); return;
+      }
+      if (data.status !== 'waiting') {
+        ONLINE_LOBBY.waitRoom = null; resetLobbyView();
+        lobbyStatus('This invitation has ended. Create another match.'); return;
+      }
+      lobbyStatus('Waiting for your friend. Your invitation is ready to share.');
+    } catch (error) {
+      if (generation !== ONLINE_LOBBY.generation || error.name === 'AbortError') return;
+      if (!isRetryableOnlineError(error)) {
+        ONLINE_LOBBY.waitRoom = null; resetLobbyView(); lobbyError(error); return;
+      }
+      failures++; lobbyStatus('Connection interrupted. Your invitation is saved; reconnecting…');
+    } finally { if (ONLINE_LOBBY.controller === controller) ONLINE_LOBBY.controller = null; }
+  }
+}
+
+window.resumeOnlineMatch = async function() {
+  const roomId = ONLINE_LOBBY.resumeRoom;
+  if (!roomId || ONLINE.active || ONLINE_LOBBY.busy || isAnimating || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
+  const generation = ++ONLINE_LOBBY.generation; lobbyBusy(true);
+  try {
+    const data = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/state?since_kick=-1');
+    if (generation !== ONLINE_LOBBY.generation) return;
+    if (!['a', 'b'].includes(data.my_side)) throw new Error('You are no longer a player in this room.');
+    if (data.status === 'waiting') await waitForOnlineOpponent(roomId, generation);
+    else startOnline(data);
+  } catch (error) { if (generation === ONLINE_LOBBY.generation) lobbyError(error); }
+  finally { if (generation === ONLINE_LOBBY.generation) lobbyBusy(false); }
 };
 
 window.joinOnlineByCode = async function() {
   if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
   const raw = document.getElementById('online-join-code').value.trim();
   if (!raw) return;
-  let roomId = raw;
-  try { const url = new URL(raw, location.origin); roomId = url.searchParams.get('room') || url.pathname.match(/^\/join\/([a-zA-Z0-9]+)$/)?.[1] || raw; } catch (_) {}
-  if (!/^[a-zA-Z0-9]{6,64}$/.test(roomId)) { lobbyStatus('Enter a valid room code or invitation link.'); return; }
+  const roomId = parseRoomCode(raw, location.origin);
+  if (!roomId) { lobbyStatus('Enter a valid room code or invitation link.'); return; }
   const generation = ++ONLINE_LOBBY.generation; lobbyBusy(true);
   try {
     const data = await onlineJSON('/online/' + encodeURIComponent(roomId) + '/join', { method: 'POST',
@@ -616,8 +672,9 @@ window.joinOnlineByCode = async function() {
       return;
     }
     if (!['a', 'b'].includes(data.my_side)) throw new Error('You are not a player in this room.');
-    startOnline(data);
-  } catch (error) { if (generation === ONLINE_LOBBY.generation) lobbyStatus(error.message || 'Could not join this match. Try again.'); }
+    if (data.status === 'waiting') await waitForOnlineOpponent(roomId, generation);
+    else startOnline(data);
+  } catch (error) { if (generation === ONLINE_LOBBY.generation) { lobbyError(error); void discoverOnlineRoom(); } }
   finally { if (generation === ONLINE_LOBBY.generation) lobbyBusy(false); }
 };
 
@@ -631,12 +688,6 @@ function setOnlineUI(active) {
   document.getElementById('online-leave-btn').disabled = ONLINE.leaving;
   document.getElementById('online-leave-btn').textContent = gameState?.game_over ? 'Back to local game' : ONLINE.status === 'waiting' ? 'Cancel match' : 'Leave match';
   document.querySelectorAll('[onclick="resetGame()"],[onclick="undoMove()"]').forEach(button => { button.disabled = active; });
-  for (const side of ['a', 'b']) {
-    const select = document.getElementById('team-' + side + '-select');
-    if (select) select.disabled = active && (ONLINE.side !== side || !ONLINE.ready || ONLINE.lastKick > 0 || ONLINE.leaving);
-    const formation = document.getElementById('formation-' + side + '-select');
-    if (formation) formation.disabled = active;
-  }
   voiceBtn().style.display = active && ONLINE.status === 'active' && ['a', 'b'].includes(ONLINE.side) && !VOICE.enabled ? 'block' : 'none';
   document.getElementById('voice-controls').style.display = active && onlineCanVoice() ? 'flex' : 'none';
   if (!active) voiceDisconnect();
@@ -648,10 +699,44 @@ function updateOnlineBar() {
   const me = ONLINE.side === 'a' ? ONLINE.nameA : ONLINE.nameB;
   const them = ONLINE.side === 'a' ? ONLINE.nameB : ONLINE.nameA;
   const score = gameState ? (gameState.score_a + ' – ' + gameState.score_b) : '0 – 0';
-  bar.style.display = 'block';
-  bar.textContent = me + '  vs  ' + them + '   ·   ' + score + '   ·   Room ' + String(ONLINE.roomId || '').slice(0, 8)
-    + (ONLINE.ranked ? '   ·   \uD83C\uDFC6 Ranked' : '');
+  bar.style.display = 'flex';
+  const label = document.getElementById('online-match-label');
+  label.textContent = me + ' vs ' + them + ' · ' + score + ' · Room ' + String(ONLINE.roomId || '').slice(0, 10)
+    + (ONLINE.ranked ? ' · Ranked' : '');
+  const status = document.getElementById('online-connection-status');
+  const offline = navigator.onLine === false;
+  const recovering = !!ONLINE.connectionError || !ONLINE.ready;
+  status.textContent = ONLINE.leaving ? 'Leaving match…' : ONLINE.status === 'done' ? 'Match complete' : offline ? 'Offline · reconnect when you return' : recovering ? ONLINE.connectionError || 'Synchronizing…' : ONLINE.status === 'waiting' ? 'Waiting for opponent' : 'Connected';
+  status.dataset.state = offline ? 'offline' : recovering ? 'reconnecting' : 'connected';
+  document.getElementById('online-retry-btn').hidden = !recovering || ONLINE.leaving || ONLINE.status === 'done';
 }
+
+function stopOnlinePolling() {
+  if (ONLINE.pollTimer) clearTimeout(ONLINE.pollTimer);
+  ONLINE.pollTimer = null;
+}
+function scheduleOnlinePoll(delay = retryDelay(ONLINE.failures)) {
+  stopOnlinePolling();
+  if (!ONLINE.active || ONLINE.leaving || ONLINE.status === 'done') return;
+  ONLINE.pollTimer = setTimeout(() => { ONLINE.pollTimer = null; void pollOnline(); }, delay);
+}
+window.retryOnlineConnection = function() {
+  if (!ONLINE.active || ONLINE.leaving || ONLINE.status === 'done' || isAnimating) return;
+  stopOnlinePolling();
+  ONLINE.pollController?.abort(); ONLINE.pollController = null; ONLINE.polling = false;
+  ONLINE.failures = 0;
+  ONLINE.connectionError = 'Synchronizing match…'; updateOnlineBar(); playerInput.sync();
+  void pollOnline();
+};
+window.addEventListener('online', () => { if (ONLINE.active) window.retryOnlineConnection(); });
+window.addEventListener('offline', () => {
+  if (!ONLINE.active || ONLINE.status === 'done') return;
+  ONLINE.connectionError = 'You are offline. Waiting to reconnect…';
+  updateOnlineBar(); playerInput.sync();
+});
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && ONLINE.active && ONLINE.connectionError) window.retryOnlineConnection();
+});
 
 function startOnline(joinData) {
   if (!joinData?.room_id || !['a', 'b'].includes(joinData.my_side)) {
@@ -661,10 +746,11 @@ function startOnline(joinData) {
   ONLINE.generation++;
   stopOnlineResultRetries(); ONLINE.resultAttempts = 0;
   ONLINE.pollController?.abort(); ONLINE.moveController?.abort();
-  if (ONLINE.pollTimer) clearInterval(ONLINE.pollTimer);
+  stopOnlinePolling();
   ONLINE.chat?.destroy(); voiceDisconnect();
   ONLINE_LOBBY.waitRoom = null; ONLINE_LOBBY.resumeRoom = null;
   ONLINE_LOBBY.generation++; ONLINE_LOBBY.cancelWait?.(); ONLINE_LOBBY.cancelWait = null;
+  ONLINE_LOBBY.controller?.abort(); ONLINE_LOBBY.controller = null; ONLINE_LOBBY.discovery++;
   lobbyBusy(false);
   if (RANKED.timer) { clearInterval(RANKED.timer); RANKED.timer = null; }
   RANKED.generation++; RANKED.active = false; RANKED.joining = false; RANKED.polling = false; resetRankedUI();
@@ -674,7 +760,7 @@ function startOnline(joinData) {
   ONLINE.side = joinData.my_side;
   ONLINE.ranked = !!joinData.ranked;
   ONLINE.status = joinData.status || 'active';
-  ONLINE.leaving = false; ONLINE.connectionError = ''; ONLINE.polling = false;
+  ONLINE.leaving = false; ONLINE.connectionError = ''; ONLINE.polling = false; ONLINE.failures = 0;
   ONLINE.ready = !!joinData.game; ONLINE.rosterStamp = '';
   document.getElementById('mode-select').value = 'hvh';
   RANKED.delta = null;
@@ -702,7 +788,7 @@ function startOnline(joinData) {
     name: 'Match Chat', quickReactions: true, pollMs: 2000, collapsed: true,
   });
   if (ONLINE.ready && (gameState.game_over || ['done', 'cancelled'].includes(ONLINE.status))) finishOnline();
-  else { void pollOnline(); ONLINE.pollTimer = setInterval(pollOnline, 1500); }
+  else void pollOnline();
 }
 
 function commitOnlineGame(game) {
@@ -711,7 +797,8 @@ function commitOnlineGame(game) {
   const rosterStamp = JSON.stringify([CUST_TEAM_A, CUST_TEAM_B, ...[game.players_a, game.players_b].map(players =>
     (players || []).map(player => [player.stats?.size, player.color, player.name, player.number]))]);
   const changed = rosterStamp !== ONLINE.rosterStamp;
-  gameState = game; ONLINE.ready = true; ONLINE.connectionError = '';
+  gameState = game; ONLINE.ready = true;
+  ONLINE.connectionError = navigator.onLine === false ? 'You are offline. Waiting to reconnect…' : '';
   if (changed) { ONLINE.rosterStamp = rosterStamp; rebuildPlayers(); }
   else updatePlayerPositions();
   if (game.referee) updateReferee(game.referee.x, game.referee.y);
@@ -720,7 +807,8 @@ function commitOnlineGame(game) {
 
 function finishOnline() {
   ONLINE.status = 'done';
-  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  stopOnlinePolling();
+  updateOnlineBar();
   ONLINE.chat?.stop(); voiceDisconnect(); setOnlineUI(true); playerInput.sync();
   scheduleOnlineResultRetry();
 }
@@ -760,20 +848,23 @@ async function retryOnlineResult(roomId, generation) {
 }
 
 async function pollOnline() {
-  if (!ONLINE.active || ONLINE.leaving || (ONLINE.status === 'done' && ONLINE.ready) || ONLINE.polling || isAnimating) return;
+  if (!ONLINE.active || ONLINE.leaving || (ONLINE.status === 'done' && ONLINE.ready) || ONLINE.polling) return;
+  if (isAnimating) { scheduleOnlinePoll(); return; }
+  stopOnlinePolling();
   ONLINE.polling = true;
   const roomId = ONLINE.roomId, generation = ONLINE.generation;
   const controller = new AbortController(); ONLINE.pollController = controller;
   try {
     let url = '/online/' + ONLINE.roomId + '/state?since_kick=' + ONLINE.lastKick;
     if (VOICE.enabled) url += '&voice_after=' + VOICE.after;
-    const data = await onlineJSON(url, { signal: controller.signal });
+    const data = await onlineJSON(url, { signal: controller.signal }, { retries: 0 });
     if (controller.signal.aborted || !ONLINE.active || ONLINE.generation !== generation || ONLINE.roomId !== roomId || isAnimating) return;
-    if (ONLINE.ready && onlineRevision(data.game, data) < ONLINE.lastKick) return;
-    AW.handle(data);
     if (!data.game) throw new Error('The match response is missing its game state. Retrying…');
+    if (onlineRevision(data.game, data) < ONLINE.lastKick) throw new Error('Waiting for the latest match state.');
+    AW.handle(data);
     if (data.my_side !== ONLINE.side) { await endOnline('You are no longer a player in this room.'); return; }
     ONLINE.status = data.status;
+    ONLINE.failures = 0;
     ONLINE.nameA = data.name_a || ONLINE.nameA;
     ONLINE.nameB = data.name_b || ONLINE.nameB;
     updateOnlineBar();
@@ -806,9 +897,13 @@ async function pollOnline() {
   } catch (error) {
     if (error.name === 'AbortError' || !ONLINE.active || ONLINE.generation !== generation) return;
     if ([401, 403, 404].includes(error.status)) { await endOnline(error.message); return; }
-    ONLINE.connectionError = 'Connection lost. Retrying…'; playerInput.sync();
+    ONLINE.failures++;
+    ONLINE.connectionError = 'Connection interrupted. Reconnecting…'; updateOnlineBar(); playerInput.sync();
+    if (gameState) updateHUD(gameState);
   } finally {
-    if (ONLINE.generation === generation && ONLINE.pollController === controller) { ONLINE.polling = false; ONLINE.pollController = null; }
+    if (ONLINE.generation === generation && ONLINE.pollController === controller) {
+      ONLINE.polling = false; ONLINE.pollController = null; scheduleOnlinePoll();
+    }
   }
 }
 
@@ -820,7 +915,7 @@ async function endOnline(msg) {
   ONLINE.active = false;
   ONLINE.polling = false; ONLINE.leaving = false; ONLINE.ready = false;
   ONLINE.status = null; ONLINE.connectionError = ''; ONLINE.side = null; ONLINE.roomId = null; ONLINE.lastKick = -1;
-  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  stopOnlinePolling();
   if (ONLINE.chat) { ONLINE.chat.destroy(); ONLINE.chat = null; }
   document.getElementById('match-chat-wrap').innerHTML = '';
   document.getElementById('online-bar').style.display = 'none';
@@ -848,7 +943,7 @@ window.leaveOnlineMatch = async function() {
   const roomId = ONLINE.roomId, generation = ++ONLINE.generation;
   stopOnlineResultRetries();
   ONLINE.leaving = true; ONLINE.pollController?.abort(); ONLINE.moveController?.abort();
-  if (ONLINE.pollTimer) { clearInterval(ONLINE.pollTimer); ONLINE.pollTimer = null; }
+  stopOnlinePolling();
   ONLINE.chat?.stop(); voiceDisconnect(); isAnimating = false; animBall = null;
   _skipKickerIdx = -1; _skipKickerTeam = ''; playerInput.cancel(); setOnlineUI(true);
   try {
@@ -859,7 +954,7 @@ window.leaveOnlineMatch = async function() {
     ONLINE.leaving = false; ONLINE.ready = false; ONLINE.lastKick = -1; ONLINE.polling = false;
     ONLINE.status = 'active'; ONLINE.connectionError = error.message;
     setOnlineUI(true); playerInput.reportError(error.message);
-    ONLINE.chat?.start(); void pollOnline(); ONLINE.pollTimer = setInterval(pollOnline, 1500);
+    ONLINE.chat?.start(); void pollOnline();
   }
 };
 
@@ -884,7 +979,44 @@ async function shareMatchSummary() {
 window.shareMatchSummary = shareMatchSummary;
 
 //  Ranked queue (ELO matchmaking, human players)
-const RANKED = { active: false, timer: null, delta: null, generation: 0, polling: false, joining: false, cancelling: false, request: null };
+const RANKED = { active: false, timer: null, delta: null, generation: 0, polling: false, joining: false, cancelling: false, request: null, failures: 0, retryAt: 0, cancelRequested: false };
+
+// Recover an existing search with reads only. A timed-out mutation may already
+// have committed, so keep Cancel available until the server confirms its state.
+function recoverOnlineQueue(queue, message = 'Checking your existing search…', cancelRequested = false) {
+  if (ONLINE.active || !['ranked', 'quick'].includes(queue)) return;
+  showResumeCard(null);
+  window.setOnlineLobbyTab?.('matchmaking');
+  lobbyStatus('');
+  if (queue === 'ranked') {
+    if (QUICK.active || QUICK.joining) { QUICK.generation++; resetQuickUI(); }
+    RANKED.active = true; RANKED.joining = false;
+    RANKED.cancelRequested = cancelRequested; RANKED.retryAt = 0;
+    document.getElementById('ranked-btn').style.display = 'none';
+    document.getElementById('ranked-cancel-btn').style.display = '';
+    const status = document.getElementById('ranked-status');
+    status.style.display = 'block'; status.textContent = message;
+    if (!RANKED.timer) RANKED.timer = setInterval(pollRankedStatus, 3000);
+    void pollRankedStatus();
+  } else {
+    if (RANKED.active || RANKED.joining) {
+      RANKED.generation++; RANKED.active = false; RANKED.joining = false; RANKED.polling = false; resetRankedUI();
+    }
+    QUICK.active = true; QUICK.mode = 'pvp'; QUICK.joining = false;
+    QUICK.cancelRequested = cancelRequested; QUICK.retryAt = 0;
+    document.getElementById('quick-play-btn').style.display = 'none';
+    document.getElementById('quick-pva-btn').style.display = 'none';
+    document.getElementById('quick-cancel-btn').style.display = '';
+    document.getElementById('quick-loading').style.display = 'flex';
+    document.getElementById('quick-loading-text').textContent = message;
+    document.getElementById('quick-loading-sub').textContent = 'Checking search status';
+    const status = document.getElementById('quick-status');
+    status.style.display = 'block'; status.textContent = message;
+    if (!QUICK.timer) QUICK.timer = setInterval(pollQuickStatus, 1000);
+    void pollQuickStatus();
+  }
+  syncPlaystyle();
+}
 
 function resetRankedUI() {
   syncPlaystyle();
@@ -898,6 +1030,7 @@ function resetRankedUI() {
 window.rankedJoin = async function() {
   if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || RANKED.active || RANKED.joining || RANKED.cancelling || QUICK.active || QUICK.cancelling) return;
   const generation = ++RANKED.generation;
+  RANKED.failures = 0; RANKED.retryAt = 0; RANKED.cancelRequested = false;
   RANKED.active = true;
   syncPlaystyle();
   document.getElementById('ranked-btn').style.display = 'none';
@@ -914,7 +1047,12 @@ window.rankedJoin = async function() {
     RANKED.timer = setInterval(pollRankedStatus, 3000);
   } catch (error) {
     if (RANKED.generation !== generation) return;
-    RANKED.active = false; resetRankedUI(); st.style.display = 'block'; st.textContent = error.message;
+    if (isRetryableOnlineError(error)) {
+      recoverOnlineQueue('ranked', 'Connection interrupted. Checking whether your search started…');
+    } else {
+      RANKED.active = false; resetRankedUI(); st.style.display = 'block'; st.textContent = error.message;
+      lobbyError(error);
+    }
   } finally { if (RANKED.generation === generation) RANKED.request = null; }
 };
 
@@ -922,7 +1060,8 @@ function updateRankedStatus(data) {
   const st = document.getElementById('ranked-status');
   mergeRankedSeason(data);
   if (data.status === 'waiting') {
-    st.textContent = 'Searching for an opponent\u2026 ' + (data.wait_s || 0) + 's   (rating ' + (data.rating || '') + ')';
+    st.textContent = RANKED.cancelRequested ? 'Your search is still active. Use Cancel Queue to stop it.'
+      : 'Searching for an opponent\u2026 ' + (data.wait_s || 0) + 's   (rating ' + (data.rating || '') + ')';
   } else if (data.status === 'idle') {
     st.textContent = '';
   }
@@ -944,14 +1083,31 @@ function mergeRankedSeason(data) {
 }
 
 async function pollRankedStatus() {
-  if (!RANKED.active || RANKED.polling || RANKED.joining) return;
+  if (!RANKED.active || RANKED.polling || RANKED.joining || Date.now() < RANKED.retryAt) return;
   const generation = RANKED.generation; RANKED.polling = true;
   try {
-    const data = await onlineJSON('/ranked/status');
+    const data = await onlineJSON('/ranked/status', {}, {retries: 0});
     if (!RANKED.active || RANKED.generation !== generation) { if (data.room_id) offerResumeRoom(data.room_id); return; }
-    if (data.status === 'matched') { await enterRankedMatch(data, generation); return; }
+    if (data.status === 'matched') {
+      if (RANKED.cancelRequested) {
+        RANKED.active = false; resetRankedUI(); offerResumeRoom(data.room_id);
+      } else await enterRankedMatch(data, generation);
+      return;
+    }
+    RANKED.failures = 0; RANKED.retryAt = 0;
+    if (data.status === 'idle') {
+      RANKED.active = false; resetRankedUI();
+      const status = document.getElementById('ranked-status'); status.style.display = 'block'; status.textContent = 'Your search ended. Start a new ranked search when you are ready.'; return;
+    }
     updateRankedStatus(data);
-  } catch (error) { if (RANKED.active && RANKED.generation === generation) document.getElementById('ranked-status').textContent = 'Connection lost. Retrying the ranked search…'; }
+  } catch (error) {
+    if (!RANKED.active || RANKED.generation !== generation) return;
+    if (!isRetryableOnlineError(error)) {
+      RANKED.active = false; resetRankedUI(); lobbyError(error); return;
+    }
+    RANKED.retryAt = Date.now() + retryDelay(++RANKED.failures);
+    document.getElementById('ranked-status').textContent = 'Connection interrupted. Reconnecting to your ranked search…';
+  }
   finally { if (RANKED.generation === generation) RANKED.polling = false; }
 }
 
@@ -966,30 +1122,54 @@ async function enterRankedMatch(data, generation = RANKED.generation) {
     resetRankedUI(); startOnline(join);
   } catch (error) {
     if (RANKED.generation !== generation) return;
-    resetRankedUI(); lobbyStatus(error.message);
-    document.getElementById('online-join-code').value = data.room_id;
-  } finally { if (RANKED.generation === generation) { RANKED.joining = false; RANKED.polling = false; } }
+    resetRankedUI(); offerResumeRoom(data.room_id); lobbyStatus(error.message);
+  } finally { if (RANKED.generation === generation) { RANKED.joining = false; RANKED.polling = false; syncPlaystyle(); } }
 }
 
 window.rankedCancel = async function() {
   if (RANKED.cancelling) return;
   const generation = ++RANKED.generation;
   RANKED.active = false; RANKED.joining = false; RANKED.polling = false; RANKED.cancelling = true;
+  let recover = false;
   syncPlaystyle();
   resetRankedUI();
   try {
     await RANKED.request?.catch(() => {});
     const data = await onlineJSON('/ranked/cancel', { method: 'POST' });
     if (data.room_id) offerResumeRoom(data.room_id);
-  } catch (error) { if (RANKED.generation === generation) lobbyStatus(error.message); }
-  finally { RANKED.cancelling = false; if (RANKED.generation === generation) { RANKED.request = null; resetRankedUI(); } }
+  } catch (error) {
+    if (RANKED.generation === generation) {
+      recover = isRetryableOnlineError(error);
+      if (!recover) lobbyError(error);
+    }
+  } finally {
+    RANKED.cancelling = false;
+    if (RANKED.generation === generation) {
+      RANKED.request = null; resetRankedUI();
+      if (recover) recoverOnlineQueue('ranked', 'Checking whether your search was cancelled…', true);
+    }
+  }
 };
 
 //  Quick Match (Play — PvP with 8s AI fallback + Player vs AI random)
-const QUICK = { active: false, timer: null, fallback: null, mode: null, generation: 0, polling: false, joining: false, cancelling: false, request: null };
+const QUICK = { active: false, timer: null, fallback: null, mode: null, generation: 0, polling: false, joining: false, cancelling: false, request: null, failures: 0, retryAt: 0, cancelRequested: false };
+function startQuickFallback() {
+  if (!QUICK.active || QUICK.mode !== 'pvp' || QUICK.joining || QUICK.cancelRequested || QUICK.fallback) return;
+  const generation = QUICK.generation;
+  let secs = 8;
+  const sub = document.getElementById('quick-loading-sub'); sub.textContent = '8s → vs AI';
+  document.getElementById('quick-loading-text').textContent = 'Searching for opponent…';
+  document.getElementById('quick-status').textContent = 'Searching for an active player…';
+  QUICK.fallback = setInterval(() => {
+    if (!QUICK.active || QUICK.generation !== generation) return;
+    secs--; sub.textContent = secs > 0 ? secs+'s → vs AI' : 'no player → vs AI';
+    if (secs <= 0) { clearInterval(QUICK.fallback); QUICK.fallback = null; void handleQuickFallback(generation); }
+  }, 1000);
+}
 window.quickPlayPVP = async function() {
   if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || QUICK.active || QUICK.cancelling || RANKED.active || RANKED.joining || RANKED.cancelling) return;
   const generation = ++QUICK.generation;
+  QUICK.failures = 0; QUICK.retryAt = 0; QUICK.cancelRequested = false;
   QUICK.active = true; QUICK.mode = 'pvp';
   syncPlaystyle();
   document.getElementById('quick-play-btn').style.display = 'none';
@@ -1006,20 +1186,21 @@ window.quickPlayPVP = async function() {
     const data = await QUICK.request;
     if (QUICK.generation !== generation || !QUICK.active) { if (data.room_id) offerResumeRoom(data.room_id); return; }
     if (data.status === 'matched' && data.room_id) { await enterQuickMatch(data.room_id, generation); return; }
-    let secs = 8;
-    const sub = document.getElementById('quick-loading-sub'); sub.textContent = '8s → vs AI';
-    QUICK.fallback = setInterval(() => {
-      if (!QUICK.active || QUICK.generation !== generation) return;
-      secs--; sub.textContent = secs > 0 ? secs+'s → vs AI' : 'no player → vs AI';
-      if (secs <= 0) { clearInterval(QUICK.fallback); QUICK.fallback = null; void handleQuickFallback(generation); }
-    }, 1000);
+    startQuickFallback();
     QUICK.timer = setInterval(pollQuickStatus, 1000);
-  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); st.style.display='block'; st.textContent=error.message; } }
+  } catch (error) { if (QUICK.generation === generation) {
+    if (isRetryableOnlineError(error)) {
+      recoverOnlineQueue('quick', 'Connection interrupted. Checking whether your search started…');
+    } else {
+      resetQuickUI(); st.style.display='block'; st.textContent=error.message; lobbyError(error);
+    }
+  } }
   finally { if (QUICK.generation === generation) QUICK.request = null; }
 };
 window.quickPlayVsAI = async function() {
   if (ONLINE.active || isAnimating || ONLINE_LOBBY.busy || QUICK.active || QUICK.cancelling || RANKED.active || RANKED.joining || RANKED.cancelling) return;
   const generation = ++QUICK.generation; QUICK.active = true; QUICK.mode = 'pva'; QUICK.joining = true;
+  let failure = null;
   syncPlaystyle();
   document.getElementById('quick-play-btn').disabled = true; document.getElementById('quick-pva-btn').disabled = true;
   try {
@@ -1027,8 +1208,13 @@ window.quickPlayVsAI = async function() {
     const data = await QUICK.request;
     if (QUICK.generation !== generation || !QUICK.active) return;
     QUICK.request = startQuickAI(data, generation); await QUICK.request;
-  } catch (error) { if (QUICK.generation === generation) { lobbyStatus(error.message); document.getElementById('quick-status').textContent=error.message; } }
-  finally { if (QUICK.generation === generation) { QUICK.request = null; resetQuickUI(); } }
+  } catch (error) { if (QUICK.generation === generation) failure = error; }
+  finally {
+    if (QUICK.generation === generation) {
+      QUICK.request = null; resetQuickUI();
+      if (failure) lobbyError(failure);
+    }
+  }
 };
 async function startQuickAI(data, generation) {
   const current = () => QUICK.generation === generation && !ONLINE.active;
@@ -1038,6 +1224,8 @@ async function startQuickAI(data, generation) {
   const pick = data.ai_model || data.ai_name || 'greedy';
   isAnimating = true; playerInput.sync(); syncPlaystyle();
   try {
+    await onlineJSON('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_count:5})});
+    if (!current()) return;
     await onlineJSON('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model:pick,target:'b'}) });
     if (!current()) return;
     await onlineJSON('/set_mode', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:'hvai'}) });
@@ -1064,22 +1252,43 @@ async function handleQuickFallback(generation = QUICK.generation) {
     if (QUICK.generation !== generation || !QUICK.active) return;
     QUICK.request = startQuickAI(data, generation); await QUICK.request;
     if (QUICK.generation === generation) resetQuickUI();
-  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); st.style.display='block'; st.textContent=error.message; } }
+  } catch (error) { if (QUICK.generation === generation) {
+    QUICK.joining = false;
+    if (isRetryableOnlineError(error)) recoverOnlineQueue('quick', 'Connection interrupted. Checking your player search…', true);
+    else { resetQuickUI(); st.style.display='block'; st.textContent=error.message; lobbyError(error); }
+  } }
   finally { if (QUICK.generation === generation) { QUICK.joining = false; QUICK.request = null; } }
 }
 async function pollQuickStatus(){
-  if (!QUICK.active || QUICK.polling || QUICK.joining) return;
+  if (!QUICK.active || QUICK.polling || QUICK.joining || Date.now() < QUICK.retryAt) return;
   const generation = QUICK.generation; QUICK.polling = true;
   try {
-    const data = await onlineJSON('/api/quick/status');
+    const data = await onlineJSON('/api/quick/status', {}, {retries: 0});
     if (!QUICK.active || QUICK.generation !== generation) { if (data.room_id) offerResumeRoom(data.room_id); return; }
     if (QUICK.joining) return;
+    QUICK.failures = 0; QUICK.retryAt = 0;
+    if (data.status === 'idle') {
+      resetQuickUI();
+      const status = document.getElementById('quick-status'); status.style.display = 'block'; status.textContent = 'Your search ended. Start another search when you are ready.'; return;
+    }
     if (data.status==='matched' && data.room_id) {
+      if (QUICK.cancelRequested) { resetQuickUI(); offerResumeRoom(data.room_id); return; }
       if (QUICK.fallback) clearInterval(QUICK.fallback);
       if (QUICK.timer) { clearInterval(QUICK.timer); QUICK.timer=null; }
       await enterQuickMatch(data.room_id, generation);
+    } else if (data.status === 'waiting') {
+      if (QUICK.cancelRequested) {
+        document.getElementById('quick-loading-text').textContent = 'Your search is still active';
+        document.getElementById('quick-loading-sub').textContent = 'Cancel search to stop it';
+        document.getElementById('quick-status').textContent = 'Your search is still active. Use Cancel search to stop it.';
+      } else startQuickFallback();
     }
-  } catch (error) { if (QUICK.active && QUICK.generation === generation) document.getElementById('quick-status').textContent='Connection lost. Retrying the player search…'; }
+  } catch (error) {
+    if (!QUICK.active || QUICK.generation !== generation) return;
+    if (!isRetryableOnlineError(error)) { resetQuickUI(); lobbyError(error); return; }
+    QUICK.retryAt = Date.now() + retryDelay(++QUICK.failures);
+    document.getElementById('quick-status').textContent='Connection interrupted. Reconnecting to your player search…';
+  }
   finally { if (QUICK.generation === generation) QUICK.polling = false; }
 }
 async function enterQuickMatch(room_id, generation = QUICK.generation){
@@ -1091,19 +1300,30 @@ async function enterQuickMatch(room_id, generation = QUICK.generation){
     const join = await onlineJSON('/online/'+encodeURIComponent(room_id)+'/join', {method:'POST'});
     if (QUICK.generation !== generation || !QUICK.active) { offerResumeRoom(room_id); return; }
     resetQuickUI(); startOnline(join);
-  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); lobbyStatus(error.message); document.getElementById('online-join-code').value=room_id; } }
+  } catch (error) { if (QUICK.generation === generation) { resetQuickUI(); offerResumeRoom(room_id); lobbyStatus(error.message); } }
   finally { if (QUICK.generation === generation) QUICK.joining = false; }
 }
 window.quickCancel = async function(){
   if (QUICK.cancelling) return;
   const generation = ++QUICK.generation; QUICK.cancelling = true;
+  let recover = false;
   resetQuickUI();
   try {
     await QUICK.request?.catch(() => {});
     const data = await onlineJSON('/api/quick/cancel',{method:'POST'});
     if (data.room_id) offerResumeRoom(data.room_id);
-  } catch (error) { if (QUICK.generation === generation) lobbyStatus(error.message); }
-  finally { QUICK.cancelling = false; if (QUICK.generation === generation) { QUICK.request = null; resetQuickUI(); } }
+  } catch (error) {
+    if (QUICK.generation === generation) {
+      recover = isRetryableOnlineError(error);
+      if (!recover) lobbyError(error);
+    }
+  } finally {
+    QUICK.cancelling = false;
+    if (QUICK.generation === generation) {
+      QUICK.request = null; resetQuickUI();
+      if (recover) recoverOnlineQueue('quick', 'Checking whether your search was cancelled…', true);
+    }
+  }
 };
 function resetQuickUI(){
   QUICK.active=false;
@@ -1147,6 +1367,8 @@ const modelPicker = createModelPicker({
       gameState.ai_model = id;
       committed = true;
       if (play) {
+        await onlineJSON('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_count:5})});
+        if (!current()) throw new Error('The match changed. Choose your opponent again.');
         await onlineJSON('/set_mode', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({mode:'hvai'})});
         if (!current()) throw new Error('The match changed. Choose your opponent again.');
         const state = await onlineJSON('/state');
@@ -1585,12 +1807,16 @@ async function submitOnlineKick(playerIdx, angleDeg, power) {
     if (data.game.game_over || data.status === 'done') finishOnline();
   } catch (error) {
     if (error.name === 'AbortError' || !ONLINE.active || ONLINE.generation !== generation) return;
-    if ([400, 409].includes(error.status) || !error.status) { ONLINE.ready = false; ONLINE.lastKick = -1; }
+    // A response can be lost after the server commits. Never repeat the kick;
+    // block input and reconcile from the last confirmed revision instead.
+    ONLINE.ready = false;
+    ONLINE.connectionError = 'Checking whether your move reached the match…';
+    updateOnlineBar();
     throw error;
   } finally {
     if (ONLINE.generation === generation) {
       isAnimating = false; _skipKickerIdx = -1; _skipKickerTeam = ''; ONLINE.moveController = null;
-      playerInput.sync(); if (!ONLINE.ready) void pollOnline();
+      playerInput.sync(); if (!ONLINE.ready) void pollOnline(); else scheduleOnlinePoll();
     }
   }
 }
@@ -1633,38 +1859,39 @@ window.__goalkeeperControlState=()=>goalkeeperInput.snapshot();
 function syncInputs(){playerInput.sync();goalkeeperInput.sync();updateKeeperGuide();updateSquadRoles();syncPlaystyle();}
 function playstyleBlockedReason(){
   if(!gameState)return 'Loading match…';
-  if(ONLINE.active)return 'Team mentality is available in local AI matches.';
-  if(gameState.penalty_shootout)return 'Mentality is fixed during the shootout.';
-  if(gameState.game_over)return 'Start a new match to change mentality.';
-  if(!['hvai','aivai'].includes(gameState.game_mode)||!gameState.team_movement)return 'Choose an AI match with team movement to use mentality.';
-  if(ONLINE_LOBBY.busy||ONLINE_LOBBY.waitRoom||QUICK.active||QUICK.joining||QUICK.cancelling||RANKED.active||RANKED.joining||RANKED.cancelling)return 'Finish or cancel matchmaking before changing mentality.';
-  if(isAnimating||LOCAL_TURN.pending)return 'Change mentality between turns.';
+  if(ONLINE.active)return 'You are in an online match.';
+  if(ONLINE_LOBBY.busy||ONLINE_LOBBY.waitRoom||QUICK.active||QUICK.joining||QUICK.cancelling||RANKED.active||RANKED.joining||RANKED.cancelling)return 'Finish or cancel matchmaking before starting.';
+  if(isAnimating||LOCAL_TURN.pending)return 'Updating match…';
   return '';
 }
 function lockPlaystyleSave(saving){
-  document.getElementById('mode-select').disabled=saving||ONLINE.active;
+  document.getElementById('mode-select').disabled=saving||ONLINE.active||gameState?.match_started===true;
   document.querySelectorAll('[onclick="resetGame()"],[onclick="undoMove()"]').forEach(button=>{button.disabled=saving||ONLINE.active;});
   modelPicker.setDisabled(saving||ONLINE.active);
 }
-playstyleControl=createPlaystyleControl({
+matchSetup=createMatchSetup({
   getState:()=>gameState,
+  getOnline:()=>ONLINE,
   blockedReason:playstyleBlockedReason,
-  getContext:()=>[LOCAL_TURN.generation,ONLINE.generation,gameState?.game_mode].join(':'),
-  async onSave(level,side){
+  async onStart(settings){
     const reason=playstyleBlockedReason();
     if(reason)throw new Error(reason);
+    if(gameState.match_started!==false)throw new Error('Choose New Game to set up another match.');
     cancelLocalTurn();
     const run=beginLocalTurn();
     isAnimating=true;lockPlaystyleSave(true);syncInputs();
     try{
-      const data=await requestMoveState('/set_playstyle',{level,side},run);
+      const data=await requestMoveState('/start_match',settings,run);
       if(!run.current())throw new DOMException('Match changed','AbortError');
-      if(![data.playstyle_a,data.playstyle_b].every(value=>Number.isInteger(value)&&value>=1&&value<=5))throw new Error('Could not confirm mentality. Try again.');
-      // A settings response must never replace newer positions or match state.
-      gameState.playstyle_a=data.playstyle_a;gameState.playstyle_b=data.playstyle_b;
-    }finally{lockPlaystyleSave(false);finishLocalTurn(run);}
+      if(data.match_started!==true)throw new Error('Could not confirm kickoff. Try again.');
+      gameState=data;rebuildPlayers();updateBall(data.ball.x,data.ball.y,data.ball.z||0);updateHUD(data);
+    }finally{if(run.current())lockPlaystyleSave(false);finishLocalTurn(run);}
+    document.getElementById('fs-wrap').scrollIntoView({block:'start',behavior:'instant'});
+    if(gameState.game_mode==='aivai')void triggerAI();
+    else document.getElementById('kick-btn').focus({preventScroll:true});
   },
 });
+void matchSetup.load();
 function updateSquadRoles(){
   const guide=document.getElementById('squad-role-guide');
   if(!gameState || !gameState.team_movement || gameState.penalty_shootout){guide.hidden=true;return;}
@@ -1696,155 +1923,6 @@ function updateKeeperGuide(){
     direction:goalkeeperInput.snapshot().direction,forward:Math.sign(gameState.ball.x-keeper.x)||1}:null);
   showCaptainHint(false);
 }
-
-// Teams and formations
-let TEAMS_CACHE = [];
-async function loadTeams() {
-  try {
-    const r = await fetch('/api/teams');
-    const teams = await r.json();
-    TEAMS_CACHE = teams;
-    const aSel = document.getElementById('team-a-select');
-    const bSel = document.getElementById('team-b-select');
-    if (!aSel || !bSel) return;
-    aSel.innerHTML = '<option value="">— Team A —</option>';
-    bSel.innerHTML = '<option value="">— Team B —</option>';
-    for (const tm of teams) {
-      const o1 = document.createElement('option'); o1.value = tm.id; o1.textContent = tm.crest + ' ' + tm.name;
-      const o2 = o1.cloneNode(true);
-      aSel.appendChild(o1); bSel.appendChild(o2);
-    }
-    // set defaults from current gameState or room
-    if (typeof gameState !== 'undefined' && gameState) {
-      if (gameState.team_a) aSel.value = gameState.team_a;
-      if (gameState.team_b) bSel.value = gameState.team_b;
-    }
-  } catch(e) {}
-}
-loadTeams();
-async function loadFormations() {
-  try {
-    const r = await fetch('/api/formations');
-    const data = await r.json();
-    const aSel = document.getElementById('formation-a-select');
-    const bSel = document.getElementById('formation-b-select');
-    if (!aSel || !bSel) return;
-    aSel.innerHTML = ''; bSel.innerHTML = '';
-    for (const f of data.formations) {
-      const o1 = document.createElement('option'); o1.value=f; o1.textContent=f;
-      const o2 = o1.cloneNode(true);
-      aSel.appendChild(o1); bSel.appendChild(o2);
-    }
-    // set to manager defaults
-    const updateManager = (teamId, side) => {
-      const mgr = data.managers[teamId];
-      const el = document.getElementById(side==='a' ? 'manager-a' : 'manager-b');
-      const sel = document.getElementById(side==='a' ? 'formation-a-select' : 'formation-b-select');
-      if (mgr && el) el.textContent = 'Manager: ' + mgr.name + ' (' + mgr.style + ')';
-      if (mgr && sel) sel.value = mgr.formation;
-    };
-    // hook team change to update manager/formation
-    document.getElementById('team-a-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'a'); });
-    document.getElementById('team-b-select')?.addEventListener('change', e => { const tid=e.target.value; updateManager(tid,'b'); });
-    // also listen formation change to trigger reset
-    aSel.addEventListener('change', async e => {
-      if (ONLINE.active || isAnimating) return;
-      const generation = ONLINE.generation;
-      const a = document.getElementById('team-a-select').value;
-      const b = document.getElementById('team-b-select').value;
-      if (a && b && a!==b) {
-        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: e.target.value, formation_b: bSel.value})});
-        const st = await fetch('/state').then(r=>r.json());
-        if (ONLINE.active || ONLINE.generation !== generation) return;
-        gameState=st; rebuildPlayers(); updateHUD(st);
-      }
-    });
-    bSel.addEventListener('change', async e => {
-      if (ONLINE.active || isAnimating) return;
-      const generation = ONLINE.generation;
-      const a = document.getElementById('team-a-select').value;
-      const b = document.getElementById('team-b-select').value;
-      if (a && b && a!==b) {
-        await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: aSel.value, formation_b: e.target.value})});
-        const st = await fetch('/state').then(r=>r.json());
-        if (ONLINE.active || ONLINE.generation !== generation) return;
-        gameState=st; rebuildPlayers(); updateHUD(st);
-      }
-    });
-    // referee
-    const refR = await fetch('/api/referees').then(r=>r.json());
-    const ref = refR[Math.floor(Math.random()*refR.length)];
-    const refEl = document.getElementById('referee-display');
-    if (refEl) refEl.textContent = 'Referee: ' + ref.name + ' (' + ref.country + ')';
-  } catch(e) {}
-}
-loadFormations();
-
-async function chooseTeam(side, teamId) {
-  const errEl = document.getElementById('team-error');
-  if (errEl) errEl.style.display='none';
-  if (isAnimating || ONLINE.leaving || (ONLINE.active && (side !== ONLINE.side || !ONLINE.ready || ONLINE.lastKick > 0))) {
-    if (errEl) { errEl.textContent = ONLINE.lastKick > 0 ? 'Choose your team before the first kick.' : 'Only your own team can be selected before kickoff.'; errEl.style.display='block'; }
-    return;
-  }
-  const generation = ONLINE.generation;
-  // offline: just save to local and reset game with team
-  if (!ONLINE.active) {
-    // store in localStorage and trigger reset with team
-    localStorage.setItem('team_' + side, teamId);
-    // disable same team on other select
-    const other = side === 'a' ? document.getElementById('team-b-select') : document.getElementById('team-a-select');
-    if (other) {
-      for (const opt of other.options) { opt.disabled = (opt.value && opt.value === teamId); }
-    }
-    // also update formation to manager default
-    try {
-      const r = await fetch('/api/formations').then(x=>x.json());
-      const mgr = r.managers[teamId];
-      const fSel = document.getElementById(side==='a' ? 'formation-a-select' : 'formation-b-select');
-      if (mgr && fSel) { fSel.value = mgr.formation; document.getElementById(side==='a' ? 'manager-a' : 'manager-b').textContent = 'Manager: ' + mgr.name; }
-    } catch(e) {}
-    if (ONLINE.active || ONLINE.generation !== generation) return;
-    // if both chosen, auto reset with teams + formations
-    const a = document.getElementById('team-a-select').value;
-    const b = document.getElementById('team-b-select').value;
-    const fa = document.getElementById('formation-a-select').value;
-    const fb = document.getElementById('formation-b-select').value;
-    if (a && b) {
-      if (a === b) {
-        if (errEl) { errEl.textContent = 'Teams must be different — 2 players cannot choose same team'; errEl.style.display='block'; }
-        return;
-      }
-      const teamA = TEAMS_CACHE.find(t=>t.id===a);
-      const teamB = TEAMS_CACHE.find(t=>t.id===b);
-      if (teamA) CUST_TEAM_A = teamA.primary;
-      if (teamB) CUST_TEAM_B = teamB.primary;
-      await fetch('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_a: a, team_b: b, formation_a: fa, formation_b: fb})});
-      const st = await fetch('/state').then(r=>r.json());
-      if (ONLINE.active || ONLINE.generation !== generation) return;
-      gameState = st; rebuildPlayers(); updateHUD(st);
-    }
-    return;
-  }
-  // online: POST to room
-  if (!ONLINE.roomId) return;
-  try {
-    await onlineJSON('/online/' + encodeURIComponent(ONLINE.roomId) + '/team', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({team_id: teamId})});
-    if (!ONLINE.active || ONLINE.generation !== generation) return;
-    await pollOnline();
-  } catch (error) {
-    if (ONLINE.generation !== generation) return;
-    if (errEl) { errEl.textContent = error.message; errEl.style.display='block'; }
-    await loadTeams(); return;
-  }
-  // success: update UI, disable same team on other side
-  const otherSel = side === 'a' ? document.getElementById('team-b-select') : document.getElementById('team-a-select');
-  if (otherSel) {
-    for (const opt of otherSel.options) { opt.disabled = (opt.value && opt.value === teamId); }
-  }
-}
-document.getElementById('team-a-select')?.addEventListener('change', e=> chooseTeam('a', e.target.value));
-document.getElementById('team-b-select')?.addEventListener('change', e=> chooseTeam('b', e.target.value));
 
 window.showViewSettings=show=>{
   const el=document.getElementById('view-settings-modal');el.classList.toggle('visible',!!show);
@@ -1898,6 +1976,7 @@ async function refreshMatchPeriod(){
 
 function updateHUD(st) {
   syncInputs();
+  document.getElementById('mode-select').disabled=ONLINE.active||isAnimating||st.match_started===true;
   if (!ONLINE.active) modelPicker.setCurrent(st.ai_model);
   document.querySelector('.team-a .team-name').textContent = ONLINE.active ? ONLINE.nameA || 'Team A' : st.game_mode === 'hvai' ? 'You' : 'Team A';
   document.querySelector('.team-b .team-name').textContent = ONLINE.active ? ONLINE.nameB || 'Team B' : st.game_mode === 'hvai' ? 'AI' : 'Team B';
@@ -1975,6 +2054,9 @@ function updateHUD(st) {
         tb.textContent = myTurn ? (st.penalty_shootout ? 'Your penalty kick' : 'Your turn') : 'Opponent\u2019s turn\u2026';
         tb.className = 'turn-badge ' + (myTurn ? 'turn-a' : 'turn-b');
       }
+    } else if (st.match_started === false) {
+      tb.textContent = 'Before kickoff';
+      tb.className = 'turn-badge turn-a';
     } else if (LOCAL_TURN.pending && !st.penalty_shootout) {
       tb.textContent = isAnimating ? 'AI turn in progress\u2026' : 'AI turn paused \u2014 retry';
       tb.className = 'turn-badge turn-b';
@@ -1989,7 +2071,7 @@ function updateHUD(st) {
   const aiBtn = document.getElementById('aivai-btn');
   const retryPenalty=st.game_mode==='hvai' && st.penalty_shootout && !st.is_player_a && st.penalty_goalkeeper_move;
   aiBtn.style.display = !ONLINE.active && (st.game_mode === 'aivai' || retryPenalty || (st.game_mode === 'hvai' && !st.penalty_shootout && (!st.is_player_a || LOCAL_TURN.pending))) ? '' : 'none';
-  aiBtn.disabled = isAnimating || st.game_over;
+  aiBtn.disabled = isAnimating || st.game_over || st.match_started === false;
   aiBtn.textContent = st.game_mode === 'aivai' ? 'Run AI' : retryPenalty ? 'Continue penalty' : 'Retry AI move';
 }
 // A separate DOM timer keeps the match clock moving between server updates.
@@ -2217,7 +2299,7 @@ async function submitKick(playerIdx, angleDeg, power) {
 }
 
 async function triggerAI({ keeperDirection = null, reportFailure = false } = {}) {
-  if (isAnimating || ONLINE.active || !gameState || gameState.game_over) return;
+  if (isAnimating || ONLINE.active || !gameState || gameState.game_over || gameState.match_started === false) return;
   if (gameState.game_mode === 'hvai' && gameState.is_player_a && !gameState.penalty_shootout && !LOCAL_TURN.pending) return;
   if (LOCAL_TURN.timer !== null) { clearTimeout(LOCAL_TURN.timer); LOCAL_TURN.timer = null; }
   const run = beginLocalTurn();
@@ -2300,7 +2382,8 @@ function setOverlay(show, text) {
   }catch(_){}
 
   void modelPicker.load();
-  const urlRoom = new URLSearchParams(location.search).get('room');
+  const rawRoom = new URLSearchParams(location.search).get('room');
+  const urlRoom = parseRoomCode(rawRoom, location.origin);
   if (urlRoom) {
     // Online room mode (chat-enabled 1v1) — game state comes from the room
     document.getElementById('mode-select').value = 'hvh';
@@ -2312,7 +2395,7 @@ function setOverlay(show, text) {
       await endOnline();
       document.getElementById('online-join-code').value = urlRoom;
       showOnlineLobby(true);
-      lobbyStatus(error.message || 'Could not join this match. Try again.');
+      lobbyError(error);
     }
     return;
   }

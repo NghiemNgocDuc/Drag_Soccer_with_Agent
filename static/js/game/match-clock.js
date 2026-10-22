@@ -1,5 +1,6 @@
 // The accelerated clock is independent of canvas rendering (20 match seconds/s).
 export function matchClockView(state, nowMs = Date.now()) {
+  if (state.match_started === false) return {text:'00:00',title:'Before kickoff',due:false};
   if (state.half_length === 0) return {text:`First to ${state.win_goal_limit || 5}`, title:'Untimed match', due:false};
   const half = (state.half_length || 45) * 3;
   const boundaries = {regular_first:half, regular_second:half*2, et_first:half*2+45, et_second:half*2+90};

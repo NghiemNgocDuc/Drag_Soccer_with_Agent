@@ -39,16 +39,19 @@ def run() -> list[dict]:
     markup = re.sub(r"<script\b[^>]*>[\s\S]*?</script>", "", markup, flags=re.IGNORECASE)
     markup = re.sub(r"<link\b[^>]*>", "", markup, flags=re.IGNORECASE)
     styles = "\n".join((ROOT / "static" / name).read_text(encoding="utf-8")
-                       for name in ("css/frontend.css", "css/frontend-game.css", "css/model-picker.css"))
+                       for name in ("css/frontend.css", "css/frontend-game.css", "css/model-picker.css",
+                                    "css/online-lobby.css"))
     styles = re.sub(r"@import[^;]+;", "", styles)
     source = (ROOT / "templates/game/index_2d.html").read_text(encoding="utf-8")
     functions = [game_function(source, name) for name in
                  ("showOnlineLobby", "closeOnlineLobby", "createOnlineMatch", "openMatchModels", "closeMatchModels",
                   "showHighlights", "closeHighlights", "showPlayerRatings", "closeRatings")]
     functions += [game_function(source, name, plain=True) for name in (
-        "detectHighlights", "modelChoiceError", "onlineJSON", "lobbyStatus", "lobbyBusy",
+        "detectHighlights", "modelChoiceError", "lobbyStatus", "lobbyBusy", "syncLobbyTabs",
         "resetLobbyView", "offerResumeRoom", "cancelWaitingRoom", "cancelLobbyWait", "lobbyDelay",
+        "showResumeCard", "discoverOnlineRoom", "lobbyError", "waitForOnlineOpponent",
     )]
+    functions += [re.search(r"^const onlineJSON = .*;$", source, re.MULTILINE)[0]]
     results = []
 
     def check(name, passed, detail=None):
@@ -62,19 +65,25 @@ def run() -> list[dict]:
         page.set_content(markup)
         page.add_style_tag(content=styles)
         page.add_script_tag(path=str(ROOT / "static/js/ui/frontend.js"))
-        page.evaluate("() => {window.gameState={}; window.fetch=async()=>({ok:true,json:async()=>[{id:'greedy',name:'Greedy',type:'builtin',desc:'Test model'}]});}")
+        page.evaluate("() => {window.gameState={}; window.fetch=async url=>({ok:true,json:async()=>url==='/models'?[{id:'greedy',name:'Greedy',type:'builtin',desc:'Test model'}]:{}});}")
         # Supply the current lobby state and its real helpers, while keeping
         # renderer initialization and ranked matchmaking outside this fixture.
         page.add_script_tag(content="""
           const ONLINE = {active:false}, RANKED = {active:false}, QUICK = {active:false};
+          const syncPlaystyle = () => {};
           let isAnimating = false;
         """ + re.search(r"^const ONLINE_LOBBY = .*;$", source, re.MULTILINE)[0])
+        transport = (ROOT / "static/js/game/online-transport.js").read_text(encoding="utf-8")
+        page.add_script_tag(content=re.sub(r"^export ", "", transport, flags=re.MULTILINE))
+        tabs = (ROOT / "static/js/game/online-lobby.js").read_text(encoding="utf-8")
+        page.add_script_tag(content=tabs.replace("export function", "function") + "\nsetupOnlineLobbyTabs();")
         picker = (ROOT / "static/js/game/model-picker.js").read_text(encoding="utf-8")
         page.add_script_tag(content=picker.replace('export function createModelPicker', 'function createModelPicker')
                             + '\nconst modelPicker = createModelPicker({onChoose:async()=>{}});')
         page.add_script_tag(content="\n".join(functions))
 
         page.locator("#online-btn").click()
+        page.locator("#online-tab-matchmaking").click()
         page.locator("#match-models-btn").click()
         page.wait_for_function("document.querySelector('#match-models-list input')")
         check("Model picker receives focus", page.evaluate("document.activeElement.closest('.online-modal').id") == "match-models-modal")
@@ -93,6 +102,7 @@ def run() -> list[dict]:
 
         page.evaluate("() => {window.fetch=async url=>url==='/online/create'?{ok:true,json:async()=>({room_id:'qa123456'})}:url.endsWith('/join')?{ok:true}:new Promise(()=>{});}")
         page.locator("#online-btn").click()
+        page.locator("#online-tab-friends").click()
         page.get_by_role("button", name="Create Match", exact=True).click()
         page.wait_for_function("document.getElementById('online-lobby-create').style.display==='flex'")
         check("Invitation replaces hidden create control with useful focus", page.evaluate("document.activeElement.id") == "online-invite-link")

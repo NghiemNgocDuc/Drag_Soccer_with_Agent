@@ -334,3 +334,202 @@ def test_queue_cancel_preserves_a_match_that_already_formed(online, queue):
     assert online["uid_a"] not in r.smembers(f"{queue}:queue")
     assert appmod._get_room(rid)["status"] == "active"
     assert appmod._get_room(rid)["game"].get("winner") is None
+
+
+def test_current_room_recovers_waiting_and_active_without_exposing_secrets(online):
+    assert online["a"].get("/online/current").get_json() == {"status": "idle"}
+    rid = online["room"]({"password": "private"}, active=False)
+    current = online["a"].get("/online/current").get_json()
+    assert current == {"room_id": rid, "status": "waiting", "my_side": "a",
+                       "name_a": "Online a", "name_b": None, "ranked": False,
+                       "has_password": True, "move_count": 0}
+    assert online["outside"].get("/online/current").get_json() == {"status": "idle"}
+    assert online["b"].post(f"/online/{rid}/join", json={"password": "private"}).status_code == 200
+    recovered = online["b"].get("/online/current").get_json()
+    assert recovered["status"] == "active" and recovered["my_side"] == "b"
+    assert "game" not in recovered and "password_hash" not in recovered
+
+
+def test_invalid_membership_pointer_cannot_reveal_someone_elses_room(online):
+    rid = online["room"]()
+    outsider = online["outside"]
+    with outsider.session_transaction() as session:
+        who = session["user_id"]
+    for prefix in ("online:room", "ranked:match", "quick:match"):
+        r.setex(f"{prefix}:{who}", 60, rid)
+    assert outsider.get("/online/current").get_json() == {"status": "idle"}
+    assert all(r.get(f"{prefix}:{who}") is None for prefix in ("online:room", "ranked:match", "quick:match"))
+
+
+@pytest.mark.parametrize("queue", ["quick", "ranked"])
+def test_room_and_matchmaking_pointers_share_full_room_lifetime(online, monkeypatch, queue):
+    writes = []
+    original = r.setex
+    def record(key, ttl, value):
+        writes.append((key, ttl, value))
+        return original(key, ttl, value)
+    monkeypatch.setattr(r, "setex", record)
+    create = appmod._create_quick_room if queue == "quick" else appmod._create_ranked_room
+    rid = create(online["uid_a"], online["uid_b"])
+    for player in (online["uid_a"], online["uid_b"]):
+        for prefix in ("online:room", f"{queue}:match"):
+            assert (f"{prefix}:{player}", appmod.ROOM_TTL, rid) in writes
+            assert not any(key == f"{prefix}:{player}" and ttl < appmod.ROOM_TTL for key, ttl, _ in writes)
+    # Even a lost legacy queue handoff cannot hide a live room from refresh.
+    r.delete(f"{queue}:match:{online['uid_a']}")
+    assert online["a"].get("/online/current").get_json()["room_id"] == rid
+
+
+def test_create_retries_reuse_waiting_room_and_reject_active_room(online):
+    rid = online["room"]({"password": "original"}, active=False)
+    retried = online["a"].post("/online/create", json={"password": "different"})
+    assert retried.status_code == 200 and retried.get_json()["room_id"] == rid
+    assert online["b"].post(f"/online/{rid}/join", json={"password": "original"}).status_code == 200
+    conflict = online["a"].post("/online/create", json={})
+    assert conflict.status_code == 409 and conflict.get_json()["room_id"] == rid
+
+
+def _second_session(user_id):
+    client = appmod.app.test_client()
+    with client.session_transaction() as session:
+        session["user_id"] = user_id
+    return client
+
+
+def test_concurrent_create_requests_do_not_orphan_a_waiting_room(online):
+    second = _second_session(online["uid_a"])
+    before = {key for key in r._store if key.startswith("room:")}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        responses = list(pool.map(lambda client: client.post("/online/create", json={}), [online["a"], second]))
+    assert all(response.status_code == 200 for response in responses)
+    assert len({response.get_json()["room_id"] for response in responses}) == 1
+    assert len({key for key in r._store if key.startswith("room:")} - before) == 1
+
+
+def test_create_and_join_race_keeps_exactly_one_membership(online):
+    other_room = online["outside"].post("/online/create", json={}).get_json()["room_id"]
+    second = _second_session(online["uid_a"])
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        create = pool.submit(online["a"].post, "/online/create", json={})
+        join = pool.submit(second.post, f"/online/{other_room}/join", json={})
+        responses = [create.result(), join.result()]
+    # If joining wins, creating conflicts; if creating wins, joining conflicts.
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    memberships = [json.loads(raw) for key, raw in r._store.items() if key.startswith("room:")]
+    assert sum(room["status"] in ("waiting", "active") and online["uid_a"] in
+               (room["player_a"], room["player_b"]) for room in memberships) == 1
+
+
+def test_concurrent_crossqueue_search_does_not_double_enrol(online):
+    second = _second_session(online["uid_a"])
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        quick = pool.submit(online["a"].post, "/api/quick/join", json={"mode": "pvp"})
+        ranked = pool.submit(second.post, "/ranked/join", json={})
+        responses = [quick.result(), ranked.result()]
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    assert sum(r.sismember(f"{queue}:queue", online["uid_a"]) for queue in ("quick", "ranked")) == 1
+
+
+@pytest.mark.parametrize("route,body", [("/api/quick/join", {"mode": "pvp"}),
+                                        ("/api/quick/join", {"mode": "pva"}),
+                                        ("/ranked/join", {}),
+                                        ("/online/invite/send", {"to_uid": "new-opponent"})])
+def test_active_room_blocks_competing_match_starts(online, route, body):
+    rid = online["room"]()
+    response = online["a"].post(route, json=body)
+    assert response.status_code == 409 and response.get_json()["room_id"] == rid
+    assert online["uid_a"] not in appmod._quick_members() | appmod._ranked_members()
+
+
+def test_queue_search_must_be_cancelled_before_joining_or_creating(online):
+    other = online["outside"].post("/online/create", json={}).get_json()["room_id"]
+    assert online["a"].post("/api/quick/join", json={"mode": "pvp"}).get_json()["status"] == "waiting"
+    assert online["a"].post("/online/create", json={}).status_code == 409
+    assert online["a"].post(f"/online/{other}/join", json={}).status_code == 409
+    assert online["a"].post("/api/quick/cancel", json={}).get_json()["status"] == "idle"
+    assert online["a"].post(f"/online/{other}/join", json={}).status_code == 200
+
+
+def test_invite_retry_reuses_room_and_accept_is_idempotent(online):
+    payload = {"to_uid": online["uid_b"]}
+    first = online["a"].post("/online/invite/send", json=payload).get_json()
+    assert online["a"].post("/online/invite/send", json=payload).get_json() == first
+    route = f"/online/invite/{first['invite_id']}/accept"
+    accepted = online["b"].post(route, json={})
+    assert accepted.status_code == 200
+    before = appmod._get_room(first["room_id"])
+    repeated = online["b"].post(route, json={})
+    assert repeated.status_code == 200 and repeated.get_json() == accepted.get_json()
+    assert appmod._get_room(first["room_id"]) == before
+    assert online["b"].get("/online/current").get_json()["room_id"] == first["room_id"]
+
+
+def test_joined_ranked_game_survives_the_old_handoff_timeout(online):
+    rid = appmod._create_ranked_room(online["uid_a"], online["uid_b"])
+    assert online["a"].post(f"/online/{rid}/join", json={}).status_code == 200
+    room = appmod._get_room(rid)
+    room["started_at"] = time.time() - 300
+    appmod._save_room(rid, room)
+    appmod._reclaim_stale_ranked()
+    assert appmod._get_room(rid)["status"] == "active"
+    assert online["a"].get("/online/current").get_json()["room_id"] == rid
+    assert online["uid_a"] not in appmod._ranked_members()
+
+
+def test_finished_room_cleanup_does_not_erase_a_new_membership(online):
+    rid = online["room"](active=False)
+    assert online["a"].post(f"/online/{rid}/leave", json={}).status_code == 200
+    assert online["a"].get("/online/current").get_json() == {"status": "idle"}
+    next_room = online["a"].post("/online/create", json={}).get_json()["room_id"]
+    appmod._save_room(rid, appmod._get_room(rid))
+    assert online["a"].get("/online/current").get_json()["room_id"] == next_room
+
+
+@pytest.mark.parametrize("queue", ["quick", "ranked"])
+@pytest.mark.parametrize("operation", ["join", "status", "cancel"])
+def test_queue_handoff_recovers_when_only_membership_pointer_survives(online, queue, operation):
+    create = appmod._create_quick_room if queue == "quick" else appmod._create_ranked_room
+    rid = create(online["uid_a"], online["uid_b"])
+    r.delete(f"{queue}:match:{online['uid_a']}")
+    prefix = "/api/quick" if queue == "quick" else "/ranked"
+    if operation == "status":
+        response = online["a"].get(f"{prefix}/status")
+    else:
+        response = online["a"].post(f"{prefix}/{operation}", json={"mode": "pvp"})
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "matched"
+    assert response.get_json()["room_id"] == rid
+    assert appmod._get_room(rid)["status"] == "active"
+    assert online["uid_a"] not in appmod._quick_members() | appmod._ranked_members()
+
+
+@pytest.mark.parametrize("queue", ["quick", "ranked"])
+def test_current_restores_search_after_lost_join_response_or_refresh(online, queue):
+    prefix = "/api/quick" if queue == "quick" else "/ranked"
+    response = online["a"].post(f"{prefix}/join", json={"mode": "pvp"})
+    assert response.get_json()["status"] == "waiting"
+    assert online["a"].get("/online/current").get_json() == {"status": "searching", "queue": queue}
+    assert online["outside"].get("/online/current").get_json() == {"status": "idle"}
+    assert online["a"].post(f"{prefix}/cancel", json={}).get_json()["status"] == "idle"
+    assert online["a"].get("/online/current").get_json() == {"status": "idle"}
+
+
+@pytest.mark.parametrize("queue", ["quick", "ranked"])
+def test_current_does_not_restore_expired_queue_search(online, queue):
+    r.sadd(f"{queue}:queue", online["uid_a"])
+    r.setex(f"{queue}:join:{online['uid_a']}", 60, time.time() - 7200)
+    assert online["a"].get("/online/current").get_json() == {"status": "idle"}
+    assert online["uid_a"] not in r.smembers(f"{queue}:queue")
+
+
+def test_legacy_quick_room_without_type_flag_can_resume(online):
+    rid = appmod._create_quick_room(online["uid_a"], online["uid_b"])
+    room = appmod._get_room(rid)
+    room.pop("quick")
+    appmod._save_room(rid, room)
+    for response in (online["a"].post("/api/quick/join", json={"mode": "pvp"}),
+                     online["a"].get("/api/quick/status"),
+                     online["a"].post("/api/quick/cancel", json={})):
+        assert response.status_code == 200
+        assert response.get_json()["status"] == "matched"
+        assert response.get_json()["room_id"] == rid

@@ -72,6 +72,15 @@ to normal. Cube/puck presets still use the existing circular contact geometry.
 
 New matches use five players per team. In Human vs AI the human controls the
 last formation slot, striker #5; the teammate policy excludes that slot.
+New local matches wait in setup until **Start match** applies the selected
+formation and playstyle together. The 2-1-1, 1-2-1, 2-0-2 and 1-1-2 formations
+all include one keeper plus four outfield players. They change actual starting
+positions and stable role assignments; goals and halftime retain the formation.
+Setup holds the clock at 00:00 and rejects kick/AI requests. Starting sets the
+time origin once; duplicate starts cannot restart the clock. New Game returns
+to setup with the last chosen tactics. Existing active saves resume normally.
+Coverage: `test_match_formations.py`, `test_match_setup.py`, and
+`python tools/browser/verify_match_setup.py`.
 Power maps to 5–9 units/s per command point, further bounded so a free
 maximum-strength approach travels at most 480 units (plus fixed-step tolerance).
 The default build glides about 272 units on a full pull. Longer pulls increase

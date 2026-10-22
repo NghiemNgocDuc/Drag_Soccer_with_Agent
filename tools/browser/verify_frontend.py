@@ -39,7 +39,8 @@ def run() -> dict:
         application.app.jinja_env.get_template(filename.relative_to(ROOT / "templates").as_posix())
     check("All Jinja templates compile", True)
 
-    seed = new_soccer_state(mode="hvh", player_count=3, half_length=9999)
+    seed = new_soccer_state(mode="hvh", player_count=5, half_length=9999)
+    seed["match_started"] = True
     replay_state = copy.deepcopy(seed)
     trajectory, scored, *_ = apply_kick(replay_state, 2, 0, 75, True)
     replay = [{"mover": "a", "player_idx": 2, "angle": 0, "power": 75,
@@ -54,7 +55,7 @@ def run() -> dict:
 
     @application.app.route("/__frontend/replay")
     def frontend_replay():
-        return render_template("game/replay_3d.html", username="Frontend QA",
+        return render_template("game/replay_2d.html", username="Frontend QA",
                                t={"id": "qa", "name": "QA cup"},
                                match={"id": "qa", "participant_a": "A", "participant_b": "B", "replay_data": replay},
                                highlights=[], highlight=None, live_room=None,
@@ -172,7 +173,7 @@ def run() -> dict:
                                    ("game", "/play3d"), ("replay", "/__frontend/replay")):
                     response = page.goto(base + path, wait_until="networkidle")
                     if name in ("game", "replay"):
-                        page.wait_for_selector("#three-container canvas")
+                        page.wait_for_selector("#pitch-container canvas")
                     overflow = page.evaluate("document.documentElement.scrollWidth > innerWidth + 1")
                     check(f"{name} {width}: responsive page", response.status == 200 and not overflow)
                     page.screenshot(path=str(target / f"{name}-{width}.png"), full_page=name not in ("game", "replay"), timeout=60000)
@@ -180,7 +181,7 @@ def run() -> dict:
                         check(f"Play hub {width}: direct links avoid nested renderer", page.locator("iframe").count() == 0 and page.locator('.as-destination[href="/play3d"]').count() == 1)
             page.set_viewport_size({"width": 1280, "height": 900})
             page.goto(base + "/play3d", wait_until="networkidle")
-            page.wait_for_selector("#three-container canvas")
+            page.wait_for_selector("#pitch-container canvas")
             page.locator("#pass-short").click()
             check("Pass controls expose selected state", page.locator("#pass-short").get_attribute("aria-pressed") == "true" and page.locator("#pass-normal").get_attribute("aria-pressed") == "false")
             page.locator("#sound-btn").click()
@@ -191,7 +192,7 @@ def run() -> dict:
             page.locator("#view-settings-modal").get_by_role("button", name="Close", exact=True).click()
             check("View dialog restores focus", page.evaluate("document.activeElement.id") == "view-settings-btn")
             page.locator("#online-btn").click()
-            check("Online lobby focuses the join field", page.evaluate("document.activeElement.id") == "online-join-code")
+            check("Online lobby focuses the active tab", page.evaluate("document.activeElement.id") == "online-tab-friends")
             page.keyboard.press("Escape")
             check("Online lobby can be dismissed before creating a room", page.locator("#online-lobby").is_hidden() and page.evaluate("document.activeElement.id") == "online-btn")
             page.evaluate("""() => {
@@ -203,7 +204,11 @@ def run() -> dict:
             page.locator("#online-copy-btn").click()
             check("Invitation copying preserves the close controls", page.evaluate("window.__copiedInvite") == "https://example.test/join/qa" and page.locator('#online-lobby-create button').count() == 2)
             page.get_by_role("button", name="Close online lobby", exact=True).click()
+            page.locator('[onclick="resetGame()"]').click()
+            page.locator("#match-start-btn").wait_for(state="visible")
             page.locator("#mode-select").select_option("aivai")
+            page.locator("#match-setup-team-b").wait_for(state="visible")
+            page.locator("#match-start-btn").click()
             page.wait_for_function("document.getElementById('aivai-btn').style.display !== 'none'")
             check("AI versus AI controls remain available", page.locator("#aivai-btn").is_visible())
             page.goto(base + "/profile", wait_until="networkidle")

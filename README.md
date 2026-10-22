@@ -94,6 +94,10 @@ Human vs AI gives you striker #5, marked **YOU** on the pitch. Pull the disc bac
 
 The ball stays on the ground with crisp, ping-pong-style rebounds and a speed limit. Players stay inside the pitch, and every player follows the same playback clock as the ball.
 
+### Play online
+
+Open **Online** to share a match invitation, join a friend's link, or find a casual or ranked opponent. The lobby offers your existing match or search when you return. Connection status and a reconnect button show when the game is resynchronizing; interrupted kick requests are checked against the server before play resumes. See [online play](docs/online-play.md) for setup and verification.
+
 ### Give each player a role
 
 Each player has a **200-point budget** across four stats, with values from 20 to 80 in the team builder.
@@ -165,9 +169,11 @@ Built-in agents share a fast tactical shortlist for shots, open passes, clearanc
 
 Live requests use four worker slots per process and return a legal tactical fallback when busy. Built-in physics searches stop cooperatively; arbitrary uploaded Python retains its slot until execution finishes. See [AI responsiveness](docs/ai-responsiveness.md) for tuning, timing measurements, and tradeoffs.
 
-Possession, Counter Attack, and High Press are lightweight deterministic tactical agents, with no downloads, API keys, or training data. Their own scoring priorities apply to both candidate ordering and budget-limited results. In AI matches, both squads reposition during each kick with fixed jobs: #1 guards goal, #2 and #3 defend, #4 supports passes, and #5 attacks. You keep control of your striker. All runs share the kick's existing physics world and recorded timeline.
+Possession, Counter Attack, and High Press are lightweight deterministic tactical agents, with no downloads, API keys, or training data. Their own scoring priorities apply to both candidate ordering and budget-limited results. In AI matches, both squads reposition during each kick with jobs assigned by your formation. In the default 2-1-1, #1 guards goal, #2 and #3 defend, #4 supports passes, and #5 attacks. You keep control of your striker. All runs share the kick's existing physics world and recorded timeline.
 
-Use the **five-dot playstyle control** to choose Deep defend, Defend, Balanced, Attack, or All-out attack. Your team adjusts its positioning and risk preference while keeping its player roles. Balanced is the default, and your choice carries into the next match reset.
+Before each new local match, choose your **formation** and **five-dot playstyle**, then select **Start match**. The clock stays at 00:00 while you prepare. Formations are 2-1-1 (Balanced), 1-2-1 (Diamond), 2-0-2 (Box), and 1-1-2 (Forward pair); each has a goalkeeper and four outfield players. The lineup preview shows every player's job, with your #5 striker highlighted.
+
+Playstyles run from Deep defend through Defend, Balanced, Attack, and All-out attack. Your AI teammates adjust their positioning and risk preference while keeping their formation roles. AI vs AI lets you configure both teams; local two-player games let each side choose a formation. Tactics stay fixed during the match. **New Game** reopens setup with your last choices prefilled; refreshing an active match resumes it.
 
 ## Architecture
 
@@ -246,6 +252,7 @@ Browser checks require Playwright and Chromium:
 python -m pip install playwright
 python -m playwright install chromium
 python tools/browser/verify_frontend.py
+python tools/browser/verify_online_reliability.py
 ```
 
 On Windows, substitute `.\.venv\Scripts\python.exe` for `python` if the environment is not activated. Focused browser checks cover controls, online matches, sound, camera visibility, and rendering. Commands and measurement limits are documented in [tools/README.md](tools/README.md).

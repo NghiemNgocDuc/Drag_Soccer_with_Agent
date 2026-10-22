@@ -30,7 +30,9 @@ def run() -> dict:
     @application.app.route('/__model-picker/login/<name>')
     def login(name):
         session.update(user_id='dev:model-picker-' + name, username=name)
-        save_game(session['user_id'], new_soccer_state(mode='hvai', player_count=5, half_length=0))
+        state = new_soccer_state(mode='hvai', player_count=5, half_length=0)
+        state['match_started'] = False
+        save_game(session['user_id'], state)
         return redirect('/play2d')
 
     output = Path(tempfile.gettempdir()) / 'agent-soccer-model-picker'
@@ -141,6 +143,7 @@ def run() -> dict:
             check('Escape closes the picker and restores focus', page.locator('#match-models-modal').is_hidden() and page.evaluate("document.activeElement.id === 'browse-models-btn'"))
 
             page.locator('#online-btn').click()
+            page.locator('#online-tab-matchmaking').click()
             page.locator('#match-models-btn').click()
             page.locator('#match-models-modal').wait_for(state='visible')
             page.keyboard.press('Escape')
@@ -149,7 +152,16 @@ def run() -> dict:
 
             with page.expect_response(lambda response: response.url.endswith('/state')):
                 page.locator('#mode-select').select_option('hvh')
+            # Quick AI must open setup even when the previous local match has
+            # already started and its mode can no longer be changed in place.
+            previous_match = context.request.post(base + '/start_match', data={
+                'formation_a': '2-1-1', 'formation_b': '1-2-1',
+            })
+            check('Previous local match starts before the quick AI transition', previous_match.ok and previous_match.json()['match_started'])
+            page.reload()
+            page.wait_for_function("typeof window.openMatchModels === 'function' && !!window.__pitch2D?.().width && document.querySelector('#mode-select').disabled")
             page.locator('#online-btn').click()
+            page.locator('#online-tab-matchmaking').click()
             page.locator('#match-models-btn').click()
             option(page, 'high_press').check()
             with page.expect_response(lambda response: response.url.endswith('/set_mode')) as mode_changed:
@@ -157,10 +169,12 @@ def run() -> dict:
             page.locator('#match-models-modal').wait_for(state='hidden')
             page.locator('#online-lobby').wait_for(state='hidden')
             started = context.request.get(base + '/state').json()
-            check('Lobby selection starts human versus the selected model', mode_changed.value.ok and started['game_mode'] == 'hvai' and started['ai_model'] == 'high_press' and page.locator('#mode-select').input_value() == 'hvai' and page.locator('#model-select').input_value() == 'high_press')
+            check('Lobby selection opens human-versus-AI setup for the selected model', mode_changed.value.ok and started['game_mode'] == 'hvai' and started['ai_model'] == 'high_press' and started['match_started'] is False and started['kick_count'] == 0 and page.locator('#mode-select').input_value() == 'hvai' and page.locator('#model-select').input_value() == 'high_press')
+            check('Quick AI waits for formation and playstyle confirmation', page.locator('#match-setup').is_visible() and page.locator('#match-start-btn').is_enabled() and not started['clock_running'])
 
             page.route('**/set_mode', lambda route: route.fulfill(status=503, content_type='application/json', body=json.dumps({'error': 'Fixture: match mode unavailable'})))
             page.locator('#online-btn').click()
+            page.locator('#online-tab-matchmaking').click()
             page.locator('#match-models-btn').click()
             option(page, 'counter_attack').check()
             page.locator('#model-picker-apply').click()
@@ -193,6 +207,7 @@ def run() -> dict:
             joining = []
             page.route('**/api/quick/join', lambda route: joining.append(route))
             page.locator('#online-btn').click()
+            page.locator('#online-tab-matchmaking').click()
             with page.expect_request(lambda request: request.url.endswith('/api/quick/join')):
                 page.locator('#quick-play-btn').click()
             if page.locator('#match-models-btn').is_enabled():

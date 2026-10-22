@@ -7,6 +7,21 @@ For room lifecycle, Git setup, and the multiplayer browser checks, see
 For synchronized player/ball motion, interpolation research, camera timing, and
 goal transitions, see [gameplay smoothness](../docs/gameplay-smoothness.md).
 
+For the currently served Canvas 2D game, use:
+
+```powershell
+python tools/browser/verify_frontend.py
+python tools/browser/verify_2d.py
+python tools/browser/verify_match_setup.py
+python tools/browser/verify_model_picker.py
+python tools/browser/verify_online_reliability.py
+```
+
+The online verifier runs independent local sessions, injects request failures in
+a test-only template, and saves reports/screenshots under
+`%TEMP%/agent-soccer-online-reliability/`. Older 3D-specific verifiers below retain
+their historical renderer assumptions.
+
 Run `python tools/run_tests.py` for isolated Python regression checks. External
 integrations are disabled before the app is imported; additional pytest
 arguments are forwarded, for example `python tools/run_tests.py tests/backend/test_ranked.py`.

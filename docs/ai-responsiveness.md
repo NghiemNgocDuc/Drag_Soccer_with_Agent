@@ -28,7 +28,7 @@ their full roster; only shootouts restrict the kicker to the placed index 0.
 
 ## Five-level playstyle
 
-The live game offers five connected dots: **Deep defend, Defend, Balanced,
+Pre-match setup offers five connected dots: **Deep defend, Defend, Balanced,
 Attack, All-out attack**. Balanced (level 3) is the default. Lower levels move
 the team's lines deeper and make them more compact, with a stronger preference
 for controlled possession. Higher levels push the lines forward and widen them,
@@ -37,11 +37,13 @@ remain in place: keepers stay home and defenders' support targets remain in
 their own half. Existing movement limits and physical collisions still apply.
 
 In Human vs AI the control changes your teammates' playstyle; your striker
-remains manual. In AI vs AI either team can be selected. Changes take effect on
-the next kick and are stored in `playstyle_a` / `playstyle_b`, including across
-reloads and match resets. The control is unavailable during moves, saving,
-online/manual-only matches, and shootouts. `POST /set_playstyle` validates the
-level and team; AI prediction cache keys include both teams' levels.
+remains manual. In AI vs AI each team has its own formation and playstyle.
+Selections remain local drafts until `POST /start_match` applies them together
+and starts the clock. They are stored in `playstyle_a` / `playstyle_b`, including
+across reloads and match resets. Explicit started matches reject changes through
+`POST /set_playstyle`; New Game reopens setup. Manual-only matches choose
+formations without AI mentality. Online matches and shootouts keep their
+existing lifecycle. AI prediction cache keys include both teams' levels.
 
 `models/playstyle.py` reads the two small settings. No extra physics worlds,
 network inference, timers or search budget are needed. The shared outcome
@@ -50,19 +52,22 @@ ordering; goals and urgent clearances retain priority.
 
 Verify with `python tools/run_tests.py tests/backend/test_playstyle.py` and
 `python tools/browser/verify_playstyle.py`. The browser check covers keyboard
-selection, saves and failure recovery, resets, team selection, session changes,
+selection, kickoff and failure recovery, resets, team selection, session changes,
 and desktop/mobile layout.
 
 ## Simultaneous team movement
 
 Human vs AI and AI vs AI now launch support runs for **both squads during each
 kick**. `models/team_movement.py` follows stable jobs from `models/team_roles.py`.
-In five-a-side, #1 guards the goal, #2 and #3 defend separate lanes in their own
+In the default five-a-side 2-1-1, #1 guards the goal, #2 and #3 defend separate lanes in their own
 half, #4 offers short passing outlets, and #5 stays available to attack. Jobs
 come from the starting formation and roster slot; possession, collisions and
 kickoff resets do not reassign them. Other roster sizes use their formation's
 defender, midfield and forward rows. A two-player team uses keeper and attacker.
 Keepers track the ball inside the goal-mouth band.
+The pre-match formation selector also offers 1-2-1, 2-0-2 and 1-1-2. These change
+the number of defenders, support players and attackers using the same cached
+formation geometry. The last slot remains the human striker in every shape.
 Shared kick scoring also favors each job: defenders retain cover and clear
 danger, support players look for controlled receptions, and attackers favor
 forward play. These are bounded preferences: goals take priority, urgent

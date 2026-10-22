@@ -6,6 +6,7 @@ export function controlAccess(state, online = {}, busy = false) {
   const side = online.active ? online.side : state?.game_mode === 'hvh' && !state.is_player_a ? 'b' : 'a';
   const blocked = reason => ({ team: side, indices: [], canKick: false, useBall: false, reason });
   if (!state) return blocked('Loading match…');
+  if (!online.active && state.match_started === false) return blocked('Choose your tactics and start the match');
   if (state.game_over) return blocked('Match finished');
   if (busy) return blocked('Move in progress');
   if (online.active) {

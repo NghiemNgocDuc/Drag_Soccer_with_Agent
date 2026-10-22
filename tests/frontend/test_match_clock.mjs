@@ -2,6 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {matchClockView} from '../../static/js/game/match-clock.js';
 const base={half_length:45,start_time:1000};
+test('setup time never advances the clock or requests a period transition',()=>{
+  const view=matchClockView({...base,match_started:false,clock_running:true},99999999);
+  assert.deepEqual(view,{text:'00:00',title:'Before kickoff',due:false});
+  assert.equal(matchClockView({...base,match_started:true},1001000).text,'00:20');
+});
 test('MM:SS clock reaches regulation and both extra-time boundaries without decimals',()=>{
   for(const [period,elapsed,text] of [['regular_first',135,'45:00'],['regular_second',270,'90:00'],['et_first',315,'105:00'],['et_second',360,'120:00']]){
     const view=matchClockView({...base,period},(1000+elapsed)*1000);
