@@ -273,7 +273,8 @@ def evaluate_outcome(state, side, move, trajectory, scored, *, support_plan=None
                         for team in (True, False)}
             support_plan = SupportPlan(state, side, material, profiles)
         value += support_plan.gain(index, own_end)
-    return value
+    from models.experience_policy import outcome_adjustment
+    return value + outcome_adjustment(state, side, move, trajectory, scored)
 
 
 def tactical_candidates(state, side, allowed_players=None, max_candidates=8, *, evaluator=None):

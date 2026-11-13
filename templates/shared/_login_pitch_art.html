@@ -1,35 +1,37 @@
 <svg class="as-login-pitch-art as-cinematic-pitch" viewBox="0 0 580 310" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false" data-motion-scene data-motion-depth="7">
   <defs>
     <linearGradient id="login-turf" x1="0" y1="0" x2="520" y2="360" gradientUnits="userSpaceOnUse"><stop stop-color="#659863"/><stop offset="1" stop-color="#427652"/></linearGradient>
-    <radialGradient id="login-glow"><stop stop-color="#e5f2b1" stop-opacity=".28"/><stop offset="1" stop-color="#e5f2b1" stop-opacity="0"/></radialGradient>
-    <pattern id="login-seats" width="18" height="15" patternUnits="userSpaceOnUse"><rect x="3" y="4" width="10" height="6" rx="2" fill="#96b49a" fill-opacity=".7"/></pattern>
-    <g id="login-home-player"><ellipse cy="6" rx="9" ry="4" fill="#15392b" fill-opacity=".5"/><path d="m-4 0-1 6m8-6 1 6" stroke="#ddecc4" stroke-width="3" stroke-linecap="round"/><path d="M-7-9h14L5 1H-5Z" fill="#e3f395"/><path d="m-6-8-4 5m16-5 4 5" stroke="#d8b58f" stroke-width="3" stroke-linecap="round"/><circle cy="-14" r="4" fill="#d8b58f"/><path d="M-4-16q4-5 8 0" fill="#394536"/></g>
-    <g id="login-away-player"><ellipse cy="6" rx="9" ry="4" fill="#15392b" fill-opacity=".5"/><path d="m-4 0-1 6m8-6 1 6" stroke="#dcdcca" stroke-width="3" stroke-linecap="round"/><path d="M-7-9h14L5 1H-5Z" fill="#eaa878"/><path d="m-6-8-4 5m16-5 4 5" stroke="#a97250" stroke-width="3" stroke-linecap="round"/><circle cy="-14" r="4" fill="#a97250"/><path d="M-4-16q4-5 8 0" fill="#26372c"/></g>
+    <radialGradient id="login-glow"><stop stop-color="var(--as-lime)" stop-opacity=".28"/><stop offset="1" stop-color="var(--as-lime)" stop-opacity="0"/></radialGradient>
+    <pattern id="login-seats" width="18" height="15" patternUnits="userSpaceOnUse"><rect x="3" y="4" width="10" height="6" rx="2" fill="var(--as-on-dark-muted)" fill-opacity=".7"/></pattern>
+    <g id="login-home-player"><ellipse cy="6" rx="9" ry="4" fill="var(--as-dark)" fill-opacity=".5"/><path d="m-4 0-1 6m8-6 1 6" stroke="var(--as-on-dark)" stroke-width="3" stroke-linecap="round"/><path d="M-7-9h14L5 1H-5Z" fill="var(--as-lime)"/><path d="m-6-8-4 5m16-5 4 5" stroke="#d8b58f" stroke-width="3" stroke-linecap="round"/><circle cy="-14" r="4" fill="#d8b58f"/><path d="M-4-16q4-5 8 0" fill="var(--as-ink)"/></g>
+    <g id="login-away-player"><ellipse cy="6" rx="9" ry="4" fill="var(--as-dark)" fill-opacity=".5"/><path d="m-4 0-1 6m8-6 1 6" stroke="var(--as-on-dark)" stroke-width="3" stroke-linecap="round"/><path d="M-7-9h14L5 1H-5Z" fill="var(--as-focus)"/><path d="m-6-8-4 5m16-5 4 5" stroke="#a97250" stroke-width="3" stroke-linecap="round"/><circle cy="-14" r="4" fill="#a97250"/><path d="M-4-16q4-5 8 0" fill="var(--as-ink)"/></g>
   </defs>
+  <g class="as-login-soccer-float" data-motion-loop>
+  <g data-login-sport="soccer" transform="translate(-5 -1) scale(.74)">
   <ellipse cx="291" cy="179" rx="276" ry="124" fill="url(#login-glow)"/>
-  <path d="m35 166 337-136 190 111v36L238 301 35 194Z" fill="#103126" fill-opacity=".5"/>
-  <path d="m54 154 312-104 188 101v15L242 270 54 170Z" fill="#294f3b"/>
-  <path d="m242 255 312-104v15L242 270Z" fill="#355c43"/>
+  <path d="m35 166 337-136 190 111v36L238 301 35 194Z" fill="var(--as-dark)" fill-opacity=".5"/>
+  <path d="m54 154 312-104 188 101v15L242 270 54 170Z" fill="var(--as-dark-raised)"/>
+  <path d="m242 255 312-104v15L242 270Z" fill="var(--as-dark-line)"/>
   <g transform="matrix(.6 -.2 .52 .28 54 154)">
-    <path d="M-16-48h552v34H-16Zm0 422h552v34H-16Z" fill="#294d3b"/>
+    <path d="M-16-48h552v34H-16Zm0 422h552v34H-16Z" fill="var(--as-dark-raised)"/>
     <path d="M-16-45h552v29H-16Zm0 422h552v29H-16Z" fill="url(#login-seats)"/>
-    <path d="M-25-4h19v368h-19Zm551 0h19v364h-19Z" fill="#74917a" fill-opacity=".35"/>
+    <path d="M-25-4h19v368h-19Zm551 0h19v364h-19Z" fill="var(--as-control-border)" fill-opacity=".35"/>
     <rect width="520" height="360" fill="url(#login-turf)"/>
     <path d="M0 0h65v360H0Zm130 0h65v360h-65Zm130 0h65v360h-65Zm130 0h65v360h-65Z" fill="#89ae6c" fill-opacity=".19"/>
-    <g stroke="#e2ebcd" stroke-width="2.5" stroke-opacity=".9">
+    <g stroke="var(--as-on-dark)" stroke-width="2.5" stroke-opacity=".9">
       <rect x="14" y="14" width="492" height="332"/>
       <path d="M260 14v332M14 88h75v184H14m492-184h-75v184h75M14 142h29v76H14m492-76h-29v76h29"/>
       <circle cx="260" cy="180" r="47"/>
       <path d="M89 141a47 47 0 0 1 0 78m342-78a47 47 0 0 0 0 78"/>
     </g>
-    <g fill="#e2ebcd"><circle cx="260" cy="180" r="3"/><circle cx="61" cy="180" r="3"/><circle cx="459" cy="180" r="3"/></g>
+    <g fill="var(--as-on-dark)"><circle cx="260" cy="180" r="3"/><circle cx="61" cy="180" r="3"/><circle cx="459" cy="180" r="3"/></g>
   </g>
-  <path d="m313 150-57-18-50 50Z" stroke="#eff9bf" stroke-opacity=".45" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="5 5"/>
-  <g stroke="#cfddc3" stroke-width="2" stroke-linejoin="round">
+  <path d="m313 150-57-18-50 50Z" stroke="var(--as-lime)" stroke-opacity=".45" stroke-width="1.7" stroke-linecap="round" stroke-dasharray="5 5"/>
+  <g stroke="var(--as-on-dark)" stroke-width="2" stroke-linejoin="round">
     <path d="m119 195-13-23 41-13 13 23m-41 13 41-13M106 172l-13-7 41-13 13 7M93 165l13 23 13 7m15-43 13 23 13 7"/>
     <path d="m449 85 9-24 43 23-9 24m-43-23 43 23M458 61l12-5 43 23-12 5m-31-28-9 24-12 5m64-6-9 24-12 5"/>
   </g>
-  <g stroke="#d1ddc5" stroke-opacity=".3" stroke-width=".75"><path d="m110 174 36-12m-33 18 38-13m-34 20 38-14m-30-1 11 22m-2-25 11 23m-1-26 10 23M462 65l-8 23m18-17-8 23m18-18-8 23m-19-25 41 22m-43-15 41 22"/></g>
+  <g stroke="var(--as-on-dark-muted)" stroke-opacity=".3" stroke-width=".75"><path d="m110 174 36-12m-33 18 38-13m-34 20 38-14m-30-1 11 22m-2-25 11 23m-1-26 10 23M462 65l-8 23m18-17-8 23m18-18-8 23m-19-25 41 22m-43-15 41 22"/></g>
   <use href="#login-home-player" x="195" y="189"/>
   <g class="as-login-support-run" data-motion-loop><use href="#login-home-player" x="248" y="138"/></g>
   <use href="#login-away-player" x="359" y="127"/>
@@ -37,10 +39,52 @@
   <use href="#login-away-player" x="388" y="178"/>
   <use href="#login-away-player" x="432" y="134"/>
   <g class="as-login-pass-ball" data-motion-loop>
-    <ellipse cx="313" cy="154" rx="7" ry="3" fill="#224d36" fill-opacity=".6"/>
-    <circle cx="313" cy="150" r="5" fill="#faf9e9"/><path d="m313 147 3 2-1 3h-3l-2-3Z" fill="#274234"/>
+    <ellipse cx="313" cy="154" rx="7" ry="3" fill="var(--as-dark)" fill-opacity=".6"/>
+    <circle cx="313" cy="150" r="5" fill="var(--as-on-dark)"/><path d="m313 147 3 2-1 3h-3l-2-3Z" fill="var(--as-ink)"/>
   </g>
-  <g stroke="#789b7e" stroke-width="2"><path d="M41 161V91m500 68V89"/><path d="m28 89 27-9v9l-27 9Zm501-7 25 9v9l-25-9Z" fill="#e9f2b9" stroke="#9bb48b"/></g>
-  <path d="m34 101 9-3 60 56-50 21Zm502-1 11 4-20 74-56-21Z" fill="#e6f0ae" fill-opacity=".05"/>
-  <g fill="#a2bea2"><circle cx="30" cy="44" r="1.5"/><circle cx="544" cy="33" r="1.5"/><circle cx="476" cy="241" r="1.5"/><circle cx="99" cy="260" r="1.5"/></g>
+  <g stroke="var(--as-control-border)" stroke-width="2"><path d="M41 161V91m500 68V89"/><path d="m28 89 27-9v9l-27 9Zm501-7 25 9v9l-25-9Z" fill="var(--as-lime)" stroke="var(--as-lime)"/></g>
+  <path d="m34 101 9-3 60 56-50 21Zm502-1 11 4-20 74-56-21Z" fill="var(--as-lime)" fill-opacity=".05"/>
+  <g fill="var(--as-on-dark-muted)"><circle cx="30" cy="44" r="1.5"/><circle cx="544" cy="33" r="1.5"/><circle cx="476" cy="241" r="1.5"/><circle cx="99" cy="260" r="1.5"/></g>
+  </g>
+  </g>
+  <g class="as-login-court-float" data-motion-loop>
+  <g data-login-sport="basketball">
+    <defs>
+      <linearGradient id="login-hardwood" x1="0" y1="0" x2="700" y2="420" gradientUnits="userSpaceOnUse"><stop stop-color="#e5bc85"/><stop offset="1" stop-color="#bd8754"/></linearGradient>
+      <pattern id="login-wood-grain" width="70" height="60" patternUnits="userSpaceOnUse"><path d="M0 0h70v30H0ZM35 30h70v30H35Z" stroke="#8f603d" stroke-opacity=".24"/><path d="M8 10h45M41 43h23" stroke="#fff7ee" stroke-opacity=".16"/></pattern>
+    </defs>
+    <path d="m244 217 220-117 111 65v17L355 299 244 234Z" fill="var(--as-dark)" fill-opacity=".5"/>
+    <path d="m244 212 220-117 111 65v10L355 287 244 222Z" fill="var(--as-dark-line)"/>
+    <g transform="matrix(.3 -.16 .25 .14 252 212)">
+      <rect x="-15" y="-15" width="730" height="450" rx="10" fill="var(--as-dark-raised)"/>
+      <rect width="700" height="420" fill="url(#login-hardwood)"/>
+      <rect width="700" height="420" fill="url(#login-wood-grain)"/>
+      <path d="M16 120h134v180H16Zm668 0H550v180h134Z" fill="var(--as-dark)" fill-opacity=".3"/>
+      <g stroke="var(--as-on-dark)" stroke-width="3" stroke-opacity=".95">
+        <rect x="16" y="16" width="668" height="388"/>
+        <path d="M350 16v388M16 120h134v180H16m668-180H550v180h134"/>
+        <circle cx="350" cy="210" r="58"/>
+        <path d="M150 152a58 58 0 0 1 0 116m400-116a58 58 0 0 0 0 116M16 26a190 190 0 1 1 0 368m668-368a190 190 0 1 0 0 368"/>
+      </g>
+      <path d="m278 275 179-89 129 24" stroke="var(--as-dark)" stroke-width="4" stroke-linecap="round" stroke-dasharray="10 10" stroke-opacity=".6"/>
+      <g fill="var(--as-lime)" stroke="var(--as-dark)" stroke-width="3"><circle cx="278" cy="275" r="19"/><circle cx="457" cy="186" r="19"/><circle cx="320" cy="100" r="19"/></g>
+      <g fill="var(--as-primary)" stroke="var(--as-on-dark)" stroke-width="3"><circle cx="420" cy="320" r="19"/><circle cx="520" cy="100" r="19"/><circle cx="195" cy="180" r="19"/></g>
+      <g stroke-linecap="round">
+        <path d="M35 174v72m630-72v72" stroke="var(--as-dark)" stroke-width="14"/>
+        <path d="M38 174v72m624-72v72" stroke="var(--as-on-dark)" stroke-width="8"/>
+        <g stroke="var(--as-on-dark)" stroke-width="2" stroke-opacity=".8"><path d="m48 195 32 30m-32 0 32-30m540 0 32 30m-32 0 32-30"/></g>
+        <g stroke="#ff8b36" stroke-width="7"><circle cx="64" cy="210" r="22"/><circle data-login-hoop cx="636" cy="210" r="22"/></g>
+        <circle class="as-login-rim-pulse" data-motion-loop cx="636" cy="210" r="32" stroke="var(--as-lime)" stroke-width="7" opacity="0"/>
+      </g>
+    </g>
+    <path d="M436 167q29.65-54.72 59.3-27.36" stroke="var(--as-lime)" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 5"/>
+    <ellipse class="as-login-shot-shadow" data-motion-loop cx="436" cy="180" rx="10" ry="4" fill="var(--as-dark)" fill-opacity=".35"/>
+    <g class="as-login-shot-ball" data-login-ball data-motion-loop>
+    <g class="as-login-shot-height" data-motion-loop>
+    <circle cx="436" cy="167" r="10" fill="#ec8839" stroke="var(--as-dark)" stroke-width="1.5"/>
+    <g stroke="var(--as-dark)" stroke-width="1.2"><path d="M426 167h20m-10-10v20m-7-17q14 7 0 14m14-14q-14 7 0 14"/></g>
+    </g>
+    </g>
+  </g>
+  </g>
 </svg>

@@ -30,8 +30,15 @@ def new_game_state(
     formation_a: str | None = None,
     formation_b: str | None = None,
     referee_name: str | None = None,
+    sport: str = "soccer",
 ) -> dict:
-    return new_soccer_state(
+    if sport not in ("soccer", "basketball"):
+        raise ValueError("Choose soccer or basketball")
+    factory = new_soccer_state
+    if sport == "basketball":
+        from models.basketball_logic import new_basketball_state
+        factory = new_basketball_state
+    return factory(
         mode=mode, model_b=model_b, model_a=model_a,
         player_count=player_count,
         half_length=half_length,
@@ -77,6 +84,9 @@ def push_snapshot(state: dict) -> None:
         "is_player_a": state["is_player_a"],
         "kick_count":  state.get("kick_count", 0),
     }
+    if state.get("sport") == "basketball":
+        for key in ("possession", "last_points"):
+            snap[key] = copy.deepcopy(state.get(key))
     state["snapshots"].append(snap)
     if len(state["snapshots"]) > 30:
         state["snapshots"].pop(0)

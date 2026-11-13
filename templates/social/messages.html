@@ -30,7 +30,7 @@
       <div class="msg-side">
         <!-- Friend management (EA FC style: cap, presence, invite) -->
         <div class="friend-card" id="friends-card">
-          <h4>Friends <span id="friend-cap" class="badge">0/32</span> <span id="presence-summary" style="font-size:.7rem;color:#64748b;margin-left:auto"></span></h4>
+          <h4>Friends <span id="friend-cap" class="badge">0/32</span> <span id="presence-summary" style="font-size:.7rem;color:var(--as-muted);margin-left:auto"></span></h4>
           <div><label class="as-field-label" for="friend-search">Add a friend by username</label><div class="friend-add-row">
             <input id="friend-search" class="input" type="text" placeholder="Add by username (exact)…">
             <button class="btn-xs primary" onclick="addFriend()">Add</button>
@@ -57,7 +57,7 @@
   <div id="panel-global" role="tabpanel" aria-labelledby="tab-global" style="display:none">
     <div class="glass-card server-chat-card">
       <h3 style="font-family:'Space Grotesk',sans-serif;margin:0 0 4px"> Server Chat</h3>
-      <p style="font-size:.78rem;color:#64748b;margin:0 0 10px">Chat with everyone on the server — friendly, no spam (10 msgs/10s limit).</p>
+      <p style="font-size:.78rem;color:var(--as-muted);margin:0 0 10px">Chat with everyone on the server — friendly, no spam (10 msgs/10s limit).</p>
       <div id="global-chat-mount" style="flex:1;min-height:0"></div>
     </div>
   </div>
@@ -155,7 +155,7 @@
     });
     var rqBox=document.getElementById('friend-requests'); rqBox.innerHTML='';
     if(requests.length){
-      var title=document.createElement('div'); title.style='font-weight:700;font-size:.78rem;margin:4px 0 6px;color:#0f172a'; title.textContent='Requests ('+requests.length+')'; rqBox.appendChild(title);
+      var title=document.createElement('div'); title.style='font-weight:700;font-size:.78rem;margin:4px 0 6px;color:var(--as-ink)'; title.textContent='Requests ('+requests.length+')'; rqBox.appendChild(title);
       requests.forEach(function(r){
         var row=document.createElement('div'); row.className='friend-item';
         var n=document.createElement('div'); n.className='friend-name'; n.textContent=r.from_username; row.appendChild(n);
@@ -166,7 +166,7 @@
     }
     var recBox=document.getElementById('friend-recent'); recBox.innerHTML='';
     if(recent.length){
-      var t2=document.createElement('div'); t2.style='font-weight:700;font-size:.78rem;margin:6px 0 6px;color:#0f172a'; t2.textContent='Recently Met'; recBox.appendChild(t2);
+      var t2=document.createElement('div'); t2.style='font-weight:700;font-size:.78rem;margin:6px 0 6px;color:var(--as-ink)'; t2.textContent='Recently Met'; recBox.appendChild(t2);
       recent.slice(0,8).forEach(function(r){
         var row=document.createElement('div'); row.className='friend-item';
         var n=document.createElement('div'); n.className='friend-name'; n.textContent=r.username||r.uid.slice(0,8); row.appendChild(n);

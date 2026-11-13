@@ -14,7 +14,7 @@ from functools import wraps
 
 from flask import (
     Flask, jsonify, redirect, render_template,
-    request, session, url_for, flash,
+    request, session, url_for, flash, send_from_directory,
 )
 
 from config import SECRET_KEY, SITE_URL
@@ -267,6 +267,11 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
     from models.playstyle import playstyle_level
 
     result = {
+        "sport":        state.get("sport", "soccer"),
+        "basketball":   state.get("basketball"),
+        "possession":   state.get("possession"),
+        "last_points":  state.get("last_points", 0),
+        "field":        state.get("field", {"width": 1400, "height": 875}),
         "ball":         state["ball"],
         "players_a":    state["players_a"],
         "players_b":    state["players_b"],
@@ -315,6 +320,10 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "manager_b":   state.get("manager_b"),
         "formation_b": state.get("formation_b"),
     }
+    if state.get("sport") == "basketball":
+        roles = ["point_guard", "shooting_guard", "small_forward", "power_forward", "center"]
+        result["player_roles_a"] = roles[:len(state["players_a"])]
+        result["player_roles_b"] = roles[:len(state["players_b"])]
     result["penalty_goalkeeper_move"] = state.get("penalty_goalkeeper_move")
     result.update(match_clock(state))
     if extra:
@@ -322,6 +331,8 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
     if state.get("game_over") and state.get("game_mode") == "hvai" and not state.get("_finalized"):
         _persist_result(state)
         state["_finalized"] = True
+        if state.get("sport") == "basketball":
+            save_game(uid(), state)
     result["achievements"] = _ach_toasts()
     return result
 
@@ -339,10 +350,17 @@ def _persist_result(state: dict) -> None:
                 replay = replay[-60:]
         except Exception:
             replay = None
+        if replay and state.get("sport") == "basketball":
+            replay = [dict(move) for move in replay]
+            replay[0]["initial_score"] = {
+                side.lower(): state["score_" + side.lower()] - sum(
+                    move.get("points", 0) for move in replay if move.get("scored") == side)
+                for side in ("A", "B")
+            }
         save_game_result(
             user_id    = uid(),
-            mode       = state.get("game_mode", "hvai"),
-            ai_model   = state.get("model_name_b", "greedy"),
+            mode       = ("basketball_" if state.get("sport") == "basketball" else "") + state.get("game_mode", "hvai"),
+            ai_model   = "basketball" if state.get("sport") == "basketball" else state.get("model_name_b", "greedy"),
             winner     = winner,
             score_a    = state["score_a"],
             score_b    = state["score_b"],
@@ -350,6 +368,9 @@ def _persist_result(state: dict) -> None:
             replay     = replay,
         )
         _ph.track_game_end(uid(), state.get("game_mode", "hvai"), winner, state["score_a"], state["score_b"])
+        if state.get("sport") == "basketball":
+            _auto_clear_state(uid())
+            return
         # money: win +20, draw +5, loss +2, per goal +1, first win bonus via achievement already
         try:
             from db.money import add_coins
@@ -618,7 +639,7 @@ def _apply_move(state: dict, player_idx: int, angle: float, power: float, is_pla
     player_idx, angle, power = normalize_kick(state, player_idx, angle, power, is_player_a)
     push_snapshot(state)
     trajectory, scored, desc, kick_endpoint, push_result = apply_kick(state, player_idx, angle, power, is_player_a)
-    return {
+    result = {
         "trajectory":    trajectory,
         "scored":        scored,
         "desc":          desc,
@@ -628,6 +649,12 @@ def _apply_move(state: dict, player_idx: int, angle: float, power: float, is_pla
         "kick_endpoint": kick_endpoint,
         "push_result":   push_result,
     }
+    if state.get("sport") == "basketball":
+        result.update(sport="basketball", points=state.get("last_points", 0))
+        recorded = state.get("move_history", [])
+        if recorded and recorded[-1].get("reset"):
+            result["reset"] = recorded[-1]["reset"]
+    return result
 
 
 def _do_penalty_ai(state: dict, model_name: str, is_player_a: bool) -> dict:
@@ -665,6 +692,9 @@ def _allowed_ai_players(state, is_player_a, excluded_player_idx=None):
 
 def _quick_ai_move(state: dict, is_player_a: bool, allowed_players=None) -> tuple[int, float, float]:
     """Choose a legal team action immediately without speculative physics."""
+    if state.get("sport") == "basketball":
+        from models.basketball_logic import basketball_ai_move
+        return basketball_ai_move(state, is_player_a)
     from models.tactics import quick_move
     allowed = _allowed_ai_players(state, is_player_a) if allowed_players is None else allowed_players
     return quick_move(state, is_player_a, allowed)
@@ -720,6 +750,14 @@ def _get_ai_move_with_timeout(model, state, is_player_a, timeout=None, fallback_
         return fallback("timeout" if isinstance(exc, TimeoutError) else "error")
 
 def _do_ai_move(state: dict, model_name: str, is_player_a: bool, excluded_player_idx: int | None = None) -> dict:
+    from services.online_learning import schedule_refresh
+    schedule_refresh()
+    if state.get("sport") == "basketball":
+        t0 = time.monotonic()
+        player_idx, angle, power = _quick_ai_move(state, is_player_a)
+        result = _apply_move(state, player_idx, angle, power, is_player_a)
+        result["think_ms"] = round((time.monotonic() - t0) * 1000)
+        return result
     model = _load_model(model_name)
     t0 = time.monotonic()
     fallback_info = {}
@@ -1050,7 +1088,7 @@ def human_move():
         )
     except ValueError as exc:
         return jsonify(_full_state(state, {"error": str(exc)})), 400
-    if state["game_mode"] == "hvai" and player_idx != human_player_index(state):
+    if state["game_mode"] == "hvai" and state.get("sport") != "basketball" and player_idx != human_player_index(state):
         return jsonify(_full_state(state, {"error": "You control the striker; teammates are controlled by AI"})), 400
 
     if state.get("penalty_shootout"):
@@ -1070,7 +1108,7 @@ def human_move():
         extra = {"move_result": result}
     else:
         result = _apply_move(state, player_idx, angle, power, side_a)
-        if result.get("scored"):
+        if result.get("scored") and state.get("sport") != "basketball":
             _goal_moment_achievements(result["trajectory"])
         extra = {"move_result": result}
 
@@ -1118,7 +1156,7 @@ def trigger_ai_move():
     else:
         excluded = human_player_index(state) if is_player_a and state.get("game_mode") == "hvai" else None
         result = _do_ai_move(state, model_name, is_player_a, excluded_player_idx=excluded)
-    if result.get("scored"):
+    if result.get("scored") and state.get("sport") != "basketball":
         _goal_moment_achievements(result.get("trajectory"))
     save_game(user_id, state)
     _auto_save_state(user_id, state)
@@ -1196,7 +1234,11 @@ def goalkeeper_move():
 @login_required
 def match_setup_catalog():
     from models.formations import DEFAULT_FORMATION_5, formation_catalog
-    return jsonify({"formations": formation_catalog(), "default_formation": DEFAULT_FORMATION_5})
+    return jsonify({"formations": formation_catalog(), "default_formation": DEFAULT_FORMATION_5,
+                    "sports": [
+                        {"id": "soccer", "name": "Soccer", "description": "Five-a-side football with goals, formations and a match clock."},
+                        {"id": "basketball", "name": "Basketball", "description": "Five-a-side arcade hoops. Score 2s and 3s; first to 21, win by two. Local play."},
+                    ]})
 
 
 @app.route("/start_match", methods=["POST"])
@@ -1219,6 +1261,31 @@ def start_local_match():
     mode = state.get("game_mode", "hvai")
     if mode not in ("hvai", "aivai", "hvh"):
         return jsonify({"error": "Setup is only available for local matches"}), 409
+    sport = data.get("sport", state.get("sport", "soccer"))
+    if not isinstance(sport, str) or sport not in ("soccer", "basketball"):
+        return jsonify({"error": "Choose soccer or basketball"}), 400
+    if sport != state.get("sport", "soccer"):
+        # Build the other sport only after validating the draft. Keep cosmetics,
+        # saved stats and opponent preferences, but use its own rules/positions.
+        previous = state
+        state = new_game_state(mode=mode, sport=sport,
+                               model_a=previous.get("model_name_a", "greedy"),
+                               model_b=previous.get("model_name_b", "greedy"),
+                               power_cap=previous.get("power_cap", 100))
+        for key in ("player_stats", "team_a", "team_a_name", "team_a_crest", "team_b", "team_b_name", "team_b_crest"):
+            if key in previous:
+                state[key] = copy.deepcopy(previous[key])
+        for side in ("a", "b"):
+            for old, player in zip(previous["players_" + side], state["players_" + side]):
+                player.update({key: copy.deepcopy(value) for key, value in old.items() if key not in ("x", "y", "role")})
+    if sport == "basketball":
+        started = copy.deepcopy(state)
+        now = time.time()
+        started.update(match_started=True, start_time=now, turn_start_time=now)
+        save_game(user_id, started)
+        _auto_save_state(user_id, started)
+        _ph.track_game_start(user_id, mode, "basketball")
+        return jsonify(_full_state(started))
     if mode == "hvai" and any(key in data for key in ("formation_b", "playstyle_b")):
         return jsonify({"error": "You can choose tactics for your own team only"}), 403
 
@@ -1237,6 +1304,7 @@ def start_local_match():
 
     # Validate every team before changing any roster or persisted setting.
     started = copy.deepcopy(state)
+    started["sport"] = "soccer"
     started.update(choices)
     for side in ("a", "b"):
         for player, (x, y) in zip(started["players_" + side], _home_positions(5, side, choices["formation_" + side])):
@@ -1303,6 +1371,11 @@ def reset_game():
         data = {}
     if not isinstance(data, dict) or ("penalty_mode" in data and type(data["penalty_mode"]) is not bool):
         return jsonify({"error": "Reset options must be a JSON object with a boolean penalty_mode"}), 400
+    sport = data.get("sport", old_state.get("sport", "soccer"))
+    if not isinstance(sport, str) or sport not in ("soccer", "basketball"):
+        return jsonify({"error": "Choose soccer or basketball"}), 400
+    if data.get("penalty_mode") and sport == "basketball":
+        return jsonify({"error": "Penalty shootouts are available for soccer"}), 400
     from models.formations import FORMATIONS_5, formation_id
     for side in ("a", "b"):
         if "formation_" + side in data:
@@ -1358,6 +1431,7 @@ def reset_game():
             power_cap = pcap,
             formation_a = form_a,
             formation_b = form_b,
+            sport = sport,
         )
         state["match_started"] = False
         pstats = cust.get("player_stats", {})
@@ -1472,6 +1546,9 @@ def undo():
     state["score_b"]     = snap["score_b"]
     state["is_player_a"] = snap["is_player_a"]
     state["kick_count"]  = snap["kick_count"]
+    if state.get("sport") == "basketball":
+        state["possession"] = copy.deepcopy(snap.get("possession"))
+        state["last_points"] = snap.get("last_points", 0)
     state["game_over"]   = False
     state["winner"]      = None
     state["_finalized"]  = False
@@ -1608,6 +1685,22 @@ def clan_detail(clan_id):
 
 
 #  Hubs — combined pages (Play/Workshop/Compete/Social/Learn) — logical IA
+@app.route("/metro-motion/")
+@app.route("/metro-motion/<path:filename>")
+def metro_motion(filename="index.html"):
+    """Standalone browser-local movement game; serve only its public web tree."""
+    from pathlib import Path
+    root = Path(app.root_path) / "projects" / "metro-motion" / "web"
+    response = send_from_directory(root, filename)
+    # Explicit ESM/WASM types also work on Windows MIME registries.
+    if filename.endswith(".mjs"):
+        response.mimetype = "text/javascript"
+    elif filename.endswith(".wasm"):
+        response.mimetype = "application/wasm"
+    response.headers["Permissions-Policy"] = "camera=(self), microphone=()"
+    return response
+
+
 @app.route("/hub/play")
 @login_required
 def hub_play():
@@ -1772,6 +1865,11 @@ def history_watch(replay_id):
         pass
     if not meta:
         meta = {"mode": "hvai", "ai_model": "greedy", "winner": "", "score_a": 0, "score_b": 0, "ended_at": "", "total_moves": len(replay)}
+    if any(move.get("sport") == "basketball" for move in replay):
+        return render_template("game/replay_2d.html", username=session.get("username", "Player"),
+                               t=None, match={"id": replay_id, "replay_data": replay},
+                               highlights=[], highlight=None, live_room=None,
+                               loss_model=None, loss_model_name=None)
     return render_template("account/history_watch.html", replay_id=replay_id, replay=replay, meta=meta)
 
 
@@ -3049,6 +3147,11 @@ def _finish_online_room(room_id, room):
         _process_ranked_result(room_id, room)
     if not room.get("completion_processed"):
         try:
+            from services.online_learning import completed_match
+            completed_match(room_id, room)
+        except Exception:
+            app.logger.warning("Online learning capture failed for completed match", exc_info=True)
+        try:
             _check_online_achievements(room, game)
         except Exception:
             app.logger.warning("Online achievements failed for %s", room_id)
@@ -3722,38 +3825,34 @@ def quick_models():
 def learning_status():
     try:
         import models.adaptive_learner as _al
-        return jsonify(_al.get_stats())
+        from services.online_learning import status
+        return jsonify({**_al.get_stats(), "experience": status()})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+def _learning_operator():
+    """Global policy mutations belong to a server operator, not a public client."""
+    import hmac
+    import os
+    expected = os.environ.get("AI_TRAINING_TOKEN", "")
+    supplied = request.headers.get("X-AI-Training-Token", "")
+    return bool((_dev_mode and uid()) or (expected and hmac.compare_digest(expected, supplied)))
 
 
 @app.route("/api/learning/train", methods=["POST"])
 def learning_train():
-    try:
-        import models.adaptive_learner as _al
-        data = request.get_json(silent=True) or {}
-        n = int(data.get("games", 15))
-        n = max(1, min(50, n))
-        # run in background thread so UI doesn't block 30 games (~10s)
-        from db.redis_client import r as _r
-        # simple lock
-        lock_key = "learning:train:lock"
-        if _r.get(lock_key):
-            return jsonify({"error": "Training already running"}), 409
-        _r.setex(lock_key, 120, "1")
-
-        def _bg():
-            try:
-                res = _al.train_self_play(n_games=n)
-                _r.setex("learning:train:last", 3600, json.dumps(res))
-            finally:
-                _r.delete(lock_key)
-
-        import threading as _th
-        _th.Thread(target=_bg, daemon=True).start()
-        return jsonify({"ok": True, "games": n, "status": "training"})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    if not _learning_operator():
+        return jsonify({"error": "Server operator access required"}), 403
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Training options must be a JSON object"}), 400
+    if data.get("sport", "soccer") != "soccer":
+        return jsonify({"error": "Online learning currently has soccer data only"}), 400
+    from services.online_learning import request_training
+    if not request_training():
+        return jsonify({"error": "Learning worker is busy. Try again later."}), 409
+    return jsonify({"ok": True, "status": "queued", "source": "completed_online_matches"}), 202
 
 
 @app.route("/api/money/balance")
@@ -3780,9 +3879,13 @@ def money_shop_buy():
 
 @app.route("/api/learning/reset", methods=["POST"])
 def learning_reset():
+    if not _learning_operator():
+        return jsonify({"error": "Server operator access required"}), 403
     try:
-        import models.adaptive_learner as _al
-        return jsonify(_al.reset_learner())
+        from services.online_learning import reset_policy
+        return jsonify({"experience": reset_policy()})
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 409
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -4107,12 +4210,15 @@ def online_move(room_id):
         return jsonify({"error": str(exc)}), 400
     push_snapshot(game)
     is_penalty = bool(game.get("penalty_shootout"))
+    from services.online_learning import prepare_transition, record_transition
+    learning_before = prepare_transition(game) if not is_penalty else None
     if is_penalty:
         traj, goal, desc = apply_penalty_kick(game, player_idx, angle, power, game["is_player_a"])
         scored = my_side.upper() if goal else None
         kick_ep, push_res = None, None
     else:
         traj, scored, desc, kick_ep, push_res = apply_kick(game, player_idx, angle, power, game["is_player_a"])
+        record_transition(room, learning_before, traj, scored)
     if scored:
         _goal_moment_achievements(traj)
     revision += 1

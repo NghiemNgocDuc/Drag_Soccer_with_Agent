@@ -49,7 +49,9 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
   const start = document.getElementById('match-start-btn');
   const status = document.getElementById('match-setup-status');
   const retry = document.getElementById('match-setup-retry');
+  const sportOptions = document.getElementById('setup-sports');
   let catalog = [], loading = false, saving = false, error = '', stamp = '', built = '';
+  let sports = [], sportDraft = 'soccer', sportStamp = '';
   let drafts = {}, panels = new Map();
 
   function formationFor(value) { return catalog.find(item => item.id === value) || catalog[0]; }
@@ -68,6 +70,18 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
 
   function build(sides) {
     panels = new Map(); teams.replaceChildren();
+    if (sportDraft === 'basketball') {
+      const rules = text('section', '', 'setup-basketball');
+      rules.setAttribute('aria-labelledby', 'setup-basketball-title');
+      const heading = text('h3', 'Five on the court. Every player is yours.');
+      heading.id = 'setup-basketball-title';
+      rules.append(heading, text('p', 'Pull back the ball carrier to shoot or pass. Pull another player to move into space. Team A attacks right; Team B attacks left. Select players with the controls or directly on the court.'));
+      const list = text('dl', '', 'setup-basketball-rules');
+      for (const [name, description] of [['2 / 3 points', 'Score 2 inside the circular arc, or 3 from/on the arc.'], ['Play to 21', 'Reach 21 points and lead by at least 2 to win.'], ['Local play', 'Play against Court AI, share the screen, or watch two AI teams. Online matches use soccer.']]) {
+        const item = text('div', ''); item.append(text('dt', name), text('dd', description)); list.append(item);
+      }
+      rules.append(list); teams.append(rules); return;
+    }
     for (const side of sides) {
       const panel = text('section', '', 'setup-team');
       panel.id=`match-setup-team-${side}`;
@@ -116,24 +130,34 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
     summary.hidden=!state || pending || online || !!state.penalty_shootout;
     if (!summary.hidden) {
       const sides=state.game_mode==='hvai'?['a']:['a','b'];
-      summary.textContent=sides.map(side=>`${state.game_mode==='hvai'?'Your team':'Team '+side.toUpperCase()}: ${state['formation_'+side] || '2-1-1'}${state.game_mode==='hvh'?'':' · '+PLAYSTYLES[(state['playstyle_'+side]||3)-1]?.[0]}`).join('  /  ')+' · Choose new tactics with New Game.';
+      summary.textContent=state.sport === 'basketball' ? 'Basketball · 2 / 3 point baskets · First to 21, win by 2 · Choose a sport with New Game.' : sides.map(side=>`${state.game_mode==='hvai'?'Your team':'Team '+side.toUpperCase()}: ${state['formation_'+side] || '2-1-1'}${state.game_mode==='hvh'?'':' · '+PLAYSTYLES[(state['playstyle_'+side]||3)-1]?.[0]}`).join('  /  ')+' · Choose new tactics with New Game.';
     }
-    if (!pending) { stamp=''; built=''; return; }
-    const nextStamp=[state.start_time,state.game_mode,state.formation_a,state.formation_b,state.playstyle_a,state.playstyle_b].join(':');
+    if (!pending) { stamp=''; built=''; sportStamp=''; return; }
+    const nextStamp=[state.start_time,state.sport,state.game_mode,state.formation_a,state.formation_b,state.playstyle_a,state.playstyle_b].join(':');
     if (stamp!==nextStamp && catalog.length) {
       stamp=nextStamp; built='';error='';
+      // Mode changes rebuild the team panels within the same setup. Keep its
+      // unsaved sport choice until a new match/reset establishes another draft.
+      const nextSportStamp=[state.start_time,state.sport].join(':');
+      if(sportStamp!==nextSportStamp){
+        sportDraft=sports.some(sport=>sport.id===state.sport)?state.sport:'soccer';
+        sportStamp=nextSportStamp;
+      }
       drafts=Object.fromEntries(['a','b'].map(side=>[side,{formation:formationFor(state['formation_'+side]).id,level:Number.isInteger(state['playstyle_'+side])&&state['playstyle_'+side]>=1&&state['playstyle_'+side]<=5?state['playstyle_'+side]:3}]));
     }
     const sides=state.game_mode==='hvai'?['a']:['a','b'];
-    document.querySelector('.setup-match-tag').textContent=state.game_mode==='hvai'?'5-a-side · You are #5':'5-a-side';
-    if(catalog.length && built!==stamp){build(sides);built=stamp;}
+    document.querySelector('.setup-match-tag').textContent=sportDraft==='basketball'?'5 vs 5 · First to 21':state.game_mode==='hvai'?'5-a-side · You are #5':'5-a-side';
+    for (const input of sportOptions.querySelectorAll('input')) input.checked=input.value===sportDraft;
+    const buildStamp=stamp+':'+sportDraft;
+    if(catalog.length && built!==buildStamp){build(sides);built=buildStamp;}
     const reason=blockedReason();
     const disabled=saving||loading||!!reason||!catalog.length;
     root.setAttribute('aria-busy',String(saving||loading));
     for (const input of teams.querySelectorAll('input')) input.disabled=disabled;
+    for (const input of sportOptions.querySelectorAll('input')) input.disabled=disabled;
     start.disabled=disabled;start.textContent=saving?'Starting match…':'Start match';
     retry.hidden=!!catalog.length||loading;retry.disabled=saving||!!reason;
-    status.textContent=saving?'Setting your lineup and starting the clock…':error||reason||(loading?'Loading formations…':'Your choices apply at kickoff. The clock is stopped until you start.');
+    status.textContent=saving?'Starting your match…':error||reason||(loading?'Loading sports and formations…':sportDraft==='basketball'?'Your sport choice applies when you start. Basketball has no match clock.':'Your choices apply at kickoff. The clock is stopped until you start.');
     status.classList.toggle('is-error',!!error);
   }
 
@@ -145,14 +169,27 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
       const data=await response.json();
       if(!response.ok||!Array.isArray(data.formations)||!data.formations.length)throw new Error('Could not load formations. Try again.');
       catalog=data.formations;
+      sports=(Array.isArray(data.sports)?data.sports:[{id:'soccer',name:'Soccer',description:'Five-a-side flick soccer.'}]).filter(sport=>['soccer','basketball'].includes(sport.id));
+      if(!sports.length)sports=[{id:'soccer',name:'Soccer',description:'Five-a-side flick soccer.'}];
+      sportOptions.replaceChildren();
+      for(const sport of sports){
+        const label=text('label','','setup-sport-option'), input=document.createElement('input');
+        input.type='radio';input.name='setup-sport';input.value=sport.id;
+        const copy=text('span','');copy.append(text('strong',sport.name),text('small',sport.description||''));
+        label.append(input,copy);sportOptions.append(label);
+        input.addEventListener('change',()=>{sportDraft=input.value;sync();});
+      }
     }catch(failure){error='Could not load formations. Try again.';}
     finally{loading=false;sync();}
   }
   root.addEventListener('submit',async event=>{
     event.preventDefault();
     if(start.disabled||saving||getState()?.match_started!==false)return;
-    const payload={formation_a:drafts.a.formation,playstyle_a:drafts.a.level};
-    if(getState().game_mode!=='hvai')Object.assign(payload,{formation_b:drafts.b.formation,playstyle_b:drafts.b.level});
+    const payload={sport:sportDraft};
+    if(sportDraft==='soccer'){
+      Object.assign(payload,{formation_a:drafts.a.formation,playstyle_a:drafts.a.level});
+      if(getState().game_mode!=='hvai')Object.assign(payload,{formation_b:drafts.b.formation,playstyle_b:drafts.b.level});
+    }
     saving=true;error='';sync();
     try{await onStart(payload);}
     catch(failure){if(failure.name!=='AbortError')error=failure.message||'Could not start the match. Try again.';}

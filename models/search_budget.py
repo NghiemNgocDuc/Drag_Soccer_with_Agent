@@ -139,6 +139,16 @@ experts share the parent budget instead of starting another complete search.
 """
     if not is_builtin(model):
         return model.get_ai_move(state, is_player_a)
+    from models.experience_policy import using_model
+    with using_model():
+        return _builtin_move(model, state, is_player_a, allowed_players=allowed_players,
+                             budget_s=budget_s, max_simulations=max_simulations,
+                             diagnostics=diagnostics, cancelled=cancelled)
+
+
+def _builtin_move(model, state, is_player_a, *, allowed_players=None,
+                  budget_s=None, max_simulations=None, diagnostics=None,
+                  cancelled=None):
     from models.soccer_logic import normalize_kick, simulate_kick
     from models.tactics import tactical_candidates
 

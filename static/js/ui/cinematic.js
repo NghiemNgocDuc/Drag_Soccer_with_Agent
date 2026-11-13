@@ -111,7 +111,7 @@
   if (document.body.classList.contains('as-game') || !('IntersectionObserver' in window)) return;
   const reveals = document.querySelectorAll(
     '.as-landing-hero>div:first-child>*,.as-page-header>div:first-child,' +
-    '.as-login-story-copy,.as-login-heading,.as-auth-card>h1,' +
+    '.as-login-story-copy,.as-login-heading,.as-login-pitch-caption,.as-login-play-note,.as-login-features>span,.as-auth-card>h1,' +
     '.as-destination,.workshop-link-card,.compete-link-card,.social-link-card,.as-section-top,.as-callout,.as-join-banner'
   );
   const revealObserver = new IntersectionObserver(entries => {
@@ -123,7 +123,7 @@
       const animation = entry.target.animate([
         { opacity: 0.35, transform: 'translateY(14px)' },
         { opacity: 1, transform: 'translateY(0)' }
-      ], { duration: 380, delay: Math.min(order++ * 40, 160), easing: 'cubic-bezier(.2,.8,.2,1)' });
+      ], { duration: 380, delay: Math.min(order++ * 40, 160), easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'backwards' });
       entrances.add(animation);
       const forget = () => entrances.delete(animation);
       animation.addEventListener('finish', forget, { once: true });

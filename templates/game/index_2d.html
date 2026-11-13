@@ -96,16 +96,17 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
 <div class="flash-msg" id="flash-msg"></div>
 {{ app_nav('play') }}
 <main class="as-main" id="as-content">
-  {{ page_header('Flick soccer','Pull back. Let it fly.','Drag your highlighted disc backward, then release. A longer pull hits harder.','/customize','Team & stadium') }}
+  {{ page_header('Flick sports','Pull back. Let it fly.','Choose soccer or basketball. Drag a player backward, then release. A longer pull hits harder.','/customize','Team & stadium') }}
   <div id="online-bar" style="display:none">
     <span id="online-match-label"></span>
     <div class="online-connection"><span id="online-connection-status" role="status" aria-live="polite">Connecting…</span><button id="online-retry-btn" class="btn btn-ghost btn-sm" type="button" onclick="retryOnlineConnection()" hidden>Reconnect</button></div>
   </div>
   <form id="match-setup" class="match-setup" hidden aria-labelledby="match-setup-title">
     <header class="setup-heading">
-      <div><p class="setup-eyebrow">Before kickoff</p><h2 id="match-setup-title">Set your game plan.</h2><p>Choose your formation and playstyle, then take the pitch.</p></div>
+      <div><p class="setup-eyebrow">Before you play</p><h2 id="match-setup-title">Set your game plan.</h2><p>Choose your sport, then get your team ready.</p></div>
       <span class="setup-match-tag">5-a-side · You are #5</span>
     </header>
+    <fieldset class="setup-sport-picker"><legend>Sport</legend><div id="setup-sports" class="setup-sports"></div></fieldset>
     <div id="setup-teams" class="setup-teams"></div>
     <footer class="setup-footer">
       <p id="match-setup-status" role="status" aria-live="polite">Loading formations…</p>
@@ -126,7 +127,7 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
         <div class="winner-banner" id="winner-banner"></div>
         <div id="post-game-options" style="display:none;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center">
           <button class="btn btn-secondary btn-sm" onclick="showHighlights()">Highlights</button>
-          <button class="btn btn-secondary btn-sm" onclick="showPlayerRatings()">Player Ratings</button>
+          <button class="btn btn-secondary btn-sm" id="player-ratings-btn" onclick="showPlayerRatings()">Player Ratings</button>
         </div>
         <button class="btn btn-primary btn-sm" id="match-share-btn" style="display:none;margin-top:6px" onclick="shareMatchSummary()"> Share match summary</button>
         <span id="match-share-msg" style="font-size:.75rem;color:#059669;display:none;margin-top:4px"></span>
@@ -174,7 +175,7 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
   </div>
   </div>
   <div id="match-chat-wrap"></div>
-  <section class="as-control-panel" aria-labelledby="match-controls-title"><div class="as-control-panel-heading"><h2 id="match-controls-title">Match controls</h2><p>Choose your opponent, pace, and pass.</p></div>
+  <section class="as-control-panel" aria-labelledby="match-controls-title"><div class="as-control-panel-heading"><h2 id="match-controls-title">Match controls</h2><p id="match-controls-help">Choose your opponent, pace, and pass.</p></div>
     <div class="opponent-control">
       <div class="opponent-control-title"><span class="as-section-label">Your opposition</span><h3>Choose a playing style</h3></div>
       <div class="opponent-selection">
@@ -201,8 +202,8 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
       <input type="range" id="speed-slider" min="0.3" max="3" step="0.1" value="1" oninput="setAnimSpeed(+this.value)">
     </div>
     <button class="btn btn-ghost" id="aivai-btn" style="display:none" onclick="triggerAI()">Run AI</button>
-    <div class="sep"></div>
-    <div class="pass-types" style="display:flex;gap:4px;align-items:center">
+    <div class="sep" id="pass-separator"></div>
+    <div class="pass-types" id="pass-presets" style="display:flex;gap:4px;align-items:center">
       <span style="font-size:.68rem;color:var(--muted);font-weight:600">Pass:</span>
       <button class="btn btn-ghost btn-sm" id="pass-normal" aria-pressed="true" onclick="setPassType('normal')" style="background:var(--accent);color:#fff">Normal</button>
       <button class="btn btn-ghost btn-sm" id="pass-short" aria-pressed="false" onclick="setPassType('short')">S Short</button>
@@ -308,7 +309,7 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
     <div class="online-modal" id="highlights-modal" style="display:none">
       <div class="online-modal-card" style="max-width:520px;max-height:80vh;overflow:auto">
         <h3>Highlights — shots only</h3>
-        <p style="font-size:.78rem;color:#64748b">Revisit the goals, close chances, and fast plays from this match.</p>
+        <p id="highlights-description" style="font-size:.78rem;color:#64748b">Revisit the goals, close chances, and fast plays from this match.</p>
         <div id="highlights-list" style="display:flex;flex-direction:column;gap:8px;margin-top:10px"></div>
         <div style="display:flex;gap:8px;margin-top:12px"><button class="btn btn-ghost" onclick="closeHighlights()">Close</button><a href="/match-history" class="btn btn-ghost" style="margin-left:auto">History (last 5)</a></div>
       </div>
@@ -400,7 +401,7 @@ const worldToServer=p=>p;
 const updateBall=(x,y,z=0)=>pitch.setBall(x,y,z);
 const updateReferee=(x,y)=>pitch.setReferee(x,y);
 const syncBallSize=state=>pitch.setBallSize(state?.ball_size);
-const triggerGoalEffect=()=>pitch.celebrate();
+const triggerGoalEffect=(_team, points)=>pitch.celebrate(points);
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 SoundManager.attach(audioCtx, {goalOnly:true});
 async function unlockAudio(){
@@ -1224,7 +1225,7 @@ async function startQuickAI(data, generation) {
   const pick = data.ai_model || data.ai_name || 'greedy';
   isAnimating = true; playerInput.sync(); syncPlaystyle();
   try {
-    await onlineJSON('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_count:5})});
+    await onlineJSON('/reset', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({player_count:5,sport:'soccer'})});
     if (!current()) return;
     await onlineJSON('/switch_model', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({model:pick,target:'b'}) });
     if (!current()) return;
@@ -1404,6 +1405,7 @@ window.closeMatchModels = function() { modelPicker.close(); };
 
 //  Post-game: Highlights (shot-only) + Player Ratings (WhoScored 6.0 + FIFA)
 function detectHighlights(moves){
+  if(gameState?.sport==='basketball')return moves.flatMap((move,index)=>move.scored?[{type:'basket',kick:index+1,label:`Basket +${move.points || 2} — turn ${index+1}`,idx:index}]:[]);
   const SHOT_MIN=50, NEAR_SPEED=400, FAST_SPEED=700, MARGIN=100, MOUTH=100;
   const GY1=356, GY2=519, TX_A=1380, TX_B=20;
   function maxSpeed(traj){
@@ -1436,15 +1438,16 @@ function detectHighlights(moves){
 }
 window.showHighlights = function(){
   const st = gameState || {};
+  document.getElementById('highlights-description').textContent=st.sport==='basketball'?'Revisit every basket from this match.':'Revisit the goals, close chances, and fast plays from this match.';
   const moves = st.move_history || st.history || [];
   const hls = detectHighlights(moves);
   const list=document.getElementById('highlights-list');
   list.innerHTML='';
-  if(!hls.length){ list.innerHTML='<div style="font-size:.82rem;color:#64748b">No shot highlights this match — try a stronger kick (power≥50) on target.</div>'; }
+  if(!hls.length){ list.textContent=st.sport==='basketball'?'No baskets yet. Shoot toward your attacking hoop.':'No shot highlights this match — try a stronger kick (power≥50) on target.'; }
   else hls.forEach(h=>{
     const row=document.createElement('div');
     row.style='padding:10px 12px;border:1px solid #e2e8f0;border-radius:10px;display:flex;gap:8px;align-items:center;background:#fff';
-    const badge = h.type==='goal' ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">GOAL</span>' : h.type==='near' ? '<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">NEAR</span>' : '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">FAST</span>';
+    const badge = h.type==='basket' ? '<span style="background:#ffedd5;color:#9a3412;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">BASKET</span>' : h.type==='goal' ? '<span style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">GOAL</span>' : h.type==='near' ? '<span style="background:#fef9c3;color:#854d0e;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">NEAR</span>' : '<span style="background:#dbeafe;color:#1e40af;padding:2px 8px;border-radius:999px;font-size:.68rem;font-weight:700">FAST</span>';
     row.innerHTML='<span style="font-size:.82rem;font-weight:600;flex:1;cursor:pointer">'+h.label+'</span>'+badge+'<button class="btn btn-ghost btn-sm" style="font-size:.68rem">Share</button>';
     row.querySelector('span').onclick=()=>{ closeHighlights(); stepToHighlight(h.idx); };
     row.querySelector('button').onclick=async(e)=>{
@@ -1834,9 +1837,11 @@ function rebuildPlayers(){
   syncBallSize(gameState);updatePlayerPositions();updateReferee(gameState.referee?.x,gameState.referee?.y);
 }
 function updatePlayerPositions(syncControls=true){
-  if(!gameState)return;pitch.setRoster(gameState.players_a,gameState.players_b);
+  if(!gameState)return;pitch.setState(gameState);pitch.setRoster(gameState.players_a,gameState.players_b);
   const human=!ONLINE.active&&gameState.game_mode==='hvai';
-  pitch.setHumanPlayer(human?'a':null,gameState.penalty_shootout?0:(gameState.human_player_idx??gameState.players_a.length-1));
+  const basketball=gameState.sport==='basketball';
+  const carrier=String(gameState.possession?.side || '').toLowerCase()==='a'?gameState.possession.player_idx:-1;
+  pitch.setHumanPlayer(human&&(!basketball||carrier>=0)?'a':null,gameState.penalty_shootout?0:basketball?carrier:(gameState.human_player_idx??gameState.players_a.length-1));
   if(syncControls)syncInputs();
 }
 const playerInput=createPlayerInput({
@@ -1883,7 +1888,7 @@ matchSetup=createMatchSetup({
     try{
       const data=await requestMoveState('/start_match',settings,run);
       if(!run.current())throw new DOMException('Match changed','AbortError');
-      if(data.match_started!==true)throw new Error('Could not confirm kickoff. Try again.');
+      if(data.match_started!==true)throw new Error('Could not confirm the match start. Try again.');
       gameState=data;rebuildPlayers();updateBall(data.ball.x,data.ball.y,data.ball.z||0);updateHUD(data);
     }finally{if(run.current())lockPlaystyleSave(false);finishLocalTurn(run);}
     document.getElementById('fs-wrap').scrollIntoView({block:'start',behavior:'instant'});
@@ -1894,7 +1899,7 @@ matchSetup=createMatchSetup({
 void matchSetup.load();
 function updateSquadRoles(){
   const guide=document.getElementById('squad-role-guide');
-  if(!gameState || !gameState.team_movement || gameState.penalty_shootout){guide.hidden=true;return;}
+  if(!gameState || gameState.sport==='basketball' || !gameState.team_movement || gameState.penalty_shootout){guide.hidden=true;return;}
   const manualStriker=!ONLINE.active && gameState.game_mode==='hvai';
   const side=ONLINE.active?ONLINE.side:manualStriker?'a':gameState.is_player_a?'a':'b';
   const roles=gameState['player_roles_'+side],players=gameState['players_'+side];
@@ -1976,6 +1981,15 @@ async function refreshMatchPeriod(){
 
 function updateHUD(st) {
   syncInputs();
+  const basketball=st.sport==='basketball';
+  document.getElementById('match-controls-help').textContent=basketball?'Choose a local match mode and playback speed. Court AI controls the opposition.':'Choose your opponent, pace, and pass.';
+  document.getElementById('pass-presets').style.display=basketball?'none':'flex';
+  document.getElementById('pass-separator').hidden=basketball;
+  document.querySelector('.opponent-control').style.display=basketball?'none':'';
+  document.getElementById('online-btn').textContent=basketball?'Soccer online':'Online';
+  document.getElementById('player-control-help').innerHTML=basketball?'Pull back the ball carrier to shoot or pass; pull another player to move. Match the aim ring to the hoop to shoot; use less power to pass. On the court: <kbd>←</kbd> <kbd>→</kbd> aim, <kbd>↑</kbd> <kbd>↓</kbd> power, <kbd>Q</kbd> switch, <kbd>Enter</kbd> throw / move, <kbd>Esc</kbd> cancel.':'Pull a player back and release to kick, or set direction and power here. On the pitch: <kbd>←</kbd> <kbd>→</kbd> aim, <kbd>↑</kbd> <kbd>↓</kbd> power, <kbd>Q</kbd> switch, <kbd>Enter</kbd> kick, <kbd>Esc</kbd> cancel.';
+  document.getElementById('pitch-fullscreen-btn').textContent=basketball?'Enlarge court':'Enlarge pitch';
+  document.getElementById('player-ratings-btn').style.display=basketball?'none':'';
   document.getElementById('mode-select').disabled=ONLINE.active||isAnimating||st.match_started===true;
   if (!ONLINE.active) modelPicker.setCurrent(st.ai_model);
   document.querySelector('.team-a .team-name').textContent = ONLINE.active ? ONLINE.nameA || 'Team A' : st.game_mode === 'hvai' ? 'You' : 'Team A';
@@ -2055,7 +2069,7 @@ function updateHUD(st) {
         tb.className = 'turn-badge ' + (myTurn ? 'turn-a' : 'turn-b');
       }
     } else if (st.match_started === false) {
-      tb.textContent = 'Before kickoff';
+      tb.textContent = basketball?'Before play':'Before kickoff';
       tb.className = 'turn-badge turn-a';
     } else if (LOCAL_TURN.pending && !st.penalty_shootout) {
       tb.textContent = isAnimating ? 'AI turn in progress\u2026' : 'AI turn paused \u2014 retry';
@@ -2098,7 +2112,7 @@ window.chooseKeeperDir = dir => { void chooseKeeperDir(dir).catch(()=>{}); };
 function showCaptainHint(show){
   const canSave=goalkeeperAccess(gameState,ONLINE,isAnimating).canSave;
   const hint=document.getElementById('captain-hint');
-  hint.textContent=canSave?'Drag keeper to LEFT / RIGHT. Toward ball = STAY.':'Pull back to aim. Release to kick.';
+  hint.textContent=canSave?'Drag keeper to LEFT / RIGHT. Toward ball = STAY.':gameState?.sport==='basketball'?'Pull back to aim. Release to throw or move.':'Pull back to aim. Release to kick.';
   hint.style.display=show||canSave?'block':'none';
   pitch.canvas.style.cursor=show||canSave?'grab':'default';
 }
@@ -2107,6 +2121,7 @@ function animateTrajectory(trajectory,onDone,current=()=>true,playbackSpeed=anim
   playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,pitch,
     onFrame:point=>{
       gameState.ball={x:point.x,y:point.y,z:point.z||0};
+      if(gameState.sport==='basketball' && Object.hasOwn(point,'possession'))gameState.possession=point.possession;
       updateBall(point.x,point.y,point.z||0);
       for(const side of ['a','b'])if(Array.isArray(point[side])){
         const key='players_'+side;
@@ -2184,7 +2199,7 @@ async function animateComputerResult(data, resultKey, team, current = () => true
   logMove(result.desc, !!result.scored);
   if (result.scored) {
     SoundManager.goal();
-    triggerGoalEffect(team);
+    triggerGoalEffect(team, result.points || data.last_points);
 
   }
 }
@@ -2273,7 +2288,7 @@ async function completeHumanTurn(run) {
     await displayMove(data, key, teammate ? 'a' : 'b', { current: run.current, speed: animSpeed });
     if (!run.current()) return;
     if(data.period_changed){LOCAL_TURN.pending=null;return;}
-    if (gameState.team_movement === true || phase === 2) LOCAL_TURN.pending = null;
+    if (gameState.sport === 'basketball' || gameState.team_movement === true || phase === 2) LOCAL_TURN.pending = null;
     else LOCAL_TURN.pending.phase++;
   }
 }

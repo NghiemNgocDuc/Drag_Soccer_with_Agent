@@ -24,8 +24,8 @@
 }
 .sound-btn:hover{background:rgba(255,255,255,.45);transform:scale(1.1)}
 .render-toolbar{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:12px 0 0;color:#94a3b8;font-size:.8rem}
-.render-toolbar select{font:inherit;color:#e2e8f0;background:#0f172a;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:6px 9px;cursor:pointer}
-.render-toolbar select:focus-visible{outline:2px solid #38bdf8;outline-offset:2px}
+.render-toolbar select{font:inherit;color:var(--as-ink);background:var(--as-surface);border:1px solid var(--as-control-border);border-radius:8px;padding:6px 9px;cursor:pointer}
+.render-toolbar select:focus-visible{outline:2px solid var(--as-focus);outline-offset:2px}
 .hl-section{margin-top:18px}
 .hl-strip{display:flex;gap:2px;margin:10px 0 14px;height:22px;align-items:stretch}
 .hl-cell{flex:1;min-width:2px;background:rgba(14,165,233,.15);border-radius:3px;cursor:pointer;position:relative}
@@ -252,6 +252,9 @@ qualitySelect.addEventListener('change',()=>window.setGraphicsQuality(qualitySel
 const demandLoop=pitch.loop;
 
 const replayData = {% if match %}{{ match.replay_data | tojson }}{% else %}[]{% endif %};
+const replaySport = replayData.find(move => move.sport || move.trajectory?.[0]?.sport)?.sport
+  || replayData.find(move => move.trajectory?.[0]?.sport)?.trajectory[0].sport || 'soccer';
+const replayInitialScore = replayData[0]?.initial_score || {a:0,b:0};
 const replayBallSize = {% if match %}{{ (match.get('ball_size') or (match.get('initial_state') or {}).get('ball_size')) | tojson }}{% else %}null{% endif %}
   || replayData.find(move => move.trajectory?.[0]?.ball_size)?.trajectory[0].ball_size || 'normal';
 const highlights = {{ highlights | tojson }};
@@ -272,8 +275,8 @@ replayData.forEach((m, i) => { if (m.trajectory && m.trajectory.length > 0) real
 const hlByStart = {};
 (highlights || []).forEach(h => { hlByStart[h.start] = h; });
 
-function rebuildPlayers(a,b){syncBallSize(state);pitch.setRoster(a,b);updateReferee(state.referee?.x,state.referee?.y);}
-function updatePlayerPositions(a,b){pitch.setRoster(a,b);}
+function rebuildPlayers(a,b){pitch.setState(state);syncBallSize(state);pitch.setRoster(a,b);updateReferee(state.referee?.x,state.referee?.y);}
+function updatePlayerPositions(a,b){pitch.setState(state);pitch.setRoster(a,b);}
 
 function replayHomePositions(count, side) {
   const centerY = H / 2;
@@ -308,17 +311,20 @@ function replayHomePositions(count, side) {
 
 //  State
 let state = {
+  sport: replaySport,
   ball_size: replayBallSize,
   ball: { x: W / 2, y: H / 2 },
   players_a: [],
   players_b: [],
   referee: null,
-  score_a: 0, score_b: 0
+  score_a: replayInitialScore.a, score_b: replayInitialScore.b
 };
 
 function applyMoveToState(move) {
   const traj = move.trajectory;
   if (!traj || traj.length === 0) return;
+  state.sport = move.sport || traj[0].sport || state.sport;
+  state.last_points = move.points || 0;
   if (traj[0].ball_size) state.ball_size = traj[0].ball_size;
   syncBallSize(state);
   const last = traj[traj.length - 1];
@@ -326,8 +332,18 @@ function applyMoveToState(move) {
   if (Array.isArray(last.a)) state.players_a = last.a.map((p,i) => ({ ...state.players_a[i], ...p }));
   if (Array.isArray(last.b)) state.players_b = last.b.map((p,i) => ({ ...state.players_b[i], ...p }));
   if (last.ref) state.referee = { x: last.ref.x, y: last.ref.y };
-  if (move.scored === 'A') state.score_a++;
-  else if (move.scored === 'B') state.score_b++;
+  if (Object.hasOwn(last, 'possession')) state.possession = last.possession;
+  if (move.scored === 'A') state.score_a += state.sport === 'basketball' ? (move.points || 2) : 1;
+  else if (move.scored === 'B') state.score_b += state.sport === 'basketball' ? (move.points || 2) : 1;
+  if (state.sport === 'basketball') {
+    if (move.reset) {
+      state.ball = {...move.reset.ball}; state.possession = move.reset.possession;
+      for (const side of ['a','b']) if (Array.isArray(move.reset[side])) {
+        state['players_'+side] = move.reset[side].map((p,i)=>({...state['players_'+side][i],...p}));
+      }
+    }
+    return;
+  }
   if (move.scored) {
     state.ball = { x: W / 2, y: H / 2, z: 0 };
     state.players_a = replayHomePositions(state.players_a.length, 'a').map((p,i) => ({ ...state.players_a[i], ...p }));
@@ -389,11 +405,12 @@ function buildHighlightsUI() {
 function seekToEntry(target) {
   const first = replayData.find(move => move.trajectory?.length)?.trajectory[0];
   state = {
+    sport: replaySport, possession: first?.possession ?? null, last_points: 0,
     ball_size: replayBallSize,
     ball: first ? {x:first.x,y:first.y,z:first.z||0} : { x: W / 2, y: H / 2 },
     players_a: Array.isArray(first?.a) ? first.a.map(p=>({...p})) : [],
     players_b: Array.isArray(first?.b) ? first.b.map(p=>({...p})) : [],
-    referee: first?.ref ? {...first.ref} : null, score_a: 0, score_b: 0,
+    referee: first?.ref ? {...first.ref} : null, score_a: replayInitialScore.a, score_b: replayInitialScore.b,
   };
   for (let i = 0; i < target && i < replayData.length; i++) applyMoveToState(replayData[i]);
   syncBallSize(state);
@@ -496,6 +513,8 @@ function animateTrajectory(trajectory,onDone,current=()=>true,playbackSpeed=1) {
   syncBallSize(trajectory?.[0]?.ball_size?trajectory[0]:state);
   playTrajectory2D(trajectory,{loop:pitch.loop,speed:playbackSpeed,current,pitch,
     onFrame:point=>{
+      if(point.sport)state.sport=point.sport;
+      if(Object.hasOwn(point,'possession'))state.possession=point.possession;
       state.ball={x:point.x,y:point.y,z:point.z||0};
       updateBall(point.x,point.y,point.z||0);
       for(const side of ['a','b'])if(Array.isArray(point[side])){
@@ -556,7 +575,16 @@ window.playNextMove = function() {
     }
   }
 
-  if (move.scored && raw.length > 0) {
+  if (state.sport === 'basketball') {
+    animateTrajectory(raw, () => {
+      if(move.scored){
+        state.last_points=move.points||2;pitch.setState(state);
+        if(!highlightSilent)SoundManager.goal();
+        triggerGoalEffect();
+      }
+      finish();
+    });
+  } else if (move.scored && raw.length > 0) {
     // Kick sound at kicker position
     const kickerSrv = move.mover === 'a' ? _preA[move.player_idx] : _preB[move.player_idx];
     // Animate trajectory, then slide back to kickoff positions
@@ -627,6 +655,9 @@ const LIVE = {
   over: false,
   rosterKey: null,
   snap: function (game) {
+    state.sport = game.sport || 'soccer';
+    state.possession = game.possession ?? null;
+    state.last_points = game.last_points || 0;
     state.ball_size = game.ball_size || 'normal';
     syncBallSize(state);
     state.ball = game.ball || state.ball;
@@ -1093,6 +1124,7 @@ window.__lossState = function () {
   if (first) {
     const traj = first.trajectory;
     if (traj && traj[0]) {
+      if(Object.hasOwn(traj[0],'possession'))state.possession=traj[0].possession;
       if (traj[0].ball_size) state.ball_size = traj[0].ball_size;
       state.ball = { x: traj[0].x, y: traj[0].y, z: traj[0].z || 0 };
       if (Array.isArray(traj[0].a)) state.players_a = traj[0].a.map(p => ({ ...p }));

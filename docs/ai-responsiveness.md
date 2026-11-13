@@ -5,6 +5,14 @@ speculative physics runs per decision**. Completed candidates are retained when
 either limit is reached. This deliberately reduces deep lookahead and ensemble
 exploration; it does not establish a higher win rate.
 
+Completed online soccer matches can now train a bounded outcome-value advisor.
+Updates require whole-match holdout evidence and mirrored physical validation;
+ordinary scoring reads only cached, immutable coefficients and adds no physics
+predictions or network calls. See [online AI learning](online-ai-learning.md).
+The Adaptive Learner's live path is deterministic and uses full-roster tactics
+for modern squads; random exploration is limited to its isolated legacy offline
+self-play helper.
+
 ## How decisions work
 
 The catalog includes three additional tactical styles: `possession` prefers safe

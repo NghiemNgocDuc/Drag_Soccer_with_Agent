@@ -6,6 +6,16 @@
 
 **Python · Flask · Pymunk · Canvas 2D · WebAudio**
 
+The interface uses a [warm cream and burgundy theme](docs/frontend-theme.md) across public pages, match controls, workshops, competition, social and account views.
+
+**Third game: [Metro Motion](projects/metro-motion/README.md).** Open `/metro-motion/` for an original endless runner controlled by stepping, jumping and ducking in front of a webcam. Keyboard/touch play also works. This separate, browser-local project lives in `projects/metro-motion/` and can run without Flask; camera frames are processed on-device.
+
+**Motion Lab:** Record and review labeled body-coordinate clips at `/metro-motion/motion-lab.html`, train a personal movement classifier with the [Unity/PyTorch workflow](projects/metro-motion/training/README.md), and compare its predictions in the runner. No human-trained model ships yet; recording is explicit and local.
+
+**Basketball is also available in local play.** Choose Basketball in pre-match setup for five-a-side arcade hoops against Court AI, local two-player games, or AI vs AI. Score two- and three-point baskets; first to 21 wins by two. Soccer remains the default sport. See [basketball controls and rules](docs/basketball.md).
+
+**AI learning from online games:** completed qualifying soccer matches feed a bounded training corpus. Learned updates must pass whole-match holdout validation and physical scenario checks before they advise live tactics. Basketball has a separate stat-aware court policy. See [online AI learning](docs/online-ai-learning.md) for evidence requirements, status and operation.
+
 [Quick start](#quick-start) · [How to play](#how-to-play) · [Online play](#play-online) · [Build an agent](#build-an-agent) · [Documentation](#documentation) · [Demo](https://drag-soccer-with-agent.onrender.com/)
 
 ![A five-a-side online match between Orion FC and Harbor United, with the stadium, scoreboard, and player controls visible.](docs/assets/readme/gameplay.png)
@@ -79,7 +89,7 @@ Open **[localhost:5000](http://localhost:5000)**. Choose **Log in → Try the de
 ## How to play
 
 1. Open **Play** and choose Human vs AI, Human vs Human, or AI vs AI.
-2. Choose a **formation** and, for AI matches, a **playstyle**. The lineup preview shows each player's position and job.
+2. Choose **Soccer** or **Basketball**. Soccer offers a **formation** and, for AI matches, a **playstyle**. Basketball shows its court rules and controls.
 3. Select **Start match**. The clock stays at **00:00** until kickoff.
 4. Pull an eligible player backward and release to launch it, or use the direction and power controls.
 

@@ -61,15 +61,19 @@ def run(args) -> dict:
         })""")
 
     def text_contrast(page):
-        # Check ordinary login text; use the brightest forest gradient stop as
-        # a conservative background for the story panel, excluding SVG artwork.
+        # Check ordinary login text; use the brightest burgundy gradient stop
+        # plus the faint grid overlay conservatively, excluding SVG artwork.
         return page.evaluate("""()=>{
           const color=value=>{const parts=value.match(/[\\d.]+/g)?.map(Number)||[];
             return [parts[0]||0,parts[1]||0,parts[2]||0,parts.length>3?parts[3]:1];};
           const blend=(front,back)=>front.slice(0,3).map((channel,i)=>channel*front[3]+back[i]*(1-front[3]));
           const luminance=value=>value.map(channel=>{const c=channel/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;})
             .reduce((sum,c,i)=>sum+c*[.2126,.7152,.0722][i],0);
-          const background=node=>{if(node.closest('.as-login-story'))return [40,83,69];
+          const story=document.querySelector('.as-login-story');
+          const storyBright=color(getComputedStyle(document.querySelector('.as-login-play-note')).backgroundColor);
+          const storyForeground=color(getComputedStyle(story).color);
+          const storyBackground=blend([...storyForeground.slice(0,3),.14],storyBright);
+          const background=node=>{if(node.closest('.as-login-story'))return storyBackground;
             const chain=[];for(let p=node;p;p=p.parentElement)chain.unshift(p);
             return chain.reduce((bg,p)=>blend(color(getComputedStyle(p).backgroundColor),bg),[255,255,255]);};
           const selectors=['.as-brand','.as-brand-sub','.as-login-nav-action>span','.as-login-nav-action>a',
@@ -100,7 +104,10 @@ def run(args) -> dict:
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
+            launch_options = {"headless": True}
+            if not Path(p.chromium.executable_path).is_file():
+                launch_options["channel"] = "chrome"
+            browser = p.chromium.launch(**launch_options)
             for width in (320, 375, 768, 1280, 1440, 1920, 720):
                 zoom_equivalent = width == 720
                 desktop_fit = width in (1280, 1440, 1920)
@@ -134,9 +141,30 @@ def run(args) -> dict:
                 check(f"{width}px inputs and sign-in action remain usable", min(initial["email"]["height"], initial["password"]["height"], initial["submit"]["height"]) >= 44 and (width > 600 or all(float(value[:-2]) >= 16 for value in initial["fonts"])), initial)
                 if desktop_fit:
                     check(f"{width}x900 desktop illustration is capped and its footer fits", initial["artworkMaxHeight"] == '270px' and initial["artwork"]["height"] <= 270 and initial["footer"]["bottom"] <= 900, initial)
+                sport_copy = page.locator('main').inner_text().lower()
+                check(f"{width}px visible login copy introduces both sports", 'soccer' in sport_copy and 'basketball' in sport_copy, sport_copy[:600])
+                local_basketball = page.locator('main p,main span').evaluate_all("""nodes=>nodes.filter(node=>
+                  node.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})
+                  && /basketball/i.test(node.innerText) && /local/i.test(node.innerText)
+                ).map(node=>node.innerText.trim())""")
+                check(f"{width}px basketball is clearly described as local play", bool(local_basketball), local_basketball)
+                art_sports = page.locator('.as-login-pitch-art [data-login-sport]').evaluate_all("nodes=>nodes.map(node=>node.dataset.loginSport)")
+                check(f"{width}px vector artwork contains soccer and basketball scenes", set(art_sports) == {'soccer', 'basketball'}, art_sports)
+                if desktop_fit:
+                    sport_bounds = page.locator('.as-login-pitch-art [data-login-sport]').evaluate_all("""nodes=>nodes.map(node=>({
+                      sport:node.dataset.loginSport,box:node.getBoundingClientRect().toJSON(),
+                      geometry:node.querySelectorAll('path,rect,circle,ellipse,line,polyline,polygon,use').length
+                    }))""")
+                    art_box = initial['artwork']
+                    check(f"{width}px both sports are visibly drawn inside the artwork", all(
+                        item['geometry'] >= 3 and item['box']['width'] > 30 and item['box']['height'] > 30
+                        and item['box']['x'] >= art_box['x'] - 1 and item['box']['right'] <= art_box['right'] + 1
+                        and item['box']['y'] >= art_box['y'] - 1 and item['box']['bottom'] <= art_box['bottom'] + 1
+                        for item in sport_bounds), sport_bounds)
                 check(f"{width}px native login form contract is preserved", page.locator('form[action="/auth/login"][method="POST"] #email[name="email"][type="email"][required][autocomplete="email"]').count() == 1 and page.locator('form[action="/auth/login"] #password[name="password"][required][autocomplete="current-password"]').count() == 1 and page.locator('label[for="email"]').count() == 1 and page.locator('label[for="password"]').count() == 1)
                 hero_color = page.locator('.as-login-story .as-eyebrow').evaluate("node=>getComputedStyle(node).color")
-                check(f"{width}px story eyebrow uses the readable lime color", hero_color == 'rgb(216, 239, 129)', hero_color)
+                accent_color = page.locator('.as-login-mark').evaluate("node=>getComputedStyle(node).backgroundColor")
+                check(f"{width}px story eyebrow uses the shared warm accent", hero_color == accent_color, hero_color)
                 link_targets = page.locator('.as-login-field-label a,.as-login-register a,.as-login-footer a').evaluate_all("nodes=>nodes.map(node=>({text:node.textContent.trim(),height:node.getBoundingClientRect().height}))")
                 check(f"{width}px recovery, registration, and home links have 44px targets", all(item['height'] >= 44 for item in link_targets), link_targets)
                 check(f"{width}px login avoids autofocus and mobile keyboard jumps", initial["focus"] not in ("email", "password") and page.locator("[autofocus]").count() == 0)
@@ -204,7 +232,7 @@ def run(args) -> dict:
                 if zoom_equivalent:
                     check("200% zoom-equivalent login reflows and preserves all actions", initial["deviceScale"] == 2 and not expanded["overflow"] and page.locator("#use-demo").is_visible() and page.locator('main a[href="/forgot-password"]').is_visible() and page.locator('main a[href="/register"]').is_visible(), {"cssViewport": [width, 480], "physicalViewport": [1440, 960], "deviceScale": 2})
                 check(f"{width}px helper controls never submit the login form", not posts)
-                check(f"{width}px static login artwork queues no animation frames", initial["canvas"] == 0 and initial["raf"] == 0, initial)
+                check(f"{width}px CSS login artwork queues no JavaScript animation frames", initial["canvas"] == 0 and initial["raf"] == 0, initial)
 
                 page.locator('main a[href="/forgot-password"]').first.click()
                 page.wait_for_url("**/forgot-password")

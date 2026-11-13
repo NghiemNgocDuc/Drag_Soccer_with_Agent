@@ -81,7 +81,7 @@ function appendRows(entries) {
   entries.forEach((e, i) => {
     const rank = (modelsOffset) + i + 1;
     const tr = document.createElement('tr');
-    const pub = '<div class="publisher-cell">' + (e.avatar_url ? '<img class="lb-avatar" src="' + esc(e.avatar_url) + '" alt="">' : '<div class="lb-avatar" style="background:#087f70;display:flex;align-items:center;justify-content:center;color:#fff;font-size:.7rem;font-weight:700">' + esc(e.username[0]||'?').toUpperCase() + '</div>') + '<div><div class="publisher-name">' + esc(e.username) + (e.username === leaderboardUser ? ' <span class="you-badge">You</span>' : '') + '</div><div class="publisher-sub">ID ' + esc(e.model_id.slice(0,8)) + '</div></div></div>';
+    const pub = '<div class="publisher-cell">' + (e.avatar_url ? '<img class="lb-avatar" src="' + esc(e.avatar_url) + '" alt="">' : '<div class="lb-avatar" style="background:var(--as-primary);display:flex;align-items:center;justify-content:center;color:var(--as-on-dark);font-size:.7rem;font-weight:700">' + esc(e.username[0]||'?').toUpperCase() + '</div>') + '<div><div class="publisher-name">' + esc(e.username) + (e.username === leaderboardUser ? ' <span class="you-badge">You</span>' : '') + '</div><div class="publisher-sub">ID ' + esc(e.model_id.slice(0,8)) + '</div></div></div>';
     const speed = e.avg_latency != null ? Number(e.avg_latency).toFixed(0) + ' ms' : '—';
     const speedClass = e.avg_latency != null && e.avg_latency < 500 ? 'speed-val' : (e.avg_latency != null && e.avg_latency < 1000 ? 'speed-val' : 'win-rate');
     tr.innerHTML =

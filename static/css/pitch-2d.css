@@ -1,7 +1,7 @@
-body.as-game #pitch-container{display:block;width:100%;height:auto!important;aspect-ratio:1552/1027;min-height:0!important;background:#07151a;touch-action:none}
-body.as-game .canvas-wrap{height:auto!important;aspect-ratio:auto!important;background:#07151a!important}
-#pitch-container canvas:focus-visible{outline:3px solid #38bdf8;outline-offset:-4px}
-body.as-game #fs-wrap:fullscreen{display:flex;flex-direction:column;justify-content:center;background:#07151a}
+body.as-game #pitch-container{display:block;width:100%;height:auto!important;aspect-ratio:1552/1027;min-height:0!important;background:var(--as-dark);touch-action:none}
+body.as-game .canvas-wrap{height:auto!important;aspect-ratio:auto!important;background:var(--as-dark)!important}
+#pitch-container canvas:focus-visible{outline:3px solid #a9d4ff;outline-offset:-4px}
+body.as-game #fs-wrap:fullscreen{display:flex;flex-direction:column;justify-content:center;background:var(--as-dark)}
 body.as-game #fs-wrap:fullscreen #pitch-container{max-height:calc(100vh - 110px)}
 
 /* Make the game container spacious and immersive */
@@ -10,10 +10,10 @@ body.as-flick-game .as-page-header{display:none}
 
 /* Stadium Game Chassis */
 body.as-flick-game #fs-wrap{
-  background:#07151a!important;
+  background:var(--as-dark)!important;
   border:1px solid rgba(255,255,255,0.12)!important;
   border-radius:24px!important;
-  box-shadow:0 24px 64px -12px rgba(0,0,0,0.65),0 0 40px rgba(14,165,233,0.15)!important;
+  box-shadow:0 24px 64px -12px rgba(0,0,0,0.65),0 0 40px rgba(123,41,67,0.15)!important;
   overflow:hidden;
   transition:box-shadow .3s ease;
 }
@@ -22,11 +22,11 @@ body.as-flick-game #fs-wrap{
 body.as-flick-game #pitch-container{
   height:auto!important;
   aspect-ratio:1552/1027;
-  background:#07151a!important;
+  background:var(--as-dark)!important;
 }
 
 body.as-flick-game #bot-btn{position:static!important;align-self:flex-end;margin:8px 0}
-body.as-flick-game #pitch-fullscreen-btn{color:#e2e8f0;border:1px solid #526274;padding:5px 10px;min-height:30px;font-size:.72rem}
+body.as-flick-game #pitch-fullscreen-btn{color:var(--as-line);border:1px solid #526274;padding:5px 10px;min-height:30px;font-size:.72rem}
 body.as-flick-game #fs-wrap:is(:fullscreen,.pitch-expanded){position:fixed;inset:0;z-index:1000;width:100vw;height:100dvh;box-sizing:border-box;display:flex;flex-direction:column;border-radius:0!important}
 body.as-flick-game #fs-wrap:is(:fullscreen,.pitch-expanded) .canvas-wrap{flex:1;min-height:0}
 body.as-flick-game #fs-wrap:is(:fullscreen,.pitch-expanded) #pitch-container{height:100%!important;max-height:none}

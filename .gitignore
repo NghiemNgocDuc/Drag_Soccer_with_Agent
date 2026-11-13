@@ -4,6 +4,11 @@ __pycache__/
 .pytest_cache/
 .venv/
 venv/
+.test-deps/
+.motion-training-deps/
+.venv-motion/
+motion-environment.txt
+motion-*.log
 dist/
 *.egg-info/
 *.db

@@ -19,7 +19,7 @@
 <div class="cp-history-list">
 {% for m in recent %}
 <article class="cp-panel match-row">
-  <div><span class="cp-eyebrow">{{ m.mode }}</span><h2>{{ 'vs ' ~ m.ai_model if m.ai_model else 'Match ' ~ loop.index }}</h2><div class="meta">{{ m.ended_at[:16] if m.ended_at else 'Recently played' }} / {{ m.total_moves or 0 }} kicks</div></div>
+  <div><span class="cp-eyebrow">{{ 'Basketball' if m.mode == 'basketball_hvai' else m.mode }}</span><h2>{{ 'vs Court AI' if m.mode == 'basketball_hvai' else ('vs ' ~ m.ai_model if m.ai_model else 'Match ' ~ loop.index) }}</h2><div class="meta">{{ m.ended_at[:16] if m.ended_at else 'Recently played' }} / {{ m.total_moves or 0 }} moves</div></div>
   <div class="cp-history-score" aria-label="Score {{ m.score_a }} to {{ m.score_b }}">{{ m.score_a }} <span aria-hidden="true">&ndash;</span> {{ m.score_b }}</div>
   <div class="cp-history-actions">{% if m.winner == 'A' %}<span class="badge badge-win">Win</span>{% elif m.winner == 'B' %}<span class="badge badge-loss">Loss</span>{% else %}<span class="badge badge-draw">Draw</span>{% endif %}{% if m.replay_id %}<a href="/history/watch/{{ m.replay_id }}" class="btn btn-secondary btn-sm">Watch replay {{ icon('arrow-right') }}</a>{% elif m.id %}<a href="/history/watch/{{ m.id }}" class="btn btn-secondary btn-sm">Watch replay {{ icon('arrow-right') }}</a>{% else %}<span class="meta">Replay unavailable</span>{% endif %}</div>
 </article>

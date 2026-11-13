@@ -216,6 +216,9 @@ def _get_player_kick_vel(stats: dict) -> float:
 
 def human_player_index(state: dict, is_player_a: bool = True) -> int:
     """The last formation slot is the striker; shootouts use the placed kicker."""
+    if state.get("sport") == "basketball":
+        from models.basketball_logic import human_basketball_player_index
+        return human_basketball_player_index(state, is_player_a)
     if state.get("penalty_shootout"):
         return 0
     return max(0, len(state["players_a" if is_player_a else "players_b"]) - 1)
@@ -1118,6 +1121,9 @@ def simulate_kick(
     power: float,
     is_player_a: bool,
 ) -> tuple[list[dict], str | None]:
+    if state.get("sport") == "basketball":
+        from models.basketball_logic import simulate_basketball_move
+        return simulate_basketball_move(state, player_idx, angle_deg, power, is_player_a)
     player_idx, angle_deg, power = normalize_kick(state, player_idx, angle_deg, power, is_player_a)
     search = current_search()
     move = (player_idx, angle_deg, power)
@@ -1155,6 +1161,9 @@ def apply_kick(
     power: float,
     is_player_a: bool,
 ) -> tuple[list[dict], str | None, str, dict, None]:
+    if state.get("sport") == "basketball":
+        from models.basketball_logic import apply_basketball_move
+        return apply_basketball_move(state, player_idx, angle_deg, power, is_player_a)
     player_idx, angle_deg, power = normalize_kick(state, player_idx, angle_deg, power, is_player_a)
     space, bodies_a, bodies_b, ball_body, ref_body, ball_pivot = _build_space(state)
 

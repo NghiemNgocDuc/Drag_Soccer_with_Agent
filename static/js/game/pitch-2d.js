@@ -14,6 +14,14 @@ export function pitchPoint(clientX, clientY, rect) {
   return { x: (clientX - rect.left - t.x) / t.scale, y: (clientY - rect.top - t.y) / t.scale };
 }
 
+export function basketballShotTarget(origin, angle, power, powerStat = 50) {
+  const stat = Number.isFinite(Number(powerStat)) ? Math.max(0, Math.min(100, Number(powerStat))) : 50;
+  // Same descending rim crossing as basketball_logic.py, without a physics prediction.
+  const time = (520 + Math.sqrt(520 ** 2 + 2 * 980 * (28 - 90))) / 980;
+  const distance = Math.max(0, Math.min(100, power)) * (8 + .04 * stat) * time;
+  return {x:origin.x + Math.cos(angle) * distance,y:origin.y + Math.sin(angle) * distance,time};
+}
+
 // ── Ping-pong visual juice ──────────────────────────────────────────
 // A short trail and contact particles on a stationary board.
 
@@ -41,6 +49,7 @@ export function createPitch2D(container) {
   const background = document.createElement('canvas'), bg = background.getContext('2d', { alpha: false });
   let teams = { a: [], b: [] }, ball = { x: 700, y: 437.5, z: 0 }, referee = null;
   let selection = null, humanPlayer = null, aim = null, keeperChoice = null, theme = {}, goal = null, whistleAt = null;
+  let sport = 'soccer', possession = null, lastPoints = null;
   let radius = 12, frames = 0, backgroundBuilds = 0, rosterStamp = '', mode = 'auto';
   let transform = pitchTransform(1, 1);
   try { mode = localStorage.getItem('agent-soccer-2d-quality') || 'auto'; } catch (_) {}
@@ -74,8 +83,81 @@ export function createPitch2D(container) {
 
   const PLAYER_SCALE = 2.1; // Larger player markers and matching pointer targets.
 
+  function paintBasketballCourt() {
+    bg.fillStyle = '#101827'; bg.fillRect(0, 0, background.width, background.height);
+    bg.save(); bg.translate(transform.x, transform.y); bg.scale(transform.scale, transform.scale);
+    bg.fillStyle = '#17243a'; bg.fillRect(-60, -60, 1520, 995);
+    bg.fillStyle = '#ce945b'; bg.fillRect(0, 0, 1400, 875);
+
+    // The floor is cached with the court markings; no texture or animation work is needed at idle.
+    for (let row = 0; row < 25; row++) {
+      const y = row * 35;
+      bg.fillStyle = ['#d9a56c', '#dfaf78', '#d49e64', '#e3b580'][row % 4];
+      bg.fillRect(0, y, 1400, 35);
+      bg.strokeStyle = 'rgba(105, 62, 29, .2)'; bg.lineWidth = 1;
+      bg.beginPath(); bg.moveTo(0, y); bg.lineTo(1400, y); bg.stroke();
+      for (let x = 100 + (row % 3) * 150; x < 1400; x += 450) {
+        bg.beginPath(); bg.moveTo(x, y); bg.lineTo(x, y + 35); bg.stroke();
+      }
+    }
+
+    const lineColor = color(theme.field_line_color, '#fff8e9');
+    bg.strokeStyle = lineColor; bg.lineWidth = 3;
+    bg.strokeRect(20, 20, 1360, 835);
+    bg.beginPath(); bg.moveTo(700, 20); bg.lineTo(700, 855); bg.stroke();
+    circle(bg, 700, 437.5, 118, 'rgba(25, 42, 67, .12)', lineColor, 3);
+    circle(bg, 700, 437.5, 5, lineColor);
+
+    for (const side of [0, 1]) {
+      bg.save(); if (side) { bg.translate(1400, 0); bg.scale(-1, 1); }
+      const kit = color(theme[side ? 'team_b_color' : 'team_a_color'], side ? '#ef4444' : '#0ea5e9');
+      bg.globalAlpha = .72; bg.fillStyle = '#1c3552'; bg.fillRect(20, 297.5, 280, 280);
+      bg.globalAlpha = .18; bg.fillStyle = kit; bg.fillRect(20, 297.5, 280, 280);
+      bg.globalAlpha = 1; bg.strokeStyle = lineColor; bg.lineWidth = 3;
+      bg.strokeRect(20, 297.5, 280, 280);
+      bg.beginPath(); bg.arc(300, 437.5, 140, -Math.PI / 2, Math.PI / 2); bg.stroke();
+      bg.setLineDash([9, 9]);
+      bg.beginPath(); bg.arc(300, 437.5, 140, Math.PI / 2, Math.PI * 1.5); bg.stroke();
+      bg.setLineDash([]);
+
+      // The arc shares the engine's 360-unit three-point distance from the rim.
+      const arcRadius = 360, angle = Math.acos((20 - 100) / arcRadius);
+      // This arcade ruleset uses radial distance everywhere, including corners.
+      // Continue the circle to the baseline instead of drawing shorter NBA-style corners.
+      bg.beginPath(); bg.arc(100, 437.5, arcRadius, -angle, angle); bg.stroke();
+      bg.beginPath(); bg.arc(100, 437.5, 66, -Math.PI / 2, Math.PI / 2); bg.stroke();
+      for (const y of [322.5, 357.5, 517.5, 552.5]) {
+        bg.beginPath(); bg.moveTo(20, y); bg.lineTo(34, y); bg.stroke();
+      }
+
+      // Top-down backboard, rim and net identify the physical scoring target.
+      bg.strokeStyle = '#0f172a'; bg.lineWidth = 12;
+      bg.beginPath(); bg.moveTo(67, 386); bg.lineTo(67, 489); bg.stroke();
+      bg.strokeStyle = '#f8fafc'; bg.lineWidth = 7; bg.stroke();
+      bg.strokeStyle = '#94a3b8'; bg.lineWidth = 3;
+      bg.beginPath(); bg.moveTo(70, 437.5); bg.lineTo(82, 437.5); bg.stroke();
+      circle(bg, 100, 437.5, 23, 'rgba(15,23,42,.45)');
+      bg.save(); bg.beginPath(); bg.arc(100, 437.5, 21, 0, Math.PI * 2); bg.clip();
+      bg.strokeStyle = 'rgba(255,255,255,.78)'; bg.lineWidth = 1.5;
+      for (let offset = -40; offset <= 40; offset += 10) {
+        bg.beginPath(); bg.moveTo(77 + offset, 414.5); bg.lineTo(123 + offset, 460.5); bg.stroke();
+        bg.beginPath(); bg.moveTo(77 + offset, 460.5); bg.lineTo(123 + offset, 414.5); bg.stroke();
+      }
+      bg.restore(); circle(bg, 100, 437.5, 23, 'transparent', '#ff7b29', 5);
+      bg.restore();
+    }
+
+    // Team-colored arena ribbons stay outside the playing surface.
+    for (let i = 0; i < 70; i++) {
+      bg.fillStyle = color(theme[i < 35 ? 'team_a_color' : 'team_b_color'], i < 35 ? '#0ea5e9' : '#ef4444');
+      bg.globalAlpha = .6; bg.fillRect(12 + i * 20, -36, 14, 8); bg.fillRect(12 + i * 20, 903, 14, 8);
+    }
+    bg.globalAlpha = 1; bg.restore();
+  }
+
   function paintBackground() {
     background.width = canvas.width; background.height = canvas.height;
+    if (sport === 'basketball') { paintBasketballCourt(); backgroundBuilds++; return; }
     bg.fillStyle = '#07151a'; bg.fillRect(0, 0, background.width, background.height);
     bg.save(); bg.translate(transform.x, transform.y); bg.scale(transform.scale, transform.scale);
 
@@ -297,7 +379,7 @@ export function createPitch2D(container) {
       // 4. Inner jersey token core
       const innerR = r - 3.5;
       const coreGrad = ctx.createRadialGradient(p.x - innerR * 0.35, p.y - innerR * 0.4, innerR * 0.05, p.x, p.y, innerR);
-      if (i === 0) {
+      if (i === 0 && sport === 'soccer') {
         // Goalkeeper: Special golden/amber keeper kit
         const gkCol = side === 'a' ? '#f59e0b' : '#10b981';
         coreGrad.addColorStop(0, '#fef08a');
@@ -317,7 +399,7 @@ export function createPitch2D(container) {
       circle(ctx, p.x, p.y, innerR, coreGrad);
 
       // Goalkeeper golden inner emblem ring
-      if (i === 0) {
+      if (i === 0 && sport === 'soccer') {
         ctx.save();
         ctx.strokeStyle = '#fef08a'; ctx.lineWidth = 2.5;
         ctx.beginPath(); ctx.arc(p.x, p.y, innerR - 5, 0, Math.PI * 2); ctx.stroke();
@@ -351,6 +433,14 @@ export function createPitch2D(container) {
       // Number face
       ctx.fillStyle = '#ffffff';
       ctx.fillText(String(i + 1), p.x, p.y + 1);
+
+      if (sport === 'basketball' && possession?.team === side && possession.index === i) {
+        circle(ctx, p.x, p.y, r + 6, 'transparent', '#fbbf24', 3);
+        ctx.font = '800 13px system-ui, sans-serif';
+        ctx.strokeStyle = '#17243a'; ctx.lineWidth = 4;
+        ctx.strokeText('BALL', p.x, p.y + r + 21);
+        ctx.fillStyle = '#fef08a'; ctx.fillText('BALL', p.x, p.y + r + 21);
+      }
 
       // 8. YOU Badge / Captain Indicator (Striker 5 or Human Player)
       if (humanPlayer?.team === side && humanPlayer.index === i) {
@@ -420,11 +510,17 @@ export function createPitch2D(container) {
     }
     if (aim) {
       const { home, pull } = aim;
-      const length = 46 + pull.power * 2.4;
       const angle = pull.kickAngle;
-      const end = { x: home.x + Math.cos(angle) * length, y: home.y + Math.sin(angle) * length };
-
       const selected = selection && teams[selection.team]?.[selection.index];
+      const basketballThrow = sport === 'basketball' && selected && possession?.team === selection.team && possession.index === selection.index;
+      const projected = basketballThrow ? basketballShotTarget(home, angle, pull.power, selected.stats?.power) : null;
+      const outside = projected && (projected.x < 37 || projected.x > 1363 || projected.y < 37 || projected.y > 838);
+      const length = projected ? Math.hypot(projected.x-home.x, projected.y-home.y) : 46 + pull.power * 2.4;
+      const end = projected ? {x:Math.max(37,Math.min(1363,projected.x)),y:Math.max(37,Math.min(838,projected.y))}
+        : { x: home.x + Math.cos(angle) * length, y: home.y + Math.sin(angle) * length };
+      const hoop = {x:selection?.team === 'a' ? 1300 : 100,y:437.5};
+      const onTarget = basketballThrow && !outside && Math.hypot(end.x-hoop.x,end.y-hoop.y) <= 25;
+      const shotPoints = Math.hypot(home.x-hoop.x,home.y-hoop.y) >= 360 ? 3 : 2;
       const discRadius = (selected ? playerRadius(selected) : 20) * PLAYER_SCALE;
 
       // 1. Elastic pull tension cord
@@ -453,38 +549,46 @@ export function createPitch2D(container) {
       ctx.shadowBlur = 0;
 
       // 4. Trajectory tracer line
-      ctx.strokeStyle = '#4ade80';
+      const aimColor = basketballThrow ? outside ? '#f87171' : onTarget ? '#4ade80' : '#ffe5ab' : '#4ade80';
+      ctx.strokeStyle = aimColor;
       ctx.lineWidth = 4;
-      ctx.setLineDash([10, 8]);
-      ctx.shadowColor = '#4ade80'; ctx.shadowBlur = 12;
+      ctx.setLineDash(basketballThrow ? [3, 10] : [10, 8]);
+      ctx.shadowColor = aimColor; ctx.shadowBlur = 12;
       ctx.beginPath();
       ctx.moveTo(home.x, home.y);
       ctx.lineTo(end.x, end.y);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // 5. Arrowhead
-      ctx.fillStyle = '#4ade80';
+      // 5. A rim-height aim ring for throws; movement keeps its direction arrow.
+      if (basketballThrow) {
+        circle(ctx,end.x,end.y,25,'rgba(15,23,42,.28)',aimColor,3);
+        circle(ctx,end.x,end.y,4,aimColor);
+      } else {
+      ctx.fillStyle = aimColor;
       ctx.beginPath();
       ctx.moveTo(end.x, end.y);
       ctx.lineTo(end.x - Math.cos(angle - 0.42) * 22, end.y - Math.sin(angle - 0.42) * 22);
       ctx.lineTo(end.x - Math.cos(angle + 0.42) * 22, end.y - Math.sin(angle + 0.42) * 22);
       ctx.closePath();
       ctx.fill();
+      }
 
       // 6. Floating power readout tag
       const tagDist = length + 24;
-      const tagX = home.x + Math.cos(angle) * tagDist;
-      const tagY = home.y + Math.sin(angle) * tagDist;
+      const tagX = basketballThrow ? Math.max(100,Math.min(1300,end.x)) : home.x + Math.cos(angle) * tagDist;
+      const tagY = basketballThrow ? Math.max(60,Math.min(815,end.y+48)) : home.y + Math.sin(angle) * tagDist;
+      const tagWidth = basketballThrow ? 152 : 44;
       ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
       ctx.beginPath();
-      if (ctx.roundRect) ctx.roundRect(tagX - 22, tagY - 12, 44, 24, 6);
-      else ctx.rect(tagX - 22, tagY - 12, 44, 24);
+      if (ctx.roundRect) ctx.roundRect(tagX - tagWidth/2, tagY - 12, tagWidth, 24, 6);
+      else ctx.rect(tagX - tagWidth/2, tagY - 12, tagWidth, 24);
       ctx.fill();
-      ctx.strokeStyle = gaugeCol; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.strokeStyle = basketballThrow ? aimColor : gaugeCol; ctx.lineWidth = 1.5; ctx.stroke();
       ctx.font = '800 12px system-ui, sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#ffffff'; ctx.fillText(`${Math.round(pull.power)}%`, tagX, tagY);
+      const shotLabel = outside ? 'LONG' : onTarget ? `+${shotPoints} AIM` : 'RIM AIM';
+      ctx.fillStyle = '#ffffff'; ctx.fillText(`${Math.round(pull.power)}%${basketballThrow ? ` · ${shotLabel}` : ''}`, tagX, tagY);
 
       ctx.restore();
     }
@@ -526,11 +630,18 @@ export function createPitch2D(container) {
     ctx.translate(ball.x, ball.y - lift);
 
     const ballGrad = ctx.createRadialGradient(-br * 0.35, -br * 0.4, br * 0.05, 0, 0, br);
-    ballGrad.addColorStop(0, '#ffffff');
-    ballGrad.addColorStop(0.7, '#f1f5f9');
-    ballGrad.addColorStop(1, '#94a3b8');
+    ballGrad.addColorStop(0, sport === 'basketball' ? '#ffbb64' : '#ffffff');
+    ballGrad.addColorStop(0.7, sport === 'basketball' ? '#ed7b25' : '#f1f5f9');
+    ballGrad.addColorStop(1, sport === 'basketball' ? '#aa4215' : '#94a3b8');
     circle(ctx, 0, 0, br, ballGrad, '#0f172a', 2.5);
 
+    if (sport === 'basketball') {
+      ctx.save(); ctx.beginPath(); ctx.arc(0, 0, br - 1, 0, Math.PI * 2); ctx.clip();
+      ctx.strokeStyle = '#542814'; ctx.lineWidth = 1.8;
+      ctx.beginPath(); ctx.moveTo(-br, 0); ctx.lineTo(br, 0); ctx.moveTo(0, -br); ctx.lineTo(0, br); ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(0, 0, br * .48, br * 1.04, 0, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    } else {
     // Pentagon patches
     ctx.fillStyle = '#0f172a';
     ctx.beginPath();
@@ -554,6 +665,7 @@ export function createPitch2D(container) {
       ctx.beginPath();
       ctx.arc(Math.cos(a) * br * 0.98, Math.sin(a) * br * 0.98, br * 0.22, 0, Math.PI * 2);
       ctx.fill();
+    }
     }
 
     // Specular shine
@@ -584,8 +696,9 @@ export function createPitch2D(container) {
       // Glow background
       ctx.shadowColor = '#ffd740'; ctx.shadowBlur = 30;
       ctx.fillStyle = 'rgba(10,26,31,.88)'; ctx.fillRect(535, 365, 330, 130);
-      ctx.font = '700 58px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#ffd740'; ctx.fillText('GOAL',700,430);
+      ctx.font = `700 ${sport === 'basketball' ? 48 : 58}px sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const label = sport === 'basketball' ? `BASKET${goal.points ? ` +${goal.points}` : ''}` : 'GOAL';
+      ctx.fillStyle = '#ffd740'; ctx.fillText(label,700,430);
       ctx.shadowBlur = 0;
       ctx.globalAlpha = 1; loop.invalidate();
     } else goal = null;
@@ -615,6 +728,24 @@ export function createPitch2D(container) {
   return {
     canvas, loop, setBall,
     onBounce, onContact,
+    setState(state = {}) {
+      const nextSport = state.sport === 'basketball' ? 'basketball' : 'soccer';
+      const carrier = state.possession;
+      const team = String(carrier?.side || carrier?.team || '').toLowerCase();
+      const index = carrier?.player_idx ?? carrier?.index;
+      const nextPossession = nextSport === 'basketball' && ['a', 'b'].includes(team) && Number.isInteger(index) && index >= 0
+        ? {team, index} : null;
+      const nextPoints = [2, 3].includes(Number(state.last_points)) ? Number(state.last_points) : null;
+      const changed = JSON.stringify(nextPossession) !== JSON.stringify(possession) || nextPoints !== lastPoints;
+      possession = nextPossession; lastPoints = nextPoints;
+      if (nextSport !== sport) {
+        sport = nextSport; goal = null; trail.length = 0; particles.length = 0;
+        canvas.setAttribute('aria-label', sport === 'basketball'
+          ? 'Basketball court. Select a player, drag back to aim, and release to move, pass, or shoot.'
+          : 'Soccer pitch. Select a player, drag back to aim, and release to kick.');
+        paintBackground(); loop.invalidate();
+      } else if (changed) loop.invalidate();
+    },
     setRoster(a=[],b=[]) {
       const stamp=JSON.stringify([a,b]); if(stamp===rosterStamp)return;
       rosterStamp=stamp; teams={a:a.map(p=>({...p})),b:b.map(p=>({...p}))}; loop.invalidate();
@@ -629,8 +760,8 @@ export function createPitch2D(container) {
     setKeeperChoice(value) {if(JSON.stringify(value)===JSON.stringify(keeperChoice))return;keeperChoice=value;loop.invalidate();},
     setTheme(value) {const next={...theme,...value};if(JSON.stringify(next)===JSON.stringify(theme))return;
       theme=next;paintBackground();loop.invalidate();},
-    celebrate() {
-      goal={start:loop.now()};
+    celebrate(points = lastPoints) {
+      goal={start:loop.now(),points:[2,3].includes(Number(points)) ? Number(points) : null};
       // Big celebration burst!
       for (let i = 0; i < 20; i++) {
         const angle = Math.PI * 2 * i / 20;
@@ -656,7 +787,7 @@ export function createPitch2D(container) {
         if(d<r&&d<distance){best=i;distance=d;}}
       return best;
     },
-    snapshot:()=>({renderer:'canvas2d',frames,backgroundBuilds,quality:mode,width:canvas.width,height:canvas.height,
+    snapshot:()=>({renderer:'canvas2d',sport,possession,last_points:lastPoints,frames,backgroundBuilds,quality:mode,width:canvas.width,height:canvas.height,
       effects:{particles:particles.length,trail:trail.length,shaking:false,squashing:false},
       ball:{...ball},players_a:teams.a.map(p=>({...p})),players_b:teams.b.map(p=>({...p})),referee,selection,humanPlayer,aim,keeperChoice,loop:loop.stats()}),
     dispose(){observer.disconnect();window.removeEventListener('resize',resize);loop.dispose();canvas.remove();},

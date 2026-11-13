@@ -145,7 +145,8 @@
     // but simpler: per-game win 0/100
     const data = wins.map(v=> v*100);
     const ctx=document.getElementById('perf-chart'); if(!ctx) return;
-    new Chart(ctx, {type:'line', data:{labels, datasets:[{label:'Win', data, borderColor:'#087f70', backgroundColor:'rgba(8,127,112,.12)', tension:0.35, fill:true, pointRadius:4}]}, options:{responsive:true, plugins:{legend:{display:false}}, scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}, x:{grid:{display:false}}}}});
+    const theme=getComputedStyle(document.body);
+    new Chart(ctx, {type:'line', data:{labels, datasets:[{label:'Win', data, borderColor:theme.getPropertyValue('--as-primary').trim()||'#7b2943', backgroundColor:'rgba(123,41,67,.12)', tension:0.35, fill:true, pointRadius:4}]}, options:{responsive:true, color:theme.getPropertyValue('--as-muted').trim()||'#6f5b60', plugins:{legend:{display:false}}, scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}, x:{grid:{display:false}}}}});
   })();
   </script>
   {% if gp > 0 %}
@@ -226,11 +227,11 @@
         {% set winner = g.winner %}
         {% set sa = g.score_a %}
         {% set sb = g.score_b %}
-        {% set is_win = (winner == "A" and g.mode == "hvai") or (winner == "A" and g.mode == "online") %}
+        {% set is_win = winner == "A" and g.mode in ("hvai", "online", "basketball_hvai") %}
         {% set is_loss = (winner == "B") %}
         {% set is_draw = (winner == "Draw") %}
         <tr>
-          <td><span class="mode-tag mode-{{ g.mode }}">{{ g.mode }}</span></td>
+          <td><span class="mode-tag mode-{{ g.mode }}">{{ 'Basketball' if g.mode == 'basketball_hvai' else g.mode }}</span></td>
           <td class="score-cell {% if is_win %}win{% elif is_loss %}loss{% else %}draw{% endif %}">{{ sa }} – {{ sb }}</td>
           <td style="color:var(--sc-muted);font-size:.75rem">
             {% if is_win %}Win{% elif is_loss %}Loss{% else %}Draw{% endif %}
@@ -256,7 +257,7 @@
       if(!models.length) { el.innerHTML='<div style="font-size:.82rem;color:var(--sc-muted)">No models yet — <a href="/my-models" style="color:var(--accent)">create one</a></div>'; return; }
       models=models.slice(0,3);
       const escape=text=>{const span=document.createElement('span');span.textContent=String(text||'');return span.innerHTML;};
-      el.innerHTML=models.map(m=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border:1px solid var(--sc-border);border-radius:10px;margin-bottom:12px;background:#fff"><div><div style="font-weight:700;font-size:1rem">'+escape(m.name||m.id)+'</div><div style="font-size:.875rem;color:var(--sc-muted)">'+escape(m.desc)+'</div></div><a href="/my-models" class="btn btn-ghost btn-sm">Open</a></div>').join('') + '<div style="text-align:center;margin-top:8px"><a href="/my-models" style="font-size:.875rem;color:var(--accent)">Manage models →</a> · <a href="/learn" style="font-size:.875rem;color:var(--accent)">Learn</a></div>';
+      el.innerHTML=models.map(m=>'<div style="display:flex;justify-content:space-between;align-items:center;padding:16px;border:1px solid var(--sc-border);border-radius:10px;margin-bottom:12px;background:var(--as-surface)"><div><div style="font-weight:700;font-size:1rem">'+escape(m.name||m.id)+'</div><div style="font-size:.875rem;color:var(--sc-muted)">'+escape(m.desc)+'</div></div><a href="/my-models" class="btn btn-ghost btn-sm">Open</a></div>').join('') + '<div style="text-align:center;margin-top:8px"><a href="/my-models" style="font-size:.875rem;color:var(--accent)">Manage models →</a> · <a href="/learn" style="font-size:.875rem;color:var(--accent)">Learn</a></div>';
     }catch(e){ el.innerHTML='<div style="font-size:.82rem;color:var(--sc-muted)">Models unavailable</div>'; }
   })();
   </script>
@@ -303,7 +304,7 @@
     <button type="button" class="btn btn-primary" id="email-change-btn">Request Email Change</button>
     <div class="hint">A confirmation link is emailed to the new address — your email only changes once you click it.</div>
     <div class="form-status" id="email-status" role="status" aria-live="polite"></div>
-    <div id="pending-email-wrap" style="display:none;margin-top:12px;padding:10px;border:1px solid #e0e7ff;border-radius:8px;background:rgba(224,231,255,.3)">
+    <div id="pending-email-wrap" style="display:none;margin-top:12px;padding:10px;border:1px solid var(--sc-border);border-radius:8px;background:var(--as-tint)">
       <div style="font-size:.78rem;color:var(--sc-muted)">Pending change to <b id="pending-email-text"></b></div>
       <button type="button" class="btn btn-ghost" id="resend-btn" style="margin-top:8px">Resend confirmation email</button>
       <div class="form-status" id="resend-status" role="status" aria-live="polite"></div>

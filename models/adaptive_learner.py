@@ -1,22 +1,24 @@
-"""Adaptive Learner — continual Q-table that learns from every game.
+"""Deterministic tactical play with support for a legacy 36-action Q-table.
 
-Learns while playing: Q(s,a) += α(r+γ·maxQ'−Q), ε-greedy over 36 actions (3 players × 6 angles × 2 powers).
-State: 5×3×3×2 = 90 discrete states (ball_x bin, ball_y bin, dist bin, defensive). Q-table ~3k entries, <15ms lookup.
-Persistence: Redis hash ``learning:q`` (JSON) with file fallback ``learning_q.json``. Self-play trainer vs greedy runs in background.
-Starts as greedy-clone, becomes strongest after ~200 games (expectimax 1/2 → learner 55% vs greedy).
+Modern squads and unseen boards use the shared full-roster tactical policy.
+Exploration is confined to explicit offline self-play. Its legacy table is
+trained privately and published after the batch, never action by action.
+Online experience learning is handled separately by the shared outcome policy.
 """
 from __future__ import annotations
 import json
 import math
-import os
 import random
 import pathlib
+import copy
+import threading
+from contextvars import ContextVar
 
-from models.soccer_logic import simulate_kick, FIELD_W, GOAL_Y1, GOAL_Y2
-from models.common import needs_clear, progress_score, goal_targets, aim_through, dist_to_goal, suggested_powers
+from models.soccer_logic import FIELD_W, GOAL_Y1, GOAL_Y2
+from models.common import needs_clear, aim_through, dist_to_goal, suggested_powers
 
 MODEL_NAME = "Adaptive Learner"
-DESCRIPTION = "Continual learner — Q-table self-play vs greedy, ε-greedy, learns every game."
+DESCRIPTION = "Deterministic full-squad tactics informed by validated match experience; legacy offline Q-table support."
 
 # Discretization
 _X_BINS = [280, 560, 840, 1120]  # 5 zones
@@ -39,6 +41,13 @@ _REDIS_META = "learning:meta"  # {"games": int, "wins": int}
 
 _Q: dict[str, list[float]] = {}
 _META: dict = {"games": 0, "wins": 0, "epsilon": EPSILON_START}
+_STATE_LOCK = threading.RLock()
+_TRAIN_LOCK = threading.Lock()
+_training: ContextVar[tuple[dict, dict] | None] = ContextVar("legacy_q_training", default=None)
+
+
+def _tables():
+    return _training.get() or (_Q, _META)
 
 def _redis():
     try:
@@ -75,16 +84,19 @@ def _load():
         pass
 
 def _save():
+    with _STATE_LOCK:
+        payload = json.dumps({"q": _Q, "meta": _META})
+    saved = json.loads(payload)
     try:
         r = _redis()
         if r:
-            r.set(_REDIS_KEY, json.dumps(_Q))
-            r.set(_REDIS_META, json.dumps(_META))
+            r.set(_REDIS_KEY, json.dumps(saved["q"]))
+            r.set(_REDIS_META, json.dumps(saved["meta"]))
             return
     except Exception:
         pass
     try:
-        _FILE.write_text(json.dumps({"q": _Q, "meta": _META}), encoding="utf-8")
+        _FILE.write_text(payload, encoding="utf-8")
     except Exception:
         pass
 
@@ -113,12 +125,14 @@ def _key_for(state, is_player_a: bool) -> str:
     return f"{xb}-{yb}-{db}-{defensive}-{'A' if is_player_a else 'B'}"
 
 def _ensure_state(k: str):
-    if k not in _Q:
-        _Q[k] = [0.0] * (3 * len(_ACTIONS_ANGLES) * len(_ACTIONS_POWERS_IDX))
-    return _Q[k]
+    table, _ = _tables()
+    if k not in table:
+        table[k] = [0.0] * (3 * len(_ACTIONS_ANGLES) * len(_ACTIONS_POWERS_IDX))
+    return table[k]
 
 def _epsilon() -> float:
-    g = max(0, _META.get("games", 0))
+    _, meta = _tables()
+    g = max(0, meta.get("games", 0))
     # linear anneal
     prog = min(1.0, g / EPSILON_DECAY_GAMES)
     return max(EPSILON_MIN, EPSILON_START * (1 - prog) + EPSILON_MIN * prog)
@@ -151,16 +165,16 @@ def _action_to_move(action_idx: int, state, is_player_a: bool):
     return player_idx, angle, power
 
 def _epv(x, y, is_player_a, opp_players=None):
-    """Expected Possession Value per R2D-RL (Qin et al. 2026): P(goal|x,y) shaped by dist, angle, pressure."""
+    """A mirrored position heuristic, not a calibrated scoring probability."""
     gx = FIELD_W if is_player_a else 0
     gy = (GOAL_Y1+GOAL_Y2)/2
     d = math.hypot(x-gx, y-gy)
     # distance term: logistic 1/(1+exp((d-320)/140)) — closer = higher EPV
     p_dist = 1.0 / (1.0 + math.exp((d - 320) / 140))
-    # angle term: central 356-519 is 0 angle, edge 60deg off center reduces
-    ang = abs(math.degrees(math.atan2(y-gy, x-gx)) if x!=gx else 0)
+    # Use distance along the attacking axis so mirrored A/B boards agree.
+    ang = abs(math.degrees(math.atan2(y - gy, abs(x - gx))))
     p_angle = max(0, 1 - ang/75.0)
-    # pressure: nearest defender within 80 reduces EPV (self-supervised teacher idea: pseudo-label from greedy)
+    # Pressure near the ball reduces the heuristic.
     p_press = 1.0
     if opp_players:
         d_opp = min(math.hypot(p["x"]-x, p["y"]-y) for p in opp_players)
@@ -168,23 +182,20 @@ def _epv(x, y, is_player_a, opp_players=None):
             p_press = 0.55 + 0.45 * (d_opp/80)
     return p_dist * 0.6 + p_angle * 0.25 + p_press * 0.15
 
-def _reward_for(end, scored, target, is_player_a, defensive, start_x, opp_players=None):
+def _reward_for(end, scored, target, is_player_a, defensive, start_x, opp_players=None,
+                *, start_y=None, start_opp_players=None):
     if scored == target:
         return 120.0
     if scored:
-        return -90.0
+        return -120.0
     if not end:
         return -20.0
-    # EPV shaping (R2D-RL) + progress + teacher pseudo-label bonus (Lin et al. 2025)
-    r = progress_score(end["x"], is_player_a, defensive) * 0.55
-    r += _epv(end["x"], end["y"], is_player_a, opp_players) * 85.0
-    if GOAL_Y1 <= end["y"] <= GOAL_Y2:
-        r += 28.0
-    if is_player_a:
-        r += max(-12, min(12, (end["x"] - start_x) * 0.05))
-    else:
-        r += max(-12, min(12, (start_x - end["x"]) * 0.05))
-    return r
+    # Reward improvement, rather than paying for the same position every turn.
+    forward = (end["x"] - start_x) * (1 if is_player_a else -1)
+    before = _epv(start_x, end["y"] if start_y is None else start_y,
+                  is_player_a, start_opp_players)
+    after = _epv(end["x"], end["y"], is_player_a, opp_players)
+    return max(-90.0, min(90.0, forward * .15 + (after - before) * 85.0))
 
 # Load on import
 try:
@@ -193,16 +204,24 @@ except Exception:
     pass
 
 def get_ai_move(state, is_player_a: bool):
-    # fast Q lookup
+    from models.tactics import quick_move
+
+    state.pop("_learner_last", None)
     k = _key_for(state, is_player_a)
-    q = _ensure_state(k)
-    # Keep the persisted 36-action table, but never select a missing pawn in
-    # one- or two-player squads. Learning metadata then names the actual action.
     players = state["players_a"] if is_player_a else state["players_b"]
     action_count = min(3, len(players)) * len(_ACTIONS_ANGLES) * len(_ACTIONS_POWERS_IDX)
-    # epsilon greedy
-    eps = _epsilon()
-    if random.random() < eps:
+    offline = _training.get() is not None
+    table, _ = _tables()
+    q = _ensure_state(k) if offline else table.get(k)
+    # Legacy actions only represent the first three players. Modern teams use
+    # their full roster, including the striker, instead of inheriting that cap.
+    if not offline:
+        values = q[:action_count] if isinstance(q, list) and len(q) >= action_count else []
+        if (len(players) > 3 or not values or
+                not all(isinstance(v, (int, float)) and math.isfinite(v) for v in values) or
+                max(values) <= 0 or max(values) - min(values) < 1e-9):
+            return quick_move(state, is_player_a)
+    if offline and random.random() < _epsilon():
         a = random.randrange(action_count)
     else:
         # argmax
@@ -214,8 +233,7 @@ def get_ai_move(state, is_player_a: bool):
                 best = i
         a = best
     player_idx, angle, power = _action_to_move(a, state, is_player_a)
-    # store last for learning hook (outside, app.py will call note_transition)
-    # we keep it in state meta for the training loop to pick up
+    # Metadata names only an executed legacy action, never a tactical fallback.
     try:
         state["_learner_last"] = {"k": k, "a": a, "bx": state["ball"]["x"]}
     except Exception:
@@ -223,12 +241,15 @@ def get_ai_move(state, is_player_a: bool):
     return player_idx, angle, power
 
 def note_transition(prev_state, action_idx: int, reward: float, next_state, is_player_a: bool, save: bool = True):
-    """Update Q for prev_state->action with reward and next_state."""
+    """Update a legacy action; bootstrap only at the learner's next decision."""
     try:
         pk = _key_for(prev_state, is_player_a)
         q = _ensure_state(pk)
-        nk = _key_for(next_state, is_player_a) if next_state is not None else None
-        max_next = max(_ensure_state(nk)) if nk is not None else 0.0
+        nk = (_key_for(next_state, is_player_a)
+              if next_state is not None and not next_state.get("game_over")
+              and next_state.get("is_player_a") == is_player_a else None)
+        action_count = min(3, len(prev_state["players_a" if is_player_a else "players_b"])) * 12
+        max_next = max(_ensure_state(nk)[:action_count]) if nk is not None else 0.0
         q[action_idx] += ALPHA * (reward + GAMMA * max_next - q[action_idx])
         if save:
             _save()
@@ -236,91 +257,100 @@ def note_transition(prev_state, action_idx: int, reward: float, next_state, is_p
         pass
 
 def get_stats() -> dict:
-    try:
-        _load()
-    except Exception:
-        pass
-    return {"games": int(_META.get("games", 0)), "wins": int(_META.get("wins", 0)), "epsilon": round(float(_epsilon()), 3), "states": len(_Q)}
+    # Reads must not reload persisted data over an in-flight training batch.
+    with _STATE_LOCK:
+        return {"games": int(_META.get("games", 0)), "wins": int(_META.get("wins", 0)),
+                "epsilon": 0.0, "training_epsilon": round(float(_epsilon()), 3),
+                "states": len(_Q), "policy": "deterministic_tactical",
+                "training": _TRAIN_LOCK.locked()}
 
 def reset_learner():
     global _Q, _META
-    _Q = {}
-    _META = {"games": 0, "wins": 0, "epsilon": EPSILON_START}
+    with _STATE_LOCK:
+        _Q = {}
+        _META = {"games": 0, "wins": 0, "epsilon": EPSILON_START}
     _save()
     return get_stats()
 
 def train_self_play(n_games: int = 50, opponent_id: str = "greedy") -> dict:
-    """Blocking self-play training vs opponent; updates Q and returns stats."""
-    import importlib
+    """Offline legacy training; live requests never explore or see partial rows.
+
+Each transition spans the learner's move and the opponent's response. Matches
+are bounded to 30 commands; unfinished matches count as draws in this report.
+This helper trains three-player legacy tables, not the modern outcome policy.
+"""
+    global _Q, _META
     from models.soccer_logic import new_soccer_state, apply_kick
     from models.search_budget import get_model_move
-    # lazy load opponent
+    if not _TRAIN_LOCK.acquire(blocking=False):
+        raise RuntimeError("Legacy training already running")
+    with _STATE_LOCK:
+        candidate = copy.deepcopy(_Q), dict(_META)
+    token = _training.set(candidate)
     try:
-        from services.game_analytics import _load_model as _lm
-        opp = _lm(opponent_id)
-    except Exception:
-        import importlib as _il
-        opp = _il.import_module("models.greedy_model")
-    if opp is None:
-        import importlib as _il
-        opp = _il.import_module("models.greedy_model")
-    wins = 0
-    for gi in range(n_games):
-        st = new_soccer_state()
-        # ensure learner is A half the games
-        learner_is_a = (gi % 2 == 0)
-        prev = None
-        prev_a = None
-        prev_k = None
-        prev_bx = None
-        for _ in range(30):
-            if st.get("game_over"):
-                break
-            is_a = st["is_player_a"]
-            is_learner_turn = (is_a == learner_is_a)
-            # snapshot prev for learner
-            snap = None
-            act = None
-            if is_learner_turn:
-                snap = {"ball": dict(st["ball"]), "players_a": [dict(p) for p in st["players_a"]], "players_b": [dict(p) for p in st["players_b"]], "field": dict(st["field"]), "is_player_a": is_a}
-                # also need needs_clear flag captured via _key_for later
-                k = _key_for(snap, is_a)
-                # we will decide action via Q, but we need to know which a was taken
-                # call get_ai_move to get move and also record _learner_last
-                pidx, ang, pwr = get_ai_move(snap, is_a)
-                # recover action idx from _learner_last
-                act = snap.get("_learner_last", {}).get("a", 0)
-                # keep for transition
-                prev = snap
-                prev_a = act
-                prev_k = k
-                prev_bx = snap["ball"]["x"]
-                pidx_use, ang_use, pwr_use = pidx, ang, pwr
-            else:
-                pidx_use, ang_use, pwr_use = get_model_move(opp, st, is_a)
-            # apply
-            traj, scored, _, _, _ = apply_kick(st, pidx_use, ang_use, pwr_use, is_a)
-            end = traj[-1] if len(traj) > 1 else None
+        try:
+            from services.game_analytics import _load_model
+            opp = _load_model(opponent_id)
+        except Exception:
+            opp = None
+        if opp is None:
+            from models import greedy_model as opp
+        n_games = max(1, min(50, int(n_games)))
+        table, meta = candidate
+        wins = 0
+        completed = 0
+        for gi in range(n_games):
+            st = new_soccer_state(player_count=3, half_length=0)
+            learner_is_a = gi % 2 == 0
             target = "A" if learner_is_a else "B"
-            # if learner just moved, compute reward and update (batch save after game) — EPV with opponent pressure (R2D-RL) + teacher pseudo-label
-            if is_learner_turn and prev is not None and prev_a is not None:
-                defensive = needs_clear(prev, learner_is_a)
-                opp_players = st["players_b"] if learner_is_a else st["players_a"]
-                r = _reward_for(end, scored, target, learner_is_a, defensive, prev_bx, opp_players)
-                nxt = {"ball": dict(st["ball"]), "players_a": [dict(p) for p in st["players_a"]], "players_b": [dict(p) for p in st["players_b"]], "field": dict(st["field"]), "is_player_a": st["is_player_a"]} if not st.get("game_over") else None
-                note_transition(prev, prev_a, r, nxt, learner_is_a, save=False)
-                prev = None
-                prev_a = None
-        # game result from learner perspective
-        w = st.get("winner")
-        if w == ("A" if learner_is_a else "B"):
-            wins += 1
-        # meta
-        _META["games"] = int(_META.get("games", 0)) + 1
-        if w == ("A" if learner_is_a else "B"):
-            _META["wins"] = int(_META.get("wins", 0)) + 1
-    _save()
-    total = int(_META.get("games", 0))
-    winrate = round(wins / max(1, n_games) * 100, 1)
-    overall = round(int(_META.get("wins", 0)) / max(1, total) * 100, 1) if total else 0.0
-    return {"games": n_games, "wins": wins, "winrate": winrate, "total_games": total, "overall_winrate": overall, "epsilon": round(float(_epsilon()), 3), "states": len(_Q)}
+            pending = None
+            for _ in range(30):
+                if st.get("game_over"):
+                    break
+                is_a = st["is_player_a"]
+                own_turn = is_a == learner_is_a
+                # Retain settings/stats needed by movement and reward evaluation,
+                # but not accumulated replay data in the candidate snapshots.
+                before = copy.deepcopy({k: v for k, v in st.items()
+                                        if k not in ("move_history", "history", "snapshots")})
+                if own_turn:
+                    move = get_ai_move(before, is_a)
+                    pending = (before, before["_learner_last"]["a"], 0.0)
+                else:
+                    move = get_model_move(opp, st, is_a)
+                trajectory, scored, _, _, _ = apply_kick(st, *move, is_a)
+                if pending is not None:
+                    opponents = "players_b" if learner_is_a else "players_a"
+                    reward = _reward_for(
+                        trajectory[-1] if trajectory else None, scored, target,
+                        learner_is_a, needs_clear(before, learner_is_a),
+                        before["ball"]["x"], st[opponents],
+                        start_y=before["ball"]["y"], start_opp_players=before[opponents],
+                    )
+                    prev, action, prior_reward = pending
+                    pending = (prev, action, prior_reward + (1 if own_turn else GAMMA) * reward)
+                    if not own_turn or st.get("game_over"):
+                        note_transition(prev, action, pending[2],
+                                        None if st.get("game_over") else st,
+                                        learner_is_a, save=False)
+                        pending = None
+            if pending is not None:
+                # At the command cap no successor decision was observed.
+                note_transition(pending[0], pending[1], pending[2], None, learner_is_a, save=False)
+            won = st.get("winner") == target
+            wins += int(won)
+            completed += int(bool(st.get("game_over")))
+            meta["games"] = int(meta.get("games", 0)) + 1
+            meta["wins"] = int(meta.get("wins", 0)) + int(won)
+        with _STATE_LOCK:
+            _Q, _META = table, meta
+        _save()
+        total = int(meta.get("games", 0))
+        return {"games": n_games, "completed_games": completed, "wins": wins,
+                "winrate": round(wins / n_games * 100, 1), "total_games": total,
+                "overall_winrate": round(int(meta.get("wins", 0)) / max(1, total) * 100, 1),
+                "epsilon": 0.0, "training_epsilon": round(float(_epsilon()), 3),
+                "states": len(table)}
+    finally:
+        _training.reset(token)
+        _TRAIN_LOCK.release()

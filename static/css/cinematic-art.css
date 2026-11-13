@@ -1,10 +1,16 @@
 /* Decorative tactics boards. The shared motion controller wakes visible scenes
    only; SVG geometry and readable page content remain intact without JavaScript. */
-.as-cinematic-pitch { overflow:visible; }
-.as-art-pass-ball { animation:as-art-pass 9s cubic-bezier(.35,0,.3,1) infinite; }
-.as-art-support-run { animation:as-art-support 9s ease-in-out infinite; }
-.as-login-pass-ball { animation:as-login-pass 10s cubic-bezier(.35,0,.3,1) infinite; }
-.as-login-support-run { animation:as-login-support 10s ease-in-out infinite; }
+.as-cinematic-pitch { overflow:visible; --as-art-ease:cubic-bezier(.37,0,.63,1); --as-login-shot-duration:5.8s; }
+.as-art-pass-ball { animation:as-art-pass 9s var(--as-art-ease) infinite; }
+.as-art-support-run { animation:as-art-support 9s var(--as-art-ease) infinite; }
+.as-login-pass-ball { animation:as-login-pass 7s var(--as-art-ease) infinite; }
+.as-login-support-run { animation:as-login-support 7s var(--as-art-ease) infinite; }
+.as-login-soccer-float { animation:as-login-soccer-float 8s var(--as-art-ease) infinite; }
+.as-login-court-float { animation:as-login-court-float 8s var(--as-art-ease) infinite; }
+.as-login-shot-ball { animation:as-login-shot var(--as-login-shot-duration) linear infinite; }
+.as-login-shot-height { animation:as-login-shot-height var(--as-login-shot-duration) linear infinite; }
+.as-login-shot-shadow { animation:as-login-shot-shadow var(--as-login-shot-duration) linear infinite; }
+.as-login-rim-pulse { animation:as-login-rim-pulse var(--as-login-shot-duration) var(--as-art-ease) infinite; }
 .as-cinematic-pitch [data-motion-loop] { animation-play-state:paused; }
 html.as-motion-enabled:not(.as-motion-paused) .as-cinematic-pitch.is-in-view [data-motion-loop] { animation-play-state:running; }
 
@@ -30,6 +36,43 @@ html.as-motion-enabled:not(.as-motion-paused) .as-cinematic-pitch.is-in-view [da
   0%,37%,100% { transform:translate(0,0); }
   56%,72% { transform:translate(20px,12px); }
   92% { transform:translate(0,0); }
+}
+/* Opposing board drift adds depth without shifting the illustration's layout. */
+@keyframes as-login-soccer-float {
+  0%,100% { transform:translate(0,0); }
+  50% { transform:translate(-3px,-6px); }
+}
+@keyframes as-login-court-float {
+  0%,100% { transform:translate(0,0); }
+  50% { transform:translate(2px,5px); }
+}
+/* Independent horizontal travel and quadratic height form one continuous arc.
+   At 48%, (436,167) + (59.3,-27.36) meets the projected hoop exactly.
+   The flight continues through the rim; both axes reset only while invisible. */
+@keyframes as-login-shot {
+  0%,12% { transform:translateX(0); opacity:1; }
+  48% { opacity:1; }
+  58% { transform:translateX(75.77222px); opacity:0; }
+  70% { transform:translateX(0); opacity:0; }
+  84%,100% { transform:translateX(0); opacity:1; }
+}
+@keyframes as-login-shot-height {
+  0%,12% { transform:translateY(0); animation-timing-function:cubic-bezier(.333333,.666667,.666667,1); }
+  36% { transform:translateY(-36.48px); animation-timing-function:cubic-bezier(.333333,0,.666667,.333333); }
+  60%,100% { transform:translateY(0); }
+}
+@keyframes as-login-shot-shadow {
+  0%,12% { transform:translate(0,0); opacity:.6; }
+  36% { opacity:.3; }
+  48% { opacity:.5; }
+  58% { transform:translate(75.77222px,-34.96px); opacity:0; }
+  70% { transform:translate(0,0); opacity:0; }
+  84%,100% { transform:translate(0,0); opacity:.6; }
+}
+@keyframes as-login-rim-pulse {
+  0%,46%,74%,100% { opacity:0; }
+  50% { opacity:.9; }
+  62% { opacity:0; }
 }
 @media(prefers-reduced-motion:reduce) {
   .as-cinematic-pitch [data-motion-loop] { animation:none!important; }

@@ -12,6 +12,9 @@ export function playTrajectory2D(trajectory, {loop, speed=1, current=()=>true, o
     if(start===null)start=now;
     const sample=clock.sample(now-start),a=trajectory[sample.segIdx],b=trajectory[sample.segIdx+1];
     const result=motion.ball(sample);
+    // Discrete possession belongs to the current recorded sample. Interpolating
+    // its owner would leave a carrier marker on screen after the ball is thrown.
+    for(const key of ['sport','basketball','possession'])if(Object.hasOwn(a,key))result[key]=a[key];
     for(const side of ['a','b']) {
       if(Array.isArray(a[side])&&Array.isArray(b[side])) result[side]=a[side].map((p,i)=>motion.player(side,i,sample)||p);
     }

@@ -13,7 +13,7 @@ export function createPlayerInput(options) {
   const stateStamp = () => {
     const state = getState(), online = getOnline();
     return [online.active, online.roomId, online.side, online.generation, online.ready, online.status, online.leaving, online.connectionError,
-      state?.game_mode, state?.is_player_a, state?.online_move_count ?? state?.kick_count, state?.penalty_shootout, state?.game_over].join(':');
+      state?.sport, state?.game_mode, state?.is_player_a, state?.online_move_count ?? state?.kick_count, state?.possession?.side, state?.possession?.player_idx, state?.penalty_shootout, state?.game_over].join(':');
   };
   function origin() {
     const state = getState();
@@ -42,19 +42,25 @@ export function createPlayerInput(options) {
   }
   function sync() {
     const legal = rule(), current = access(), nextStamp = stateStamp();
+    if (getState()?.sport === 'basketball' && passType !== 'normal') {
+      passType = 'normal'; updatePassButtons();
+    }
     if (stamp !== nextStamp) {
       cancelGesture();
       if (team !== legal.team) selectedIndex = 0;
       team = legal.team;
       if (!legal.indices.includes(selectedIndex)) selectedIndex = legal.indices[0] ?? 0;
+      if (legal.indices.includes(legal.defaultIndex)) selectedIndex = legal.defaultIndex;
       resetAim(); notice = ''; stamp = nextStamp;
     }
-    const nextOptions = `${legal.team}:${legal.indices.join(',')}`;
+    const state = getState(), basketball = state?.sport === 'basketball';
+    const carrier = basketball && String(state.possession?.side || '').toLowerCase() === legal.team ? state.possession.player_idx : -1;
+    const nextOptions = `${state?.sport}:${legal.team}:${legal.indices.join(',')}:${basketball ? carrier : ''}`;
     if (optionStamp !== nextOptions) {
       ui['player-select'].replaceChildren(...legal.indices.map(index => {
         const option = document.createElement('option'); option.value = String(index);
         const players=getState()?.['players_'+legal.team] || [];
-        option.textContent = index === 0 ? '#1 · Goalkeeper' : index === players.length-1
+        option.textContent = basketball ? `#${index+1} · ${players[index]?.role || 'Player'}${index === carrier ? ' · Ball carrier' : ''}` : index === 0 ? '#1 · Goalkeeper' : index === players.length-1
           ? `#${index+1} · Striker` : `#${index+1} · Teammate`;
         return option;
       })); optionStamp = nextOptions;
@@ -64,10 +70,11 @@ export function createPlayerInput(options) {
     for (const id of ['player-prev','player-next']) ui[id].disabled = !current.canKick || legal.indices.length < 2;
     for (const id of ['aim-angle','kick-power','aim-cancel']) ui[id].disabled = !current.canKick;
     ui['kick-btn'].disabled = !current.canKick || power() <= 5;
+    ui['kick-btn'].textContent = basketball ? selectedIndex === carrier ? 'Throw' : 'Move' : 'Kick';
     ui['aim-angle'].value = String(Math.round(angle));
     ui['kick-power'].value = String(Math.round(basePower));
     ui['kick-power-value'].value = `${Math.round(power())}%`;
-    ui['kick-power'].setAttribute('aria-valuetext', `${Math.round(power())} percent kick power`);
+    ui['kick-power'].setAttribute('aria-valuetext', `${Math.round(power())} percent ${basketball ? selectedIndex === carrier ? 'throw' : 'move' : 'kick'} power`);
     ui['player-control-status'].textContent = notice || current.reason;
     ui['player-control-status'].setAttribute('data-error', String(!!notice));
     onSelect(team, selectedIndex, current.canKick && legal.indices.includes(selectedIndex));
@@ -127,12 +134,16 @@ export function createPlayerInput(options) {
   });
   function setPassType(value) {
     if (!['normal','short','long','through'].includes(value)) return;
+    if (getState()?.sport === 'basketball' && value !== 'normal') return;
     passType=value;
+    updatePassButtons();
+    if (access().canKick) aimChanged(); else sync();
+  }
+  function updatePassButtons() {
     document.querySelectorAll('.pass-types button').forEach(button => {
-      const active=button.id===`pass-${value}`;
+      const active=button.id===`pass-${passType}`;
       button.style.background=''; button.style.color=''; button.setAttribute('aria-pressed',String(active));
     });
-    if (access().canKick) aimChanged(); else sync();
   }
 
   // Capture phase owns a player gesture before OrbitControls sees it. Empty
