@@ -59,7 +59,7 @@ export function createPitch2D(container) {
   const trail = [];                    // { x, y, z, t }
   const particles = [];                // { x, y, vx, vy, born, color, r }
   let prevBall = { x: ball.x, y: ball.y };
-  let ballSpeed = 0;
+  let ballSpeed = 0, ballRotation = 0;
 
   const circle = (c, x, y, r, fill, stroke = null, width = 2) => {
     c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fillStyle = fill; c.fill();
@@ -170,8 +170,8 @@ export function createPitch2D(container) {
 
     // Lush manicured pitch grass
     const grass = color(theme.grass_shade, {
-      dark:'#0a2b20', bright:'#13472d', emerald:'#0c3829', winter:'#25291f', neon:'#09381c',
-    }[theme.grass_shade] || '#0c3829');
+      dark:'#203d2d', bright:'#396448', emerald:'#2e573b', winter:'#41473a', neon:'#3d6038',
+    }[theme.grass_shade] || '#31543d');
     bg.fillStyle = grass; bg.fillRect(0, 0, 1400, 875);
 
     // Mowing pattern & turf texture
@@ -205,13 +205,21 @@ export function createPitch2D(container) {
       }
     }
 
-    // Four corner stadium floodlight beams illuminating the pitch inward
+    // Broad, even stadium fill keeps the turf dimensional without spotlight hotspots.
+    const fieldLight = bg.createLinearGradient(0, 0, 1400, 875);
+    fieldLight.addColorStop(0, 'rgba(255, 248, 229, .035)');
+    fieldLight.addColorStop(.52, 'rgba(255, 255, 255, .008)');
+    fieldLight.addColorStop(1, 'rgba(2, 12, 8, .075)');
+    bg.fillStyle = fieldLight;
+    bg.fillRect(0, 0, 1400, 875);
+
+    // Soft corner fill suggests stadium lighting without hard beams.
     const cornerR = 360;
     const corners = [[0, 0], [1400, 0], [0, 875], [1400, 875]];
     corners.forEach(([cx, cy]) => {
       const grad = bg.createRadialGradient(cx, cy, 10, cx, cy, cornerR);
-      grad.addColorStop(0, 'rgba(224, 255, 240, 0.12)');
-      grad.addColorStop(0.5, 'rgba(56, 189, 248, 0.04)');
+      grad.addColorStop(0, 'rgba(224, 237, 218, 0.055)');
+      grad.addColorStop(0.5, 'rgba(210, 224, 205, 0.018)');
       grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
       bg.fillStyle = grad;
       bg.fillRect(cx - cornerR, cy - cornerR, cornerR * 2, cornerR * 2);
@@ -220,29 +228,39 @@ export function createPitch2D(container) {
     // Pitch perimeter turf vignette (darkens slightly near the edges)
     const pitchVignette = bg.createRadialGradient(700, 437.5, 450, 700, 437.5, 800);
     pitchVignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
-    pitchVignette.addColorStop(1, 'rgba(0, 0, 0, 0.22)');
+    pitchVignette.addColorStop(1, 'rgba(0, 0, 0, 0.14)');
     bg.fillStyle = pitchVignette;
     bg.fillRect(0, 0, 1400, 875);
     bg.restore();
 
-    // Stadium perimeter LED ribbon boards & crowd energy dots
-    for (let i = 0; i < 70; i++) {
-      const x = 12 + i * 20;
-      const ribbonColor = i < 35 ? color(theme.team_a_color, '#0ea5e9') : color(theme.team_b_color, '#f97316');
-      bg.fillStyle = ribbonColor;
-      bg.globalAlpha = 0.55;
-      bg.fillRect(x, -38, 14, 10);
-      bg.fillRect(x, 903, 14, 10);
-      // Small spectator light dots
-      bg.globalAlpha = 0.35;
-      bg.fillStyle = i % 2 === 0 ? '#e2e8f0' : ribbonColor;
-      bg.beginPath(); bg.arc(x + 7, -46, 2.5, 0, Math.PI * 2); bg.fill();
-      bg.beginPath(); bg.arc(x + 7, 921, 2.5, 0, Math.PI * 2); bg.fill();
+    // A restrained crowd band and muted perimeter boards frame the pitch.
+    bg.fillStyle = '#14201f';
+    bg.fillRect(20, -70, 1360, 47);
+    bg.fillRect(20, 898, 1360, 47);
+    const crowdColors = ['#d9cdb8', '#65766d', '#a28c70', '#52677a', '#8e6e62'];
+    for (let row = 0; row < 3; row++) {
+      for (let column = 0; column < 168; column++) {
+        const x = 25 + column * 8.05 + (row % 2) * 3;
+        const colorIndex = (column * 7 + row * 11) % crowdColors.length;
+        bg.globalAlpha = .52 + ((column + row) % 3) * .1;
+        bg.fillStyle = crowdColors[colorIndex];
+        bg.beginPath(); bg.arc(x, -63 + row * 10, 2.1, 0, Math.PI * 2); bg.fill();
+        bg.beginPath(); bg.arc(x, 905 + row * 10, 2.1, 0, Math.PI * 2); bg.fill();
+      }
     }
+    bg.globalAlpha = 1;
+    bg.fillStyle = '#242b29';
+    bg.fillRect(20, -20, 1360, 9);
+    bg.fillRect(20, 886, 1360, 9);
+    bg.fillStyle = color(theme.team_a_color, '#0ea5e9');
+    bg.globalAlpha = .42;
+    bg.fillRect(20, -20, 680, 3); bg.fillRect(20, 892, 680, 3);
+    bg.fillStyle = color(theme.team_b_color, '#ef4444');
+    bg.fillRect(700, -20, 680, 3); bg.fillRect(700, 892, 680, 3);
     bg.globalAlpha = 1;
 
     // Field lines (crisp, luminous tournament white-mint)
-    const lineColor = color(theme.field_line_color, '#e2fded');
+    const lineColor = color(theme.field_line_color, '#e8eee1');
     bg.strokeStyle = lineColor;
     bg.lineWidth = 2.5;
 
@@ -314,6 +332,7 @@ export function createPitch2D(container) {
     const dt = Math.max(1, dtMs) / 1000;
     const dx = ball.x - prevBall.x, dy = ball.y - prevBall.y;
     ballSpeed = Math.hypot(dx, dy) / dt;
+    ballRotation = (ballRotation + Math.hypot(dx, dy) / Math.max(12, radius)) % (Math.PI * 2);
     prevBall = { x: ball.x, y: ball.y };
 
     if (ballSpeed > TRAIL_MIN_SPEED) {
@@ -344,7 +363,7 @@ export function createPitch2D(container) {
       ctx.globalAlpha = 1;
     }
 
-    // ── Players (Bigger, 3D Token Discs with Bevel & Gloss) ────────
+    // ── Players (numbered football kits) ────────
     for (const side of ['a', 'b']) teams[side].forEach((p, i) => {
       if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || p.x < -40 || p.x > 1440 || p.y < -40 || p.y > 915) return;
 
@@ -352,87 +371,44 @@ export function createPitch2D(container) {
       const baseKit = side === 'a' ? '#0ea5e9' : '#ef4444';
       const kitColor = color(p.color, color(theme['team_' + side + '_color'], baseKit));
 
-      // 1. Soft ambient drop shadow
+      // A readable football kit with a subtle footprint instead of a glossy puck.
       ctx.save();
-      circle(ctx, p.x + 3, p.y + 6, r + 1, 'rgba(0, 0, 0, 0.45)');
-      ctx.restore();
-
-      // 2. Selection ring (pulsing energized aura)
+      ctx.translate(p.x, p.y);
+      ctx.scale(r, r);
+      ctx.beginPath(); ctx.ellipse(.03, .22, .76, .83, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0,0,0,.24)'; ctx.fill();
+      circle(ctx, 0, 0, 1, 'rgba(247,241,231,.035)', 'rgba(247,241,231,.18)', .035);
       if (selection?.team === side && selection.index === i) {
-        ctx.save();
-        ctx.shadowColor = '#38bdf8';
-        ctx.shadowBlur = 18;
-        circle(ctx, p.x, p.y, r + 9, 'transparent', '#38bdf8', 3.5);
-        ctx.shadowBlur = 0;
-        circle(ctx, p.x, p.y, r + 14, 'transparent', 'rgba(56, 189, 248, 0.4)', 1.5);
-        ctx.restore();
+        circle(ctx, 0, 0, 1.14, 'transparent', '#f1ce95', .065);
       }
-
-      // 3. Outer metallic rim with bevel highlight
-      const rimGrad = ctx.createLinearGradient(p.x - r, p.y - r, p.x + r, p.y + r);
-      rimGrad.addColorStop(0, '#ffffff');
-      rimGrad.addColorStop(0.35, '#94a3b8');
-      rimGrad.addColorStop(0.7, '#475569');
-      rimGrad.addColorStop(1, '#0f172a');
-      circle(ctx, p.x, p.y, r, rimGrad);
-
-      // 4. Inner jersey token core
-      const innerR = r - 3.5;
-      const coreGrad = ctx.createRadialGradient(p.x - innerR * 0.35, p.y - innerR * 0.4, innerR * 0.05, p.x, p.y, innerR);
-      if (i === 0 && sport === 'soccer') {
-        // Goalkeeper: Special golden/amber keeper kit
-        const gkCol = side === 'a' ? '#f59e0b' : '#10b981';
-        coreGrad.addColorStop(0, '#fef08a');
-        coreGrad.addColorStop(0.5, gkCol);
-        coreGrad.addColorStop(1, '#78350f');
-      } else if (side === 'a') {
-        // Team A: Sky blue gradient
-        coreGrad.addColorStop(0, '#7dd3fc');
-        coreGrad.addColorStop(0.5, kitColor);
-        coreGrad.addColorStop(1, '#0369a1');
-      } else {
-        // Team B: Coral / Red gradient
-        coreGrad.addColorStop(0, '#fca5a5');
-        coreGrad.addColorStop(0.5, kitColor);
-        coreGrad.addColorStop(1, '#991b1b');
-      }
-      circle(ctx, p.x, p.y, innerR, coreGrad);
-
-      // Goalkeeper golden inner emblem ring
-      if (i === 0 && sport === 'soccer') {
-        ctx.save();
-        ctx.strokeStyle = '#fef08a'; ctx.lineWidth = 2.5;
-        ctx.beginPath(); ctx.arc(p.x, p.y, innerR - 5, 0, Math.PI * 2); ctx.stroke();
-        ctx.restore();
-      }
-
-      // 5. Specular gloss arc (upper hemisphere shine)
-      ctx.save();
-      ctx.beginPath();
-      ctx.ellipse(p.x, p.y - innerR * 0.35, innerR * 0.72, innerR * 0.42, 0, 0, Math.PI * 2);
-      const glossGrad = ctx.createLinearGradient(p.x, p.y - innerR * 0.75, p.x, p.y + innerR * 0.1);
-      glossGrad.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
-      glossGrad.addColorStop(0.6, 'rgba(255, 255, 255, 0.15)');
-      glossGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-      ctx.fillStyle = glossGrad;
-      ctx.fill();
+      const keeper = i === 0 && sport === 'soccer';
+      const shirt = keeper ? color(theme['keeper_color_' + side], side === 'a' ? '#e9ba66' : '#a9c5b5') : kitColor;
+      const skin = ['#dca779','#ae7654','#e8bb95','#85583f','#c58e65'][i % 5];
+      const polygon = (points, fill, stroke = null, width = .04) => {
+        ctx.beginPath(); points.forEach(([x,y], n) => n ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
+        ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+        if (stroke) {ctx.strokeStyle=stroke;ctx.lineWidth=width;ctx.lineJoin='round';ctx.stroke();}
+      };
+      // Boots and contrasting shorts keep the silhouette legible at match scale.
+      polygon([[-.4,.58],[-.14,.58],[-.12,.88],[-.43,.88]], '#17272b', '#f7f1e7', .035);
+      polygon([[.14,.58],[.4,.58],[.43,.88],[.12,.88]], '#17272b', '#f7f1e7', .035);
+      polygon([[-.49,.32],[.49,.32],[.43,.64],[.07,.64],[0,.47],[-.07,.64],[-.43,.64]], '#18272c');
+      // Sleeves, hands, and shirt body; the number is always upright.
+      circle(ctx,-.73,-.08,.12,keeper?'#f7f1e7':skin);
+      circle(ctx,.73,-.08,.12,keeper?'#f7f1e7':skin);
+      polygon([[-.25,-.5],[-.52,-.43],[-.83,-.19],[-.62,.04],[-.45,-.08],[-.43,.39],[.43,.39],[.45,-.08],[.62,.04],[.83,-.19],[.52,-.43],[.25,-.5]],shirt,'#f7f1e7',.045);
+      // Shoulder piping and a small collar read as a kit, without shiny gradients.
+      ctx.strokeStyle='rgba(255,255,255,.75)';ctx.lineWidth=.06;
+      ctx.beginPath();ctx.moveTo(-.3,-.43);ctx.lineTo(-.57,-.24);ctx.moveTo(.3,-.43);ctx.lineTo(.57,-.24);ctx.stroke();
+      polygon([[-.19,-.48],[0,-.27],[.19,-.48]],'#17272b');
+      circle(ctx,0,-.67,.225,skin,'#17272b',.035);
+      ctx.beginPath();ctx.arc(0,-.7,.215,Math.PI,Math.PI*2);ctx.fillStyle='#30251f';ctx.fill();
+      const rgb=[1,3,5].map(offset=>parseInt(shirt.slice(offset,offset+2),16));
+      const light=rgb[0]*.299+rgb[1]*.587+rgb[2]*.114>165;
+      ctx.font="800 .58px 'Space Grotesk', system-ui, sans-serif";
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillStyle=light?'#18272c':'#ffffff';ctx.fillText(String(i+1),0,.06);
       ctx.restore();
-
-      // 6. Direction eye notch (facing ball)
-      const heading = Math.atan2(ball.y - p.y, ball.x - p.x);
-      const eyeDist = innerR - 3;
-      circle(ctx, p.x + Math.cos(heading) * eyeDist, p.y + Math.sin(heading) * eyeDist, 3.5, '#ffffff', '#0f172a', 1.5);
-
-      // 7. Jersey number (Space Grotesk bold)
-      const numSize = Math.max(16, Math.round(r * 0.78));
-      ctx.font = `800 ${numSize}px 'Space Grotesk', system-ui, sans-serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      // Number shadow
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-      ctx.fillText(String(i + 1), p.x, p.y + 2.5);
-      // Number face
-      ctx.fillStyle = '#ffffff';
-      ctx.fillText(String(i + 1), p.x, p.y + 1);
 
       if (sport === 'basketball' && possession?.team === side && possession.index === i) {
         circle(ctx, p.x, p.y, r + 6, 'transparent', '#fbbf24', 3);
@@ -442,34 +418,16 @@ export function createPitch2D(container) {
         ctx.fillStyle = '#fef08a'; ctx.fillText('BALL', p.x, p.y + r + 21);
       }
 
-      // 8. YOU Badge / Captain Indicator (Striker 5 or Human Player)
+      // A quiet, persistent control marker; no glow or idle animation.
       if (humanPlayer?.team === side && humanPlayer.index === i) {
-        ctx.save();
-        const badgeY = p.y - r - 22;
-        const bw = 46, bh = 19;
-        ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 12;
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
-        ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(p.x - bw / 2, badgeY - bh / 2, bw, bh, 999);
-        else ctx.rect(p.x - bw / 2, badgeY - bh / 2, bw, bh);
-        ctx.fill();
-        ctx.strokeStyle = '#fde047'; ctx.lineWidth = 1.8; ctx.stroke();
-
-        // Downward pointer arrow
-        ctx.fillStyle = '#fde047';
-        ctx.beginPath();
-        ctx.moveTo(p.x - 5, badgeY + bh / 2);
-        ctx.lineTo(p.x + 5, badgeY + bh / 2);
-        ctx.lineTo(p.x, badgeY + bh / 2 + 5);
-        ctx.closePath();
-        ctx.fill();
-
-        ctx.font = '800 11px system-ui, sans-serif';
-        ctx.fillStyle = '#fde047';
-        ctx.shadowBlur = 0;
-        ctx.fillText('YOU', p.x, badgeY);
-        ctx.restore();
+        const y = p.y-r-16;
+        ctx.fillStyle='#f1ce95';ctx.beginPath();
+        ctx.moveTo(p.x-6,y+7);ctx.lineTo(p.x+6,y+7);ctx.lineTo(p.x,y+13);ctx.closePath();ctx.fill();
+        ctx.font='800 13px system-ui, sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+        ctx.strokeStyle='#123c33';ctx.lineWidth=4;ctx.strokeText('YOU',p.x,y-3);
+        ctx.fillStyle='#fff1d6';ctx.fillText('YOU',p.x,y-3);
       }
+
     });
 
     // ── Referee ───────────────────────────────────────────────────
@@ -635,6 +593,7 @@ export function createPitch2D(container) {
     ballGrad.addColorStop(1, sport === 'basketball' ? '#aa4215' : '#94a3b8');
     circle(ctx, 0, 0, br, ballGrad, '#0f172a', 2.5);
 
+    ctx.save(); ctx.rotate(ballRotation);
     if (sport === 'basketball') {
       ctx.save(); ctx.beginPath(); ctx.arc(0, 0, br - 1, 0, Math.PI * 2); ctx.clip();
       ctx.strokeStyle = '#542814'; ctx.lineWidth = 1.8;
@@ -667,6 +626,7 @@ export function createPitch2D(container) {
       ctx.fill();
     }
     }
+    ctx.restore();
 
     // Specular shine
     ctx.beginPath();
@@ -787,7 +747,7 @@ export function createPitch2D(container) {
         if(d<r&&d<distance){best=i;distance=d;}}
       return best;
     },
-    snapshot:()=>({renderer:'canvas2d',sport,possession,last_points:lastPoints,frames,backgroundBuilds,quality:mode,width:canvas.width,height:canvas.height,
+    snapshot:()=>({renderer:'canvas2d',sport,possession,last_points:lastPoints,frames,backgroundBuilds,ballRotation,quality:mode,width:canvas.width,height:canvas.height,
       effects:{particles:particles.length,trail:trail.length,shaking:false,squashing:false},
       ball:{...ball},players_a:teams.a.map(p=>({...p})),players_b:teams.b.map(p=>({...p})),referee,selection,humanPlayer,aim,keeperChoice,loop:loop.stats()}),
     dispose(){observer.disconnect();window.removeEventListener('resize',resize);loop.dispose();canvas.remove();},

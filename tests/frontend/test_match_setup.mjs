@@ -40,6 +40,8 @@ function harness(t, overrides={}) {
   }});
   const submissions=[];
   const setup=createMatchSetup({getState:()=>state,getOnline:()=>({active:false}),blockedReason:()=>'',
+    createBoard:()=>({root:new Element(),setFormation(){},setDisabled(){}}),
+    createLineup:()=>({root:new Element(),setFormation(){},setDisabled(){}}),
     onStart:async payload=>submissions.push(payload)});
   const radio=value=>nodes['setup-sports'].querySelectorAll('input').find(input=>input.value===value);
   return {setup,nodes,submissions,radio,

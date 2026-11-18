@@ -128,6 +128,8 @@ test('basketball switches the cached court, tracks possession and finishes its s
   pitch=createPitch2D(container);
   const flush=time=>{now=time;const batch=[...pending.values()];pending.clear();batch.forEach(callback=>callback(time));};
   flush(0);
+  pitch.setBall(730,437.5);flush(16);
+  assert.ok(pitch.snapshot().ballRotation>0);
   const originalBuilds=pitch.snapshot().backgroundBuilds;
   const state={sport:'basketball',possession:{side:'A',player_idx:0},last_points:3};
   pitch.setState(state);pitch.setRoster([{x:650,y:437.5}],[{x:1000,y:400}]);flush(16);

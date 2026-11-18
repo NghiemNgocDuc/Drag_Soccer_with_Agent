@@ -11,7 +11,8 @@ endpoint names are retained so existing redirects and saved links keep working.
 ## Rendering and controls
 
 - `static/js/game/pitch-2d.js` owns drawing, screen-to-pitch coordinates and hit
-  testing. The turf, markings, nets and static stands are cached on a second canvas.
+  testing. Natural turf shading, markings, nets and the restrained crowd/stand
+  details are cached on a second canvas.
 - Player markers scale with the Size stat, at 2.1 times the collision radius for
   readability, with matching pointer targets, team colors, numbers and distinct
   keeper rings. The ball's height indicator is cosmetic; coordinates stay in server
@@ -27,8 +28,8 @@ endpoint names are retained so existing redirects and saved links keep working.
 - `render-on-demand.js` coalesces draws, stops when idle, and pauses its animation
   clock while the pitch is hidden or outside the viewport. Goal and whistle
   effects are finite. Online polling continues independently.
-- Contact particles and trails share that paused clock. The board stays steady
-  and the ball stays circular. Particle storage is bounded, and trails expire
+- Contact particles and trails share that paused clock. The ball remains circular
+  while its panels rotate with travel. Particle storage is bounded, and trails expire
   before idle drawing stops. The live pitch fills the panel width at its natural
   aspect ratio. Short IDE panes scroll vertically instead of shrinking the field
   and players into a small area between wide side gutters.
@@ -75,3 +76,14 @@ available from the browser verifier.
 The old `index_3d.html`, `replay_3d.html`, Three.js assets and 3D-specific browser
 harnesses remain as reference material. They are not used by the game routes;
 their historical verification results do not certify the new Canvas views.
+
+The turf uses broad, low-contrast fill lighting and muted stands so pitch lines,
+players and the ball remain the visual focus. Ball-panel rotation is derived from
+recorded movement; it adds no idle animation loop.
+## Player artwork update — November 18, 2026
+
+Live matches and replays share small numbered footballers with shirts, shorts,
+boots, contrasting keeper kits, and a restrained YOU marker. Saved player/team
+colors and keeper colors are respected. The previous metallic disc bevel and
+gloss are removed. Artwork still scales with Size, using the same existing hit
+targets and physics positions; it adds no idle animation or extra frame loop.

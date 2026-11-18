@@ -107,10 +107,18 @@ def run(args):
     from werkzeug.serving import make_server
     import app as application
 
+    class QuietHandler(SimpleHTTPRequestHandler):
+        def log_message(self, *args):
+            pass
+
     logging.getLogger("werkzeug").setLevel(logging.ERROR)
     server = make_server("127.0.0.1", 0, application.app, threaded=True)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     base = f"http://127.0.0.1:{server.server_port}"
+    static_server = ThreadingHTTPServer(("127.0.0.1", 0), partial(
+        QuietHandler, directory=str(ROOT / "projects/metro-motion/web")))
+    threading.Thread(target=static_server.serve_forever, daemon=True).start()
+    static_base = f"http://127.0.0.1:{static_server.server_port}"
     output = args.screenshots or Path(tempfile.gettempdir()) / ('agent-soccer-metro-motion-qa' + (f'-{args.channel}' if args.channel else ''))
     output.mkdir(parents=True, exist_ok=True)
     report = {"checks": [], "errors": [], "failedAssets": [], "external": [], "artifacts": str(output),
@@ -136,7 +144,7 @@ def run(args):
         return page
 
     def ready(page):
-        response = page.goto(base + "/metro-motion/", wait_until="networkidle", timeout=60000)
+        response = page.goto(static_base + "/", wait_until="networkidle", timeout=60000)
         page.wait_for_function("window.__metroMotion?.state", timeout=15000)
         return response
 
@@ -164,10 +172,13 @@ def run(args):
             context = browser.new_context(viewport={"width": 1440, "height": 1000})
             context.add_init_script(CAMERA_HARNESS)
             page = page_for(context)
+            route_response = page.request.get(base + "/metro-motion/", max_redirects=0)
+            check("Runner is not exposed through the soccer app", route_response.status == 302
+                  and route_response.headers.get("location", "").endswith("/hub/play"))
             response = ready(page)
-            check("Public runner loads without a soccer login", response.status == 200)
-            private_response = page.request.get(base + '/metro-motion/%2e%2e/README.md')
-            check("Runner route cannot serve files outside its public directory", private_response.status == 404)
+            check("Standalone runner loads without a soccer login", response.status == 200)
+            private_response = page.request.get(static_base + "/README.md")
+            check("Standalone server cannot serve files outside its public directory", private_response.status == 404)
             check("Camera stays off until explicitly requested", page.evaluate("__cameraQA.calls.length===0"))
             check("Game provides a labelled canvas and keyboard start", bool(page.locator('#runner-canvas').get_attribute('aria-label'))
                   and page.locator('#keyboard-start').is_enabled())
@@ -382,31 +393,27 @@ def run(args):
                       and model_result['person']['visible'] >= 20, model_result.get('person'))
             model_context.close()
             # Exercise the documented standalone command's stdlib HTTP server.
-            class QuietHandler(SimpleHTTPRequestHandler):
-                def log_message(self, *args):
-                    pass
-            static_server = ThreadingHTTPServer(('127.0.0.1', 0), partial(QuietHandler,
-                directory=str(ROOT / 'projects/metro-motion/web')))
-            threading.Thread(target=static_server.serve_forever, daemon=True).start()
+            standalone = None
             try:
                 standalone = browser.new_context(viewport={"width": 900, "height": 800})
                 static_page = page_for(standalone)
-                static_page.goto(f'http://127.0.0.1:{static_server.server_port}/')
+                static_page.goto(static_base + "/")
                 static_page.wait_for_function('window.__metroMotion?.state')
                 check("Standalone HTTP server loads without Flask or club-only navigation", not static_page.locator('.back-link').is_visible())
                 static_page.locator('#keyboard-start').click()
                 running(static_page)
                 static_page.keyboard.press('ArrowLeft')
                 check("Standalone project runs and accepts actual keyboard input", state(static_page)['lane'] == -1)
-                standalone.close()
             finally:
-                static_server.shutdown()
-                static_server.server_close()
+                if standalone is not None:
+                    standalone.close()
             check("All requested local assets load", not report['failedAssets'], report['failedAssets'])
             check("Runner and real ML smoke need no external requests", not report['external'], report['external'])
             check("No browser JavaScript exceptions", not report['errors'], report['errors'])
             browser.close()
     finally:
+        static_server.shutdown()
+        static_server.server_close()
         server.shutdown()
         (output / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     return report

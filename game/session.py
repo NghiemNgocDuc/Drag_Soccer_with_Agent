@@ -87,6 +87,10 @@ def push_snapshot(state: dict) -> None:
     if state.get("sport") == "basketball":
         for key in ("possession", "last_points"):
             snap[key] = copy.deepcopy(state.get(key))
+    for side in ("a", "b"):
+        key = "player_plan_progress_" + side
+        if key in state:
+            snap[key] = copy.deepcopy(state[key])
     state["snapshots"].append(snap)
     if len(state["snapshots"]) > 30:
         state["snapshots"].pop(0)

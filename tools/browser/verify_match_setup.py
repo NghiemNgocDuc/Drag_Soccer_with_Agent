@@ -109,7 +109,12 @@ def run():
 
     try:
         with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True, args=['--disable-webgl'])
+            try:
+                browser = playwright.chromium.launch(headless=True, args=['--disable-webgl'])
+            except Exception as exc:
+                if "Executable doesn't exist" not in str(exc):
+                    raise
+                browser = playwright.chromium.launch(channel='chrome', headless=True, args=['--disable-webgl'])
             context = browser.new_context(viewport={'width': 1440, 'height': 1100}, reduced_motion='reduce')
             page = context.new_page()
             page.on('pageerror', lambda error: report['errors'].append(str(error)))

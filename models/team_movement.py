@@ -15,6 +15,7 @@ from models.soccer_logic import (
 )
 from models.team_support import distance, path_clear
 from models.team_roles import role_target
+from models.player_plans import plan_target
 
 MAX_SUPPORT_TRAVEL = 120.0
 MAX_KEEPER_TRAVEL = 45.0
@@ -63,13 +64,16 @@ def support_moves(state, kicker_idx, angle, power, kicking_side):
                 side and state.get('game_mode') == 'hvai' and index == human_player_index(state)):
                 continue
             radius, braking, velocity = profiles[side, index]
-            destination = role_target(state, side, index, focus, radius=radius)
+            authored = plan_target(state, side, index)
+            destination = authored or role_target(state, side, index, focus, radius=radius)
+            if authored is not None and distance(player, destination) < 8:
+                continue
             max_travel = MAX_KEEPER_TRAVEL if index == 0 else MAX_SUPPORT_TRAVEL
             obstacles = ([p for key, p in circles.items() if key != (side, index)]
                          + [{'x': ball['x'], 'y': ball['y'], 'radius': material['radius']}]
                          + destinations)
             reach = min(max_travel, (cap * velocity) ** 2 / (2 * braking))
-            for sidestep in ((0,) if index == 0 else (0, -65, 65)):
+            for sidestep in ((0,) if index == 0 else (0, -35, 35) if authored is not None else (0, -65, 65)):
                 target = {'x': max(_MARGIN + radius + 8, min(FIELD_W - _MARGIN - radius - 8, destination['x'])),
                           'y': max(_MARGIN + radius + 8, min(FIELD_H - _MARGIN - radius - 8, destination['y'] + sidestep))}
                 travel = distance(player, target)

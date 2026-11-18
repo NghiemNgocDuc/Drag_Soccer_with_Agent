@@ -208,7 +208,7 @@ def main():
             ready(page)
             check('human controls only striker number five', page.evaluate('window.__playerControlState().selectedIndex===4 && JSON.stringify(window.__playerControlState().allowedIndices)==="[4]" && window.__pitch2D().humanPlayer.index===4'))
             check('squad guide explains all five stable jobs', page.locator('#squad-role-guide').is_visible()
-                  and page.locator('#squad-role-list li').all_text_contents() == ['#1 Goalkeeper', '#2 Defender', '#3 Defender', '#4 Support', '#5 Striker YOU'])
+                  and page.locator('#squad-role-list li').all_text_contents() == ['#1 Goalkeeper', '#2 Defender', '#3 Defender', '#4 Midfielder', '#5 Attacker YOU'])
             check('squad guide marks only the manual striker', page.locator('#squad-role-list .squad-role-you').count() == 1
                   and page.locator('#squad-role-list li').last.locator('.squad-role-you').inner_text() == 'YOU')
             page.screenshot(path=str(out / 'striker.png'), full_page=True)
@@ -232,7 +232,7 @@ def main():
             check('all ten players remain visible throughout AI cycle', page.evaluate('window.__rosterQA.frames>0 && window.__rosterQA.invalid===0'))
             check('support and defensive players animate during the human kick', page.evaluate('window.__rosterQA.support && window.__rosterQA.defense'))
             check('control returns to striker', page.evaluate('window.__playerControlState().selectedIndex===4 && window.__pitch2D().humanPlayer.index===4'))
-            check('squad jobs stay unchanged after the complete turn', page.locator('#squad-role-list li').all_text_contents() == ['#1 Goalkeeper', '#2 Defender', '#3 Defender', '#4 Support', '#5 Striker YOU'])
+            check('squad jobs stay unchanged after the complete turn', page.locator('#squad-role-list li').all_text_contents() == ['#1 Goalkeeper', '#2 Defender', '#3 Defender', '#4 Midfielder', '#5 Attacker YOU'])
 
             page.goto(base + '/__2d/login/retry?mode=hvai')
             ready(page)

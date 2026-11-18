@@ -358,9 +358,12 @@ HOME_A: list[tuple[float, float]] = _home_positions(PLAYER_COUNT, "a")
 HOME_B: list[tuple[float, float]] = _home_positions(PLAYER_COUNT, "b")
 
 def _reset_players(state: dict) -> None:
+    from models.player_plans import reset_progress
+    reset_progress(state)
     cnt = state.get("player_count", PLAYER_COUNT)
-    ha = _home_positions(cnt, "a", state.get("formation_a"))
-    hb = _home_positions(cnt, "b", state.get("formation_b"))
+    from models.custom_lineup import home_positions
+    ha = home_positions(state, "a")
+    hb = home_positions(state, "b")
     old_a = state.get("players_a", [])
     old_b = state.get("players_b", [])
     state["players_a"] = [
@@ -376,7 +379,8 @@ def _reset_outfield(state: dict, side: str) -> None:
     """Reset all outfield players (index >= 1) for one side to home positions."""
     cnt = state.get("player_count", PLAYER_COUNT)
     formation = state.get(f"formation_{side}")
-    ha = _home_positions(cnt, side, formation)
+    from models.custom_lineup import home_positions
+    ha = home_positions(state, side)
     players = state["players_a"] if side == "a" else state["players_b"]
     for i in range(1, len(players)):
         if i < len(ha):
@@ -1207,6 +1211,9 @@ def apply_kick(
         f"Team {player_label} player {player_idx}: "
         f"angle={round(angle_deg)}{chr(176)} power={round(power)}{scored_text}{miss_text}"
     )
+
+    from models.player_plans import advance_plans
+    advance_plans(state, traj_out)
 
     #  Score handling 
     if scored == "A":

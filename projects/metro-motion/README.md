@@ -8,10 +8,8 @@ with its own game state and local best score.
 
 ## Run it
 
-With the existing Flask app running, open **`/metro-motion/`**. The runner is
-public and does not require an Agent Soccer account.
-
-You can also serve the standalone project from the repository root:
+This standalone project is not exposed through the Agent Soccer Flask app. Serve
+its public web directory from the repository root:
 
 ```sh
 python -m http.server 8080 --bind 127.0.0.1 --directory projects/metro-motion/web
@@ -49,7 +47,8 @@ tracking cannot initialize.
 
 ## Motion Lab: train your own movement model
 
-Choose **Open Motion Lab** in the runner or open `/metro-motion/motion-lab.html`.
+Choose **Open Motion Lab** in the runner or open
+`http://127.0.0.1:8080/motion-lab.html`.
 Explicitly record three-second landmark clips, review/trim their labels, and save
 them locally. Export your dataset, train the small classifier with PyTorch on
 Unity or a local CPU, then import `model.json` in the runner to compare predictions.

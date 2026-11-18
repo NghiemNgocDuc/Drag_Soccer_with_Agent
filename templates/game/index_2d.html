@@ -90,23 +90,25 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
 <link rel="stylesheet" href="/static/css/model-picker.css">
 <link rel="stylesheet" href="/static/css/playstyle-control.css">
 <link rel="stylesheet" href="/static/css/match-setup.css">
+<link rel="stylesheet" href="/static/css/tactics-board.css">
 <link rel="stylesheet" href="/static/css/online-lobby.css">
+<link rel="stylesheet" href="/static/css/matchday.css">
 </head>
-<body class="as-app as-game as-flick-game">
+<body class="as-app as-game as-flick-game as-matchday">
 <div class="flash-msg" id="flash-msg"></div>
 {{ app_nav('play') }}
 <main class="as-main" id="as-content">
-  {{ page_header('Flick sports','Pull back. Let it fly.','Choose soccer or basketball. Drag a player backward, then release. A longer pull hits harder.','/customize','Team & stadium') }}
+  {{ page_header('Match centre','Read the pitch. Make your move.','Five-a-side soccer, with every kick resolved by physics.','/customize','Build your squad') }}
   <div id="online-bar" style="display:none">
     <span id="online-match-label"></span>
     <div class="online-connection"><span id="online-connection-status" role="status" aria-live="polite">Connecting…</span><button id="online-retry-btn" class="btn btn-ghost btn-sm" type="button" onclick="retryOnlineConnection()" hidden>Reconnect</button></div>
   </div>
   <form id="match-setup" class="match-setup" hidden aria-labelledby="match-setup-title">
     <header class="setup-heading">
-      <div><p class="setup-eyebrow">Before you play</p><h2 id="match-setup-title">Set your game plan.</h2><p>Choose your sport, then get your team ready.</p></div>
+      <div><p class="setup-eyebrow">Before you play</p><h2 id="match-setup-title">Set your game plan.</h2><p>Choose your formation, assign your roles, and get your team ready.</p></div>
       <span class="setup-match-tag">5-a-side · You are #5</span>
     </header>
-    <fieldset class="setup-sport-picker"><legend>Sport</legend><div id="setup-sports" class="setup-sports"></div></fieldset>
+    <fieldset class="setup-sport-picker" hidden><legend>Sport</legend><div id="setup-sports" class="setup-sports"></div></fieldset>
     <div id="setup-teams" class="setup-teams"></div>
     <footer class="setup-footer">
       <p id="match-setup-status" role="status" aria-live="polite">Loading formations…</p>
@@ -114,6 +116,10 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
     </footer>
   </form>
   <p id="match-tactics-summary" class="match-tactics-summary" hidden></p>
+  <div id="match-plan-review" hidden></div>
+  <div class="matchday-layout" id="matchday-layout">
+    <section class="matchday-stage" aria-label="Match pitch">
+      <div class="matchday-stage-heading"><div><p>THE PITCH</p><span>Live match view</span></div><span class="matchday-engine-tag">2D <i aria-hidden="true"></i> PHYSICS</span></div>
   <div id="fs-wrap" hidden>
     <div class="glass hud">
       <div class="team team-a">
@@ -164,6 +170,9 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
     </div>
     <p class="player-control-help" id="player-control-help">Pull a player back and release to kick, or set direction and power here. On the pitch: <kbd>←</kbd> <kbd>→</kbd> aim, <kbd>↑</kbd> <kbd>↓</kbd> power, <kbd>Q</kbd> switch, <kbd>Enter</kbd> kick, <kbd>Esc</kbd> cancel.</p>
   </section>
+    </section>
+    <aside class="matchday-desk" aria-label="Match desk">
+      <div class="matchday-desk-heading"><p>THE TOUCHLINE</p><span>Manage the match around the pitch.</span></div>
   <div id="voice-controls" aria-label="Voice chat" style="display:none">
   <!-- Voice chat (1v1 online only) -->
   <button id="voice-btn" onclick="voiceToggle()" title="Enable voice chat (microphone)"> Voice</button>
@@ -220,6 +229,8 @@ body.as-app.as-game :is(#voice-btn,#voice-panel){position:static;inset:auto;tran
   </div></section>
 
   <div class="glass log-panel" id="log-panel" role="log" aria-label="Match events" aria-live="polite"></div>
+    </aside>
+  </div>
 
   <!-- Online match lobby -->
   <div class="online-modal" id="online-lobby">
@@ -1911,7 +1922,7 @@ function updateSquadRoles(){
   if(stamp===squadRoleStamp)return;
   squadRoleStamp=stamp;
   document.getElementById('squad-role-title').textContent=title;
-  const names={goalkeeper:'Goalkeeper',defender:'Defender',support:'Support',attacker:'Striker'};
+  const names={goalkeeper:'Goalkeeper',defender:'Defender',support:'Midfielder',attacker:'Attacker'};
   const fragment=document.createDocumentFragment();
   roles.forEach((role,index)=>{
     const item=document.createElement('li'),number=document.createElement('strong');

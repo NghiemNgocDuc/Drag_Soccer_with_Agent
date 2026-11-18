@@ -27,6 +27,10 @@ def _layout(count, formation):
 def team_roles(state, side):
     """Return stable jobs in jersey order; five-a-side is GK, DEF, DEF, MID, FWD."""
     roster = state['players_a' if side else 'players_b']
+    from models.custom_lineup import lineup_for
+    lineup = lineup_for(state, 'a' if side else 'b')
+    if lineup:
+        return tuple(p['role'] for p in lineup)
     formation = _formation(state, side)
     return _layout(len(roster), formation)[0]
 
@@ -42,12 +46,21 @@ def role_target(state, side, index, focus, *, radius=40.0):
     Targets describe intentions. The movement planner still checks the swept
     path, limits travel and launches an ordinary physical impulse.
     """
+    from models.player_plans import plan_target
+    authored = plan_target(state, side, index)
+    if authored is not None:
+        return authored
     roster = state['players_a' if side else 'players_b']
     roles, home = _layout(len(roster), _formation(state, side))
+    from models.custom_lineup import lineup_for
+    lineup = lineup_for(state, 'a' if side else 'b')
+    if lineup:
+        roles = tuple(p['role'] for p in lineup)
+        home = tuple((p['x']*FIELD_W, p['y']*FIELD_H) for p in lineup)
     role = roles[index]
     progress = focus['x'] if side else FIELD_W - focus['x']
     across = focus['y'] - FIELD_H / 2
-    lane = (home[index][1] - FIELD_H / 2) * 2.4
+    lane = (home[index][1] - FIELD_H / 2) * (1.0 if lineup else 2.4)
     if role == 'goalkeeper':
         depth = max(85.0, min(115.0, 85.0 + progress * .025))
         target_y = max(GOAL_Y1 + radius, min(GOAL_Y2 - radius, FIELD_H / 2 + across * .35))

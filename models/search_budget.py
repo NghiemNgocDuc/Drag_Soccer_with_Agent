@@ -83,6 +83,8 @@ class SearchBudget:
         if state is not self.state or side != self.side:
             return None
         from models.playstyle import playstyle_level
+        from models.player_plans import cache_key as plans_key
+        from models.custom_lineup import cache_key as lineup_key
         ball = state["ball"]
         roster = tuple(tuple(
             (p["x"], p["y"], tuple((p.get("stats") or {}).get(k, 50)
@@ -96,7 +98,7 @@ class SearchBudget:
         )) + tuple(state.get(k) if isinstance(state.get(k), str) else None
                    for k in ("formation_a", "formation_b"))
         return (ball["x"], ball["y"], ball.get("z", 0), roster, settings,
-                playstyle_level(state, True), playstyle_level(state, False), move)
+                playstyle_level(state, True), playstyle_level(state, False), plans_key(state), lineup_key(state), move)
 
     def cached(self, state, move, side):
         self.checkpoint()

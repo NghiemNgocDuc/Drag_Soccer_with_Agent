@@ -1,12 +1,44 @@
-{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+{% from 'shared/_ui.html' import app_nav, icon with context %}
 <!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Play | Agent Soccer</title><link rel="stylesheet" href="/static/css/frontend-public.css">{% include 'shared/_ui_assets.html' %}</head>
-<body class="as-app as-public">{{ app_nav('play') }}
-<main class="as-main" id="as-content">{{ page_header('Match day','Find your next game.','Play an AI, challenge a friend, or watch the action from the stands.','/play3d','Play a match') }}
-<div class="as-grid">
-<a href="/metro-motion/" class="as-destination">{{ icon('play') }}<h2>Metro Motion</h2><p>Step, jump and duck through an endless city. Play with webcam body tracking, your keyboard, or touch controls.</p><span>Play the movement game {{ icon('arrow-right',16) }}</span></a>
-{% for href,glyph,title,description,action in [('/play3d','ball','Soccer or basketball','Choose your sport in match setup. Play Court AI or share a screen for basketball; soccer also supports online matches.','Choose a sport'),('/lobby','users','Your locker room','Check your player build and prepare for your next match.','Get ready'),('/spectate','eye','Watch live','Find active online matches and watch the next move unfold.','Find a live match'),('/playground','code','Test a new idea','Run your AI on the practice pitch and see how it plays.','Open playground'),('/arena','trophy','Let the models compete','Compare two agents or run a matchup matrix in the AI Arena.','Open the Arena'),('/match-history','clock','Review your games','Return to recorded matches and learn from your decisions.','View match history')] %}
+<title>Play | Agent Soccer</title><link rel="stylesheet" href="/static/css/frontend-public.css">{% include 'shared/_ui_assets.html' %}<link rel="stylesheet" href="/static/css/matchday.css"></head>
+<body class="as-app as-public as-play-hub">{{ app_nav('play') }}
+<main class="as-main" id="as-content">
+<section class="play-hub-hero" aria-labelledby="play-hub-title">
+  <div class="play-hub-copy">
+    <p class="play-hub-kicker">AGENT SOCCER <span>·</span> MATCH DAY</p>
+    <h1 id="play-hub-title">Read the pitch.<br><em>Make your move.</em></h1>
+    <p>Five-a-side football, built around the moment before the kick. Pick your side, set your tactics, and let physics decide what happens next.</p>
+    <div class="play-hub-actions"><a class="btn btn-primary" href="/play2d">Enter the pitch {{ icon('arrow-right',18) }}</a><a class="play-hub-watch" href="/spectate">{{ icon('eye',18) }} Watch a live match</a></div>
+    <div class="play-hub-facts" aria-label="Game highlights"><span>5 <small>per side</small></span><i></i><span>2D <small>physics</small></span><i></i><span>AI <small>your way</small></span></div>
+  </div>
+  <div class="play-hub-art">
+    <svg viewBox="0 0 520 340" role="img" aria-labelledby="hub-pitch-title hub-pitch-desc">
+      <title id="hub-pitch-title">A tactical play on the pitch</title><desc id="hub-pitch-desc">A ball moves through a five-a-side formation toward the goal.</desc>
+      <defs><linearGradient id="hub-pitch" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#1b5b4c"/><stop offset="1" stop-color="#103e35"/></linearGradient><filter id="hub-glow" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="7"/></filter></defs>
+      <rect x="10" y="12" width="500" height="316" rx="22" fill="url(#hub-pitch)" stroke="#d6b98e" stroke-opacity=".35"/>
+      <path d="M30 31h460v278H30zM260 31v278M30 111h50v118H30m460-118h-50v118h50" fill="none" stroke="#fff4e5" stroke-opacity=".38" stroke-width="2"/>
+      <circle cx="260" cy="170" r="52" fill="none" stroke="#fff4e5" stroke-opacity=".38" stroke-width="2"/>
+      <circle cx="260" cy="170" r="3" fill="#fff4e5" fill-opacity=".72"/>
+      <path d="M168 225c32-5 46-37 78-48s50 6 80-18 51-33 86-25" fill="none" stroke="#f1c992" stroke-width="3" stroke-linecap="round" stroke-dasharray="1 9"/>
+      <path d="m401 123 15 11-18 4" fill="none" stroke="#f1c992" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="168" cy="225" r="16" fill="#eabf85" opacity=".17" filter="url(#hub-glow)"/><circle cx="168" cy="225" r="10" fill="#f3cb98" stroke="#fff4e5" stroke-width="2"/>
+      <circle cx="112" cy="170" r="10" fill="#f7f1e7"/><circle cx="154" cy="105" r="10" fill="#f7f1e7"/><circle cx="154" cy="265" r="10" fill="#f7f1e7"/>
+      <circle cx="216" cy="130" r="10" fill="#f7f1e7"/><circle cx="216" cy="218" r="10" fill="#7b2943" stroke="#f7f1e7" stroke-width="2"/>
+      <circle cx="300" cy="105" r="10" fill="#e8bd89"/><circle cx="322" cy="170" r="10" fill="#e8bd89"/><circle cx="300" cy="235" r="10" fill="#e8bd89"/>
+      <circle cx="374" cy="142" r="10" fill="#e8bd89"/><circle cx="374" cy="198" r="10" fill="#e8bd89"/>
+      <rect x="456" y="136" width="20" height="68" rx="4" fill="#f0d7b6" fill-opacity=".24" stroke="#f0d7b6" stroke-opacity=".75"/>
+      <text x="44" y="58" fill="#f7f1e7" fill-opacity=".7" font-size="10" font-family="sans-serif" font-weight="700" letter-spacing="2">A MOMENT TO MAKE YOURS</text>
+    </svg>
+    <span class="play-hub-art-note">Every kick tells a story.</span>
+  </div>
+</section>
+<div class="play-hub-section-heading"><div><p>YOUR NEXT MOVE</p><h2>One pitch. Your game.</h2></div><span>Play, plan, and compete.</span></div>
+<div class="as-grid play-hub-grid" aria-label="Soccer match options">
+<a href="/play2d" class="as-destination play-destination-primary">{{ icon('ball') }}<span class="play-card-index">01 / PLAY</span><h2>Play soccer</h2><p>Five players. One ball. Take on a built-in AI opponent or challenge a friend.</p><span>Start a match {{ icon('arrow-right',16) }}</span></a>
+<a href="/play2d#match-setup" class="as-destination">{{ icon('diagram') }}<span class="play-card-index">02 / PLAN</span><h2>Your team. Your tactics.</h2><p>Place your defenders, midfielders and attackers. Draw their runs, then watch your plan unfold.</p><span>Set your game plan {{ icon('arrow-right',16) }}</span></a>
+<a href="/spectate" class="as-destination">{{ icon('eye') }}<span class="play-card-index">03 / WATCH</span><h2>Watch the next move</h2><p>Follow live soccer matches and see how other teams find space and create chances.</p><span>Watch live {{ icon('arrow-right',16) }}</span></a>
+{% for href,glyph,title,description,action in [('/lobby','users','Your locker room','Prepare your player build and bring your squad together.','Get match ready'),('/hub/compete','trophy','Play for the win','Compete in soccer tournaments and climb the rankings.','Explore competition'),('/hub/workshop','code','Build your soccer AI','Code a soccer agent, test its decisions, and improve your team.','Open the soccer workshop')] %}
 <a href="{{ href }}" class="as-destination">{{ icon(glyph) }}<h2>{{ title }}</h2><p>{{ description }}</p><span>{{ action }} {{ icon('arrow-right',16) }}</span></a>{% endfor %}
-</div><div class="as-callout"><div>{{ icon('settings',24) }}</div><div><h2>Your team. Your style.</h2><p>Balance your stats, pick your colors, and build a stadium that feels like home.</p></div><a href="/customize" class="btn btn-secondary">Customize your team</a></div></main>
+</div><div class="as-callout play-hub-callout"><div>{{ icon('settings',24) }}</div><div><h2>Your team. Your style.</h2><p>Balance your stats, pick your colors, and build a stadium that feels like home.</p></div><a href="/customize" class="btn btn-secondary">Customize your team {{ icon('arrow-right',16) }}</a></div></main>
 
 </body></html>

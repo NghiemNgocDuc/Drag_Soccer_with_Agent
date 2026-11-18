@@ -28,6 +28,8 @@ test('human versus AI selects the striker and blocks the AI turn', () => {
   assert.deepEqual(controlAccess(state({game_mode:'hvai',penalty_shootout:true})).indices,[0]);
   assert.equal(controlAccess(state({game_mode:'hvai',is_player_a:false})).canKick, false);
   assert.equal(controlAccess(state({game_mode:'aivai'})).canKick, false);
+  const custom=controlAccess(state({game_mode:'hvai',players_a:Array.from({length:5},()=>({})),custom_lineup_a:[{},{},{},{},{role:'defender'}]}));
+  assert.deepEqual(custom.indices,[4]);assert.match(custom.reason,/Defender/);
 });
 
 test('basketball lets the human move any teammate and describes current possession', () => {

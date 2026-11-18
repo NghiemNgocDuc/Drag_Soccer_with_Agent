@@ -206,13 +206,11 @@ def run():
                         page.screenshot(path=str(output / f'soccer-active-{viewport}.png'), full_page=True)
                         page.locator('[onclick="resetGame()"]').click()
                         page.locator('#match-setup').wait_for(state='visible')
-                        page.locator('input[name="setup-sport"][value="basketball"]').check()
                         page.locator('#match-start-btn').click()
-                        page.wait_for_function("window.__pitch2D?.().sport==='basketball'")
-                        check(viewport + ': real basketball court and controls load', 'First to 21' in page.locator('#game-clock').inner_text())
-                        scores(page, viewport + ' basketball')
-                        sample(page, 'basketball-active', viewport)
-                        page.screenshot(path=str(output / f'basketball-{viewport}.png'), full_page=True)
+                        page.wait_for_function("window.__pitch2D?.().sport==='soccer'")
+                        check(viewport + ': new matches remain soccer-only',
+                              page.locator('input[name="setup-sport"]').count() == 1
+                              and page.locator('input[name="setup-sport"]').input_value() == 'soccer')
                     else:
                         page.goto(base + '/login', wait_until='networkidle')
                         page.locator('#email').focus()

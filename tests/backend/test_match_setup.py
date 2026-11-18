@@ -41,6 +41,73 @@ def start_payload(**changes):
     return {"formation_a": "1-2-1", "playstyle_a": 4, **changes}
 
 
+def test_custom_positions_kickoff_roles_and_reset(setup_api):
+    from models.formations import formation_catalog
+    players=formation_catalog()[0]['positions']
+    players[1].update(role='attacker',x=.4,y=.75)
+    players[4].update(role='defender',x=.19,y=.25)
+    result=setup_api.client.post('/start_match',json=start_payload(custom_lineup_a=players))
+    assert result.status_code==200
+    state=result.get_json()
+    assert state['players_a'][1]['x']==pytest.approx(560)
+    assert state['player_roles_a'][1]=='attacker'
+    assert state['player_roles_a'][4]=='defender'
+    assert state['human_player_idx']==4
+    assert setup_api.client.post('/start_match',json=start_payload(custom_lineup_a=players)).status_code==409
+    reset=setup_api.client.post('/reset',json={}).get_json()
+    assert reset['custom_lineup_a']==state['custom_lineup_a']
+    # Explicitly returning to a preset clears custom geometry.
+    result=setup_api.client.post('/start_match',json=start_payload(custom_lineup_a=None))
+    assert result.status_code==200 and result.get_json()['custom_lineup_a'] is None
+
+
+@pytest.mark.parametrize('case',['capacity','overlap','opponent','basketball','nan'])
+def test_custom_position_api_rejects_invalid_drafts_atomically(setup_api,case):
+    from models.formations import formation_catalog
+    players=formation_catalog()[0]['positions']
+    payload=start_payload(custom_lineup_a=players);expected=400
+    if case=='capacity':players[3].update(role='defender',x=.2,y=.8)
+    elif case=='overlap':players[2]=deepcopy(players[1])
+    elif case=='opponent':payload['custom_lineup_b']=players;expected=403
+    elif case=='basketball':payload['sport']='basketball';expected=409
+    else:players[1]['x']=float('nan')
+    before=deepcopy(setup_api.box['state'])
+    result=setup_api.client.post('/start_match',json=payload)
+    assert result.status_code==expected
+    assert setup_api.box['state']==before and not setup_api.saved
+
+
+def test_drawn_instructions_commit_at_kickoff_lock_and_survive_reset(setup_api):
+    from models.player_plans import normalize_plans
+    plans = normalize_plans(None)
+    plans[1] = {"mode":"route", "points":[{"x":.25,"y":.25},{"x":.5,"y":.2}]}
+    response = setup_api.client.post('/start_match', json=start_payload(player_plans_a=plans))
+    assert response.status_code == 200
+    assert response.get_json()['player_plans_a'] == plans
+    assert response.get_json()['player_plan_progress_a'] == [0]*5
+    assert setup_api.client.post('/start_match', json=start_payload(player_plans_a=[])).status_code == 409
+    reset = setup_api.client.post('/reset', json={}).get_json()
+    assert reset['player_plans_a'] == plans and reset['match_started'] is False
+
+
+@pytest.mark.parametrize('case',['malformed','opponent','manual','basketball','hvh'])
+def test_drawn_instruction_validation_is_atomic(setup_api,case):
+    from models.player_plans import normalize_plans
+    plans = normalize_plans(None)
+    plans[1] = {"mode":"hold", "points":[{"x":.3,"y":.3}]}
+    payload = start_payload(player_plans_a=plans)
+    expected=400
+    if case=='malformed':plans[2] = {"mode":"route","points":[{"x":float('inf'),"y":.5}]}
+    elif case=='opponent':payload['player_plans_b']=plans;expected=403
+    elif case=='manual':plans[4] = {"mode":"hold","points":[{"x":.6,"y":.5}]}
+    elif case=='basketball':payload['sport']='basketball';expected=409
+    elif case=='hvh':setup_api.box['state']['game_mode']='hvh';expected=409
+    before=deepcopy(setup_api.box['state'])
+    response=setup_api.client.post('/start_match',json=payload)
+    assert response.status_code == expected
+    assert setup_api.box['state'] == before and not setup_api.saved
+
+
 def test_new_local_session_waits_for_setup_but_engine_states_do_not():
     from game.session import delete_game, get_game, new_game_state
     user_id = "dev:fresh-match-setup"
@@ -61,11 +128,35 @@ def test_catalog_describes_every_playable_five_player_formation(setup_api):
     assert response.status_code == 200
     catalog = response.get_json()
     assert catalog["default_formation"] == "2-1-1"
+    assert [sport["id"] for sport in catalog["sports"]] == ["soccer"]
     assert {item["id"] for item in catalog["formations"]} == set(FORMATIONS_5)
     for item in catalog["formations"]:
         assert item["name"] and item["description"]
         assert len(item["positions"]) == 5
         assert sum(item["rows"]) == 4
+
+
+def test_non_soccer_games_are_hidden_from_the_play_hub(setup_api):
+    response = setup_api.client.get("/hub/play")
+    assert response.status_code == 200
+    assert b"/packs" not in response.data
+    assert b"/metro-motion/" not in response.data
+    assert b"Basketball" not in response.data
+
+
+@pytest.mark.parametrize("route", ["/packs", "/metro-motion/", "/metro-motion/index.html"])
+def test_other_game_pages_return_to_the_soccer_hub(setup_api, route):
+    response = setup_api.client.get(route)
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/hub/play")
+
+
+def test_new_local_matches_reject_non_soccer_sport_atomically(setup_api):
+    before = deepcopy(setup_api.box["state"])
+    response = setup_api.client.post("/start_match", json=start_payload(sport="basketball"))
+    assert response.status_code == 409
+    assert response.get_json()["error"] == "Soccer is the only supported local sport"
+    assert setup_api.box["state"] == before and not setup_api.saved
 
 
 def test_waiting_clock_does_not_advance_when_state_is_polled(setup_api, monkeypatch):

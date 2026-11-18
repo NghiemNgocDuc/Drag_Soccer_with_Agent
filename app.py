@@ -14,7 +14,7 @@ from functools import wraps
 
 from flask import (
     Flask, jsonify, redirect, render_template,
-    request, session, url_for, flash, send_from_directory,
+    request, session, url_for, flash,
 )
 
 from config import SECRET_KEY, SITE_URL
@@ -264,6 +264,7 @@ def _awaiting_match_setup(state: dict) -> bool:
 
 def _full_state(state: dict, extra: dict | None = None) -> dict:
     from models.team_roles import team_roles
+    from models.custom_lineup import lineup_for
     from models.playstyle import playstyle_level
 
     result = {
@@ -319,6 +320,12 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "team_b_crest": state.get("team_b_crest"),
         "manager_b":   state.get("manager_b"),
         "formation_b": state.get("formation_b"),
+        "player_plans_a": state.get("player_plans_a"),
+        "custom_lineup_a": lineup_for(state, 'a'),
+        "custom_lineup_b": lineup_for(state, 'b'),
+        "player_plans_b": state.get("player_plans_b"),
+        "player_plan_progress_a": state.get("player_plan_progress_a"),
+        "player_plan_progress_b": state.get("player_plan_progress_b"),
     }
     if state.get("sport") == "basketball":
         roles = ["point_guard", "shooting_guard", "small_forward", "power_forward", "center"]
@@ -1026,6 +1033,80 @@ def index_3d():
     return render_template("game/index_2d.html", username=session.get("username", "Player"))
 
 
+@app.route("/packs")
+@login_required
+def pack_page():
+    return redirect(url_for("hub_play"))
+
+
+@app.route("/api/packs/presets")
+@login_required
+def pack_presets():
+    from games.pack_store import presets_payload
+    return jsonify(presets_payload())
+
+
+@app.route("/api/packs/preview", methods=["POST"])
+@login_required
+@rate_limited
+def pack_preview():
+    from games.pack_store import preview_pack
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object."}), 400
+    try:
+        payload = preview_pack(data)
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    response = jsonify(payload)
+    response.headers["X-Pack-Render-Ms"] = str(payload.get("elapsed_ms", ""))
+    return response
+
+
+@app.route("/api/packs/start", methods=["POST"])
+@login_required
+@rate_limited
+def pack_start():
+    from games.pack_store import start_pack
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object."}), 400
+    try:
+        return jsonify(start_pack(uid(), data))
+    except LookupError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
+@app.route("/api/packs/state")
+@login_required
+def pack_current():
+    from games.pack_store import pack_state
+    current = pack_state(uid())
+    if not current:
+        return jsonify({"active": False})
+    current["active"] = True
+    return jsonify(current)
+
+
+@app.route("/api/packs/move", methods=["POST"])
+@login_required
+@rate_limited
+def pack_move():
+    from games.pack_store import play_turn
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"error": "Request body must be a JSON object."}), 400
+    try:
+        return jsonify(play_turn(uid(), data.get("angle", 0), data.get("power", 0),
+                                 data.get("match_id"), data.get("expected_shot")))
+    except LookupError as exc:
+        return jsonify({"error": str(exc)}), 409
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 
 
 
@@ -1237,7 +1318,6 @@ def match_setup_catalog():
     return jsonify({"formations": formation_catalog(), "default_formation": DEFAULT_FORMATION_5,
                     "sports": [
                         {"id": "soccer", "name": "Soccer", "description": "Five-a-side football with goals, formations and a match clock."},
-                        {"id": "basketball", "name": "Basketball", "description": "Five-a-side arcade hoops. Score 2s and 3s; first to 21, win by two. Local play."},
                     ]})
 
 
@@ -1248,6 +1328,8 @@ def start_local_match():
     from models.formations import FORMATIONS_5, formation_id
     from models.playstyle import playstyle_level
     from models.soccer_logic import _home_positions
+    from models.player_plans import normalize_plans, reset_progress
+    from models.custom_lineup import normalize_lineup, home_positions
 
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
@@ -1261,9 +1343,38 @@ def start_local_match():
     mode = state.get("game_mode", "hvai")
     if mode not in ("hvai", "aivai", "hvh"):
         return jsonify({"error": "Setup is only available for local matches"}), 409
-    sport = data.get("sport", state.get("sport", "soccer"))
-    if not isinstance(sport, str) or sport not in ("soccer", "basketball"):
-        return jsonify({"error": "Choose soccer or basketball"}), 400
+    sport = data.get("sport", "soccer")
+    if not isinstance(sport, str) or sport != "soccer":
+        return jsonify({"error": "Soccer is the only supported local sport"}), 409
+    plan_choices = {}
+    lineup_choices = {}
+    for side in ('a', 'b'):
+        key = 'custom_lineup_' + side
+        if key not in data:
+            continue
+        if sport != 'soccer':
+            return jsonify({'error': 'Custom positions are available for soccer'}), 409
+        if mode == 'hvai' and side == 'b':
+            return jsonify({'error': 'Customize your own team only'}), 403
+        try:
+            lineup_choices[key] = normalize_lineup(data[key])
+        except (ValueError, OverflowError) as exc:
+            return jsonify({'error': str(exc)}), 400
+    for side in ("a", "b"):
+        key = "player_plans_" + side
+        if key not in data:
+            continue
+        if sport != "soccer" or mode not in ("hvai", "aivai") or not team_movement_enabled(state):
+            return jsonify({"error": "Drawn instructions are available for local soccer with AI team movement"}), 409
+        if mode == "hvai" and side == "b":
+            return jsonify({"error": "Draw instructions for your own team only"}), 403
+        try:
+            plans = normalize_plans(data[key])
+        except (ValueError, OverflowError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        if mode == "hvai" and side == "a" and plans[4]["mode"] != "auto":
+            return jsonify({"error": "Your striker follows your manual kicks; draw runs for the AI teammates"}), 400
+        plan_choices[key] = plans
     if sport != state.get("sport", "soccer"):
         # Build the other sport only after validating the draft. Keep cosmetics,
         # saved stats and opponent preferences, but use its own rules/positions.
@@ -1278,14 +1389,6 @@ def start_local_match():
         for side in ("a", "b"):
             for old, player in zip(previous["players_" + side], state["players_" + side]):
                 player.update({key: copy.deepcopy(value) for key, value in old.items() if key not in ("x", "y", "role")})
-    if sport == "basketball":
-        started = copy.deepcopy(state)
-        now = time.time()
-        started.update(match_started=True, start_time=now, turn_start_time=now)
-        save_game(user_id, started)
-        _auto_save_state(user_id, started)
-        _ph.track_game_start(user_id, mode, "basketball")
-        return jsonify(_full_state(started))
     if mode == "hvai" and any(key in data for key in ("formation_b", "playstyle_b")):
         return jsonify({"error": "You can choose tactics for your own team only"}), 403
 
@@ -1306,8 +1409,21 @@ def start_local_match():
     started = copy.deepcopy(state)
     started["sport"] = "soccer"
     started.update(choices)
+    started.update(plan_choices)
+    # Omitted/null custom positions mean the selected preset, including legacy clients.
+    for side in ('a', 'b'):
+        started.pop('custom_lineup_' + side, None)
+    started.update(lineup_choices)
+    if mode == "hvai":
+        started.pop("player_plans_b", None)
+        started.pop("player_plan_progress_b", None)
+    if mode == "hvh":
+        for side in ("a", "b"):
+            started.pop("player_plans_" + side, None)
+            started.pop("player_plan_progress_" + side, None)
+    reset_progress(started)
     for side in ("a", "b"):
-        for player, (x, y) in zip(started["players_" + side], _home_positions(5, side, choices["formation_" + side])):
+        for player, (x, y) in zip(started["players_" + side], home_positions(started, side)):
             player.update(x=float(x), y=float(y))
     now = time.time()
     started.update(match_started=True, start_time=now, turn_start_time=now)
@@ -1371,11 +1487,9 @@ def reset_game():
         data = {}
     if not isinstance(data, dict) or ("penalty_mode" in data and type(data["penalty_mode"]) is not bool):
         return jsonify({"error": "Reset options must be a JSON object with a boolean penalty_mode"}), 400
-    sport = data.get("sport", old_state.get("sport", "soccer"))
-    if not isinstance(sport, str) or sport not in ("soccer", "basketball"):
-        return jsonify({"error": "Choose soccer or basketball"}), 400
-    if data.get("penalty_mode") and sport == "basketball":
-        return jsonify({"error": "Penalty shootouts are available for soccer"}), 400
+    sport = data.get("sport", "soccer")
+    if not isinstance(sport, str) or sport != "soccer":
+        return jsonify({"error": "Soccer is the only supported local sport"}), 409
     from models.formations import FORMATIONS_5, formation_id
     for side in ("a", "b"):
         if "formation_" + side in data:
@@ -1523,6 +1637,15 @@ def reset_game():
     from models.playstyle import playstyle_level
     state["playstyle_a"] = playstyle_level(old_state, True)
     state["playstyle_b"] = playstyle_level(old_state, False)
+    if state.get("sport", "soccer") == "soccer" and not penalty_mode:
+        for side in ("a", "b"):
+            lineup_key = 'custom_lineup_' + side
+            if lineup_key in old_state:
+                state[lineup_key] = copy.deepcopy(old_state[lineup_key])
+            key = "player_plans_" + side
+            if key in old_state:
+                state[key] = copy.deepcopy(old_state[key])
+                state["player_plan_progress_" + side] = [0] * 5
     _auto_clear_state(user_id)
     save_game(user_id, state)
     if penalty_mode:
@@ -1546,6 +1669,10 @@ def undo():
     state["score_b"]     = snap["score_b"]
     state["is_player_a"] = snap["is_player_a"]
     state["kick_count"]  = snap["kick_count"]
+    for side in ("a", "b"):
+        key = "player_plan_progress_" + side
+        if key in state or key in snap:
+            state[key] = copy.deepcopy(snap.get(key, [0] * 5))
     if state.get("sport") == "basketball":
         state["possession"] = copy.deepcopy(snap.get("possession"))
         state["last_points"] = snap.get("last_points", 0)
@@ -1688,17 +1815,7 @@ def clan_detail(clan_id):
 @app.route("/metro-motion/")
 @app.route("/metro-motion/<path:filename>")
 def metro_motion(filename="index.html"):
-    """Standalone browser-local movement game; serve only its public web tree."""
-    from pathlib import Path
-    root = Path(app.root_path) / "projects" / "metro-motion" / "web"
-    response = send_from_directory(root, filename)
-    # Explicit ESM/WASM types also work on Windows MIME registries.
-    if filename.endswith(".mjs"):
-        response.mimetype = "text/javascript"
-    elif filename.endswith(".wasm"):
-        response.mimetype = "application/wasm"
-    response.headers["Permissions-Policy"] = "camera=(self), microphone=()"
-    return response
+    return redirect(url_for("hub_play"))
 
 
 @app.route("/hub/play")

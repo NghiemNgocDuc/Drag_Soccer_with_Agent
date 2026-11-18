@@ -1,4 +1,6 @@
 // Pre-match drafts stay local until one explicit kickoff request commits them.
+import { createTacticsBoard, emptyPlans } from './tactics-board.js';
+import { createLineupEditor } from './lineup-editor.js';
 export const PLAYSTYLES = [
   ['Deep defend', 'Drop deeper, stay compact and protect your goal.'],
   ['Defend', 'Keep cover behind the ball and offer safer passes.'],
@@ -27,11 +29,11 @@ function pitchPreview(formation, human) {
     return node;
   };
   shape('rect', {x:1,y:1,width:278,height:188,rx:12,fill:'#103f38'});
-  shape('path', {d:'M14 14H266V176H14Z M222 14V176 M14 60H46V130H14',stroke:'#b9d6cc','stroke-opacity':'.55','stroke-width':1.2,fill:'none'});
-  shape('circle', {cx:222,cy:95,r:27,stroke:'#b9d6cc','stroke-opacity':'.55',fill:'none'});
+  shape('path', {d:'M14 14H266V176H14Z M14 60H46V130H14',stroke:'#b9d6cc','stroke-opacity':'.55','stroke-width':1.2,fill:'none'});
+  shape('path', {d:'M266 68A27 27 0 0 0 266 122',stroke:'#b9d6cc','stroke-opacity':'.55',fill:'none'});
   for (const player of formation.positions) {
     // Expand the team's own half so the actual formation is easy to read.
-    const x = 14 + player.x * 420, y = 95 + (player.y - .5) * 520;
+    const x = 14 + player.x * 504, y = 14 + player.y * 162;
     const you = human && player.number === 5;
     if (you) shape('circle', {cx:x,cy:y,r:16,fill:'none',stroke:'#fde68a','stroke-width':2});
     shape('circle', {cx:x,cy:y,r:12,fill:player.number === 1?'#fbbf24':'#d9f5f7',stroke:'#071e25','stroke-width':1.5});
@@ -42,7 +44,7 @@ function pitchPreview(formation, human) {
   return svg;
 }
 
-export function createMatchSetup({getState, getOnline, blockedReason, onStart}) {
+export function createMatchSetup({getState, getOnline, blockedReason, onStart, createBoard=createTacticsBoard, createLineup=createLineupEditor}) {
   const root = document.getElementById('match-setup');
   const teams = document.getElementById('setup-teams');
   const summary = document.getElementById('match-tactics-summary');
@@ -50,19 +52,25 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
   const status = document.getElementById('match-setup-status');
   const retry = document.getElementById('match-setup-retry');
   const sportOptions = document.getElementById('setup-sports');
+  const review = document.getElementById('match-plan-review');
   let catalog = [], loading = false, saving = false, error = '', stamp = '', built = '';
   let sports = [], sportDraft = 'soccer', sportStamp = '';
   let drafts = {}, panels = new Map();
+  let planDrafts = {a:emptyPlans(),b:emptyPlans()}, planStamp='';
+  let reviewStamp='';
+  let lineupDrafts={a:null,b:null};
 
   function formationFor(value) { return catalog.find(item => item.id === value) || catalog[0]; }
+  function withLineup(formation,lineup){return lineup?{...formation,positions:lineup.map((p,i)=>({...p,number:i+1}))}:formation;}
   function refreshPanel(side) {
     const panel = panels.get(side), draft = drafts[side];
     if (!panel || !draft) return;
-    const formation = formationFor(draft.formation);
+    const formation = withLineup(formationFor(draft.formation),lineupDrafts[side]);
+    panel.board?.setFormation(formation);
     for (const input of panel.forms) input.checked = input.value === draft.formation;
     for (const input of panel.styles) input.checked = Number(input.value) === draft.level;
     panel.preview.replaceChildren(pitchPreview(formation, side === 'a' && getState().game_mode === 'hvai'));
-    panel.roles.textContent = formation.positions.map(p => `#${p.number} ${p.role === 'attacker'?'Striker':p.role === 'support'?'Support':p.role === 'defender'?'Defender':'Keeper'}`).join(' · ');
+    panel.roles.textContent = formation.positions.map(p => `#${p.number} ${p.role === 'attacker'?'Attacker':p.role === 'support'?'Midfielder':p.role === 'defender'?'Defender':'Keeper'}`).join(' · ');
     panel.style.dataset.level = String(draft.level);
     panel.name.textContent = PLAYSTYLES[draft.level-1][0];
     panel.help.textContent = PLAYSTYLES[draft.level-1][1];
@@ -100,9 +108,11 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
         const copy = text('span', '', 'setup-formation-copy');
         copy.append(text('strong', formation.id + ' · ' + formation.name), text('small', formation.description));
         label.append(input,copy); field.append(label); forms.push(input);
-        input.addEventListener('change',()=>{drafts[side].formation=input.value;refreshPanel(side);});
+        input.addEventListener('change',()=>{drafts[side].formation=input.value;lineupDrafts[side]=null;panels.get(side)?.lineup?.setFormation(formationFor(input.value));refreshPanel(side);});
       }
       layout.append(visual,field); panel.append(layout);
+      const lineup=createLineup({side,formation:formationFor(drafts[side].formation),lineup:lineupDrafts[side],human:side==='a'&&getState().game_mode==='hvai',onChange:value=>{lineupDrafts[side]=value;refreshPanel(side);}});
+      panel.append(lineup.root);
       const style = text('fieldset','','playstyle-control setup-playstyle');
       style.hidden = getState().game_mode === 'hvh';
       style.append(text('legend','Playstyle'));
@@ -117,7 +127,13 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
       const copy=text('div','','playstyle-copy'),name=text('strong',''),help=text('p','');
       help.id=`setup-playstyle-help-${side}`;style.setAttribute('aria-describedby',help.id);
       copy.append(name,help);style.append(track,ends,copy);panel.append(style);teams.append(panel);
-      panels.set(side,{forms,styles,preview,roles,style,name,help});refreshPanel(side);
+      let board=null;
+      if(getState().game_mode!=='hvh' && getState().team_movement!==false){
+        board=createBoard({side,formation:formationFor(drafts[side].formation),plans:planDrafts[side],
+          human:side==='a'&&getState().game_mode==='hvai',onChange:plans=>{planDrafts[side]=plans;}});
+        panel.append(board.root);
+      }
+      panels.set(side,{forms,styles,preview,roles,style,name,help,board,lineup});refreshPanel(side);
     }
   }
 
@@ -128,17 +144,41 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
     document.getElementById('fs-wrap').hidden=!state || pending;
     document.getElementById('player-controls').hidden=!state || pending;
     summary.hidden=!state || pending || online || !!state.penalty_shootout;
+    if(review){
+      const sides=state?.game_mode==='hvai'?['a']:['a','b'];
+      const planned=sides.filter(side=>Array.isArray(state?.['player_plans_'+side])&&state['player_plans_'+side].some(p=>p.mode!=='auto'));
+      review.hidden=!state||pending||online||state.sport==='basketball'||state.penalty_shootout||!planned.length;
+      if(!review.hidden&&catalog.length){
+        const key=JSON.stringify(planned.map(side=>[side,state['formation_'+side],state['custom_lineup_'+side],state['player_plans_'+side]]));
+        if(key!==reviewStamp){
+          reviewStamp=key;review.replaceChildren();
+          for(const side of planned){
+            const board=createBoard({side,formation:withLineup(formationFor(state['formation_'+side]),state['custom_lineup_'+side]),plans:state['player_plans_'+side],human:side==='a'&&state.game_mode==='hvai',onChange:()=>{}});
+            board.root.querySelector('summary').textContent=`Team ${side.toUpperCase()} · saved movement plan`;
+            board.setReadOnly();review.append(board.root);
+          }
+        }
+      }
+    }
     if (!summary.hidden) {
       const sides=state.game_mode==='hvai'?['a']:['a','b'];
-      summary.textContent=state.sport === 'basketball' ? 'Basketball · 2 / 3 point baskets · First to 21, win by 2 · Choose a sport with New Game.' : sides.map(side=>`${state.game_mode==='hvai'?'Your team':'Team '+side.toUpperCase()}: ${state['formation_'+side] || '2-1-1'}${state.game_mode==='hvh'?'':' · '+PLAYSTYLES[(state['playstyle_'+side]||3)-1]?.[0]}`).join('  /  ')+' · Choose new tactics with New Game.';
+      summary.textContent=state.sport === 'basketball' ? 'Basketball · 2 / 3 point baskets · First to 21, win by 2 · Choose a sport with New Game.' : sides.map(side=>`${state.game_mode==='hvai'?'Your team':'Team '+side.toUpperCase()}: ${state['custom_lineup_'+side] ? 'Custom '+['defender','support','attacker'].map(role=>state['custom_lineup_'+side].filter(p=>p.role===role).length).join('-') : state['formation_'+side] || '2-1-1'}${state.game_mode==='hvh'?'':' · '+PLAYSTYLES[(state['playstyle_'+side]||3)-1]?.[0]}`).join('  /  ')+' · Choose new tactics with New Game.';
     }
-    if (!pending) { stamp=''; built=''; sportStamp=''; return; }
+    if (!pending) { stamp=''; built=''; sportStamp=''; planStamp=''; return; }
     const nextStamp=[state.start_time,state.sport,state.game_mode,state.formation_a,state.formation_b,state.playstyle_a,state.playstyle_b].join(':');
     if (stamp!==nextStamp && catalog.length) {
       stamp=nextStamp; built='';error='';
       // Mode changes rebuild the team panels within the same setup. Keep its
       // unsaved sport choice until a new match/reset establishes another draft.
       const nextSportStamp=[state.start_time,state.sport].join(':');
+      if(planStamp!==nextSportStamp){
+        for(const side of ['a','b']){
+          const saved=state['player_plans_'+side];
+          planDrafts[side]=Array.isArray(saved)&&saved.length===5?structuredClone(saved):emptyPlans();
+          lineupDrafts[side]=state['custom_lineup_'+side]?structuredClone(state['custom_lineup_'+side]):null;
+        }
+        planStamp=nextSportStamp;
+      }
       if(sportStamp!==nextSportStamp){
         sportDraft=sports.some(sport=>sport.id===state.sport)?state.sport:'soccer';
         sportStamp=nextSportStamp;
@@ -155,6 +195,8 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
     root.setAttribute('aria-busy',String(saving||loading));
     for (const input of teams.querySelectorAll('input')) input.disabled=disabled;
     for (const input of sportOptions.querySelectorAll('input')) input.disabled=disabled;
+    for (const panel of panels.values()) panel.board?.setDisabled(disabled);
+    for (const panel of panels.values()) panel.lineup?.setDisabled(disabled);
     start.disabled=disabled;start.textContent=saving?'Starting match…':'Start match';
     retry.hidden=!!catalog.length||loading;retry.disabled=saving||!!reason;
     status.textContent=saving?'Starting your match…':error||reason||(loading?'Loading sports and formations…':sportDraft==='basketball'?'Your sport choice applies when you start. Basketball has no match clock.':'Your choices apply at kickoff. The clock is stopped until you start.');
@@ -187,8 +229,15 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart}) 
     if(start.disabled||saving||getState()?.match_started!==false)return;
     const payload={sport:sportDraft};
     if(sportDraft==='soccer'){
+      payload.custom_lineup_a=lineupDrafts.a;
+      if(getState().game_mode!=='hvai')payload.custom_lineup_b=lineupDrafts.b;
       Object.assign(payload,{formation_a:drafts.a.formation,playstyle_a:drafts.a.level});
       if(getState().game_mode!=='hvai')Object.assign(payload,{formation_b:drafts.b.formation,playstyle_b:drafts.b.level});
+      if(getState().game_mode!=='hvh'&&getState().team_movement!==false){
+        payload.player_plans_a=structuredClone(planDrafts.a);
+        if(getState().game_mode==='hvai')payload.player_plans_a[4]={mode:'auto',points:[]};
+        else payload.player_plans_b=structuredClone(planDrafts.b);
+      }
     }
     saving=true;error='';sync();
     try{await onStart(payload);}

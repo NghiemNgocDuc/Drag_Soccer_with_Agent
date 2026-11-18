@@ -8,13 +8,9 @@
 
 The interface uses a [warm cream and burgundy theme](docs/frontend-theme.md) across public pages, match controls, workshops, competition, social and account views.
 
-**Third game: [Metro Motion](projects/metro-motion/README.md).** Open `/metro-motion/` for an original endless runner controlled by stepping, jumping and ducking in front of a webcam. Keyboard/touch play also works. This separate, browser-local project lives in `projects/metro-motion/` and can run without Flask; camera frames are processed on-device.
+**Draw your soccer tactics:** Before kickoff, customize starting positions in Defender, Midfielder and Attacker groups (at most two players each, plus a separate keeper), then open **Draw player instructions** to sketch runs or mark hold positions for AI teammates. Players follow these off-ball plans through real physics across kicks. Choices stay fixed during the match; New Game lets you edit them. See [drawn tactics and controls](docs/drawn-soccer-tactics.md).
 
-**Motion Lab:** Record and review labeled body-coordinate clips at `/metro-motion/motion-lab.html`, train a personal movement classifier with the [Unity/PyTorch workflow](projects/metro-motion/training/README.md), and compare its predictions in the runner. No human-trained model ships yet; recording is explicit and local.
-
-**Basketball is also available in local play.** Choose Basketball in pre-match setup for five-a-side arcade hoops against Court AI, local two-player games, or AI vs AI. Score two- and three-point baskets; first to 21 wins by two. Soccer remains the default sport. See [basketball controls and rules](docs/basketball.md).
-
-**AI learning from online games:** completed qualifying soccer matches feed a bounded training corpus. Learned updates must pass whole-match holdout validation and physical scenario checks before they advise live tactics. Basketball has a separate stat-aware court policy. See [online AI learning](docs/online-ai-learning.md) for evidence requirements, status and operation.
+**AI learning from online games:** completed qualifying soccer matches feed a bounded training corpus. Learned updates must pass whole-match holdout validation and physical scenario checks before they advise live tactics. See [online AI learning](docs/online-ai-learning.md) for evidence requirements, status and operation.
 
 [Quick start](#quick-start) · [How to play](#how-to-play) · [Online play](#play-online) · [Build an agent](#build-an-agent) · [Documentation](#documentation) · [Demo](https://drag-soccer-with-agent.onrender.com/)
 
@@ -27,7 +23,7 @@ The interface uses a [warm cream and burgundy theme](docs/frontend-theme.md) acr
 | | Experience |
 | --- | --- |
 | **Play** | Five players per team. Control your striker against AI, take turns locally, or watch AI vs AI. Pull back, aim, and release. |
-| **Plan** | Choose one of four formations and a five-level AI playstyle before kickoff. Players keep distinct defensive, support, and attacking jobs. |
+| **Plan** | Choose one of four formations, customize starting positions, and draw runs or hold instructions before kickoff. |
 | **Build** | Write Python in the AI Playground, validate your strategy, save custom models, and work through seven guided lessons. |
 | **Customize** | Allocate player stats, choose formations and kits, and change pitch, ball, keeper, and referee colors. |
 | **Compete** | Compare agents in the Arena, run tournaments, submit models to the model leaderboard, or play ranked human matches. |
@@ -84,12 +80,12 @@ cp .env.example .env
 DEV_MODE=1 python app.py
 ```
 
-Open **[localhost:5000](http://localhost:5000)**. Choose **Log in → Try the demo account → Use demo details → Sign in**, then open the Workshop to create an agent. Keep optional integration keys empty for a standalone local session.
+To try the hosted app, open the **[live demo](https://drag-soccer-with-agent.onrender.com/)**. For local development, open **[localhost:5000](http://localhost:5000)**. Choose **Log in → Try the demo account → Use demo details → Sign in**, then open the Soccer AI workshop to create an agent. Keep optional integration keys empty for a standalone local session.
 
 ## How to play
 
 1. Open **Play** and choose Human vs AI, Human vs Human, or AI vs AI.
-2. Choose **Soccer** or **Basketball**. Soccer offers a **formation** and, for AI matches, a **playstyle**. Basketball shows its court rules and controls.
+2. Choose a **formation** and, for AI matches, a **playstyle**. You can also customize starting positions and draw instructions for your squad.
 3. Select **Start match**. The clock stays at **00:00** until kickoff.
 4. Pull an eligible player backward and release to launch it, or use the direction and power controls.
 
