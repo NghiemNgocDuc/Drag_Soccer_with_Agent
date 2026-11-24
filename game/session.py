@@ -32,13 +32,9 @@ def new_game_state(
     referee_name: str | None = None,
     sport: str = "soccer",
 ) -> dict:
-    if sport not in ("soccer", "basketball"):
-        raise ValueError("Choose soccer or basketball")
-    factory = new_soccer_state
-    if sport == "basketball":
-        from models.basketball_logic import new_basketball_state
-        factory = new_basketball_state
-    return factory(
+    if sport != "soccer":
+        raise ValueError("Only soccer is supported")
+    return new_soccer_state(
         mode=mode, model_b=model_b, model_a=model_a,
         player_count=player_count,
         half_length=half_length,
@@ -54,7 +50,7 @@ def get_game(user_id: str) -> dict:
     raw = r.get(f"game:{user_id}")
     if raw:
         data = json.loads(raw)
-        if "ball" in data:   # valid soccer state
+        if "ball" in data and data.get("sport", "soccer") == "soccer":
             return _backfill_field(data)
     from models.formations import DEFAULT_FORMATION_5
     state = new_game_state(formation_a=DEFAULT_FORMATION_5, formation_b=DEFAULT_FORMATION_5)
@@ -84,9 +80,6 @@ def push_snapshot(state: dict) -> None:
         "is_player_a": state["is_player_a"],
         "kick_count":  state.get("kick_count", 0),
     }
-    if state.get("sport") == "basketball":
-        for key in ("possession", "last_points"):
-            snap[key] = copy.deepcopy(state.get(key))
     for side in ("a", "b"):
         key = "player_plan_progress_" + side
         if key in state:

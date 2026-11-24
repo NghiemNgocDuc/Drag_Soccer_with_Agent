@@ -1,0 +1,141 @@
+/* Live soccer: the pitch owns the width; supporting tools follow the match. */
+body.as-matchday .as-nav { min-height: 58px; max-width: 1800px; padding-inline: 20px; }
+body.as-matchday .as-account .as-nav-play { display: none; }
+body.as-matchday main.as-main {
+  max-width: 1800px !important;
+  width: 100% !important;
+  padding: 14px 20px 36px !important;
+  gap: 12px !important;
+}
+body.as-matchday .matchday-layout { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+body.as-matchday .matchday-stage, body.as-matchday .matchday-desk { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+body.as-matchday .matchday-stage #fs-wrap {
+  border: 1px solid #593744 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px rgb(63 23 39 / 12%) !important;
+}
+body.as-matchday .matchday-stage .hud {
+  display: flex; flex-wrap: wrap; gap: 12px 24px;
+  min-height: 64px; padding: 10px 18px;
+  background: #351c27 !important;
+}
+body.as-matchday .match-scoreline { display: flex; align-items: center; gap: 12px; min-width: 0; }
+body.as-matchday .hud .team { flex-direction: row; min-width: 0; gap: 14px; }
+body.as-matchday .hud .team-name {
+  color: #fff5e5 !important; text-shadow: none;
+  font-size: .8rem; letter-spacing: .04em; max-width: 155px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+body.as-matchday .hud .team-a .team-name::before,
+body.as-matchday .hud .team-b .team-name::after {
+  content: ''; display: inline-block; vertical-align: -2px;
+  width: 4px; height: 15px; border-radius: 2px; background: #7dd3fc;
+}
+body.as-matchday .hud .team-a .team-name::before { margin-right: 9px; }
+body.as-matchday .hud .team-b .team-name::after { margin-left: 9px; background: #f19b91; }
+body.as-matchday .hud .team-score { font-size: 1.9rem; line-height: 1; color: #fff5e5 !important; }
+body.as-matchday .score-divider { color: #b9949f; font-size: 1.3rem; }
+body.as-matchday .hud .kick-counter {
+  margin-left: 6px; padding: 6px 10px; font-size: .85rem;
+  color: #efd4ae; border: 0; background: #4c2a38;
+}
+body.as-matchday .hud .hud-mid { flex-direction: row; flex-wrap: wrap; gap: 8px; justify-content: center; }
+body.as-matchday .hud .turn-badge {
+  padding: 7px 10px; border: 0; background: transparent; color: #e9c695;
+  font-size: .72rem; letter-spacing: .04em; box-shadow: none; animation: none;
+}
+body.as-matchday .hud .turn-badge.turn-b { color: #e3c9d2; }
+body.as-matchday .hud .turn-badge.turn-thinking { color: #f7e7d2; }
+body.as-matchday .match-hud-actions { display: flex; gap: 8px; align-items: center; }
+body.as-matchday .hud .btn {
+  min-height: 44px; padding: 8px 12px; border-radius: 7px;
+  background: #482b37 !important; border: 1px solid #684452 !important; color: #fff5e5 !important;
+  font-size: .75rem; box-shadow: none;
+}
+body.as-matchday .hud .btn:hover { background: #61404f !important; transform: none; }
+body.as-matchday #pitch-fullscreen-btn { min-height: 44px; padding: 8px 12px; }
+body.as-matchday .match-result { text-align: center; }
+body.as-matchday .match-result:has(#winner-banner[style*="display: block"]) { padding: 14px; background: #f7ecd9; }
+body.as-matchday .match-result .winner-banner { margin: 0; }
+body.as-matchday .matchday-stage .canvas-wrap { border-radius: 0; border: 0; box-shadow: none; }
+/* Width drives match scale. Small-height windows scroll rather than miniaturize players. */
+body.as-matchday .matchday-stage #pitch-container { aspect-ratio: 1552 / 1027; min-height: 0 !important; }
+body.as-matchday #captain-hint { display: none !important; }
+body.as-matchday .matchday-stage .player-controls {
+  padding: 12px 18px 16px; border: 0; border-top: 1px solid #ddcec1;
+  border-radius: 0; background: #fffaf1; box-shadow: none; backdrop-filter: none;
+}
+body.as-matchday .player-control-heading { margin-bottom: 9px; gap: 8px; }
+body.as-matchday .match-drag-hint { color: #7b2943; font-size: .78rem; font-weight: 700; }
+body.as-matchday .player-control-heading #player-control-status { font-size: .75rem; text-align: right; }
+body.as-matchday .player-control-fields {
+  grid-template-columns: minmax(180px, 1.1fr) minmax(110px, .55fr) minmax(180px, 1.4fr) auto;
+  gap: 16px; align-items: end;
+}
+body.as-matchday .player-control-field { gap: 4px; }
+body.as-matchday .player-control-field :where(input, select),
+body.as-matchday .player-picker .btn, body.as-matchday .player-control-actions .btn { min-height: 44px; border-radius: 7px; }
+body.as-matchday .player-control-actions #kick-btn { min-width: 120px; box-shadow: none !important; }
+body.as-matchday .player-control-actions #kick-btn:hover { transform: none; }
+body.as-matchday #player-select:disabled { opacity: 1; color: var(--as-muted); -webkit-text-fill-color: var(--as-muted); }
+body.as-matchday .match-disclosure { border: 1px solid #e2d5c8; border-radius: 9px; background: #fbf6ed; }
+body.as-matchday .match-disclosure > summary {
+  min-height: 48px; padding: 13px 16px; cursor: pointer;
+  color: #563543; font-size: .85rem; font-weight: 700;
+}
+body.as-matchday .match-disclosure > summary::marker { color: #986d79; font-size: .75rem; }
+body.as-matchday .match-disclosure > summary > span { margin-left: 12px; font-weight: 400; font-size: .78rem; color: #79666c; }
+body.as-matchday .match-disclosure[open] > summary { border-bottom: 1px solid #e2d5c8; }
+body.as-matchday .match-disclosure-body { display: grid; gap: 16px; padding: 18px; }
+body.as-matchday .squad-role-guide { margin: 0; }
+body.as-matchday .matchday-desk .as-control-panel {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  border: 0; border-radius: 0; box-shadow: none; background: transparent; padding: 18px; gap: 16px;
+}
+body.as-matchday .match-settings-help { grid-column: 1 / -1; margin: 0; color: var(--as-muted); font-size: .8rem; }
+body.as-matchday .matchday-desk .opponent-control { margin: 0; padding: 16px; }
+body.as-matchday .matchday-desk .controls { padding: 0; background: transparent; border: 0; box-shadow: none; align-content: start; }
+body.as-matchday .matchday-desk .pass-types { flex-wrap: wrap; }
+body.as-matchday .matchday-desk .sound-btn { font-size: .85rem; }
+body.as-matchday .match-connection-actions { display: flex; gap: 8px; order: 3; }
+body.as-matchday .matchday-desk .log-panel { margin: 0; border: 0; border-radius: 0; background: transparent; }
+body.as-matchday .matchday-layout:has(#fs-wrap[hidden]) .match-events { display: none; }
+body.as-matchday #match-tactics-summary { margin: 0; }
+body.as-matchday #bot-btn { justify-self: start; box-shadow: none !important; }
+body.as-matchday :where(.matchday-stage, .matchday-desk) :focus-visible { outline: 3px solid var(--as-focus); outline-offset: 3px; }
+body.as-matchday #fs-wrap:is(:fullscreen, .pitch-expanded) { overflow: auto; }
+body.as-matchday #fs-wrap:is(:fullscreen, .pitch-expanded) > :not(.canvas-wrap) { flex-shrink: 0; }
+body.as-matchday #fs-wrap:is(:fullscreen, .pitch-expanded) .canvas-wrap { min-height: 160px; }
+
+@media (max-width: 1000px) {
+  body.as-matchday .hud .hud-mid { margin-left: auto; }
+  body.as-matchday .match-hud-actions { margin-left: auto; }
+  body.as-matchday .player-control-fields { grid-template-columns: 1.2fr .6fr 1fr; gap: 12px; }
+  body.as-matchday .player-control-actions { grid-column: 1 / -1; justify-content: flex-end; }
+}
+@media (max-width: 620px) {
+  body.as-matchday .as-nav { min-height: 56px; padding: 8px 12px; }
+  body.as-matchday main.as-main { padding: 8px 8px 24px !important; gap: 8px !important; }
+  body.as-matchday .matchday-stage #fs-wrap { border-radius: 9px !important; }
+  body.as-matchday .matchday-stage .hud { padding: 10px; gap: 8px; }
+  body.as-matchday .match-scoreline { flex: 1; gap: 8px; }
+  body.as-matchday .hud .team { gap: 8px; }
+  body.as-matchday .hud .team-name { font-size: .68rem; max-width: 68px; }
+  body.as-matchday .hud .team-score { font-size: 1.65rem; }
+  body.as-matchday .hud .kick-counter { padding: 5px 7px; margin: 0; font-size: .75rem; }
+  body.as-matchday .hud .hud-mid { justify-content: flex-start; }
+  body.as-matchday .hud .turn-badge { padding: 5px 0; font-size: .65rem; }
+  body.as-matchday .match-hud-actions { width: 100%; justify-content: flex-end; }
+  body.as-matchday .match-hud-actions .btn { flex: 1; }
+  body.as-matchday .matchday-stage .player-controls { padding: 12px; }
+  body.as-matchday .player-control-heading { flex-direction: column; align-items: flex-start; }
+  body.as-matchday .player-control-heading #player-control-status { text-align: left; }
+  body.as-matchday .player-control-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+  body.as-matchday .player-control-field :where(input, select) { font-size: 16px; padding-inline: 8px; }
+  body.as-matchday .player-control-field:first-child { grid-column: 1 / -1; }
+  body.as-matchday .player-control-actions { justify-content: stretch; }
+  body.as-matchday .player-control-actions .btn { flex: 1; }
+  body.as-matchday .match-disclosure > summary > span { display: block; margin: 4px 0 0 14px; font-size: .75rem; }
+  body.as-matchday .matchday-desk .as-control-panel { grid-template-columns: minmax(0, 1fr); padding: 12px; }
+  body.as-matchday .match-disclosure-body { padding: 12px; }
+}

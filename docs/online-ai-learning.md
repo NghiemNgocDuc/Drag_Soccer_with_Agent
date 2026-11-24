@@ -91,7 +91,7 @@ mutations require the server's `AI_TRAINING_TOKEN` in an
 development sessions may use the endpoints without it. Anonymous callers and
 ordinary production accounts cannot mutate the shared policy.
 
-## Existing adaptive and basketball AI
+## Existing adaptive AI
 
 The Adaptive Learner no longer explores randomly during live play or defaults
 to a goalkeeper action for unseen states. Modern squads use full-roster tactics
@@ -100,17 +100,8 @@ deterministic when a usable learned row exists. The legacy offline self-play
 helper uses isolated candidate tables, symmetric delta rewards and transitions
 that include the opponent response; it is separate from online training.
 
-The basketball AI uses player power, agility, radius and the current power cap
-to select reachable defenders/rebounders, checks blocked recovery paths with
-at most three bounded predictions, avoids an under-hoop zero-power throw, and
-can retreat out of crowded contact before another steal. The reproducible
-benchmark fixes eight targeted defect cases (baseline 0/8; improved 8/8) and
-includes 48 seeded legality/physics stress scenarios. These are scenario
-results, not online basketball results.
-
 ## Verification
 
 ```powershell
-python tools/run_tests.py tests/backend/test_experience_policy.py tests/backend/test_online_learning.py tests/backend/test_learning_fitness.py tests/backend/test_adaptive_learner.py tests/backend/test_ai_search_budget.py tests/backend/test_basketball.py tests/backend/test_basketball_api.py
-python tools/benchmarks/benchmark_basketball_ai.py
+python tools/run_tests.py tests/backend/test_experience_policy.py tests/backend/test_online_learning.py tests/backend/test_learning_fitness.py tests/backend/test_adaptive_learner.py tests/backend/test_ai_search_budget.py
 ```

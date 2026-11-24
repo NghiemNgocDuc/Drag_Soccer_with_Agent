@@ -1,0 +1,33 @@
+{
+  "passed": 27,
+  "checks": [
+    "setup exposes match settings",
+    "settings collapse after kickoff",
+    "game plan starts collapsed",
+    "pitch uses at least 95 percent of desktop width",
+    "pitch starts near the top",
+    "scoreboard is compact",
+    "kick controls remain visible",
+    "kickoff selects the human player",
+    "keyboard opens settings",
+    "display settings remain reachable",
+    "roles and keyboard help remain reachable",
+    "no horizontal overflow at 390x900",
+    "pitch keeps its shape at 390x900",
+    "no horizontal overflow at 768x1024",
+    "pitch keeps its shape at 768x1024",
+    "no horizontal overflow at 1440x560",
+    "pitch keeps its shape at 1440x560",
+    "first button kick submits player five",
+    "enlarged view retains kick controls (fallback=False)",
+    "kick updates preserve the enlarged-view label (fallback=False)",
+    "new game exits enlarged view (fallback=False)",
+    "new game restores setup settings (fallback=False)",
+    "enlarged view retains kick controls (fallback=True)",
+    "kick updates preserve the enlarged-view label (fallback=True)",
+    "new game exits enlarged view (fallback=True)",
+    "new game restores setup settings (fallback=True)",
+    "no browser exceptions"
+  ],
+  "errors": []
+}

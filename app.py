@@ -269,9 +269,6 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
 
     result = {
         "sport":        state.get("sport", "soccer"),
-        "basketball":   state.get("basketball"),
-        "possession":   state.get("possession"),
-        "last_points":  state.get("last_points", 0),
         "field":        state.get("field", {"width": 1400, "height": 875}),
         "ball":         state["ball"],
         "players_a":    state["players_a"],
@@ -327,10 +324,6 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
         "player_plan_progress_a": state.get("player_plan_progress_a"),
         "player_plan_progress_b": state.get("player_plan_progress_b"),
     }
-    if state.get("sport") == "basketball":
-        roles = ["point_guard", "shooting_guard", "small_forward", "power_forward", "center"]
-        result["player_roles_a"] = roles[:len(state["players_a"])]
-        result["player_roles_b"] = roles[:len(state["players_b"])]
     result["penalty_goalkeeper_move"] = state.get("penalty_goalkeeper_move")
     result.update(match_clock(state))
     if extra:
@@ -338,8 +331,6 @@ def _full_state(state: dict, extra: dict | None = None) -> dict:
     if state.get("game_over") and state.get("game_mode") == "hvai" and not state.get("_finalized"):
         _persist_result(state)
         state["_finalized"] = True
-        if state.get("sport") == "basketball":
-            save_game(uid(), state)
     result["achievements"] = _ach_toasts()
     return result
 
@@ -357,17 +348,10 @@ def _persist_result(state: dict) -> None:
                 replay = replay[-60:]
         except Exception:
             replay = None
-        if replay and state.get("sport") == "basketball":
-            replay = [dict(move) for move in replay]
-            replay[0]["initial_score"] = {
-                side.lower(): state["score_" + side.lower()] - sum(
-                    move.get("points", 0) for move in replay if move.get("scored") == side)
-                for side in ("A", "B")
-            }
         save_game_result(
             user_id    = uid(),
-            mode       = ("basketball_" if state.get("sport") == "basketball" else "") + state.get("game_mode", "hvai"),
-            ai_model   = "basketball" if state.get("sport") == "basketball" else state.get("model_name_b", "greedy"),
+            mode       = state.get("game_mode", "hvai"),
+            ai_model   = state.get("model_name_b", "greedy"),
             winner     = winner,
             score_a    = state["score_a"],
             score_b    = state["score_b"],
@@ -375,9 +359,6 @@ def _persist_result(state: dict) -> None:
             replay     = replay,
         )
         _ph.track_game_end(uid(), state.get("game_mode", "hvai"), winner, state["score_a"], state["score_b"])
-        if state.get("sport") == "basketball":
-            _auto_clear_state(uid())
-            return
         # money: win +20, draw +5, loss +2, per goal +1, first win bonus via achievement already
         try:
             from db.money import add_coins
@@ -656,11 +637,6 @@ def _apply_move(state: dict, player_idx: int, angle: float, power: float, is_pla
         "kick_endpoint": kick_endpoint,
         "push_result":   push_result,
     }
-    if state.get("sport") == "basketball":
-        result.update(sport="basketball", points=state.get("last_points", 0))
-        recorded = state.get("move_history", [])
-        if recorded and recorded[-1].get("reset"):
-            result["reset"] = recorded[-1]["reset"]
     return result
 
 
@@ -699,9 +675,6 @@ def _allowed_ai_players(state, is_player_a, excluded_player_idx=None):
 
 def _quick_ai_move(state: dict, is_player_a: bool, allowed_players=None) -> tuple[int, float, float]:
     """Choose a legal team action immediately without speculative physics."""
-    if state.get("sport") == "basketball":
-        from models.basketball_logic import basketball_ai_move
-        return basketball_ai_move(state, is_player_a)
     from models.tactics import quick_move
     allowed = _allowed_ai_players(state, is_player_a) if allowed_players is None else allowed_players
     return quick_move(state, is_player_a, allowed)
@@ -759,12 +732,6 @@ def _get_ai_move_with_timeout(model, state, is_player_a, timeout=None, fallback_
 def _do_ai_move(state: dict, model_name: str, is_player_a: bool, excluded_player_idx: int | None = None) -> dict:
     from services.online_learning import schedule_refresh
     schedule_refresh()
-    if state.get("sport") == "basketball":
-        t0 = time.monotonic()
-        player_idx, angle, power = _quick_ai_move(state, is_player_a)
-        result = _apply_move(state, player_idx, angle, power, is_player_a)
-        result["think_ms"] = round((time.monotonic() - t0) * 1000)
-        return result
     model = _load_model(model_name)
     t0 = time.monotonic()
     fallback_info = {}
@@ -1039,77 +1006,6 @@ def pack_page():
     return redirect(url_for("hub_play"))
 
 
-@app.route("/api/packs/presets")
-@login_required
-def pack_presets():
-    from games.pack_store import presets_payload
-    return jsonify(presets_payload())
-
-
-@app.route("/api/packs/preview", methods=["POST"])
-@login_required
-@rate_limited
-def pack_preview():
-    from games.pack_store import preview_pack
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "Request body must be a JSON object."}), 400
-    try:
-        payload = preview_pack(data)
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-    response = jsonify(payload)
-    response.headers["X-Pack-Render-Ms"] = str(payload.get("elapsed_ms", ""))
-    return response
-
-
-@app.route("/api/packs/start", methods=["POST"])
-@login_required
-@rate_limited
-def pack_start():
-    from games.pack_store import start_pack
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "Request body must be a JSON object."}), 400
-    try:
-        return jsonify(start_pack(uid(), data))
-    except LookupError as exc:
-        return jsonify({"error": str(exc)}), 409
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-
-
-@app.route("/api/packs/state")
-@login_required
-def pack_current():
-    from games.pack_store import pack_state
-    current = pack_state(uid())
-    if not current:
-        return jsonify({"active": False})
-    current["active"] = True
-    return jsonify(current)
-
-
-@app.route("/api/packs/move", methods=["POST"])
-@login_required
-@rate_limited
-def pack_move():
-    from games.pack_store import play_turn
-    data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return jsonify({"error": "Request body must be a JSON object."}), 400
-    try:
-        return jsonify(play_turn(uid(), data.get("angle", 0), data.get("power", 0),
-                                 data.get("match_id"), data.get("expected_shot")))
-    except LookupError as exc:
-        return jsonify({"error": str(exc)}), 409
-    except ValueError as exc:
-        return jsonify({"error": str(exc)}), 400
-
-
-
-
-
 @app.route("/models")
 @login_required
 def list_models():
@@ -1169,7 +1065,7 @@ def human_move():
         )
     except ValueError as exc:
         return jsonify(_full_state(state, {"error": str(exc)})), 400
-    if state["game_mode"] == "hvai" and state.get("sport") != "basketball" and player_idx != human_player_index(state):
+    if state["game_mode"] == "hvai" and player_idx != human_player_index(state):
         return jsonify(_full_state(state, {"error": "You control the striker; teammates are controlled by AI"})), 400
 
     if state.get("penalty_shootout"):
@@ -1189,7 +1085,7 @@ def human_move():
         extra = {"move_result": result}
     else:
         result = _apply_move(state, player_idx, angle, power, side_a)
-        if result.get("scored") and state.get("sport") != "basketball":
+        if result.get("scored"):
             _goal_moment_achievements(result["trajectory"])
         extra = {"move_result": result}
 
@@ -1237,7 +1133,7 @@ def trigger_ai_move():
     else:
         excluded = human_player_index(state) if is_player_a and state.get("game_mode") == "hvai" else None
         result = _do_ai_move(state, model_name, is_player_a, excluded_player_idx=excluded)
-    if result.get("scored") and state.get("sport") != "basketball":
+    if result.get("scored"):
         _goal_moment_achievements(result.get("trajectory"))
     save_game(user_id, state)
     _auto_save_state(user_id, state)
@@ -1673,9 +1569,6 @@ def undo():
         key = "player_plan_progress_" + side
         if key in state or key in snap:
             state[key] = copy.deepcopy(snap.get(key, [0] * 5))
-    if state.get("sport") == "basketball":
-        state["possession"] = copy.deepcopy(snap.get("possession"))
-        state["last_points"] = snap.get("last_points", 0)
     state["game_over"]   = False
     state["winner"]      = None
     state["_finalized"]  = False
@@ -1728,7 +1621,7 @@ def get_state_route():
                 if isinstance(st, str):
                     import json
                     st = json.loads(st)
-                if not st.get("game_over"):
+                if not st.get("game_over") and st.get("sport", "soccer") == "soccer":
                     save_game(user_id, st)
         except Exception:
             pass

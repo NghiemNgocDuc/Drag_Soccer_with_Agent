@@ -182,6 +182,7 @@ def run():
             check('Selected formation changes the real roster and roles', saved['players_a'] != original['players_a']
                   and saved['player_roles_a'] == ['goalkeeper', 'defender', 'support', 'support', 'attacker'])
             check('Start begins the clock from kickoff', saved['clock_running'] is True and 0 <= saved['match_clock_seconds'] < 120)
+            page.locator('#match-guide > summary').click()
             check('Started match shows tactics summary and enables the kick', page.locator('#match-setup').is_hidden()
                   and page.locator('#match-tactics-summary').is_visible() and page.locator('#kick-btn').is_enabled())
             check('Mode cannot replace a started match', page.locator('#mode-select').is_disabled())

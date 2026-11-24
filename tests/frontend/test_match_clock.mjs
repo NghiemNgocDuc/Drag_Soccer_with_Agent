@@ -23,10 +23,3 @@ test('clock advances in whole seconds and keeps explicit untimed practice',()=>{
   assert.equal(matchClockView(base,1001234).text,'00:24');
   assert.equal(matchClockView({...base,half_length:0},1001234).text,'First to 5');
 });
-
-test('basketball shows its points target without triggering soccer period refreshes',()=>{
-  for(const match_started of [false,true]){
-    const view=matchClockView({...base,sport:'basketball',half_length:0,match_started},99999999);
-    assert.deepEqual(view,{text:'First to 21',title:'Basketball · Win by 2',due:false});
-  }
-});

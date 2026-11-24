@@ -1,7 +1,5 @@
-# Soccer-only UI preview
+# Earlier soccer-only UI preview
 
-Review draft only. The template overrides run in an isolated local server. No game files have been deleted and nothing has been pushed.
+Historical screenshots from the navigation review. The temporary template overrides and preview server were removed once the actual application adopted the design.
 
-This draft removes basketball, Metro Motion and the general game builder from navigation while retaining the soccer AI workshop and built-in soccer opponents, team customization, roles, drawn tactics, online matches, spectating, and competition.
-
-Run `python tools/browser/preview_soccer_only.py` to regenerate the screenshots.
+For the current game layout and repeatable browser checks, see [the match-focus preview](../match-focus/README.md).

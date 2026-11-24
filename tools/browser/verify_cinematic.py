@@ -126,8 +126,7 @@ def run() -> dict:
     def verify_login_motion(page, label, *, mobile=False):
         expected = {'as-login-grid-drift', 'as-login-glow-drift', 'as-login-mark-pulse'}
         if not mobile:
-            expected.update(('as-login-soccer-float', 'as-login-court-float', 'as-login-shot', 'as-login-shot-height',
-                             'as-login-shot-shadow', 'as-login-rim-pulse', 'as-login-pass', 'as-login-support'))
+            expected.update(('as-login-soccer-float', 'as-login-pass', 'as-login-support'))
         before = login_loops(page)
         before_by_name = {item['name']: item for item in before}
         check(label + ': intended decorative loops run', expected.issubset(before_by_name)
@@ -170,18 +169,8 @@ def run() -> dict:
               });
               void document.body.offsetWidth;
               loops.forEach(({target,name})=>{target.style.animationName=name;});
-              const ball=document.querySelector('[data-login-ball]'),hoop=document.querySelector('[data-login-hoop]');
-              const synchronized=loops.filter(a=>a.name.startsWith('as-login-shot') || a.name==='as-login-rim-pulse');
               const center=node=>{const b=node.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};};
-              const sample=fraction=>{
-                synchronized.forEach(({target,duration})=>{target.style.animationDelay=`${-duration*fraction}ms`;});
-                return {...center(ball),opacity:Number(getComputedStyle(ball).opacity),
-                  pulse:Number(getComputedStyle(document.querySelector('.as-login-rim-pulse')).opacity)};
-              };
-              const result={hoop:center(hoop),launch:sample(0),apex:sample(.36),rim:sample(.48),
-                scored:sample(.50),hidden:sample(.70),reset:sample(.84)};
-              result.apexTangent=[sample(.3595),sample(.36),sample(.3605)];
-              result.apexNeighborhood=[sample(.34),sample(.38)];
+              const result={};
               result.seams=loops.filter(loop=>loop.name!=='as-login-grid-drift').map(loop=>{
                 const at=fraction=>{loop.target.style.animationDelay=`${-loop.duration*fraction}ms`;
                   const style=getComputedStyle(loop.target),matrix=new DOMMatrixReadOnly(style.transform);
@@ -193,29 +182,13 @@ def run() -> dict:
               passBall.style.animationDelay='0s';result.passStart=center(passBall);
               passBall.style.animationDelay=`${-pass.duration*.60}ms`;result.passForward=center(passBall);
               passBall.style.animationDelay=`${-pass.duration}ms`;result.passReset=center(passBall);
-              sample(.48);
               return result;
             }''')
             def distance(first, second):
                 return ((first['x'] - second['x']) ** 2 + (first['y'] - second['y']) ** 2) ** .5
-            check(label + ': basketball arcs into the drawn hoop and resets unseen',
-                  shot['apex']['y'] < shot['launch']['y'] - 10
-                  and distance(shot['rim'], shot['hoop']) < 3
-                  and shot['rim']['opacity'] > .95 and shot['scored']['pulse'] > .8
-                  and shot['hidden']['opacity'] < .01 and shot['reset']['opacity'] > .95
-                  and distance(shot['launch'], shot['reset']) < 1, shot)
             check(label + ': soccer pass travels and returns to its starting player',
                   distance(shot['passStart'], shot['passForward']) > 30
                   and distance(shot['passStart'], shot['passReset']) < 1, shot)
-            incoming = {axis: shot['apexTangent'][1][axis] - shot['apexTangent'][0][axis] for axis in ('x', 'y')}
-            outgoing = {axis: shot['apexTangent'][2][axis] - shot['apexTangent'][1][axis] for axis in ('x', 'y')}
-            tangent_change = math.hypot(outgoing['x'] - incoming['x'], outgoing['y'] - incoming['y'])
-            tangent_scale = max(math.hypot(*incoming.values()), math.hypot(*outgoing.values()), .001)
-            check(label + ': shot crosses a smooth apex without a direction snap',
-                  incoming['x'] > 0 and outgoing['x'] > 0 and incoming['y'] < 0 < outgoing['y']
-                  and tangent_change / tangent_scale < .08
-                  and all(point['y'] > shot['apex']['y'] + .1 for point in shot['apexNeighborhood']),
-                  {'incoming': incoming, 'outgoing': outgoing, 'relative_tangent_change': tangent_change / tangent_scale})
             check(label + ': visible loop transforms and opacity meet at the repeat seam', all(
                 max(abs(before - after) for before, after in zip(item['before']['matrix'], item['after']['matrix'])) < .02
                 and abs(item['before']['opacity'] - item['after']['opacity']) < .002 for item in shot['seams']), shot['seams'])
@@ -248,8 +221,8 @@ def run() -> dict:
                   grid_seam['max_channel_delta'] <= 2, grid_seam)
             report['login_motion'][label + '-grid-seam'] = grid_seam
             grid.evaluate("target=>{target.style.animationDelay='0s';}")
-            page.screenshot(path=str(output / 'login-shot-at-hoop.png'), full_page=True)
-            report['login_motion'][label + '-shot'] = shot
+            page.screenshot(path=str(output / 'login-soccer-motion.png'), full_page=True)
+            report['login_motion'][label + '-soccer'] = shot
             # Exercise the real page lifecycle without our deterministic seek styles.
             ready(page, '/login')
 
@@ -438,7 +411,7 @@ def run() -> dict:
                     page.screenshot(path=str(output / f'{name}-{width}.png'), full_page=True)
             page.locator('.as-menu-toggle').click()
             check('Mobile navigation opens with animation enabled', page.locator('.as-menu-toggle').get_attribute('aria-expanded') == 'true')
-            page.get_by_label('Workshop pages', exact=True).click()
+            page.get_by_label('Soccer AI pages', exact=True).click()
             check('Mobile section links remain reachable', page.locator('.as-nav-menu[open] a[href="/my-models"]').is_visible())
             page.keyboard.press('Escape')
             page.keyboard.press('Escape')

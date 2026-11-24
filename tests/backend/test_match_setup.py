@@ -41,6 +41,44 @@ def start_payload(**changes):
     return {"formation_a": "1-2-1", "playstyle_a": 4, **changes}
 
 
+@pytest.mark.parametrize("path,method", [
+    ("presets", "get"), ("preview", "post"), ("start", "post"),
+    ("state", "get"), ("move", "post"),
+])
+def test_retired_builder_apis_are_removed(setup_api, path, method):
+    response = getattr(setup_api.client, method)("/api/packs/" + path)
+    assert response.status_code == 404
+
+
+def test_retired_live_session_returns_to_frozen_soccer_setup(monkeypatch):
+    import json
+    from game import session as sessions
+
+    retired = new_soccer_state()
+    retired.update(sport="basketball", match_started=True, score_a=17)
+    saved = []
+    monkeypatch.setattr(sessions.r, "get", lambda key: json.dumps(retired))
+    monkeypatch.setattr(sessions, "save_game", lambda user, state: saved.append(deepcopy(state)))
+    state = sessions.get_game("dev:retired")
+    assert state.get("sport", "soccer") == "soccer"
+    assert state["match_started"] is False
+    assert state["score_a"] == 0 and len(state["players_a"]) == 5
+    assert saved == [state]
+    with pytest.raises(ValueError, match="Only soccer"):
+        sessions.new_game_state(sport="basketball")
+
+
+def test_existing_soccer_session_is_preserved(monkeypatch):
+    import json
+    from game import session as sessions
+
+    active = new_soccer_state()
+    active.update(match_started=True, score_a=3)
+    monkeypatch.setattr(sessions.r, "get", lambda key: json.dumps(active))
+    monkeypatch.setattr(sessions, "save_game", lambda *_: pytest.fail("Existing soccer state must not be replaced"))
+    assert sessions.get_game("dev:soccer") == active
+
+
 def test_custom_positions_kickoff_roles_and_reset(setup_api):
     from models.formations import formation_catalog
     players=formation_catalog()[0]['positions']

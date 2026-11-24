@@ -142,21 +142,16 @@ def run(args) -> dict:
                 if desktop_fit:
                     check(f"{width}x900 desktop illustration is capped and its footer fits", initial["artworkMaxHeight"] == '270px' and initial["artwork"]["height"] <= 270 and initial["footer"]["bottom"] <= 900, initial)
                 sport_copy = page.locator('main').inner_text().lower()
-                check(f"{width}px visible login copy introduces both sports", 'soccer' in sport_copy and 'basketball' in sport_copy, sport_copy[:600])
-                local_basketball = page.locator('main p,main span').evaluate_all("""nodes=>nodes.filter(node=>
-                  node.checkVisibility({checkOpacity:true,checkVisibilityCSS:true})
-                  && /basketball/i.test(node.innerText) && /local/i.test(node.innerText)
-                ).map(node=>node.innerText.trim())""")
-                check(f"{width}px basketball is clearly described as local play", bool(local_basketball), local_basketball)
+                check(f"{width}px login introduces soccer only", 'soccer' in sport_copy and 'basketball' not in sport_copy and 'metro motion' not in sport_copy, sport_copy[:600])
                 art_sports = page.locator('.as-login-pitch-art [data-login-sport]').evaluate_all("nodes=>nodes.map(node=>node.dataset.loginSport)")
-                check(f"{width}px vector artwork contains soccer and basketball scenes", set(art_sports) == {'soccer', 'basketball'}, art_sports)
+                check(f"{width}px vector artwork contains the soccer scene", set(art_sports) == {'soccer'}, art_sports)
                 if desktop_fit:
                     sport_bounds = page.locator('.as-login-pitch-art [data-login-sport]').evaluate_all("""nodes=>nodes.map(node=>({
                       sport:node.dataset.loginSport,box:node.getBoundingClientRect().toJSON(),
                       geometry:node.querySelectorAll('path,rect,circle,ellipse,line,polyline,polygon,use').length
                     }))""")
                     art_box = initial['artwork']
-                    check(f"{width}px both sports are visibly drawn inside the artwork", all(
+                    check(f"{width}px soccer is visibly drawn inside the artwork", all(
                         item['geometry'] >= 3 and item['box']['width'] > 30 and item['box']['height'] > 30
                         and item['box']['x'] >= art_box['x'] - 1 and item['box']['right'] <= art_box['right'] + 1
                         and item['box']['y'] >= art_box['y'] - 1 and item['box']['bottom'] <= art_box['bottom'] + 1

@@ -30,20 +30,15 @@ SVG surrounds and shirts match the palette. Green remains meaningful in small
 success states and on the actual football turf; gameplay team colors remain
 distinct.
 
-The login page presents soccer and local basketball together. Its decorative
-boards float independently while soccer passes and a basketball shot play in
-CSS. A drifting grid and glow also give the compact mobile header motion.
-The existing Motion switch, reduced-motion preference and visibility lifecycle
-control these effects; the form stays stationary and no JavaScript frame loop
-is added. Verify with `python tools/browser/verify_cinematic.py` and
-`python tools/browser/verify_login.py`.
+The login page presents animated soccer artwork. Decorative passing motion,
+board drift, a grid and glow use CSS; the form stays stationary. The Motion
+switch, reduced-motion preference and visibility lifecycle control these
+effects without a JavaScript frame loop. Verify with
+`python tools/browser/verify_cinematic.py` and `python tools/browser/verify_login.py`.
 
-The basketball flight separates horizontal travel and vertical height into two
-nested SVG transforms. Quadratic easing gives the rise and fall matching
-velocity at the apex, continues through the hoop, and resets only while hidden.
-Its shadow and rim feedback share one duration. Soccer passes and board drift
-use a shared symmetric easing curve. The background grid moves one complete
-tile under a stationary mask, so its wrap does not jump in brightness.
+Soccer passes and board drift use a shared symmetric easing curve. The
+background grid moves one complete tile under a stationary mask, so its wrap
+does not jump in brightness.
 Hover transitions cover both entry and release, and delayed entrances apply
 their starting state during the stagger to avoid a flash before moving.
 
@@ -51,7 +46,7 @@ This follows [web.dev's animation performance guidance](https://web.dev/articles
 to animate transforms and opacity, and [MDN's per-keyframe easing guidance](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/animation-timing-function)
 to control the flight's rise and fall independently. No blanket `will-change`
 layer hints are added; [MDN cautions against using these without evidence](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/will-change).
-The motion verifier checks the arc's velocity continuity, loop seams, stable
+The motion verifier checks loop seams, stable
 layout and pause controls. Browser frame timings are diagnostics for the test
 machine, not a frame-rate guarantee on every device.
 Chromium counts internal SVG geometry updates as layout work; the report keeps

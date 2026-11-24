@@ -61,6 +61,8 @@ def run() -> dict:
             page.wait_for_function("document.querySelectorAll('#model-select option').length >= 15")
 
     def browse(page):
+        if not page.locator('#match-options').evaluate('(element)=>element.open'):
+            page.locator('#match-options > summary').click()
         page.locator('#browse-models-btn').click()
         page.locator('#match-models-modal').wait_for(state='visible')
 

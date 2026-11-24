@@ -209,8 +209,8 @@ def run():
                         page.locator('#match-start-btn').click()
                         page.wait_for_function("window.__pitch2D?.().sport==='soccer'")
                         check(viewport + ': new matches remain soccer-only',
-                              page.locator('input[name="setup-sport"]').count() == 1
-                              and page.locator('input[name="setup-sport"]').input_value() == 'soccer')
+                              page.locator('input[name="setup-sport"]').count() == 0
+                              and page.evaluate("window.__pitch2D().sport==='soccer'"))
                     else:
                         page.goto(base + '/login', wait_until='networkidle')
                         page.locator('#email').focus()

@@ -6,6 +6,8 @@
 
 **Python · Flask · Pymunk · Canvas 2D · WebAudio**
 
+The full-width match layout keeps the pitch and kick controls prominent, with secondary settings in collapsible panels. [View the current game preview](docs/previews/match-focus/README.md).
+
 The interface uses a [warm cream and burgundy theme](docs/frontend-theme.md) across public pages, match controls, workshops, competition, social and account views.
 
 **Draw your soccer tactics:** Before kickoff, customize starting positions in Defender, Midfielder and Attacker groups (at most two players each, plus a separate keeper), then open **Draw player instructions** to sketch runs or mark hold positions for AI teammates. Players follow these off-ball plans through real physics across kicks. Choices stay fixed during the match; New Game lets you edit them. See [drawn tactics and controls](docs/drawn-soccer-tactics.md).

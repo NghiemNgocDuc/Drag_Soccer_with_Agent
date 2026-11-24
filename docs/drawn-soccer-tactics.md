@@ -20,7 +20,7 @@ including mirrored Team B positions. New Game retains the editable layout;
 **Use formation preset** or selecting a formation restores its standard lineup.
 Unsaved edits remain local to the current page. Local two-player and AI-versus-AI
 can position both teams; human-versus-AI can position its own team. Online games,
-penalties, and basketball keep their existing setup.
+and penalties keep their existing setup.
 
 The server validates `custom_lineup_a/b` atomically with kickoff: five entries in
 jersey order, normalized coordinates, one fixed keeper, at most two per outfield
@@ -61,7 +61,7 @@ they are not persisted until kickoff.
 
 In human versus AI, draw instructions for your four AI teammates. Your #5 player
 follows your kicks. In AI versus AI, both teams and all five players are editable.
-Manual-only two-player matches, online matches, penalties, and basketball do not
+Manual-only two-player matches, online matches, and penalties do not
 use this editor. The current kicker always follows its kick command; these plans
 guide off-ball movement, not passing or shooting sequences.
 
@@ -105,7 +105,7 @@ obstacles. This is a design interpretation, not a claim of trained tactical AI.
 ## Verification — November 17, 2026
 
 - Backend: 376 checks passed across player plans, match setup, search budget,
-  team movement/roles, tactical roles, playstyle, and basketball API regressions.
+  team movement/roles, tactical roles, and playstyle regressions.
   The additional blocked-route regression passed in the 22-test plan suite.
 - Frontend Node: 26 checks passed across drawing simplification, setup drafts,
   player controls, and clocks.
@@ -121,7 +121,7 @@ room, production account, GPU training job, or deployment is modified.
 
 Position-editor follow-up: 366 backend checks passed across custom positions,
 setup, formations, roles, tactics, team movement, drawn plans, prediction caches,
-and basketball APIs; 24 frontend checks passed. The custom-position browser
+and APIs; 24 frontend checks passed. The custom-position browser
 suite (`tools/browser/verify_custom_lineup.py`) passed 25 checks covering role
 capacity, drag/cancel, keyboard, touch, mirroring, persistence and responsive
 layouts. The existing drawn-tactics browser suite also passed all 28 checks,

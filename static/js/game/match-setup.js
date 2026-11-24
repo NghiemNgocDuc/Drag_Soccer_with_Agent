@@ -51,13 +51,11 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart, c
   const start = document.getElementById('match-start-btn');
   const status = document.getElementById('match-setup-status');
   const retry = document.getElementById('match-setup-retry');
-  const sportOptions = document.getElementById('setup-sports');
   const review = document.getElementById('match-plan-review');
   let catalog = [], loading = false, saving = false, error = '', stamp = '', built = '';
-  let sports = [], sportDraft = 'soccer', sportStamp = '';
   let drafts = {}, panels = new Map();
   let planDrafts = {a:emptyPlans(),b:emptyPlans()}, planStamp='';
-  let reviewStamp='';
+  let reviewStamp='', wasPending;
   let lineupDrafts={a:null,b:null};
 
   function formationFor(value) { return catalog.find(item => item.id === value) || catalog[0]; }
@@ -78,18 +76,6 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart, c
 
   function build(sides) {
     panels = new Map(); teams.replaceChildren();
-    if (sportDraft === 'basketball') {
-      const rules = text('section', '', 'setup-basketball');
-      rules.setAttribute('aria-labelledby', 'setup-basketball-title');
-      const heading = text('h3', 'Five on the court. Every player is yours.');
-      heading.id = 'setup-basketball-title';
-      rules.append(heading, text('p', 'Pull back the ball carrier to shoot or pass. Pull another player to move into space. Team A attacks right; Team B attacks left. Select players with the controls or directly on the court.'));
-      const list = text('dl', '', 'setup-basketball-rules');
-      for (const [name, description] of [['2 / 3 points', 'Score 2 inside the circular arc, or 3 from/on the arc.'], ['Play to 21', 'Reach 21 points and lead by at least 2 to win.'], ['Local play', 'Play against Court AI, share the screen, or watch two AI teams. Online matches use soccer.']]) {
-        const item = text('div', ''); item.append(text('dt', name), text('dd', description)); list.append(item);
-      }
-      rules.append(list); teams.append(rules); return;
-    }
     for (const side of sides) {
       const panel = text('section', '', 'setup-team');
       panel.id=`match-setup-team-${side}`;
@@ -140,6 +126,15 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart, c
   function sync() {
     const state=getState(), online=getOnline().active;
     const pending=!!state && state.match_started === false && !state.penalty_shootout && !online;
+    // Close secondary settings once at kickoff; later refreshes preserve the
+    // player's disclosure choice. New Game makes setup options visible again.
+    if (state && pending !== wasPending) {
+      const options=document.getElementById('match-options');
+      if(options) options.open=pending;
+      const guide=document.getElementById('match-guide');
+      if(guide) guide.open=false;
+      wasPending=pending;
+    }
     root.hidden=!pending;
     document.getElementById('fs-wrap').hidden=!state || pending;
     document.getElementById('player-controls').hidden=!state || pending;
@@ -147,7 +142,7 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart, c
     if(review){
       const sides=state?.game_mode==='hvai'?['a']:['a','b'];
       const planned=sides.filter(side=>Array.isArray(state?.['player_plans_'+side])&&state['player_plans_'+side].some(p=>p.mode!=='auto'));
-      review.hidden=!state||pending||online||state.sport==='basketball'||state.penalty_shootout||!planned.length;
+      review.hidden=!state||pending||online||state.penalty_shootout||!planned.length;
       if(!review.hidden&&catalog.length){
         const key=JSON.stringify(planned.map(side=>[side,state['formation_'+side],state['custom_lineup_'+side],state['player_plans_'+side]]));
         if(key!==reviewStamp){
@@ -162,44 +157,38 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart, c
     }
     if (!summary.hidden) {
       const sides=state.game_mode==='hvai'?['a']:['a','b'];
-      summary.textContent=state.sport === 'basketball' ? 'Basketball · 2 / 3 point baskets · First to 21, win by 2 · Choose a sport with New Game.' : sides.map(side=>`${state.game_mode==='hvai'?'Your team':'Team '+side.toUpperCase()}: ${state['custom_lineup_'+side] ? 'Custom '+['defender','support','attacker'].map(role=>state['custom_lineup_'+side].filter(p=>p.role===role).length).join('-') : state['formation_'+side] || '2-1-1'}${state.game_mode==='hvh'?'':' · '+PLAYSTYLES[(state['playstyle_'+side]||3)-1]?.[0]}`).join('  /  ')+' · Choose new tactics with New Game.';
+      summary.textContent=sides.map(side=>`${state.game_mode==='hvai'?'Your team':'Team '+side.toUpperCase()}: ${state['custom_lineup_'+side] ? 'Custom '+['defender','support','attacker'].map(role=>state['custom_lineup_'+side].filter(p=>p.role===role).length).join('-') : state['formation_'+side] || '2-1-1'}${state.game_mode==='hvh'?'':' · '+PLAYSTYLES[(state['playstyle_'+side]||3)-1]?.[0]}`).join('  /  ')+' · Choose new tactics with New Game.';
     }
-    if (!pending) { stamp=''; built=''; sportStamp=''; planStamp=''; return; }
+    if (!pending) { stamp=''; built=''; planStamp=''; return; }
     const nextStamp=[state.start_time,state.sport,state.game_mode,state.formation_a,state.formation_b,state.playstyle_a,state.playstyle_b].join(':');
     if (stamp!==nextStamp && catalog.length) {
       stamp=nextStamp; built='';error='';
       // Mode changes rebuild the team panels within the same setup. Keep its
-      // unsaved sport choice until a new match/reset establishes another draft.
-      const nextSportStamp=[state.start_time,state.sport].join(':');
-      if(planStamp!==nextSportStamp){
+      // unsaved plans and positions until a new match/reset establishes another draft.
+      const nextPlanStamp=[state.start_time,state.sport].join(':');
+      if(planStamp!==nextPlanStamp){
         for(const side of ['a','b']){
           const saved=state['player_plans_'+side];
           planDrafts[side]=Array.isArray(saved)&&saved.length===5?structuredClone(saved):emptyPlans();
           lineupDrafts[side]=state['custom_lineup_'+side]?structuredClone(state['custom_lineup_'+side]):null;
         }
-        planStamp=nextSportStamp;
-      }
-      if(sportStamp!==nextSportStamp){
-        sportDraft=sports.some(sport=>sport.id===state.sport)?state.sport:'soccer';
-        sportStamp=nextSportStamp;
+        planStamp=nextPlanStamp;
       }
       drafts=Object.fromEntries(['a','b'].map(side=>[side,{formation:formationFor(state['formation_'+side]).id,level:Number.isInteger(state['playstyle_'+side])&&state['playstyle_'+side]>=1&&state['playstyle_'+side]<=5?state['playstyle_'+side]:3}]));
     }
     const sides=state.game_mode==='hvai'?['a']:['a','b'];
-    document.querySelector('.setup-match-tag').textContent=sportDraft==='basketball'?'5 vs 5 · First to 21':state.game_mode==='hvai'?'5-a-side · You are #5':'5-a-side';
-    for (const input of sportOptions.querySelectorAll('input')) input.checked=input.value===sportDraft;
-    const buildStamp=stamp+':'+sportDraft;
+    document.querySelector('.setup-match-tag').textContent=state.game_mode==='hvai'?'5-a-side · You are #5':'5-a-side';
+    const buildStamp=stamp;
     if(catalog.length && built!==buildStamp){build(sides);built=buildStamp;}
     const reason=blockedReason();
     const disabled=saving||loading||!!reason||!catalog.length;
     root.setAttribute('aria-busy',String(saving||loading));
     for (const input of teams.querySelectorAll('input')) input.disabled=disabled;
-    for (const input of sportOptions.querySelectorAll('input')) input.disabled=disabled;
     for (const panel of panels.values()) panel.board?.setDisabled(disabled);
     for (const panel of panels.values()) panel.lineup?.setDisabled(disabled);
     start.disabled=disabled;start.textContent=saving?'Starting match…':'Start match';
     retry.hidden=!!catalog.length||loading;retry.disabled=saving||!!reason;
-    status.textContent=saving?'Starting your match…':error||reason||(loading?'Loading sports and formations…':sportDraft==='basketball'?'Your sport choice applies when you start. Basketball has no match clock.':'Your choices apply at kickoff. The clock is stopped until you start.');
+    status.textContent=saving?'Starting your match…':error||reason||(loading?'Loading formations…':'Your choices apply at kickoff. The clock is stopped until you start.');
     status.classList.toggle('is-error',!!error);
   }
 
@@ -211,33 +200,21 @@ export function createMatchSetup({getState, getOnline, blockedReason, onStart, c
       const data=await response.json();
       if(!response.ok||!Array.isArray(data.formations)||!data.formations.length)throw new Error('Could not load formations. Try again.');
       catalog=data.formations;
-      sports=(Array.isArray(data.sports)?data.sports:[{id:'soccer',name:'Soccer',description:'Five-a-side flick soccer.'}]).filter(sport=>['soccer','basketball'].includes(sport.id));
-      if(!sports.length)sports=[{id:'soccer',name:'Soccer',description:'Five-a-side flick soccer.'}];
-      sportOptions.replaceChildren();
-      for(const sport of sports){
-        const label=text('label','','setup-sport-option'), input=document.createElement('input');
-        input.type='radio';input.name='setup-sport';input.value=sport.id;
-        const copy=text('span','');copy.append(text('strong',sport.name),text('small',sport.description||''));
-        label.append(input,copy);sportOptions.append(label);
-        input.addEventListener('change',()=>{sportDraft=input.value;sync();});
-      }
     }catch(failure){error='Could not load formations. Try again.';}
     finally{loading=false;sync();}
   }
   root.addEventListener('submit',async event=>{
     event.preventDefault();
     if(start.disabled||saving||getState()?.match_started!==false)return;
-    const payload={sport:sportDraft};
-    if(sportDraft==='soccer'){
-      payload.custom_lineup_a=lineupDrafts.a;
-      if(getState().game_mode!=='hvai')payload.custom_lineup_b=lineupDrafts.b;
-      Object.assign(payload,{formation_a:drafts.a.formation,playstyle_a:drafts.a.level});
-      if(getState().game_mode!=='hvai')Object.assign(payload,{formation_b:drafts.b.formation,playstyle_b:drafts.b.level});
-      if(getState().game_mode!=='hvh'&&getState().team_movement!==false){
-        payload.player_plans_a=structuredClone(planDrafts.a);
-        if(getState().game_mode==='hvai')payload.player_plans_a[4]={mode:'auto',points:[]};
-        else payload.player_plans_b=structuredClone(planDrafts.b);
-      }
+    const payload={sport:'soccer'};
+    payload.custom_lineup_a=lineupDrafts.a;
+    if(getState().game_mode!=='hvai')payload.custom_lineup_b=lineupDrafts.b;
+    Object.assign(payload,{formation_a:drafts.a.formation,playstyle_a:drafts.a.level});
+    if(getState().game_mode!=='hvai')Object.assign(payload,{formation_b:drafts.b.formation,playstyle_b:drafts.b.level});
+    if(getState().game_mode!=='hvh'&&getState().team_movement!==false){
+      payload.player_plans_a=structuredClone(planDrafts.a);
+      if(getState().game_mode==='hvai')payload.player_plans_a[4]={mode:'auto',points:[]};
+      else payload.player_plans_b=structuredClone(planDrafts.b);
     }
     saving=true;error='';sync();
     try{await onStart(payload);}

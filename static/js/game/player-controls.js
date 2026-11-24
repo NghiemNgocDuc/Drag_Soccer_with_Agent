@@ -6,7 +6,8 @@ export function controlAccess(state, online = {}, busy = false) {
   const side = online.active ? online.side : state?.game_mode === 'hvh' && !state.is_player_a ? 'b' : 'a';
   const blocked = reason => ({ team: side, indices: [], canKick: false, useBall: false, reason });
   if (!state) return blocked('Loading match…');
-  if (!online.active && state.match_started === false) return blocked('Choose your sport and start the match');
+  if (state.sport && state.sport !== 'soccer') return blocked('Start a new soccer match');
+  if (!online.active && state.match_started === false) return blocked('Choose your tactics and start the match');
   if (state.game_over) return blocked('Match finished');
   if (busy) return blocked('Move in progress');
   if (online.active) {
@@ -22,18 +23,6 @@ export function controlAccess(state, online = {}, busy = false) {
   }
   const players = state[side === 'a' ? 'players_a' : 'players_b'] || [];
   if (!players.length) return blocked('No player available');
-  if (state.sport === 'basketball' && !online.active) {
-    const possession = state.possession;
-    const carrier = String(possession?.side || '').toLowerCase() === side && Number.isInteger(possession?.player_idx)
-      ? possession.player_idx : -1;
-    const nearest = players.reduce((best, player, index) => {
-      const distance = Math.hypot(player.x - state.ball?.x, player.y - state.ball?.y);
-      return Number.isFinite(distance) && distance < best.distance ? { index, distance } : best;
-    }, { index: 0, distance: Infinity }).index;
-    return { team: side, indices: players.map((_, index) => index), canKick: true, useBall: false,
-      defaultIndex: carrier >= 0 && carrier < players.length ? carrier : nearest,
-      reason: `Team ${side.toUpperCase()} · Attack ${side === 'a' ? 'right' : 'left'} · ${carrier >= 0 ? `#${carrier+1} has the ball` : possession ? 'Defend or move into space' : 'Move to collect the loose ball'}` };
-  }
   const strikerOnly = !online.active && state.game_mode !== 'hvh';
   const striker = Number.isInteger(state.human_player_idx) ? clamp(state.human_player_idx,0,players.length-1) : players.length-1;
   const indices = state.penalty_shootout ? [0] : strikerOnly ? [striker] : players.map((_, index) => index);

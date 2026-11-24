@@ -16,7 +16,7 @@ export function pitchPoint(clientX, clientY, rect) {
 
 export function basketballShotTarget(origin, angle, power, powerStat = 50) {
   const stat = Number.isFinite(Number(powerStat)) ? Math.max(0, Math.min(100, Number(powerStat))) : 50;
-  // Same descending rim crossing as basketball_logic.py, without a physics prediction.
+  // Historical descending rim crossing, retained for archived replay compatibility.
   const time = (520 + Math.sqrt(520 ** 2 + 2 * 980 * (28 - 90))) / 980;
   const distance = Math.max(0, Math.min(100, power)) * (8 + .04 * stat) * time;
   return {x:origin.x + Math.cos(angle) * distance,y:origin.y + Math.sin(angle) * distance,time};

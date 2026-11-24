@@ -24,12 +24,12 @@ function harness(t, overrides={}) {
   let state={start_time:100,sport:'soccer',game_mode:'hvai',match_started:false,
     formation_a:'2-1-1',formation_b:'2-1-1',playstyle_a:3,playstyle_b:3,...overrides};
   const ids=['match-setup','setup-teams','match-tactics-summary','match-start-btn',
-    'match-setup-status','match-setup-retry','setup-sports','fs-wrap','player-controls'];
+    'match-setup-status','match-setup-retry','match-options','match-guide','fs-wrap','player-controls'];
   const nodes=Object.fromEntries(ids.map(id=>[id,new Element()]));
   const globals={document:{getElementById:id=>nodes[id],querySelector:()=>new Element(),
     createElement:tag=>new Element(tag),createElementNS:(_,tag)=>new Element(tag)},
     fetch:async()=>({ok:true,json:async()=>({
-      sports:[{id:'soccer',name:'Soccer'},{id:'basketball',name:'Basketball'}],
+      sports:[{id:'soccer',name:'Soccer'}],
       formations:[{id:'2-1-1',name:'Balanced',description:'Balanced lineup',
         positions:[{number:1,role:'goalkeeper',x:.062,y:.5}]}],
     })})};
@@ -43,35 +43,43 @@ function harness(t, overrides={}) {
     createBoard:()=>({root:new Element(),setFormation(){},setDisabled(){}}),
     createLineup:()=>({root:new Element(),setFormation(){},setDisabled(){}}),
     onStart:async payload=>submissions.push(payload)});
-  const radio=value=>nodes['setup-sports'].querySelectorAll('input').find(input=>input.value===value);
-  return {setup,nodes,submissions,radio,
-    choose:value=>{const input=radio(value);input.checked=true;input.handlers.change();},
+  return {setup,nodes,submissions,
     update:changes=>{state={...state,...changes};setup.sync();},
     submit:()=>nodes['match-setup'].handlers.submit({preventDefault(){}})};
 }
 
-test('basketball setup draft survives local mode changes and starts without soccer settings',async t=>{
+test('local modes submit soccer tactics for exactly the editable teams',async t=>{
   const ui=harness(t);await ui.setup.load();
-  ui.choose('basketball');
   for(const game_mode of ['hvh','aivai','hvai']){
     ui.update({game_mode});
-    assert.equal(ui.radio('basketball').checked,true);
-    assert.equal(ui.radio('soccer').checked,false);
-    assert.equal(ui.nodes['setup-teams'].querySelectorAll('input').length,0);
+    await ui.submit();
+    const payload=ui.submissions.at(-1);
+    assert.equal(payload.sport,'soccer');
+    assert.equal(payload.formation_a,'2-1-1');
+    assert.equal(payload.playstyle_a,3);
+    assert.equal(Object.hasOwn(payload,'formation_b'),game_mode!=='hvai');
+    assert.equal(Object.hasOwn(payload,'player_plans_a'),game_mode!=='hvh');
+    assert.equal(Object.hasOwn(payload,'player_plans_b'),game_mode==='aivai');
   }
-  await ui.submit();
-  assert.deepEqual(ui.submissions,[{sport:'basketball'}]);
 });
 
-test('new setup and resumed setup restore the saved sport instead of leaking an old draft',async t=>{
+test('kickoff collapses secondary controls once and New Game reopens setup',async t=>{
   const ui=harness(t);await ui.setup.load();
-  ui.choose('basketball');
-  ui.update({start_time:200});
-  assert.equal(ui.radio('soccer').checked,true);
-  ui.update({sport:'basketball',start_time:300});
-  assert.equal(ui.radio('basketball').checked,true);
-  ui.choose('soccer');
+  assert.equal(ui.nodes['match-options'].open,true);
+  assert.equal(ui.nodes['fs-wrap'].hidden,true);
   ui.update({match_started:true});
-  ui.update({match_started:false});
-  assert.equal(ui.radio('basketball').checked,true);
+  assert.equal(ui.nodes['match-options'].open,false);
+  assert.equal(ui.nodes['fs-wrap'].hidden,false);
+  ui.nodes['match-options'].open=true;
+  ui.nodes['match-guide'].open=true;
+  ui.update({kick_count:1});
+  assert.equal(ui.nodes['match-options'].open,true);
+  assert.equal(ui.nodes['match-guide'].open,true);
+  const before=ui.submissions.length;
+  await ui.submit();
+  assert.equal(ui.submissions.length,before);
+  ui.update({match_started:false,start_time:200});
+  assert.equal(ui.nodes['match-options'].open,true);
+  assert.equal(ui.nodes['match-guide'].open,false);
+  assert.equal(ui.nodes['fs-wrap'].hidden,true);
 });

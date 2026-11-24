@@ -32,31 +32,17 @@ test('human versus AI selects the striker and blocks the AI turn', () => {
   assert.deepEqual(custom.indices,[4]);assert.match(custom.reason,/Defender/);
 });
 
-test('basketball lets the human move any teammate and describes current possession', () => {
-  const game=state({sport:'basketball',game_mode:'hvai',possession:{side:'A',player_idx:2}});
-  const access=controlAccess(game);
-  assert.deepEqual(access.indices,[0,1,2,3,4,5,6]);
-  assert.equal(access.useBall,false);
-  assert.match(access.reason,/#3 has the ball/);
-  assert.equal(access.defaultIndex,2);
-  assert.match(access.reason,/Attack right/);
-  assert.match(controlAccess({...game,possession:null}).reason,/loose ball/);
-  assert.match(controlAccess({...game,possession:{side:'B',player_idx:0}}).reason,/Defend/);
-  assert.equal(controlAccess({...game,is_player_a:false}).canKick,false);
-  const hotseat=controlAccess({...game,game_mode:'hvh',is_player_a:false,possession:{side:'B',player_idx:1}});
-  assert.equal(hotseat.team,'b');
-  assert.deepEqual(hotseat.indices,[0,1,2]);
-  assert.match(hotseat.reason,/#2 has the ball/);
-  assert.equal(hotseat.defaultIndex,1);
-  assert.match(hotseat.reason,/Attack left/);
+test('retired and unknown sports cannot issue soccer commands', () => {
+  for (const sport of ['basketball', 'unknown']) {
+    for (const online of [{}, {active:true,side:'a'}]) {
+      const access=controlAccess(state({sport}),online);
+      assert.equal(access.canKick,false);
+      assert.deepEqual(access.indices,[]);
+      assert.match(access.reason,/new soccer match/);
+    }
+  }
 });
 
-test('basketball defaults to the nearest available rebounder when possession belongs elsewhere', () => {
-  const game=state({sport:'basketball',ball:{x:300,y:400},players_a:[{x:100,y:100},{x:330,y:400},{x:800,y:500}],possession:null});
-  assert.equal(controlAccess(game).defaultIndex,1);
-  assert.equal(controlAccess({...game,possession:{side:'B',player_idx:0}}).defaultIndex,1);
-  assert.equal(controlAccess({...game,possession:{side:'A',player_idx:2}}).defaultIndex,2);
-});
 test('online control requires membership, own turn, and an available normal match', () => {
   const game=state({is_player_a:false}), online={active:true,side:'b'};
   assert.deepEqual(controlAccess(game,online).indices,[0,1,2]);

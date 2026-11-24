@@ -143,6 +143,11 @@ def main():
         check('idle rendering sleeps', after['frames'] == before['frames'], [before['frames'], after['frames']])
         check('cached pitch stays cached', after['backgroundBuilds'] == before['backgroundBuilds'])
 
+    def open_disclosure(page, selector):
+        disclosure = page.locator(selector)
+        if disclosure.get_attribute('open') is None:
+            disclosure.locator(':scope > summary').click()
+
     try:
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True, args=['--disable-webgl'])
@@ -153,6 +158,7 @@ def main():
             check('fresh local match waits for setup', page.locator('#match-setup').is_visible()
                   and page.locator('#fs-wrap').is_hidden())
             check('manual hotseat does not show automatic squad jobs', page.locator('#squad-role-guide').is_hidden())
+            open_disclosure(page, '#match-options')
             for model in ('possession','counter_attack','high_press'):
                 page.wait_for_function('(id)=>!!document.querySelector(`#model-select option[value="${id}"]`)', arg=model)
                 with page.expect_response(lambda response: response.url.endswith('/switch_model')) as switched:
@@ -207,6 +213,7 @@ def main():
             page.goto(base + '/__2d/login/ai?mode=hvai')
             ready(page)
             check('human controls only striker number five', page.evaluate('window.__playerControlState().selectedIndex===4 && JSON.stringify(window.__playerControlState().allowedIndices)==="[4]" && window.__pitch2D().humanPlayer.index===4'))
+            open_disclosure(page, '#match-guide')
             check('squad guide explains all five stable jobs', page.locator('#squad-role-guide').is_visible()
                   and page.locator('#squad-role-list li').all_text_contents() == ['#1 Goalkeeper', '#2 Defender', '#3 Defender', '#4 Midfielder', '#5 Attacker YOU'])
             check('squad guide marks only the manual striker', page.locator('#squad-role-list .squad-role-you').count() == 1
@@ -400,6 +407,7 @@ def main():
             check('penalty referee stays hidden', page.evaluate('window.__pitch2D().referee===null'))
             check('penalty restricts selection to kicker', page.evaluate('JSON.stringify(window.__playerControlState().allowedIndices)==="[0]"'))
             check('shootout hides formation jobs while kicker and keeper roles change', page.locator('#squad-role-guide').is_hidden())
+            open_disclosure(page, '#match-options')
             page.locator('#view-settings-btn').click()
             check('resolution dialog opens', page.locator('#view-settings-modal').is_visible())
             page.keyboard.press('Escape')

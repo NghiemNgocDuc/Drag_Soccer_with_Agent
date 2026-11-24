@@ -1,6 +1,0 @@
-.venv/
-data/
-runs/
-*.pt
-*.log
-__pycache__/
