@@ -101,11 +101,11 @@ export function createTacticsBoard({side, formation, plans, human, onChange}) {
     shape('rect',{x:0,y:0,width:1400,height:875,rx:28,fill:'#164b40'});
     shape('path',{d:'M20 20H1380V855H20Z M700 20V855 M20 295H175V580H20 M1380 295H1225V580H1380',stroke:'#9dbbb0','stroke-width':4,fill:'none',opacity:.7});
     shape('circle',{cx:700,cy:437.5,r:110,stroke:'#9dbbb0','stroke-width':3,fill:'none',opacity:.7});
-    if(selected===0)shape('rect',{x:84,y:350,width:112,height:175,fill:'#efc995','fill-opacity':.15,stroke:'#efc995','stroke-width':3,'stroke-dasharray':'8 8'});
-    shape('text',{x:1270,y:65,'text-anchor':'end',fill:'#fff7ee','font-size':25,'font-weight':700},'ATTACK →');
+    if(selected===0)shape('rect',{x:84,y:350,width:112,height:175,fill:'#a9d9ff','fill-opacity':.15,stroke:'#a9d9ff','stroke-width':3,'stroke-dasharray':'8 8'});
+    shape('text',{x:1270,y:65,'text-anchor':'end',fill:'#f8fbff','font-size':25,'font-weight':700},'ATTACK →');
     for(let i=0;i<5;i++){
       const plan=draft[i], points=stroke&&i===selected?stroke.points:plan.points;
-      const color=i===selected?'#ffd598':'#e1a6b5';
+      const color=i===selected?'#ffd598':'#a9d9ff';
       if(points.length){
         const start=layout.positions[i];
         const line=[start,...points];
@@ -119,10 +119,10 @@ export function createTacticsBoard({side, formation, plans, human, onChange}) {
     layout.positions.forEach((player,i)=>{
       const x=player.x*1400,y=player.y*875;
       if(i===selected)shape('circle',{cx:x,cy:y,r:41,fill:'none',stroke:'#ffd598','stroke-width':5});
-      shape('circle',{cx:x,cy:y,r:30,fill:i===0?'#efc995':'#fff7ee',stroke:'#3f1727','stroke-width':3});
-      shape('text',{x,y:y+10,'text-anchor':'middle',fill:'#3f1727','font-size':30,'font-weight':800},i+1);
+      shape('circle',{cx:x,cy:y,r:30,fill:i===0?'#a9d9ff':'#f8fbff',stroke:'#142644','stroke-width':3});
+      shape('text',{x,y:y+10,'text-anchor':'middle',fill:'#142644','font-size':30,'font-weight':800},i+1);
     });
-    if(showCursor&&!manual())shape('path',{d:`M${cursor.x*1400-18} ${cursor.y*875}h36 M${cursor.x*1400} ${cursor.y*875-18}v36`,stroke:'#fff7ee','stroke-width':4});
+    if(showCursor&&!manual())shape('path',{d:`M${cursor.x*1400-18} ${cursor.y*875}h36 M${cursor.x*1400} ${cursor.y*875-18}v36`,stroke:'#f8fbff','stroke-width':4});
     status.textContent=manual()?'#5 is yours: your kicks control this player. Draw instructions for your AI teammates.':`#${selected+1}: ${p.mode==='auto'?`Automatic — ${ROLE_BEHAVIOR[layout.positions[selected]?.role] || 'Follow the formation and playstyle.'}`:p.mode==='hold'?'hold the marked position.':`${p.points.length} waypoints, then hold.`} ${selected===0?'Keeper movement remains limited.':''}`;
   }
   function at(event){const box=svg.getBoundingClientRect();return {x:(event.clientX-box.left)/box.width,y:(event.clientY-box.top)/box.height};}

@@ -146,7 +146,7 @@
     const data = wins.map(v=> v*100);
     const ctx=document.getElementById('perf-chart'); if(!ctx) return;
     const theme=getComputedStyle(document.body);
-    new Chart(ctx, {type:'line', data:{labels, datasets:[{label:'Win', data, borderColor:theme.getPropertyValue('--as-primary').trim()||'#7b2943', backgroundColor:'rgba(123,41,67,.12)', tension:0.35, fill:true, pointRadius:4}]}, options:{responsive:true, color:theme.getPropertyValue('--as-muted').trim()||'#6f5b60', plugins:{legend:{display:false}}, scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}, x:{grid:{display:false}}}}});
+    new Chart(ctx, {type:'line', data:{labels, datasets:[{label:'Win', data, borderColor:theme.getPropertyValue('--as-primary').trim()||'#2459d3', backgroundColor:'rgba(36,89,211,.12)', tension:0.35, fill:true, pointRadius:4}]}, options:{responsive:true, color:theme.getPropertyValue('--as-muted').trim()||'#52627a', plugins:{legend:{display:false}}, scales:{y:{min:0,max:100,ticks:{callback:v=>v+'%'}}, x:{grid:{display:false}}}}});
   })();
   </script>
   {% if gp > 0 %}

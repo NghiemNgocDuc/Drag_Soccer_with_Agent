@@ -153,7 +153,7 @@ def run():
             check("Arena results fit mobile viewport", page.evaluate("document.documentElement.scrollWidth <= innerWidth + 1"))
 
             page.goto(base + "/customize")
-            check("Custom stat sliders render", page.locator(".stat-player-card input[type=range]").count() == 24)
+            check("Five-a-side custom stat sliders render", page.locator(".stat-player-card input[type=range]").count() == 40)
             page.locator("#pname-a0").fill("Local keeper")
             page.locator("#team_a_color").fill("#123456")
             page.locator("#team_a_color").dispatch_event("input")
@@ -161,7 +161,7 @@ def run():
                 page.locator("#save-btn").click()
             payload = response.value.request.post_data_json
             check("Customize save preserves player names", payload["player_names"]["a"][0] == "Local keeper")
-            check("Customize save preserves colors and stats", payload["team_a_color"] == "#123456" and len(payload["player_stats"]["a"]) == 3 and response.value.json().get("ok"), payload.get("team_a_color"))
+            check("Customize save preserves colors and both five-player squads", payload["team_a_color"] == "#123456" and all(len(payload["player_stats"][team]) == 5 for team in ("a", "b")) and response.value.json().get("ok"), payload.get("team_a_color"))
             page.get_by_role("button", name="Reset to Defaults").click()
             check("Customize reset updates color value", page.locator("#team_a_color").input_value() == "#3b82f6")
             check("Interaction flows have no JS exceptions", not errors, errors)

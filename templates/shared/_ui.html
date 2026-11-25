@@ -49,13 +49,13 @@
     </div>
     <div class="as-account">
     {% if signed_in %}
-      <a href="/play3d" class="as-nav-play">Play now {{ icon('arrow-right',16) }}</a>
+      <a href="/play3d" class="as-nav-play">Play match</a>
       <details class="as-account-menu">
         <summary aria-label="Account menu"><span class="as-avatar">{{ (username|default(session.get('username','Player'),true))[:1]|upper }}</span></summary>
         <div class="as-dropdown as-dropdown-right"><span class="as-account-name">{{ username|default(session.get('username','Player'),true) }}</span><a href="/profile">Your profile</a><a href="/achievements">Achievements</a><a href="/customize">Team & stadium</a><a href="/feedback">Send feedback</a><a href="/auth/logout">Log out</a></div>
       </details>
     {% else %}
-      <a class="as-nav-login" href="/login">Log in</a><a class="as-nav-play" href="/register">Join the club {{ icon('arrow-right',16) }}</a>
+      <a class="as-nav-login" href="/login">Log in</a><a class="as-nav-play" href="/register">Create account</a>
     {% endif %}
     </div>
   </nav>
@@ -65,6 +65,6 @@
 {% macro page_header(eyebrow,title,description='',action_href=None,action_label=None) -%}
 <section class="as-page-header" aria-label="Page introduction">
   <div><p class="as-eyebrow">{{ eyebrow }}</p><h1>{{ title }}</h1>{% if description %}<p class="as-description">{{ description }}</p>{% endif %}</div>
-  {% if action_href and action_label %}<a href="{{ action_href }}" class="btn btn-primary">{{ action_label }} {{ icon('arrow-right',18) }}</a>{% endif %}
+  {% if action_href and action_label %}<a href="{{ action_href }}" class="btn btn-primary">{{ action_label }}</a>{% endif %}
 </section>
 {%- endmacro %}

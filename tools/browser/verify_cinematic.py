@@ -6,10 +6,8 @@ under the system temporary directory, in ``agent-soccer-cinematic``.
 """
 from __future__ import annotations
 
-import base64
 import json
 import logging
-import math
 from pathlib import Path
 import sys
 import tempfile
@@ -124,13 +122,12 @@ def run() -> dict:
               measured['layout_shift_value'] == 0, measured)
 
     def verify_login_motion(page, label, *, mobile=False):
-        expected = {'as-login-grid-drift', 'as-login-glow-drift', 'as-login-mark-pulse'}
-        if not mobile:
-            expected.update(('as-login-soccer-float', 'as-login-pass', 'as-login-support'))
+        expected = set() if mobile else {'as-login-soccer-float', 'as-login-pass', 'as-login-support'}
         before = login_loops(page)
         before_by_name = {item['name']: item for item in before}
         check(label + ': intended decorative loops run', expected.issubset(before_by_name)
-              and all(before_by_name[name]['state'] == 'running' for name in expected), before)
+              and all(before_by_name[name]['state'] == 'running' for name in expected)
+              and (not mobile or not any(item['state'] == 'running' for item in before)), before)
         form_before = page.locator('#login-form input,#login-form button,#login-form label').evaluate_all('''nodes=>
           nodes.map(node=>{const b=node.getBoundingClientRect();return [b.x,b.y,b.width,b.height];})''')
         page.wait_for_timeout(350)
@@ -139,9 +136,8 @@ def run() -> dict:
         advancing = {name: round((after_by_name.get(name, {}).get('time') or 0)
                                  - (before_by_name.get(name, {}).get('time') or 0), 2) for name in expected}
         check(label + ': every visible loop advances in real time', all(delta > 150 for delta in advancing.values()), advancing)
-        check(label + ': background transforms visibly change', all(
-            before_by_name.get(name, {}).get('transform') != after_by_name.get(name, {}).get('transform')
-            for name in ('as-login-grid-drift', 'as-login-glow-drift')), after)
+        check(label + ': sign-in has no ambient background layers',
+              page.locator('.as-login-grid,.as-login-glow,.as-login-mark').count() == 0)
         form_after = page.locator('#login-form input,#login-form button,#login-form label').evaluate_all('''nodes=>
           nodes.map(node=>{const b=node.getBoundingClientRect();return [b.x,b.y,b.width,b.height];})''')
         check(label + ': motion keeps login fields and labels still', form_before == form_after,
@@ -152,9 +148,9 @@ def run() -> dict:
               page.evaluate('window.__qaRAFCalls') == raf_before, raf_before)
         motion_diagnostics(page, label)
         if mobile:
-            check(label + ': ambient motion remains visible while the artwork is hidden',
+            check(label + ': mobile keeps the form visible and decorative motion asleep',
                   not page.locator('.as-login-pitch-art').is_visible()
-                  and page.locator('.as-login-grid').is_visible() and page.locator('.as-login-glow').is_visible())
+                  and page.locator('#email').is_visible() and still_loops(page))
         else:
             shot = page.evaluate('''() => {
               const loops=[...document.querySelectorAll('[data-motion-loop]')].map(target=>{
@@ -171,7 +167,7 @@ def run() -> dict:
               loops.forEach(({target,name})=>{target.style.animationName=name;});
               const center=node=>{const b=node.getBoundingClientRect();return {x:b.x+b.width/2,y:b.y+b.height/2};};
               const result={};
-              result.seams=loops.filter(loop=>loop.name!=='as-login-grid-drift').map(loop=>{
+              result.seams=loops.map(loop=>{
                 const at=fraction=>{loop.target.style.animationDelay=`${-loop.duration*fraction}ms`;
                   const style=getComputedStyle(loop.target),matrix=new DOMMatrixReadOnly(style.transform);
                   return {matrix:[matrix.a,matrix.b,matrix.c,matrix.d,matrix.e,matrix.f],opacity:Number(style.opacity)};};
@@ -192,35 +188,6 @@ def run() -> dict:
             check(label + ': visible loop transforms and opacity meet at the repeat seam', all(
                 max(abs(before - after) for before, after in zip(item['before']['matrix'], item['after']['matrix'])) < .02
                 and abs(item['before']['opacity'] - item['after']['opacity']) < .002 for item in shot['seams']), shot['seams'])
-            # This layer intentionally shifts by one repeating tile. Comparing
-            # its transform would report a false jump; compare rendered pixels.
-            grid = page.locator('.as-login-grid')
-            ambient = page.locator('.as-login-ambient')
-            seam_images = []
-            for fraction in (.999999, .000001):
-                grid.evaluate('''(target,fraction)=>{target.style.animationDelay=
-                  `${-parseFloat(getComputedStyle(target).animationDuration)*1000*fraction}ms`;}''', fraction)
-                seam_images.append(base64.b64encode(ambient.screenshot()).decode('ascii'))
-            grid_seam = page.evaluate('''async images=>{
-              const pixels=await Promise.all(images.map(async source=>{
-                const image=new Image();image.src='data:image/png;base64,'+source;await image.decode();
-                const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;
-                const context=canvas.getContext('2d',{willReadFrequently:true});context.drawImage(image,0,0);
-                return context.getImageData(0,0,image.width,image.height).data;
-              }));
-              let max=0,total=0,changed=0;
-              for(let i=0;i<pixels[0].length;i+=4){let delta=0;
-                for(let c=0;c<3;c++){const difference=Math.abs(pixels[0][i+c]-pixels[1][i+c]);
-                  max=Math.max(max,difference);total+=difference;delta=Math.max(delta,difference);}
-                if(delta>2)changed++;
-              }
-              return {max_channel_delta:max,mean_channel_delta:total/(pixels[0].length/4*3),
-                pixels_above_two:changed,pixels:pixels[0].length/4};
-            }''', seam_images)
-            check(label + ': repeating grid has no brightness flash at the loop seam',
-                  grid_seam['max_channel_delta'] <= 2, grid_seam)
-            report['login_motion'][label + '-grid-seam'] = grid_seam
-            grid.evaluate("target=>{target.style.animationDelay='0s';}")
             page.screenshot(path=str(output / 'login-soccer-motion.png'), full_page=True)
             report['login_motion'][label + '-soccer'] = shot
             # Exercise the real page lifecycle without our deterministic seek styles.
@@ -245,7 +212,8 @@ def run() -> dict:
         page.evaluate("document.getElementById('qa-motion-spacer').remove();window.scrollTo(0,0)")
         page.wait_for_timeout(250)
         resumed = login_loops(page)
-        check(label + ': returning to the page resumes visible motion', any(item['state'] == 'running' for item in resumed), resumed)
+        check(label + ': returning to the page respects visible artwork',
+              still_loops(page) if mobile else any(item['state'] == 'running' for item in resumed), resumed)
         page.emulate_media(reduced_motion='reduce')
         login_frozen(page, label + ': reduced-motion preference freezes every loop')
         check(label + ': reduced motion preserves the usable login form', page.locator('#email').is_visible()
@@ -314,10 +282,12 @@ def run() -> dict:
             check('Motion can be enabled with the keyboard',
                   page.locator('[data-motion-toggle]').get_attribute('aria-pressed') == 'true')
 
-            # A tall desktop can still show the last pixels of the hero at the
-            # document end. Use a short pane so this is genuinely offscreen.
-            page.set_viewport_size({'width': 1366, 'height': 700})
-            page.evaluate('window.scrollTo(0,document.documentElement.scrollHeight)')
+            # The compact landing page may fit in a tall desktop. Give this
+            # lifecycle check enough scroll distance to hide the entire scene.
+            page.evaluate('''() => {const spacer=document.createElement('div');
+              spacer.id='qa-hero-spacer';spacer.style.height='1500px';
+              spacer.setAttribute('aria-hidden','true');document.body.append(spacer);
+              window.scrollTo(0,document.documentElement.scrollHeight);}''')
             page.wait_for_timeout(250)
             check('Offscreen hero pauses its decorative loops', page.evaluate('''() => {
               const scene=document.querySelector('[data-motion-scene]');
@@ -325,8 +295,7 @@ def run() -> dict:
                 && [...scene.querySelectorAll('[data-motion-loop]')].flatMap(el=>el.getAnimations({subtree:true}))
                   .filter(a=>a.effect?.getTiming().iterations===Infinity).every(a=>a.playState!=='running');
             }'''))
-            page.set_viewport_size({'width': 1366, 'height': 900})
-            page.evaluate('window.scrollTo(0,0)')
+            page.evaluate("document.getElementById('qa-hero-spacer').remove();window.scrollTo(0,0)")
             page.wait_for_function("document.querySelector('[data-motion-scene]').classList.contains('is-in-view')")
             check('Artwork resumes when scrolled back into view', not still_loops(page))
             page.evaluate("Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'))")

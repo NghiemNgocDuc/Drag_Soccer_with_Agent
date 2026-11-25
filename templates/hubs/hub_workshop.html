@@ -1,26 +1,36 @@
-{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
+{% from 'shared/_ui.html' import app_nav, icon with context %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Workshop &mdash; Agent Soccer</title>
-<link rel="stylesheet" href="/static/css/design-system.css">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Soccer AI | Agent Soccer</title>
 <link rel="stylesheet" href="/static/css/frontend-workshop.css">
 {% include 'shared/_ui_assets.html' %}
 </head>
-<body class="as-app as-workshop as-workshop-hub">
+<body class="as-app as-workshop as-workshop-hub as-hub">
 {{ app_nav('workshop') }}
 <main class="as-main" id="as-content">
-{{ page_header('The workshop', 'Great tactics start here.', 'Build an agent, put it through its paces, and share what you learn. Every tool has a place in your next match.', '/my-models', 'Open your models') }}
-<div class="workshop-start"><div><p class="workshop-kicker" style="color:var(--as-lime)">From an idea to a match</p><h2>Your code. Your game plan.</h2><p>Start with a template in My models, test it in the Playground, then measure its performance in the Arena.</p></div><a class="btn" href="/learn">Learn to build an agent {{ icon('arrow-right',18) }}</a></div>
-<div class="workshop-grid">
-<a class="workshop-link-card" href="/my-models">{{ icon('code',28) }}<h2>My models</h2><p>Your strategy library and Python editor. Create, validate, save, and publish your soccer agents.</p><span class="card-destination">Build a strategy &rarr;</span></a>
-<a class="workshop-link-card" href="/playground">{{ icon('play',28) }}<h2>Playground</h2><p>Try your code against a human or another agent. Step through moves and refine your next version.</p><span class="card-destination">Test on the pitch &rarr;</span></a>
-<a class="workshop-link-card" href="/arena">{{ icon('chart',28) }}<h2>AI Arena</h2><p>Run head-to-head experiments. Compare win rates, individual results, and ball movement.</p><span class="card-destination">Compare agents &rarr;</span></a>
-<a class="workshop-link-card" href="/community">{{ icon('users',28) }}<h2>Community</h2><p>Explore models shared by the club. Read the code, discuss tactics, and find an idea to build on.</p><span class="card-destination">Explore the club's ideas &rarr;</span></a>
-<a class="workshop-link-card" href="/leaderboard">{{ icon('trophy',28) }}<h2>Leaderboard</h2><p>See how submitted agents perform and follow the players climbing the rankings.</p><span class="card-destination">View the standings &rarr;</span></a>
-<a class="workshop-link-card" href="/customize">{{ icon('settings',28) }}<h2>Team &amp; stadium</h2><p>Tune your player stats, set match rules, and choose the colors and atmosphere of your home ground.</p><span class="card-destination">Make it your own &rarr;</span></a>
-</div>
+<header class="as-page-header">
+  <div><h1>Soccer AI</h1><p class="as-description">Build a strategy. Test it on the pitch.</p></div>
+  <a class="btn btn-primary" href="/my-models">Open my models</a>
+</header>
+<section class="hub-section" aria-labelledby="hub-section-0">
+  <h2 id="hub-section-0">Build &amp; test</h2>
+  <div class="hub-link-list">
+    <a class="as-destination hub-link" href="/my-models">{{ icon("code") }}<span class="hub-link-copy"><strong>My models</strong><span>Create, edit, and save your Python soccer agents.</span></span></a>
+    <a class="as-destination hub-link" href="/playground">{{ icon("play") }}<span class="hub-link-copy"><strong>Playground</strong><span>Step through decisions and refine your agent.</span></span></a>
+    <a class="as-destination hub-link" href="/arena">{{ icon("chart") }}<span class="hub-link-copy"><strong>AI Arena</strong><span>Compare agents through head-to-head matches.</span></span></a>
+    <a class="as-destination hub-link" href="/learn">{{ icon("book") }}<span class="hub-link-copy"><strong>AI lessons</strong><span>Start with a simple agent and build up your skills.</span></span></a>
+  </div>
+</section>
+<section class="hub-section" aria-labelledby="hub-section-1">
+  <h2 id="hub-section-1">Explore</h2>
+  <div class="hub-link-list">
+    <a class="as-destination hub-link" href="/community">{{ icon("users") }}<span class="hub-link-copy"><strong>Community models</strong><span>Read shared code and discuss soccer strategies.</span></span></a>
+    <a class="as-destination hub-link" href="/leaderboard">{{ icon("trophy") }}<span class="hub-link-copy"><strong>Leaderboard</strong><span>See how submitted agents perform.</span></span></a>
+    <a class="as-destination hub-link" href="/customize">{{ icon("settings") }}<span class="hub-link-copy"><strong>Team &amp; pitch</strong><span>Tune your player stats and match settings.</span></span></a>
+  </div>
+</section>
 </main>
 </body>
 </html>

@@ -54,12 +54,12 @@ export function createLineupEditor({side,formation,lineup,human,onChange}){
     shape('rect',{width:700,height:875,fill:'#103f38',rx:16});
     shape('path',{d:'M20 20H680V855H20Z M20 325H135V550H20',fill:'none',stroke:'#b9d6cc','stroke-opacity':.5});
     for(const [role,[lo,hi]]of Object.entries(ROLE_AREAS)){
-      shape('rect',{x:lo*1400,y:130,width:(hi-lo)*1400,height:615,fill:'#f7f1e7',opacity:players[selected].role===role?.18:.06,stroke:'#f7f1e7','stroke-dasharray':'8 8'});
-      shape('text',{x:(lo+hi)*700,y:90,fill:'#f7f1e7','text-anchor':'middle','font-size':22},role==='support'?'MID':role==='defender'?'DEF':'ATT');
+      shape('rect',{x:lo*1400,y:130,width:(hi-lo)*1400,height:615,fill:'#f5f7fb',opacity:players[selected].role===role?.18:.06,stroke:'#f5f7fb','stroke-dasharray':'8 8'});
+      shape('text',{x:(lo+hi)*700,y:90,fill:'#f5f7fb','text-anchor':'middle','font-size':22},role==='support'?'MID':role==='defender'?'DEF':'ATT');
     }
     const visible=players.map((p,i)=>stroke&&i===selected?{...p,...stroke.point}:p);
     for(const [i,p]of visible.entries()){
-      shape('circle',{cx:p.x*1400,cy:p.y*875,r:i===selected?32:27,fill:i===0?'#edc887':i===selected?'#edc887':'#f7f1e7',stroke:'#7b2943','stroke-width':i===selected?5:2});
+      shape('circle',{cx:p.x*1400,cy:p.y*875,r:i===selected?32:27,fill:i===0?'#edc887':i===selected?'#edc887':'#f5f7fb',stroke:'#2459d3','stroke-width':i===selected?5:2});
       shape('text',{x:p.x*1400,y:p.y*875+9,fill:'#301a24','text-anchor':'middle','font-size':26,'font-weight':750},String(i+1));
     }
   }

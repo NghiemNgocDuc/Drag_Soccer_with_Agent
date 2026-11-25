@@ -23,7 +23,7 @@
 (function () {
   'use strict';
   var theme = getComputedStyle(document.body);
-  Chart.defaults.color = theme.getPropertyValue('--as-muted').trim() || '#6f5b60';
+  Chart.defaults.color = theme.getPropertyValue('--as-muted').trim() || '#52627a';
   Chart.defaults.font.family = "'Be Vietnam Pro', sans-serif";
   Chart.defaults.animation = false;
   var CHARTS = [];
@@ -37,7 +37,7 @@
     holder.appendChild(wrap);
     return { wrap: wrap, canvas: wrap.querySelector('canvas') };
   }
-  function hex(alpha) { return function () { var c = new Chart.helpers.color('rgba(123,41,67,' + alpha + ')').rgbString(); return c; }; }
+  function hex(alpha) { return function () { var c = new Chart.helpers.color('rgba(36,89,211,' + alpha + ')').rgbString(); return c; }; }
   function baseOpts() {
     return {
       responsive: true, maintainAspectRatio: false,
@@ -94,7 +94,7 @@
         labels: labels,
         datasets: [{
           label: 'Win rate', data: groups.map(function (g) { return { x: g.key, y: (g.k / g.n) * 100, ci: g.ci, n: g.n }; }),
-          backgroundColor: 'rgba(123,41,67,.78)'
+          backgroundColor: 'rgba(36,89,211,.78)'
         }]
       },
       options: Object.assign(baseOpts(), {
@@ -273,7 +273,7 @@
     var traj = r.trajectories || [];
     if (traj.length) {
       var box = ctx('ChTraj');
-      var colors = ['#7b2943', '#b27838', '#5e718c', '#a56d7e', '#7c6b4e'];
+      var colors = ['#2459d3', '#b27838', '#5e718c', '#a56d7e', '#7c6b4e'];
       var dataSets = traj.map(function (t, i) {
         return {
           label: t.player, data: t.points.map(function (p) { return p.rating_after; }),
@@ -379,7 +379,7 @@
         type: 'bar',
         data: {
           labels: keys.map(function (k) { return k + (k === 1 ? ' goal' : ' goals'); }),
-          datasets: [{ label: 'Matches', data: keys.map(function (k) { return dist[k]; }), backgroundColor: 'rgba(123,41,67,.78)' }]
+          datasets: [{ label: 'Matches', data: keys.map(function (k) { return dist[k]; }), backgroundColor: 'rgba(36,89,211,.78)' }]
         },
         options: Object.assign(baseOpts(), { plugins: { legend: { display: false } },
           y: { beginAtZero: true, ticks: { font: { size: 10 }, precision: 0 } },
@@ -401,7 +401,7 @@
         data: {
           labels: cum.map(function (c) { return c.kick; }),
           datasets: [{ label: '% of matches still goalless', data: cum.map(function (c) { return c.no_goal_yet; }),
-            borderColor: '#9c5d24', backgroundColor: 'rgba(156,93,36,.15)', fill: true, pointRadius: 3, tension: .25 }]
+            borderColor: '#1b5b9b', backgroundColor: 'rgba(27,91,155,.15)', fill: true, pointRadius: 3, tension: .25 }]
         },
         options: Object.assign(baseOpts(), {
           plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } } },

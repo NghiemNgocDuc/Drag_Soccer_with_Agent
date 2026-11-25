@@ -1,4 +1,4 @@
-"""Check the served cream/burgundy theme on desktop and mobile.
+"""Check the served white/navy/blue theme on desktop and mobile.
 
 Run ``python tools/browser/verify_warm_theme.py``. The loopback server uses
 isolated in-memory storage. Screenshots and a JSON report are written to
@@ -143,7 +143,7 @@ def run():
         })''')
         check(name + ': scoreboard uses visible solid text', len(styles) == 2
               and all(style['fill'] == style['color'] and style['background'] == 'none' for style in styles), styles)
-        ratios = [round(contrast(style['fill'], '#5a2339'), 2) for style in styles]
+        ratios = [round(contrast(style['fill'], '#203b60'), 2) for style in styles]
         check(name + ': large score text contrasts with brightest HUD stop', all(ratio >= 3 for ratio in ratios), ratios)
 
     try:
@@ -166,14 +166,14 @@ def run():
                             state = page.evaluate(PAGE_STATE)
                             record = {'route': route, 'viewport': viewport, 'status': response.status, **state}
                             report['pages'].append(record)
-                            check(viewport + ' ' + route + ': shared warm theme and layout',
+                            check(viewport + ' ' + route + ': shared blue theme and layout',
                                   response.ok and 'as-app' in state['bodyClass']
-                                  and state['bg'].lower() == '#f7f1e7' and state['primary'].lower() == '#7b2943'
-                                  and rgb(state['background']) == rgb('#f7f1e7')
+                                  and state['bg'].lower() == '#f5f7fb' and state['primary'].lower() == '#2459d3'
+                                  and rgb(state['background']) == rgb('#f5f7fb')
                                   and state['scrollWidth'] <= dimensions['width'] + 1, record)
                             if state['header'] and route != '/login':
-                                check(viewport + ' ' + route + ': burgundy navigation',
-                                      rgb(state['header'])[0] > rgb(state['header'])[1] * 1.2, state['header'])
+                                check(viewport + ' ' + route + ': midnight navy navigation',
+                                      rgb(state['header']) == rgb('#142644'), state['header'])
                             sample(page, route, viewport)
                             if route == '/__warm-theme/replay':
                                 scores(page, viewport + ' replay')
@@ -188,8 +188,8 @@ def run():
                         page.locator('#match-models-modal input[name="opponent-model"]').first.wait_for()
                         model_style = page.locator('#match-models-modal .online-modal-card').evaluate('(el)=>({background:getComputedStyle(el).backgroundColor,color:getComputedStyle(el).color,box:el.getBoundingClientRect().toJSON()})')
                         box = model_style['box']
-                        check(viewport + ': model picker fits and uses cream surface',
-                              rgb(model_style['background'])[0] > 240 and box['x'] >= -1 and box['right'] <= dimensions['width'] + 1, model_style)
+                        check(viewport + ': model picker fits and uses white surface',
+                              rgb(model_style['background']) == rgb('#ffffff') and box['x'] >= -1 and box['right'] <= dimensions['width'] + 1, model_style)
                         sample(page, 'model-picker', viewport)
                         page.screenshot(path=str(output / f'model-picker-{viewport}.png'))
                         page.keyboard.press('Escape')
@@ -219,15 +219,15 @@ def run():
                         check(viewport + ': keyboard reaches recovery link with visible indicator',
                               focused['href'] == '/forgot-password' and focused['style'] == 'solid' and float(focused['width'].replace('px', '')) >= 2, focused)
                         if focused['style'] == 'solid':
-                            ratio = contrast(focused['color'], '#fffdf8')
-                            check(viewport + ': focus indicator contrasts with cream surface', ratio >= 3, round(ratio, 2))
+                            ratio = contrast(focused['color'], '#ffffff')
+                            check(viewport + ': focus indicator contrasts with white surface', ratio >= 3, round(ratio, 2))
                     context.close()
             browser.close()
         for foreground, background, threshold, name in (
-            ('#33252b', '#f7f1e7', 4.5, 'body text'), ('#6f5b60', '#f7f1e7', 4.5, 'muted text'),
-            ('#7b2943', '#fffdf8', 4.5, 'links'), ('#fffdf8', '#7b2943', 4.5, 'primary button text'),
-            ('#e6cdd0', '#33252b', 4.5, 'navigation text'), ('#9e3758', '#fffdf8', 3, 'focus indicator'),
-            ('#a58b7e', '#fffdf8', 3, 'input border')):
+            ('#17253d', '#f5f7fb', 4.5, 'body text'), ('#52627a', '#f5f7fb', 4.5, 'muted text'),
+            ('#2459d3', '#ffffff', 4.5, 'links'), ('#ffffff', '#2459d3', 4.5, 'primary button text'),
+            ('#cad8eb', '#142644', 4.5, 'navigation text'), ('#2459d3', '#ffffff', 3, 'focus indicator'),
+            ('#8191a9', '#ffffff', 3, 'input border')):
             ratio = contrast(foreground, background)
             check(name + ': token contrast', ratio >= threshold, round(ratio, 2))
         check('No browser JavaScript exceptions', not report['errors'], report['errors'])

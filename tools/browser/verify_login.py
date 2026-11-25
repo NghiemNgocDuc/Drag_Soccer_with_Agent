@@ -61,25 +61,21 @@ def run(args) -> dict:
         })""")
 
     def text_contrast(page):
-        # Check ordinary login text; use the brightest burgundy gradient stop
-        # plus the faint grid overlay conservatively, excluding SVG artwork.
+        # Check ordinary login text against its actual solid surface,
+        # compositing transparent ancestors and excluding SVG artwork.
         return page.evaluate("""()=>{
           const color=value=>{const parts=value.match(/[\\d.]+/g)?.map(Number)||[];
             return [parts[0]||0,parts[1]||0,parts[2]||0,parts.length>3?parts[3]:1];};
           const blend=(front,back)=>front.slice(0,3).map((channel,i)=>channel*front[3]+back[i]*(1-front[3]));
           const luminance=value=>value.map(channel=>{const c=channel/255;return c<=.04045?c/12.92:((c+.055)/1.055)**2.4;})
             .reduce((sum,c,i)=>sum+c*[.2126,.7152,.0722][i],0);
-          const story=document.querySelector('.as-login-story');
-          const storyBright=color(getComputedStyle(document.querySelector('.as-login-play-note')).backgroundColor);
-          const storyForeground=color(getComputedStyle(story).color);
-          const storyBackground=blend([...storyForeground.slice(0,3),.14],storyBright);
-          const background=node=>{if(node.closest('.as-login-story'))return storyBackground;
+          const background=node=>{
             const chain=[];for(let p=node;p;p=p.parentElement)chain.unshift(p);
             return chain.reduce((bg,p)=>blend(color(getComputedStyle(p).backgroundColor),bg),[255,255,255]);};
-          const selectors=['.as-brand','.as-brand-sub','.as-login-nav-action>span','.as-login-nav-action>a',
+          const selectors=['.as-brand','.as-brand-sub','.as-login-nav-action>a',
             '.as-login-story .as-eyebrow','.as-login-story h2','.as-login-story h2 span',
-            '.as-login-story-copy>p:last-child','.as-login-pitch-caption span','.as-login-play-note',
-            '.as-login-features>span','.as-login-heading .as-eyebrow','.as-login-heading h1',
+            '.as-login-story-copy>p:last-child',
+            '.as-login-features>span','.as-login-heading h1',
             '.as-login-heading>p:last-child','.field label','.as-login-field-label a','.as-password-toggle',
             '.as-login-submit','.as-login-register','.as-login-register a','.as-demo-account summary',
             '.as-login-demo-content>p','.auth-demo-row>span','.auth-demo-row code','.auth-demo-row button',
@@ -158,8 +154,8 @@ def run(args) -> dict:
                         for item in sport_bounds), sport_bounds)
                 check(f"{width}px native login form contract is preserved", page.locator('form[action="/auth/login"][method="POST"] #email[name="email"][type="email"][required][autocomplete="email"]').count() == 1 and page.locator('form[action="/auth/login"] #password[name="password"][required][autocomplete="current-password"]').count() == 1 and page.locator('label[for="email"]').count() == 1 and page.locator('label[for="password"]').count() == 1)
                 hero_color = page.locator('.as-login-story .as-eyebrow').evaluate("node=>getComputedStyle(node).color")
-                accent_color = page.locator('.as-login-mark').evaluate("node=>getComputedStyle(node).backgroundColor")
-                check(f"{width}px story eyebrow uses the shared warm accent", hero_color == accent_color, hero_color)
+                story_text_color = page.locator('.as-login-story-copy>p:last-child').evaluate("node=>getComputedStyle(node).color")
+                check(f"{width}px story label shares readable text on navy", hero_color == story_text_color, hero_color)
                 link_targets = page.locator('.as-login-field-label a,.as-login-register a,.as-login-footer a').evaluate_all("nodes=>nodes.map(node=>({text:node.textContent.trim(),height:node.getBoundingClientRect().height}))")
                 check(f"{width}px recovery, registration, and home links have 44px targets", all(item['height'] >= 44 for item in link_targets), link_targets)
                 check(f"{width}px login avoids autofocus and mobile keyboard jumps", initial["focus"] not in ("email", "password") and page.locator("[autofocus]").count() == 0)

@@ -1,12 +1,48 @@
-{% from 'shared/_ui.html' import app_nav, page_header, icon with context %}
-<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Locker room | Agent Soccer</title><link rel="stylesheet" href="/static/css/frontend-public.css">{% include 'shared/_ui_assets.html' %}</head>
-<body class="as-app as-public">{{ app_nav('play') }}
-<main class="as-main" id="as-content">{{ page_header('Locker room / ready','Your next match starts here.','Welcome back, ' ~ username ~ '. Set up your team, then take it onto the pitch.') }}
-<div class="as-locker"><div>{% include 'shared/_pitch_art.html' %}<div class="as-callout"><div>{{ icon('eye',24) }}</div><div><h2>Take a seat in the stands.</h2><p>Watch a live match while you plan your next move.</p></div><a href="/spectate" class="btn btn-secondary">Watch live</a></div></div>
-<section class="as-locker-card" aria-labelledby="build-title"><p class="as-eyebrow">{{ username }} / your build</p><h2 id="build-title">Ready for kickoff.</h2><p>Control your team one kick at a time. Aim your player, choose the power, and release. Switch between AI, local, and online play on the match page.</p>
-<div class="as-build-grid">{% for key,label in [('size','Size'),('power','Power'),('weight','Weight'),('agility','Agility')] %}<div><b>{{ player_stats.get(key,50) }}</b>{{ label }}</div>{% endfor %}</div>
-<button class="btn btn-primary btn-block" type="button" onclick="startMatch(this)">Play a match {{ icon('arrow-right',18) }}</button><div class="as-hero-actions"><a class="btn btn-secondary btn-block" href="/customize">{{ icon('settings',18) }} Team & stadium</a></div><p class="hint">Size, power, weight, and agility shape how your players move.</p>
-</section></div></main>
-<script>function startMatch(button){button.disabled=true;button.textContent='Loading match...';window.location.assign('/play3d?new=1');}</script>
-</body></html>
+{% from 'shared/_ui.html' import app_nav, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Locker room | Agent Soccer</title>
+<link rel="stylesheet" href="/static/css/frontend-public.css">
+{% include 'shared/_ui_assets.html' %}
+</head>
+<body class="as-app as-public as-hub">
+{{ app_nav('play') }}
+<main class="as-main" id="as-content">
+<header class="as-page-header">
+  <div><h1>Locker room</h1><p class="as-description">Welcome back, {{ username }}.</p></div>
+  <button class="btn btn-primary" type="button" onclick="startMatch(this)">Play a match</button>
+</header>
+<section class="hub-build" aria-labelledby="build-title">
+  <div class="hub-build-heading"><h2 id="build-title">Your player build</h2><a href="/customize">Edit build</a></div>
+  <div class="as-build-grid" aria-label="Player stats">
+    {% for key,label in [('size','Size'),('power','Power'),('weight','Weight'),('agility','Agility')] %}
+    <div><b>{{ player_stats.get(key,50) }}</b>{{ label }}</div>
+    {% endfor %}
+  </div>
+  <p class="hint">These stats shape how your players move and strike the ball.</p>
+</section>
+<section class="hub-section" aria-labelledby="locker-links-title">
+  <h2 id="locker-links-title">Your game</h2>
+  <div class="hub-link-list">
+    {% for href,glyph,title,description in [
+      ('/customize','settings','Team & pitch','Choose your colors and adjust match settings.'),
+      ('/match-history','clock','Match history','Revisit recent results and replay your matches.'),
+      ('/spectate','eye','Live matches','Watch the action while planning your next move.'),
+      ('/hub/workshop','code','Soccer AI workshop','Create and test your own soccer opponent.')
+    ] %}
+    <a href="{{ href }}" class="as-destination hub-link">{{ icon(glyph) }}<span class="hub-link-copy"><strong>{{ title }}</strong><span>{{ description }}</span></span></a>
+    {% endfor %}
+  </div>
+</section>
+</main>
+<script>
+function startMatch(button) {
+  button.disabled = true;
+  button.textContent = 'Loading match...';
+  window.location.assign('/play2d?new=1');
+}
+</script>
+</body>
+</html>

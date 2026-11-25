@@ -13,7 +13,7 @@ body.as-flick-game #fs-wrap{
   background:var(--as-dark)!important;
   border:1px solid rgba(255,255,255,0.12)!important;
   border-radius:24px!important;
-  box-shadow:0 24px 64px -12px rgba(0,0,0,0.65),0 0 40px rgba(123,41,67,0.15)!important;
+  box-shadow:0 24px 64px -12px rgba(0,0,0,0.65),0 0 40px rgba(36,89,211,0.15)!important;
   overflow:hidden;
   transition:box-shadow .3s ease;
 }

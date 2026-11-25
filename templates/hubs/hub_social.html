@@ -1,21 +1,36 @@
-{% from "shared/_ui.html" import app_nav, page_header, icon with context %}
-<!DOCTYPE html><html lang="en"><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Social — Agent Soccer</title>
+{% from 'shared/_ui.html' import app_nav, icon with context %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Club | Agent Soccer</title>
 <link rel="stylesheet" href="/static/css/frontend-social.css">
-{% include "shared/_ui_assets.html" %}
-</head><body class="as-app as-social as-page-hub_social">
-{{ app_nav("social") }}
+{% include 'shared/_ui_assets.html' %}
+</head>
+<body class="as-app as-social as-page-hub_social as-hub">
+{{ app_nav('social') }}
 <main class="as-main" id="as-content">
-{{ page_header("THE CLUBHOUSE", "Good games start with good company.", "Find your people, organize a match, or watch the next rivalry unfold.") }}
-<div class="route-grid">
-  <a class="route-card featured" href="/messages"><span class="route-symbol">{{ icon("message") }}</span><h2>Friends & messages</h2><p>See who's online, invite a friend to a match, and keep the conversation going.</p><span class="route-cta">Enter the clubhouse {{ icon("arrow") }}</span></a>
-  <a class="route-card" href="/clans"><span class="route-symbol">{{ icon("users") }}</span><h2>Find your clan</h2><p>Join a club or create your own. Bring your squad together for tournaments and clan chat.</p><span class="route-cta">Explore clans {{ icon("arrow") }}</span></a>
-  <a class="route-card" href="/spectate"><span class="route-symbol">{{ icon("eye") }}</span><h2>Watch live</h2><p>Take a seat at an online match and follow the action on a clear 2D pitch, as it happens.</p><span class="route-cta">See live matches {{ icon("arrow") }}</span></a>
-  <a class="route-card" href="/community"><span class="route-symbol">{{ icon("code") }}</span><h2>Community models</h2><p>Discover what other builders are working on. Read, discuss, and share soccer AI ideas.</p><span class="route-cta">Meet the builders {{ icon("arrow") }}</span></a>
-  <a class="route-card" href="/profile"><span class="route-symbol">{{ icon("settings") }}</span><h2>Your player profile</h2><p>Review your career, recent results, and models. Keep your account details up to date.</p><span class="route-cta">View your profile {{ icon("arrow") }}</span></a>
-  <a class="route-card" href="/achievements"><span class="route-symbol">{{ icon("trophy") }}</span><h2>Career milestones</h2><p>Every match and model is a step forward. See the badges you've earned and what's next.</p><span class="route-cta">Track achievements {{ icon("arrow") }}</span></a>
-</div>
-<aside class="hub-note"><div><strong>Ready to settle it on the pitch?</strong><p>Start a game, then invite a friend from Messages.</p></div><a class="btn btn-primary" href="/play3d">Play a match</a></aside>
+<header class="as-page-header">
+  <div><h1>Club</h1><p class="as-description">Find friends, share ideas, and play together.</p></div>
+  <a class="btn btn-primary" href="/messages">Open messages</a>
+</header>
+<section class="hub-section" aria-labelledby="hub-section-0">
+  <h2 id="hub-section-0">Play together</h2>
+  <div class="hub-link-list">
+    <a class="as-destination hub-link" href="/messages">{{ icon("message") }}<span class="hub-link-copy"><strong>Friends &amp; messages</strong><span>Invite a friend and keep the conversation going.</span></span></a>
+    <a class="as-destination hub-link" href="/clans">{{ icon("users") }}<span class="hub-link-copy"><strong>Clans</strong><span>Join a club or bring your own squad together.</span></span></a>
+    <a class="as-destination hub-link" href="/spectate">{{ icon("eye") }}<span class="hub-link-copy"><strong>Live matches</strong><span>Follow an online match as it happens.</span></span></a>
+    <a class="as-destination hub-link" href="/community">{{ icon("code") }}<span class="hub-link-copy"><strong>Community models</strong><span>Share code and discover soccer AI ideas.</span></span></a>
+  </div>
+</section>
+<section class="hub-section" aria-labelledby="hub-section-1">
+  <h2 id="hub-section-1">Your profile</h2>
+  <div class="hub-link-list">
+    <a class="as-destination hub-link" href="/profile">{{ icon("settings") }}<span class="hub-link-copy"><strong>Player profile</strong><span>Review your career and manage your account.</span></span></a>
+    <a class="as-destination hub-link" href="/achievements">{{ icon("trophy") }}<span class="hub-link-copy"><strong>Achievements</strong><span>See earned badges and your next milestones.</span></span></a>
+  </div>
+</section>
+<div class="hub-quick-links"><a href="/play2d">Play a match</a></div>
 </main>
-</body></html>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "date": "2026-11-24",
+  "palette": "Soft white, midnight navy and bright blue",
+  "environment": "Installed Chrome, isolated Flask development data",
+  "checks": [
+    {
+      "script": "tools/browser/verify_warm_theme.py",
+      "passed": 161,
+      "failed": 0
+    },
+    {
+      "script": "tools/browser/verify_login.py",
+      "passed": 233,
+      "failed": 0
+    },
+    {
+      "script": "tools/browser/verify_frontend_dialogs.py",
+      "passed": 23,
+      "failed": 0
+    },
+    {
+      "script": "tools/browser/verify_match_focus.py",
+      "passed": 27,
+      "failed": 0
+    }
+  ],
+  "total_passed": 444,
+  "total_failed": 0,
+  "scope": "Responsive layouts, local authentication forms and sessions, dialogs, match controls and sampled text contrast. External production integrations were not exercised."
+}

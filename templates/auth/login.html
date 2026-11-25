@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#f7f1e7">
+  <meta name="theme-color" content="#f5f7fb">
   <title>Welcome back | Agent Soccer</title>
   {% include 'shared/_ui_assets.html' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/frontend-login.css') }}">
@@ -14,40 +14,32 @@
   <header class="as-header as-login-header">
     <nav class="as-nav" aria-label="Account navigation">
       <a class="as-brand" href="/">{{ icon('ball',32) }}<span>AGENT<span class="as-brand-sub">SOCCER</span></span></a>
-      <div class="as-login-nav-action"><span>New to the club?</span><a href="/register">Create an account {{ icon('arrow-right',16) }}</a></div>
+      <div class="as-login-nav-action"><a href="/register">Create an account</a></div>
     </nav>
   </header>
 
   <main class="as-login-main" id="as-content">
     <div class="as-login-layout">
       <aside class="as-login-story" aria-labelledby="login-story-title">
-        <div class="as-login-ambient" aria-hidden="true" data-motion-scene>
-          <span class="as-login-grid" data-motion-loop></span>
-          <span class="as-login-glow" data-motion-loop></span>
-        </div>
-        <div class="as-login-story-copy" data-motion-scene>
-          <p class="as-eyebrow"><span class="as-login-mark" aria-hidden="true" data-motion-loop></span> Soccer + strategy</p>
-          <h2 id="login-story-title">One club.<br> <span>One beautiful game.</span></h2>
-          <p>Set your shape, make your move, and put your soccer strategy to the test.</p>
+        <div class="as-login-story-copy">
+          <p class="as-eyebrow">Agent Soccer</p>
+          <h2 id="login-story-title">A little strategy.<br><span>A great match.</span></h2>
+          <p>Your team, your tactics, your next move.</p>
         </div>
         <div class="as-login-illustration" aria-hidden="true">
-          <div class="as-login-pitch-caption"><span>THE PITCH</span><span>YOUR NEXT PLAY</span></div>
           {% include 'shared/_login_pitch_art.html' %}
-          <div class="as-login-play-note">{{ icon('diagram',18) }}<span>Read the play. Take your shot.</span>{{ icon('arrow-right',18) }}</div>
         </div>
         <div class="as-login-features" aria-label="Game features">
-          <span>{{ icon('ball',20) }}<span>Soccer</span></span>
-          <span>{{ icon('code',20) }}<span>Build soccer AI</span></span>
+          <span>{{ icon('ball',18) }}<span>Five-a-side soccer</span></span>
+          <span>{{ icon('code',18) }}<span>Your own AI</span></span>
         </div>
       </aside>
 
       <section class="as-login-form-panel" aria-labelledby="auth-title">
         <div class="as-login-card">
           <div class="as-login-heading">
-            <span class="as-login-club-icon" aria-hidden="true">{{ icon('ball',26) }}</span>
-            <p class="as-eyebrow">Back to the clubhouse</p>
             <h1 id="auth-title">Welcome back.</h1>
-            <p>Sign in and pick up where you left off.</p>
+            <p>Sign in to continue your soccer game.</p>
           </div>
           {% with messages = get_flashed_messages() %}
           {% for msg in messages %}<div class="flash as-login-error" role="alert">{{ msg }}</div>{% endfor %}
@@ -62,23 +54,23 @@
               <div class="as-login-field-label"><label for="password">Password</label><a href="/forgot-password">Forgot password?</a></div>
               <input type="password" id="password" name="password" autocomplete="current-password" placeholder="Your password" required>
             </div>
-            <button type="submit" class="btn btn-primary btn-block as-login-submit">Sign in {{ icon('arrow-right',19) }}</button>
+            <button type="submit" class="btn btn-primary btn-block as-login-submit">Sign in</button>
           </form>
 
-          <p class="as-login-register">No account yet? <a href="/register">Join the club {{ icon('arrow-right',15) }}</a></p>
+          <p class="as-login-register">New here? <a href="/register">Create an account</a></p>
           <details class="as-demo-account">
             <summary><span>{{ icon('play',19) }} Try the demo account</span>{{ icon('plus',17) }}</summary>
             <div class="as-login-demo-content">
               <p>Take a look around before creating your team.</p>
               <div class="auth-demo-row"><span>Email</span><code>edward@umass.edu</code><button type="button" data-copy="edward@umass.edu" aria-label="Copy demo email">Copy</button></div>
               <div class="auth-demo-row"><span>Password</span><code>123456</code><button type="button" data-copy="123456" aria-label="Copy demo password">Copy</button></div>
-              <button type="button" class="as-login-use-demo" id="use-demo">Use demo details {{ icon('arrow-right',16) }}</button>
+              <button type="button" class="as-login-use-demo" id="use-demo">Use demo details</button>
             </div>
           </details>
         </div>
       </section>
     </div>
-    <footer class="as-login-footer"><a href="/">{{ icon('arrow-right',15) }} Back to Agent Soccer</a><span>One pitch. Every move matters.</span></footer>
+    <footer class="as-login-footer"><a href="/">Back to Agent Soccer</a><span>Five-a-side. One move at a time.</span></footer>
   </main>
 
   <div id="toast" class="as-toast" role="status" aria-live="polite"></div>

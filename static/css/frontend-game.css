@@ -9,10 +9,10 @@ body.as-game #fs-wrap{
   border-radius:24px;
   overflow:hidden;
   background:var(--as-dark);
-  box-shadow:0 24px 64px -12px rgba(0,0,0,0.65),0 0 32px rgba(123,41,67,0.12);
+  box-shadow:0 24px 64px -12px rgba(0,0,0,0.65),0 0 32px rgba(36,89,211,0.12);
 }
 
-/* Burgundy broadcast console; team colors remain distinct. */
+/* Midnight-blue broadcast console; team colors remain distinct. */
 body.as-game .hud{
   background:linear-gradient(180deg,var(--as-dark-raised) 0%,var(--as-dark) 100%)!important;
   border:0!important;
@@ -48,8 +48,8 @@ body.as-game .team-a .team-name{
 }
 
 body.as-game .team-b .team-name{
-  color:var(--as-lime)!important;
-  text-shadow:0 0 14px rgba(251,146,60,.45);
+  color:#f7b5a3!important;
+  text-shadow:none;
 }
 
 body.as-game .team-score{
@@ -68,7 +68,7 @@ body.as-game #score-a{
 }
 
 body.as-game #score-b{
-  color:var(--as-lime);
+  color:#f7b5a3;
   text-shadow:none;
 }
 
@@ -91,10 +91,10 @@ body.as-game .turn-badge{
 }
 
 body.as-game .turn-badge.turn-a{
-  background:rgba(239,201,149,.18);
+  background:rgba(169,217,255,.18);
   color:var(--as-lime);
-  border:1px solid rgba(239,201,149,.45);
-  box-shadow:0 0 18px rgba(239,201,149,.3);
+  border:1px solid rgba(169,217,255,.45);
+  box-shadow:0 0 18px rgba(169,217,255,.3);
 }
 
 body.as-game .turn-badge.turn-b{
@@ -105,9 +105,9 @@ body.as-game .turn-badge.turn-b{
 }
 
 body.as-game .turn-badge.turn-thinking{
-  background:rgba(239,193,213,.12);
-  color:#efc1d5;
-  border:1px solid rgba(239,193,213,.5);
+  background:rgba(202,216,235,.12);
+  color:#cad8eb;
+  border:1px solid rgba(202,216,235,.5);
   box-shadow:none;
   animation:hud-pulse 1s infinite alternate ease-in-out;
 }
@@ -136,10 +136,10 @@ body.as-game .winner-banner{
   border-radius:999px;
   font-size:1rem;
   font-weight:800;
-  background:linear-gradient(135deg,rgba(234,179,8,.28),rgba(245,158,11,.38));
-  color:var(--as-lime);
-  border:1px solid rgba(250,204,21,.55);
-  box-shadow:0 0 24px rgba(234,179,8,.45);
+  background:var(--as-tint);
+  color:var(--as-primary);
+  border:1px solid var(--as-control-border);
+  box-shadow:none;
   text-align:center;
 }
 
@@ -153,7 +153,7 @@ body.as-game .canvas-wrap{
 
 body.as-game .canvas-overlay{
   backdrop-filter:blur(10px);
-  background:rgba(63,23,39,0.85);
+  background:rgba(20,38,68,0.85);
 }
 
 /* Modernized Player Controls */
@@ -163,7 +163,7 @@ body.as-game .canvas-overlay{
   backdrop-filter:blur(20px);
   border:1px solid rgba(255,255,255,0.8);
   border-radius:20px;
-  box-shadow:0 12px 32px rgba(51,37,43,0.06);
+  box-shadow:0 12px 32px rgba(23,37,61,0.06);
 }
 
 .player-control-heading{
@@ -225,12 +225,12 @@ body.as-game .canvas-overlay{
 
 .player-control-field :where(input,select):focus{
   border-color:var(--as-primary);
-  box-shadow:0 0 0 3px rgba(123,41,67,0.2);
+  box-shadow:0 0 0 3px rgba(36,89,211,0.2);
   outline:none;
 }
 
 #kick-power-value{
-  background:rgba(123,41,67,0.12);
+  background:rgba(36,89,211,0.12);
   color:var(--as-primary-hover);
   padding:2px 8px;
   border-radius:6px;
@@ -273,12 +273,12 @@ body.as-game .canvas-overlay{
 .player-control-actions #kick-btn{
   min-width:120px;
   background:linear-gradient(135deg,var(--as-primary) 0%,var(--as-primary-hover) 60%,var(--as-primary-hover) 100%)!important;
-  box-shadow:0 4px 18px rgba(123,41,67,0.35)!important;
+  box-shadow:0 4px 18px rgba(36,89,211,0.35)!important;
   color:var(--as-surface)!important;
 }
 
 .player-control-actions #kick-btn:hover:not(:disabled){
-  box-shadow:0 6px 24px rgba(123,41,67,0.5)!important;
+  box-shadow:0 6px 24px rgba(36,89,211,0.5)!important;
   transform:translateY(-2px);
 }
 
@@ -312,7 +312,7 @@ body.as-game .canvas-overlay{
   border-radius:20px;
   background:var(--as-surface);
   backdrop-filter:blur(20px);
-  box-shadow:0 12px 32px rgba(51,37,43,0.06);
+  box-shadow:0 12px 32px rgba(23,37,61,0.06);
   overflow:hidden;
 }
 
@@ -426,7 +426,7 @@ body.as-app.as-game .pass-types button[aria-pressed=true]{
   background:linear-gradient(135deg,var(--as-primary),var(--as-primary-hover))!important;
   border-color:transparent!important;
   color:var(--as-surface)!important;
-  box-shadow:0 4px 14px rgba(123,41,67,0.35);
+  box-shadow:0 4px 14px rgba(36,89,211,0.35);
 }
 
 body.as-game .sound-btn{
@@ -464,7 +464,7 @@ body.as-game .log-panel:empty{display:none}
 
 /* Online Modal & Chat */
 body.as-game .online-modal{
-  background:rgba(63,23,39,0.65);
+  background:rgba(20,38,68,0.65);
   backdrop-filter:blur(8px);
   padding:18px;
   z-index:200;
